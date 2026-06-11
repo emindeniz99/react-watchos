@@ -1,4 +1,5 @@
 import SwiftUI
+import WatchKit
 import WidgetKit
 
 /// Loads bundle.js into QuickJS and republishes every committed React
@@ -29,6 +30,20 @@ final class ReactAppModel: ObservableObject {
             js.onSetItem = { SharedWidgetStore.setItem($0, $1) }
             js.onError = { [weak self] message in
                 DispatchQueue.main.async { self?.runtimeError = message }
+            }
+            js.onPlayHaptic = { type in
+                let haptic: WKHapticType = switch type {
+                case "success": .success
+                case "failure": .failure
+                case "notification": .notification
+                case "directionUp": .directionUp
+                case "directionDown": .directionDown
+                case "start": .start
+                case "stop": .stop
+                case "retry": .retry
+                default: .click
+                }
+                WKInterfaceDevice.current().play(haptic)
             }
             guard let url = Bundle.main.url(
                 forResource: "bundle", withExtension: "js") else {

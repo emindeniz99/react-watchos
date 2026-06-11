@@ -55,4 +55,6 @@ export interface QuickJSHostGlobal {
   /** App Group UserDefaults, shared between app and widget extension. */
   getItem?(key: string): string | null;
   setItem?(key: string, value: string): void;
+  /** WKInterfaceDevice haptics. */
+  playHaptic?(type: string): void;
 }

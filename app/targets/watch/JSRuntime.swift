@@ -29,6 +29,9 @@ final class JSRuntime {
     /// runtime errors after startup would be silently swallowed.
     var onError: ((String) -> Void)?
 
+    /// WKHapticType name from js/src/haptics.ts.
+    var onPlayHaptic: ((String) -> Void)?
+
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
@@ -105,6 +108,8 @@ final class JSRuntime {
                           JS_NewCFunction(context, hostGetItem, "getItem", 1))
         JS_SetPropertyStr(context, host, "setItem",
                           JS_NewCFunction(context, hostSetItem, "setItem", 2))
+        JS_SetPropertyStr(context, host, "playHaptic",
+                          JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }
@@ -199,6 +204,18 @@ private func hostPublishWidgets(
     return qjs_undefined()
 }
 
+private func hostPlayHaptic(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
+       let cString = JS_ToCString(ctx, argv[0]) {
+        runtime.playHapticFromC(String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
 private func hostGetItem(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -257,6 +274,7 @@ extension JSRuntime {
         onPublishWidgets?(json)
     }
     fileprivate func getItemFromC(_ key: String) -> String? { onGetItem?(key) }
+    fileprivate func playHapticFromC(_ type: String) { onPlayHaptic?(type) }
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)
     }

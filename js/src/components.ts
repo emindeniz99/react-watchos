@@ -89,6 +89,26 @@ export interface NavigationLinkProps {
   children?: ReactNode;
 }
 
+export interface TextFieldProps {
+  value?: string;
+  placeholder?: string;
+  /** Fired on input commit (watchOS input is modal: dictation/scribble/QWERTY). */
+  onChange?: (value: string) => void;
+}
+
+export interface PickerProps {
+  label?: string;
+  options: string[];
+  /** Selected index into options. */
+  value?: number;
+  onChange?: (index: number) => void;
+}
+
+export interface TabViewProps {
+  /** Each child is one page. */
+  children?: ReactNode;
+}
+
 export const VStack = "VStack" as unknown as FC<VStackProps>;
 export const HStack = "HStack" as unknown as FC<HStackProps>;
 export const Text = "Text" as unknown as FC<TextProps>;
@@ -106,3 +126,6 @@ export const NavigationStack =
   "NavigationStack" as unknown as FC<NavigationStackProps>;
 export const NavigationLink =
   "NavigationLink" as unknown as FC<NavigationLinkProps>;
+export const TextField = "TextField" as unknown as FC<TextFieldProps>;
+export const Picker = "Picker" as unknown as FC<PickerProps>;
+export const TabView = "TabView" as unknown as FC<TabViewProps>;

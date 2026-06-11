@@ -18,6 +18,9 @@ export {
   ProgressView,
   NavigationStack,
   NavigationLink,
+  TextField,
+  Picker,
+  TabView,
 } from "./components";
 export type {
   VStackProps,
@@ -35,7 +38,12 @@ export type {
   ProgressViewProps,
   NavigationStackProps,
   NavigationLinkProps,
+  TextFieldProps,
+  PickerProps,
+  TabViewProps,
 } from "./components";
+export { playHaptic } from "./haptics";
+export type { HapticType } from "./haptics";
 export {
   registerWidget,
   registerControl,

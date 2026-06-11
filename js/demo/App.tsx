@@ -8,13 +8,17 @@ import {
   List,
   NavigationLink,
   NavigationStack,
+  Picker,
   ProgressView,
   ScrollView,
   Spacer,
+  TabView,
   Text,
+  TextField,
   Toggle,
   VStack,
   ZStack,
+  playHaptic,
   publishWidgets,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
@@ -116,6 +120,44 @@ function GalleryScreen() {
   );
 }
 
+const MOODS = ["calm", "focused", "tired", "great"];
+
+/** TextField (dictation/scribble), Picker, and haptics. */
+function InputsScreen() {
+  const [name, setName] = useState("");
+  const [mood, setMood] = useState(0);
+  return (
+    <VStack spacing={8}>
+      <TextField value={name} placeholder="Your name" onChange={setName} />
+      <Text size={12} color="secondary">
+        {name ? `Hi, ${name}!` : "Dictate or scribble above"}
+      </Text>
+      <Picker label="Mood" options={MOODS} value={mood} onChange={setMood} />
+      <Button
+        onPress={() => playHaptic(mood === 3 ? "success" : "click")}
+      >
+        <Text size={12}>{`Feel ${MOODS[mood]} (haptic)`}</Text>
+      </Button>
+    </VStack>
+  );
+}
+
+/** Each child of TabView is a vertically-paged screen on watchOS. */
+function TabsScreen() {
+  return (
+    <TabView>
+      <VStack spacing={4}>
+        <Image systemName="1.circle.fill" color="blue" size={28} />
+        <Text size={12}>Swipe up for page 2</Text>
+      </VStack>
+      <VStack spacing={4}>
+        <Image systemName="2.circle.fill" color="green" size={28} />
+        <Text size={12}>React-paged TabView</Text>
+      </VStack>
+    </TabView>
+  );
+}
+
 export function App() {
   return (
     <NavigationStack title="React Watch">
@@ -128,6 +170,12 @@ export function App() {
         </NavigationLink>
         <NavigationLink title="Gallery">
           <GalleryScreen />
+        </NavigationLink>
+        <NavigationLink title="Inputs">
+          <InputsScreen />
+        </NavigationLink>
+        <NavigationLink title="Tabs">
+          <TabsScreen />
         </NavigationLink>
       </List>
     </NavigationStack>

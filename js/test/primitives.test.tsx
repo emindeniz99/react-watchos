@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   Divider,
   Gauge,
@@ -6,14 +6,22 @@ import {
   MemoryHost,
   NavigationLink,
   NavigationStack,
+  Picker,
   ProgressView,
   ScrollView,
+  TabView,
   Text,
+  TextField,
   VStack,
   WatchRoot,
   ZStack,
+  playHaptic,
   type SerializedNode,
 } from "../src/index";
+
+afterEach(() => {
+  delete (globalThis as Record<string, unknown>).__host;
+});
 
 function render(element: React.ReactNode): SerializedNode {
   const host = new MemoryHost();
@@ -72,6 +80,94 @@ describe("data display primitives", () => {
       type: "ProgressView",
       props: { value: 3, total: 8, label: "Goal" },
     });
+  });
+});
+
+describe("input primitives", () => {
+  it("serializes TextField with onChange as an interactivity flag", () => {
+    const root = render(
+      <TextField value="Emin" placeholder="Name" onChange={() => {}} />,
+    );
+    expect(root).toMatchObject({
+      type: "TextField",
+      props: { value: "Emin", placeholder: "Name", onChange: true },
+    });
+  });
+
+  it("serializes Picker with its options array intact", () => {
+    const root = render(
+      <Picker
+        label="Mood"
+        options={["calm", "focused", "tired"]}
+        value={1}
+        onChange={() => {}}
+      />,
+    );
+    expect(root.props).toEqual({
+      label: "Mood",
+      options: ["calm", "focused", "tired"],
+      value: 1,
+      onChange: true,
+    });
+  });
+
+  it("dispatches change events to TextField and Picker handlers", () => {
+    const onText = vi.fn();
+    const onPick = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <VStack>
+        <TextField onChange={onText} />
+        <Picker options={["a", "b"]} onChange={onPick} />
+      </VStack>,
+    );
+    const [field, picker] = host.lastCommit!.root!.children;
+    root.dispatchEvent({
+      nodeId: field.id,
+      event: "change",
+      payload: { value: "hello" },
+    });
+    root.dispatchEvent({
+      nodeId: picker.id,
+      event: "change",
+      payload: { value: 1 },
+    });
+    expect(onText).toHaveBeenCalledWith("hello");
+    expect(onPick).toHaveBeenCalledWith(1);
+  });
+
+  it("serializes TabView pages as children", () => {
+    const root = render(
+      <TabView>
+        <VStack>
+          <Text>page 1</Text>
+        </VStack>
+        <VStack>
+          <Text>page 2</Text>
+        </VStack>
+      </TabView>,
+    );
+    expect(root.type).toBe("TabView");
+    expect(root.children).toHaveLength(2);
+  });
+});
+
+describe("haptics", () => {
+  it("forwards to the host bridge when available", () => {
+    const play = vi.fn();
+    (globalThis as Record<string, unknown>).__host = {
+      commit: vi.fn(),
+      log: vi.fn(),
+      setTimer: vi.fn(),
+      playHaptic: play,
+    };
+    playHaptic("success");
+    expect(play).toHaveBeenCalledWith("success");
+  });
+
+  it("is a no-op without a haptics-capable host", () => {
+    expect(() => playHaptic()).not.toThrow();
   });
 });
 

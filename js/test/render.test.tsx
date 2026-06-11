@@ -81,13 +81,18 @@ describe("render", () => {
         </Button>
       </VStack>,
     );
+    const checkScalarOrArray = (value: unknown): void => {
+      if (Array.isArray(value)) {
+        value.forEach(checkScalarOrArray);
+        return;
+      }
+      expect(["string", "number", "boolean"]).toContain(typeof value);
+    };
     const check = (node: {
       props: Record<string, unknown>;
       children: { props: Record<string, unknown>; children: unknown[] }[];
     }): void => {
-      for (const value of Object.values(node.props)) {
-        expect(["string", "number", "boolean"]).toContain(typeof value);
-      }
+      Object.values(node.props).forEach(checkScalarOrArray);
       node.children.forEach((child) => check(child as never));
     };
     check(host.lastCommit!.root! as never);

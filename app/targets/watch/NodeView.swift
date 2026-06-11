@@ -53,6 +53,12 @@ struct NodeView: View {
             NavigationLink(node.string("title") ?? "") {
                 destinationView
             }
+        case "TextField":
+            OptimisticTextField(node: node)
+        case "Picker":
+            OptimisticPicker(node: node)
+        case "TabView":
+            TabView { childViews }
         default:
             // Unknown node type: skip it but keep rendering siblings, so a
             // newer JS bundle degrades gracefully on an older interpreter.
@@ -134,6 +140,61 @@ struct NodeView: View {
         case "secondary": .secondary
         default: nil
         }
+    }
+}
+
+/// watchOS text input is modal (dictation/scribble/QWERTY); the value
+/// dispatches to React on commit, with a local copy while editing.
+private struct OptimisticTextField: View {
+    let node: RNNode
+    @EnvironmentObject private var model: ReactAppModel
+    @State private var text: String = ""
+    @State private var seeded = false
+
+    var body: some View {
+        TextField(node.string("placeholder") ?? "", text: $text)
+            .onAppear {
+                if !seeded {
+                    text = node.string("value") ?? ""
+                    seeded = true
+                }
+            }
+            .onChange(of: node.string("value")) { _, newValue in
+                text = newValue ?? ""
+            }
+            .onSubmit {
+                model.dispatch(
+                    nodeId: node.id, event: "change",
+                    payload: ["value": text])
+            }
+    }
+}
+
+private struct OptimisticPicker: View {
+    let node: RNNode
+    @EnvironmentObject private var model: ReactAppModel
+    @State private var localSelection: Int?
+
+    private var options: [String] { node.stringArray("options") ?? [] }
+
+    var body: some View {
+        Picker(node.string("label") ?? "", selection: binding) {
+            ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                Text(option).tag(index)
+            }
+        }
+        .onChange(of: node.double("value")) { _, _ in localSelection = nil }
+    }
+
+    private var binding: Binding<Int> {
+        Binding(
+            get: { localSelection ?? Int(node.double("value") ?? 0) },
+            set: { newValue in
+                localSelection = newValue
+                model.dispatch(
+                    nodeId: node.id, event: "change",
+                    payload: ["value": newValue])
+            })
     }
 }
 
