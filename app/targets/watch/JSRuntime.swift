@@ -17,6 +17,10 @@ final class JSRuntime {
     /// Called with the raw JSON tree string on every React commit.
     var onCommit: ((String) -> Void)?
 
+    /// Called with the rendered widget-timelines payload whenever JS calls
+    /// __host.publishWidgets (persist + WidgetCenter reload).
+    var onPublishWidgets: ((String) -> Void)?
+
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
@@ -77,6 +81,8 @@ final class JSRuntime {
                           JS_NewCFunction(context, hostSetTimer, "setTimer", 2))
         JS_SetPropertyStr(context, host, "clearTimer",
                           JS_NewCFunction(context, hostClearTimer, "clearTimer", 1))
+        JS_SetPropertyStr(context, host, "publishWidgets",
+                          JS_NewCFunction(context, hostPublishWidgets, "publishWidgets", 1))
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }
@@ -158,6 +164,18 @@ private func hostLog(
     return qjs_undefined()
 }
 
+private func hostPublishWidgets(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
+       let cString = JS_ToCString(ctx, argv[0]) {
+        runtime.handlePublishWidgetsFromC(String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
 private func hostSetTimer(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -186,6 +204,9 @@ private func hostClearTimer(
 
 extension JSRuntime {
     fileprivate func handleCommitFromC(_ json: String) { handleCommit(json) }
+    fileprivate func handlePublishWidgetsFromC(_ json: String) {
+        onPublishWidgets?(json)
+    }
     fileprivate func scheduleTimerFromC(id: Int32, milliseconds: Double) {
         scheduleTimer(id: id, milliseconds: milliseconds)
     }

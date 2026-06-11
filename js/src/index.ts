@@ -10,6 +10,14 @@ export {
   Toggle,
   Spacer,
   Image,
+  ZStack,
+  ScrollView,
+  List,
+  Divider,
+  Gauge,
+  ProgressView,
+  NavigationStack,
+  NavigationLink,
 } from "./components";
 export type {
   VStackProps,
@@ -19,7 +27,30 @@ export type {
   ToggleProps,
   SpacerProps,
   ImageProps,
+  ZStackProps,
+  ScrollViewProps,
+  ListProps,
+  DividerProps,
+  GaugeProps,
+  ProgressViewProps,
+  NavigationStackProps,
+  NavigationLinkProps,
 } from "./components";
+export {
+  registerWidget,
+  unregisterAllWidgets,
+  renderToTree,
+  renderWidgets,
+  publishWidgets,
+} from "./widgets";
+export type {
+  WidgetFamily,
+  WidgetRenderContext,
+  WidgetTimeline,
+  WidgetTimelineEntry,
+  WidgetDefinition,
+  PublishedWidgets,
+} from "./widgets";
 export { MemoryHost } from "./host";
 export type {
   HostBridge,

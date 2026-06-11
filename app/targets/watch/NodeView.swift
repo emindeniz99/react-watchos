@@ -26,6 +26,33 @@ struct NodeView: View {
             Image(systemName: node.string("systemName") ?? "questionmark")
                 .font(.system(size: CGFloat(node.double("size") ?? 17)))
                 .foregroundStyle(color(node.string("color")) ?? .primary)
+        case "ZStack":
+            ZStack { childViews }
+        case "ScrollView":
+            ScrollView { childViews }
+        case "List":
+            List { childViews }
+        case "Divider":
+            Divider()
+        case "Gauge":
+            gauge
+        case "ProgressView":
+            if let value = node.double("value") {
+                ProgressView(
+                    value: value, total: node.double("total") ?? 1
+                ) { Text(node.string("label") ?? "") }
+            } else {
+                ProgressView()
+            }
+        case "NavigationStack":
+            NavigationStack {
+                Group { childViews }
+                    .navigationTitle(node.string("title") ?? "")
+            }
+        case "NavigationLink":
+            NavigationLink(node.string("title") ?? "") {
+                ScrollView { childViews }
+            }
         default:
             // Unknown node type: skip it but keep rendering siblings, so a
             // newer JS bundle degrades gracefully on an older interpreter.
@@ -46,6 +73,28 @@ struct NodeView: View {
             text = text.font(.system(size: CGFloat(size)))
         }
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
+    }
+
+    @ViewBuilder private var gauge: some View {
+        let min = node.double("min") ?? 0
+        let max = node.double("max") ?? 1
+        let value = Swift.min(Swift.max(node.double("value") ?? 0, min), max)
+        let base = Gauge(value: value, in: min...max) {
+            Text(node.string("label") ?? "")
+        } currentValueLabel: {
+            Text(formatted(value))
+        }
+        .tint(color(node.string("color")) ?? .accentColor)
+        if node.string("style") == "circular" {
+            base.gaugeStyle(.accessoryCircular)
+        } else {
+            base.gaugeStyle(.accessoryLinear)
+        }
+    }
+
+    private func formatted(_ value: Double) -> String {
+        value.truncatingRemainder(dividingBy: 1) == 0
+            ? String(Int(value)) : String(format: "%.1f", value)
     }
 
     private var toggleBinding: Binding<Bool> {

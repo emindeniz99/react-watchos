@@ -50,4 +50,6 @@ export interface QuickJSHostGlobal {
   log(message: string): void;
   setTimer(id: number, ms: number): void;
   clearTimer?(id: number): void;
+  /** Persists rendered widget timelines and reloads WidgetKit. */
+  publishWidgets?(payloadJson: string): void;
 }

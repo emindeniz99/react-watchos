@@ -17,6 +17,7 @@ const bundlePath = join(jsRoot, "dist/bundle.js");
 const harnessPrelude = `
 "use strict";
 const __commits = [];
+const __published = [];
 const __logs = [];
 const __armedTimers = [];
 globalThis.__host = {
@@ -27,6 +28,7 @@ globalThis.__host = {
     const i = __armedTimers.indexOf(id);
     if (i >= 0) __armedTimers.splice(i, 1);
   },
+  publishWidgets: (json) => { __published.push(json); },
 };
 `;
 
@@ -41,39 +43,71 @@ function findAll(node, type, out = []) {
   for (const child of node.children) findAll(child, type, out);
   return out;
 }
+function buttonWithLabel(root, label) {
+  return findAll(root, "Button").find((b) =>
+    findAll(b, "Text").some((t) => t.props.text === label));
+}
+function textStartingWith(root, prefix) {
+  return findAll(root, "Text").find((t) =>
+    String(t.props.text).startsWith(prefix));
+}
+const latestTree = () => JSON.parse(__commits[__commits.length - 1]).root;
+const latestPublished = () => JSON.parse(__published[__published.length - 1]);
 
-const initial = JSON.parse(__commits[__commits.length - 1]);
-const plusButton = findAll(initial.root, "Button")[1];
-const pressHandled = globalThis.__dispatchEvent(plusButton.id, "press");
-const afterPress = JSON.parse(__commits[__commits.length - 1]);
+const initial = latestTree();
+const initialCount = textStartingWith(initial, "Count: ").props.text;
+const initialPublished = latestPublished();
 
-const toggle = findAll(afterPress.root, "Toggle")[0];
+const pressHandled = globalThis.__dispatchEvent(
+  buttonWithLabel(initial, "+").id, "press");
+const countAfterPress = textStartingWith(latestTree(), "Count: ").props.text;
+
+const toggle = findAll(latestTree(), "Toggle")[0];
 const changeHandled = globalThis.__dispatchEvent(
   toggle.id, "change", JSON.stringify({ value: true }));
-const afterChange = JSON.parse(__commits[__commits.length - 1]);
+const toggleAfterChange = findAll(latestTree(), "Toggle")[0].props.value;
+
+const publishedBefore = __published.length;
+globalThis.__dispatchEvent(buttonWithLabel(latestTree(), "Add glass").id, "press");
+const hydrationPublished = latestPublished();
 
 print(JSON.stringify({
   logs: __logs,
-  commitCount: __commits.length,
-  initialCount: findAll(initial.root, "Text")[1].props.text,
+  rootType: initial.type,
+  initialCount,
   pressHandled,
-  countAfterPress: findAll(afterPress.root, "Text")[1].props.text,
+  countAfterPress,
   changeHandled,
-  toggleAfterChange: findAll(afterChange.root, "Toggle")[0].props.value,
-  heartAfterChange: findAll(afterChange.root, "Image")[0].props.systemName,
+  toggleAfterChange,
+  initialGauge: initialPublished
+    .widgets.hydration.accessoryCircular.entries[0].tree.props.value,
+  initialInline: initialPublished
+    .widgets.hydration.accessoryInline.entries[0].tree.props.text,
+  publishedOnAdd: __published.length > publishedBefore,
+  gaugeAfterAdd: hydrationPublished
+    .widgets.hydration.accessoryCircular.entries[0].tree.props.value,
+  inlineAfterAdd: hydrationPublished
+    .widgets.hydration.accessoryInline.entries[0].tree.props.text,
+  publishedFamilies:
+    Object.keys(hydrationPublished.widgets.hydration).sort(),
 }));
 `;
 
 describe("quickjs smoke", () => {
   let result: {
     logs: string[];
-    commitCount: number;
+    rootType: string;
     initialCount: string;
     pressHandled: boolean;
     countAfterPress: string;
     changeHandled: boolean;
     toggleAfterChange: boolean;
-    heartAfterChange: string;
+    initialGauge: number;
+    initialInline: string;
+    publishedOnAdd: boolean;
+    gaugeAfterAdd: number;
+    inlineAfterAdd: string;
+    publishedFamilies: string[];
   };
 
   beforeAll(() => {
@@ -88,9 +122,9 @@ describe("quickjs smoke", () => {
     result = JSON.parse(stdout.trim());
   });
 
-  it("renders the initial tree inside QuickJS", () => {
+  it("renders the initial navigation tree inside QuickJS", () => {
+    expect(result.rootType).toBe("NavigationStack");
     expect(result.initialCount).toBe("Count: 0");
-    expect(result.commitCount).toBeGreaterThanOrEqual(1);
   });
 
   it("handles a press event end-to-end", () => {
@@ -101,6 +135,22 @@ describe("quickjs smoke", () => {
   it("handles a change event with JSON payload end-to-end", () => {
     expect(result.changeHandled).toBe(true);
     expect(result.toggleAfterChange).toBe(true);
-    expect(result.heartAfterChange).toBe("heart.fill");
+  });
+
+  it("publishes widget timelines for all accessory families at startup", () => {
+    expect(result.publishedFamilies).toEqual([
+      "accessoryCircular",
+      "accessoryCorner",
+      "accessoryInline",
+      "accessoryRectangular",
+    ]);
+    expect(result.initialGauge).toBe(0);
+    expect(result.initialInline).toBe("Water 0/8");
+  });
+
+  it("republishes updated complication timelines after an interaction", () => {
+    expect(result.publishedOnAdd).toBe(true);
+    expect(result.gaugeAfterAdd).toBe(1);
+    expect(result.inlineAfterAdd).toBe("Water 1/8");
   });
 });

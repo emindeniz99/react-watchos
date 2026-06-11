@@ -1,16 +1,26 @@
 import { version, useState } from "react";
 import {
   Button,
+  Divider,
+  Gauge,
   HStack,
   Image,
+  List,
+  NavigationLink,
+  NavigationStack,
+  ProgressView,
+  ScrollView,
   Spacer,
   Text,
   Toggle,
   VStack,
+  ZStack,
+  publishWidgets,
 } from "../src/index";
+import { hydrationStore } from "./hydrationStore";
 
-/** Component showcase: every v1 primitive, state, and both event kinds. */
-export function App() {
+/** The original showcase: state, both event kinds, stacks and symbols. */
+function CounterScreen() {
   const [count, setCount] = useState(0);
   const [liked, setLiked] = useState(false);
   return (
@@ -41,5 +51,85 @@ export function App() {
         React {version} in QuickJS
       </Text>
     </VStack>
+  );
+}
+
+/**
+ * Drives the hydration complication: every change updates the shared
+ * store and republishes all widget timelines (App Group storage +
+ * WidgetCenter reload on the native side).
+ */
+function HydrationScreen() {
+  const [glasses, setGlasses] = useState(hydrationStore.glasses);
+  const setAndPublish = (next: number) => {
+    const clamped = Math.max(0, Math.min(hydrationStore.goal, next));
+    hydrationStore.glasses = clamped;
+    setGlasses(clamped);
+    publishWidgets();
+  };
+  return (
+    <VStack spacing={6}>
+      <Gauge
+        value={glasses}
+        min={0}
+        max={hydrationStore.goal}
+        label="Water"
+        style="circular"
+      />
+      <Text>{`${glasses} of ${hydrationStore.goal} glasses`}</Text>
+      <Button onPress={() => setAndPublish(glasses + 1)}>
+        <Text>Add glass</Text>
+      </Button>
+      <Button onPress={() => setAndPublish(0)}>
+        <Text size={12} color="secondary">
+          Reset
+        </Text>
+      </Button>
+      <Text size={11} color="secondary">
+        Updates the complication
+      </Text>
+    </VStack>
+  );
+}
+
+/** The primitives added after v1, in one scrollable gallery. */
+function GalleryScreen() {
+  const [progress, setProgress] = useState(2);
+  return (
+    <ScrollView>
+      <VStack spacing={8}>
+        <Gauge value={0.7} label="Gauge" style="linear" />
+        <Divider />
+        <ProgressView value={progress} total={5} label="ProgressView" />
+        <Button onPress={() => setProgress((p) => (p + 1) % 6)}>
+          <Text size={12}>Advance progress</Text>
+        </Button>
+        <Divider />
+        <ZStack>
+          <Image systemName="circle.fill" color="blue" size={44} />
+          <Text bold color="white" size={12}>
+            ZStack
+          </Text>
+        </ZStack>
+      </VStack>
+    </ScrollView>
+  );
+}
+
+export function App() {
+  return (
+    <NavigationStack title="React Watch">
+      <List>
+        <NavigationLink title="Counter">
+          <CounterScreen />
+        </NavigationLink>
+        <NavigationLink title="Hydration">
+          <HydrationScreen />
+        </NavigationLink>
+        <NavigationLink title="Gallery">
+          <GalleryScreen />
+        </NavigationLink>
+      </List>
+    </NavigationStack>
   );
 }

@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 
 /// Loads bundle.js into QuickJS and republishes every committed React
 /// tree as SwiftUI state.
@@ -17,6 +18,10 @@ final class ReactAppModel: ObservableObject {
                 let tree = try? JSONDecoder().decode(
                     RNTree.self, from: Data(json.utf8))
                 DispatchQueue.main.async { self?.root = tree?.root }
+            }
+            js.onPublishWidgets = { json in
+                SharedWidgetStore.save(json)
+                WidgetCenter.shared.reloadAllTimelines()
             }
             guard let url = Bundle.main.url(
                 forResource: "bundle", withExtension: "js") else {
