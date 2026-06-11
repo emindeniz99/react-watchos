@@ -45,6 +45,12 @@ export type {
 export { playHaptic } from "./haptics";
 export type { HapticType } from "./haptics";
 export {
+  requestNotificationPermission,
+  scheduleNotification,
+  cancelNotification,
+} from "./notifications";
+export type { NotificationRequest } from "./notifications";
+export {
   registerWidget,
   registerControl,
   unregisterAllWidgets,

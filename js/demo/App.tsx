@@ -20,6 +20,8 @@ import {
   ZStack,
   playHaptic,
   publishWidgets,
+  requestNotificationPermission,
+  scheduleNotification,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 
@@ -70,6 +72,17 @@ function HydrationScreen() {
     hydrationStore.glasses = clamped;
     setGlasses(clamped);
     publishWidgets();
+    if (clamped === hydrationStore.goal) playHaptic("success");
+  };
+  const remind = () => {
+    requestNotificationPermission();
+    scheduleNotification({
+      id: "hydration.reminder",
+      title: "Hydration",
+      body: "Time for a glass of water",
+      afterMs: 30 * 60_000,
+    });
+    playHaptic("click");
   };
   return (
     <VStack spacing={6}>
@@ -88,6 +101,9 @@ function HydrationScreen() {
         <Text size={12} color="secondary">
           Reset
         </Text>
+      </Button>
+      <Button onPress={remind}>
+        <Text size={12}>Remind me in 30 min</Text>
       </Button>
       <Text size={11} color="secondary">
         Updates the complication

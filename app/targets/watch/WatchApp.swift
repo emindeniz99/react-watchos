@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 import WatchKit
 import WidgetKit
 
@@ -72,7 +73,59 @@ final class ReactAppModel: ObservableObject {
             }
             WKInterfaceDevice.current().play(haptic)
         }
+        js.onRequestNotificationPermission = {
+            UNUserNotificationCenter.current().requestAuthorization(
+                options: [.alert, .sound]) { _, _ in }
+        }
+        js.onScheduleNotification = { [weak self] json in
+            self?.scheduleNotification(json)
+        }
+        js.onCancelNotification = { id in
+            UNUserNotificationCenter.current()
+                .removePendingNotificationRequests(withIdentifiers: [id])
+        }
         return js
+    }
+
+    private struct NotificationPayload: Decodable {
+        let id: String
+        let title: String
+        let body: String
+        let at: Double?
+        let afterMs: Double?
+        let sound: Bool
+    }
+
+    private func scheduleNotification(_ json: String) {
+        guard let payload = try? JSONDecoder().decode(
+            NotificationPayload.self, from: Data(json.utf8)) else {
+            runtimeError = "bad notification payload"
+            return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = payload.title
+        content.body = payload.body
+        if payload.sound { content.sound = .default }
+        // `at` (absolute, ms since epoch) wins over `afterMs`; clamp to
+        // the 1s minimum UNTimeIntervalNotificationTrigger accepts.
+        let seconds: TimeInterval
+        if let at = payload.at {
+            seconds = at / 1000 - Date.now.timeIntervalSince1970
+        } else {
+            seconds = (payload.afterMs ?? 0) / 1000
+        }
+        let request = UNNotificationRequest(
+            identifier: payload.id,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(
+                timeInterval: max(1, seconds), repeats: false))
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if let error {
+                DispatchQueue.main.async {
+                    self?.runtimeError = "notification: \(error.localizedDescription)"
+                }
+            }
+        }
     }
 
     func dispatch(nodeId: Int, event: String, payload: [String: Any]? = nil) {

@@ -32,6 +32,11 @@ final class JSRuntime {
     /// WKHapticType name from js/src/haptics.ts.
     var onPlayHaptic: ((String) -> Void)?
 
+    /// Local notifications (js/src/notifications.ts).
+    var onRequestNotificationPermission: (() -> Void)?
+    var onScheduleNotification: ((String) -> Void)?
+    var onCancelNotification: ((String) -> Void)?
+
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
@@ -110,6 +115,18 @@ final class JSRuntime {
                           JS_NewCFunction(context, hostSetItem, "setItem", 2))
         JS_SetPropertyStr(context, host, "playHaptic",
                           JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
+        JS_SetPropertyStr(
+            context, host, "requestNotificationPermission",
+            JS_NewCFunction(context, hostRequestNotificationPermission,
+                            "requestNotificationPermission", 0))
+        JS_SetPropertyStr(
+            context, host, "scheduleNotification",
+            JS_NewCFunction(context, hostScheduleNotification,
+                            "scheduleNotification", 1))
+        JS_SetPropertyStr(
+            context, host, "cancelNotification",
+            JS_NewCFunction(context, hostCancelNotification,
+                            "cancelNotification", 1))
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }
@@ -216,6 +233,38 @@ private func hostPlayHaptic(
     return qjs_undefined()
 }
 
+private func hostRequestNotificationPermission(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    JSRuntime.from(context: ctx)?.requestNotificationPermissionFromC()
+    return qjs_undefined()
+}
+
+private func hostScheduleNotification(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
+       let cString = JS_ToCString(ctx, argv[0]) {
+        runtime.scheduleNotificationFromC(String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
+private func hostCancelNotification(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
+       let cString = JS_ToCString(ctx, argv[0]) {
+        runtime.cancelNotificationFromC(String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
 private func hostGetItem(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -275,6 +324,15 @@ extension JSRuntime {
     }
     fileprivate func getItemFromC(_ key: String) -> String? { onGetItem?(key) }
     fileprivate func playHapticFromC(_ type: String) { onPlayHaptic?(type) }
+    fileprivate func requestNotificationPermissionFromC() {
+        onRequestNotificationPermission?()
+    }
+    fileprivate func scheduleNotificationFromC(_ json: String) {
+        onScheduleNotification?(json)
+    }
+    fileprivate func cancelNotificationFromC(_ id: String) {
+        onCancelNotification?(id)
+    }
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)
     }

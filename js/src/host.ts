@@ -57,4 +57,8 @@ export interface QuickJSHostGlobal {
   setItem?(key: string, value: string): void;
   /** WKInterfaceDevice haptics. */
   playHaptic?(type: string): void;
+  /** Local notifications (UNUserNotificationCenter). */
+  requestNotificationPermission?(): void;
+  scheduleNotification?(payloadJson: string): void;
+  cancelNotification?(id: string): void;
 }
