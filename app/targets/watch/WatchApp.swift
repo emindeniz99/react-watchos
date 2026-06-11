@@ -7,6 +7,8 @@ import WidgetKit
 final class ReactAppModel: ObservableObject {
     @Published var root: RNNode?
     @Published var startupError: String?
+    /// Non-fatal JS errors (event handlers, timers) surfaced as a banner.
+    @Published var runtimeError: String?
 
     private var runtime: JSRuntime?
 
@@ -25,6 +27,9 @@ final class ReactAppModel: ObservableObject {
             }
             js.onGetItem = { SharedWidgetStore.getItem($0) }
             js.onSetItem = { SharedWidgetStore.setItem($0, $1) }
+            js.onError = { [weak self] message in
+                DispatchQueue.main.async { self?.runtimeError = message }
+            }
             guard let url = Bundle.main.url(
                 forResource: "bundle", withExtension: "js") else {
                 startupError = "bundle.js missing — run `npm run build` in js/"
@@ -50,11 +55,25 @@ struct ReactWatchApp: App {
         WindowGroup {
             Group {
                 if let root = model.root {
-                    ScrollView { NodeView(node: root) }
+                    // Screens own their scrolling (ScrollView/List nodes);
+                    // wrapping a NavigationStack in a ScrollView breaks it.
+                    NodeView(node: root)
                 } else if let error = model.startupError {
-                    Text(error).font(.footnote).foregroundStyle(.red)
+                    ScrollView {
+                        Text(error).font(.footnote).foregroundStyle(.red)
+                    }
                 } else {
                     ProgressView()
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if let error = model.runtimeError {
+                    Text(error)
+                        .font(.footnote)
+                        .lineLimit(2)
+                        .padding(6)
+                        .background(.red.opacity(0.85), in: .rect(cornerRadius: 8))
+                        .onTapGesture { model.runtimeError = nil }
                 }
             }
             .environmentObject(model)

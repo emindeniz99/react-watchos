@@ -25,6 +25,10 @@ final class JSRuntime {
     var onGetItem: ((String) -> String?)?
     var onSetItem: ((String, String) -> Void)?
 
+    /// Non-fatal JS exceptions (event handlers, timers). Without this,
+    /// runtime errors after startup would be silently swallowed.
+    var onError: ((String) -> Void)?
+
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
@@ -67,7 +71,17 @@ final class JSRuntime {
             call += ", \(jsStringLiteral(json))"
         }
         call += ")"
-        try? evaluate(call, filename: "dispatch.js")
+        evaluateReportingErrors(call, filename: "dispatch.js")
+    }
+
+    private func evaluateReportingErrors(_ code: String, filename: String) {
+        do {
+            try evaluate(code, filename: filename)
+        } catch JSError.exception(let message) {
+            onError?(message)
+        } catch {
+            onError?(String(describing: error))
+        }
     }
 
     // MARK: - Host bridge (JS -> Swift)
@@ -103,7 +117,8 @@ final class JSRuntime {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.pendingTimers[id] = nil
-            try? self.evaluate("globalThis.__fireTimer(\(id))", filename: "timer.js")
+            self.evaluateReportingErrors(
+                "globalThis.__fireTimer(\(id))", filename: "timer.js")
         }
         pendingTimers[id] = work
         DispatchQueue.main.asyncAfter(
