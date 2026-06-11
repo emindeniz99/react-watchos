@@ -6,6 +6,8 @@
   "description": "Custom React renderer: JSX to a serialized SwiftUI tree, runnable in QuickJS on Apple Watch",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:min": "node scripts/build.mjs --minify",
+    "dev": "node scripts/dev.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
