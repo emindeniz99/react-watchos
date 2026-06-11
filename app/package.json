@@ -1,0 +1,20 @@
+{
+  "name": "react-native-watchos-demo",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "prebuild": "expo prebuild -p ios --clean"
+  },
+  "dependencies": {
+    "@bacons/apple-targets": "^4.0.7",
+    "expo": "~56.0.11",
+    "react": "19.2.3",
+    "react-native": "0.85.3"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.0",
+    "typescript": "~6.0.3"
+  }
+}

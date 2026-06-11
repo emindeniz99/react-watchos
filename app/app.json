@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "React Watch Demo",
+    "slug": "react-native-watchos-demo",
+    "version": "0.1.0",
+    "platforms": ["ios"],
+    "newArchEnabled": true,
+    "ios": {
+      "bundleIdentifier": "com.emindeniz99.reactwatch",
+      "supportsTablet": false
+    },
+    "plugins": [
+      [
+        "@bacons/apple-targets",
+        {
+          "appleTeamId": "REPLACE_WITH_YOUR_TEAM_ID"
+        }
+      ]
+    ]
+  }
+}

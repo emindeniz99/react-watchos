@@ -1,0 +1,193 @@
+import Foundation
+
+/// Embeds QuickJS and hosts the React bundle. Mirrors the verified
+/// reference embedding in tools/embed-smoke/embed-host.c:
+///   1. install __host.{commit,log,setTimer,clearTimer}
+///   2. evaluate bundle.js (first tree is committed during eval)
+///   3. drain pending jobs after every entry into JS
+///   4. deliver interactions via __dispatchEvent and timers via __fireTimer
+///
+/// NOTE: untested until built with Xcode on macOS — see project README.
+final class JSRuntime {
+    enum JSError: Error {
+        case initialization
+        case exception(String)
+    }
+
+    /// Called with the raw JSON tree string on every React commit.
+    var onCommit: ((String) -> Void)?
+
+    private let runtime: OpaquePointer
+    private let context: OpaquePointer
+    private var pendingTimers: [Int32: DispatchWorkItem] = [:]
+
+    init() throws {
+        guard let rt = JS_NewRuntime(), let ctx = JS_NewContext(rt) else {
+            throw JSError.initialization
+        }
+        runtime = rt
+        context = ctx
+        JS_SetContextOpaque(ctx, Unmanaged.passUnretained(self).toOpaque())
+        installHostObject()
+    }
+
+    deinit {
+        pendingTimers.values.forEach { $0.cancel() }
+        JS_FreeContext(context)
+        JS_FreeRuntime(runtime)
+    }
+
+    // MARK: - Public API
+
+    func evaluate(_ code: String, filename: String = "bundle.js") throws {
+        let result = code.withCString { codePtr in
+            JS_Eval(context, codePtr, strlen(codePtr), filename,
+                    qjs_eval_type_global())
+        }
+        defer { JS_FreeValue(context, result) }
+        if JS_IsException(result) != 0 {
+            throw JSError.exception(takeExceptionMessage())
+        }
+        drainJobs()
+    }
+
+    func dispatchEvent(nodeId: Int, event: String, payload: [String: Any]? = nil) {
+        var call = "globalThis.__dispatchEvent(\(nodeId), \(jsStringLiteral(event))"
+        if let payload,
+           let data = try? JSONSerialization.data(withJSONObject: payload),
+           let json = String(data: data, encoding: .utf8) {
+            call += ", \(jsStringLiteral(json))"
+        }
+        call += ")"
+        try? evaluate(call, filename: "dispatch.js")
+    }
+
+    // MARK: - Host bridge (JS -> Swift)
+
+    private func installHostObject() {
+        let global = JS_GetGlobalObject(context)
+        defer { JS_FreeValue(context, global) }
+
+        let host = JS_NewObject(context)
+        JS_SetPropertyStr(context, host, "commit",
+                          JS_NewCFunction(context, hostCommit, "commit", 1))
+        JS_SetPropertyStr(context, host, "log",
+                          JS_NewCFunction(context, hostLog, "log", 1))
+        JS_SetPropertyStr(context, host, "setTimer",
+                          JS_NewCFunction(context, hostSetTimer, "setTimer", 2))
+        JS_SetPropertyStr(context, host, "clearTimer",
+                          JS_NewCFunction(context, hostClearTimer, "clearTimer", 1))
+        // JS_SetPropertyStr takes ownership of `host`.
+        JS_SetPropertyStr(context, global, "__host", host)
+    }
+
+    private func handleCommit(_ json: String) {
+        onCommit?(json)
+    }
+
+    private func scheduleTimer(id: Int32, milliseconds: Double) {
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.pendingTimers[id] = nil
+            try? self.evaluate("globalThis.__fireTimer(\(id))", filename: "timer.js")
+        }
+        pendingTimers[id] = work
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + milliseconds / 1000.0, execute: work)
+    }
+
+    private func cancelTimer(id: Int32) {
+        pendingTimers.removeValue(forKey: id)?.cancel()
+    }
+
+    // MARK: - Internals
+
+    private func drainJobs() {
+        var ctx: OpaquePointer?
+        while JS_ExecutePendingJob(runtime, &ctx) > 0 {}
+    }
+
+    private func takeExceptionMessage() -> String {
+        let exception = JS_GetException(context)
+        defer { JS_FreeValue(context, exception) }
+        guard let cString = JS_ToCString(context, exception) else {
+            return "unknown JS exception"
+        }
+        defer { JS_FreeCString(context, cString) }
+        return String(cString: cString)
+    }
+
+    private func jsStringLiteral(_ value: String) -> String {
+        let data = (try? JSONSerialization.data(
+            withJSONObject: [value])) ?? Data("[\"\"]".utf8)
+        let array = String(data: data, encoding: .utf8) ?? "[\"\"]"
+        return String(array.dropFirst().dropLast())
+    }
+
+    fileprivate static func from(context: OpaquePointer?) -> JSRuntime? {
+        guard let context, let opaque = JS_GetContextOpaque(context) else {
+            return nil
+        }
+        return Unmanaged<JSRuntime>.fromOpaque(opaque).takeUnretainedValue()
+    }
+}
+
+// @convention(c) callbacks cannot capture state; the owning JSRuntime is
+// recovered through the context opaque pointer.
+
+private func hostCommit(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
+       let cString = JS_ToCString(ctx, argv[0]) {
+        runtime.handleCommitFromC(String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
+private func hostLog(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let argv, argc >= 1, let cString = JS_ToCString(ctx, argv[0]) {
+        print("[js]", String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
+private func hostSetTimer(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2 {
+        var id: Int32 = 0
+        var ms: Double = 0
+        JS_ToInt32(ctx, &id, argv[0])
+        JS_ToFloat64(ctx, &ms, argv[1])
+        runtime.scheduleTimerFromC(id: id, milliseconds: ms)
+    }
+    return qjs_undefined()
+}
+
+private func hostClearTimer(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1 {
+        var id: Int32 = 0
+        JS_ToInt32(ctx, &id, argv[0])
+        runtime.cancelTimerFromC(id: id)
+    }
+    return qjs_undefined()
+}
+
+extension JSRuntime {
+    fileprivate func handleCommitFromC(_ json: String) { handleCommit(json) }
+    fileprivate func scheduleTimerFromC(id: Int32, milliseconds: Double) {
+        scheduleTimer(id: id, milliseconds: milliseconds)
+    }
+    fileprivate func cancelTimerFromC(id: Int32) { cancelTimer(id: id) }
+}
