@@ -38,9 +38,10 @@ SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `Button`, `Toggle`,
 `Spacer`, `Image`, `ScrollView`, `List`, `Divider`, `Gauge`,
 `ProgressView`, `NavigationStack`, `NavigationLink`, `TextField`,
 `Picker`, `TabView`), with SwiftUI layout rather than flexbox. Beyond
-views there's `Storage` (App Group UserDefaults), `playHaptic`, widget
-timelines, and control intents — all bridged through the same
-registered-message host surface.
+views there's `Storage` (App Group UserDefaults), `playHaptic`,
+`scheduleNotification` (local notifications with permission request and
+cancel), widget timelines, and control intents — all bridged through the
+same registered-message host surface.
 
 ## Architecture
 
@@ -132,7 +133,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 ```bash
 cd js
 npm install
-npm test             # 48 tests, including smoke tests inside a real qjs binary
+npm test             # 52 tests, including smoke tests inside a real qjs binary
 npm run build        # bundle → both targets' assets/ (470KB, readable traces)
 npm run build:min    # minified (~139KB)
 npm run dev          # live reload: esbuild watch+serve on 127.0.0.1:8788
