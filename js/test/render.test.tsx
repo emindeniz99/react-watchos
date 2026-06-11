@@ -1,0 +1,102 @@
+import { describe, expect, it } from "vitest";
+import {
+  Button,
+  HStack,
+  Image,
+  MemoryHost,
+  Spacer,
+  Text,
+  Toggle,
+  VStack,
+  WatchRoot,
+} from "../src/index";
+
+describe("render", () => {
+  it("serializes a JSX tree to the exact wire schema", () => {
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <VStack spacing={8}>
+        <Text bold size={20}>
+          Hello
+        </Text>
+        <Image systemName="heart.fill" color="red" />
+        <Spacer />
+      </VStack>,
+    );
+
+    expect(host.commits).toHaveLength(1);
+    expect(host.lastCommit).toEqual({
+      v: 1,
+      root: {
+        id: 4,
+        type: "VStack",
+        props: { spacing: 8 },
+        children: [
+          {
+            id: 1,
+            type: "Text",
+            props: { bold: true, size: 20, text: "Hello" },
+            children: [],
+          },
+          {
+            id: 2,
+            type: "Image",
+            props: { systemName: "heart.fill", color: "red" },
+            children: [],
+          },
+          { id: 3, type: "Spacer", props: {}, children: [] },
+        ],
+      },
+    });
+  });
+
+  it("folds mixed text children into props.text", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(<Text>Count: {3}</Text>);
+    expect(host.lastCommit?.root?.props.text).toBe("Count: 3");
+  });
+
+  it("replaces function props with true flags so Swift sees interactivity", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(
+      <HStack>
+        <Button onPress={() => {}}>
+          <Text>Tap</Text>
+        </Button>
+        <Toggle value={false} onChange={() => {}} label="Wifi" />
+      </HStack>,
+    );
+    const [button, toggle] = host.lastCommit!.root!.children;
+    expect(button.props).toEqual({ onPress: true });
+    expect(toggle.props).toEqual({ value: false, onChange: true, label: "Wifi" });
+  });
+
+  it("produces only plist/JSON-safe prop values", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(
+      <VStack spacing={undefined}>
+        <Button onPress={() => {}}>
+          <Text color="green">ok</Text>
+        </Button>
+      </VStack>,
+    );
+    const check = (node: {
+      props: Record<string, unknown>;
+      children: { props: Record<string, unknown>; children: unknown[] }[];
+    }): void => {
+      for (const value of Object.values(node.props)) {
+        expect(["string", "number", "boolean"]).toContain(typeof value);
+      }
+      node.children.forEach((child) => check(child as never));
+    };
+    check(host.lastCommit!.root! as never);
+  });
+
+  it("throws on raw text outside <Text>", () => {
+    const host = new MemoryHost();
+    expect(() => new WatchRoot(host).render(<VStack>oops</VStack>)).toThrow(
+      /wrapped in a <Text>/,
+    );
+  });
+});
