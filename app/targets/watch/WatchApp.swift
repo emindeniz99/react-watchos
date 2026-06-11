@@ -23,6 +23,8 @@ final class ReactAppModel: ObservableObject {
                 SharedWidgetStore.save(json)
                 WidgetCenter.shared.reloadAllTimelines()
             }
+            js.onGetItem = { SharedWidgetStore.getItem($0) }
+            js.onSetItem = { SharedWidgetStore.setItem($0, $1) }
             guard let url = Bundle.main.url(
                 forResource: "bundle", withExtension: "js") else {
                 startupError = "bundle.js missing — run `npm run build` in js/"

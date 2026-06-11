@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include "quickjs.h"
 
 static void push_to_global_array(JSContext *ctx, const char *name, JSValueConst value) {
@@ -151,6 +152,22 @@ int main(int argc, char **argv) {
     printf("%s\n", out);
     JS_FreeCString(ctx, out);
     JS_FreeValue(ctx, summary);
+
+    JSMemoryUsage usage;
+    JS_ComputeMemoryUsage(rt, &usage);
+    struct rusage ru;
+    getrusage(RUSAGE_SELF, &ru);
+    // ru_maxrss is KB on Linux, bytes on macOS.
+    fprintf(stderr,
+            "[mem] quickjs heap: %.1f MB, process peak rss: %ld %s\n",
+            (double)usage.memory_used_size / (1024.0 * 1024.0),
+            ru.ru_maxrss,
+#ifdef __APPLE__
+            "bytes"
+#else
+            "KB"
+#endif
+    );
 
     JS_FreeContext(ctx);
     JS_FreeRuntime(rt);

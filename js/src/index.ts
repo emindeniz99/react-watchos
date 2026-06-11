@@ -38,6 +38,7 @@ export type {
 } from "./components";
 export {
   registerWidget,
+  registerControl,
   unregisterAllWidgets,
   renderToTree,
   renderWidgets,
@@ -49,8 +50,17 @@ export type {
   WidgetTimeline,
   WidgetTimelineEntry,
   WidgetDefinition,
+  ControlDefinition,
+  EntryRelevance,
   PublishedWidgets,
 } from "./widgets";
+export { Storage } from "./storage";
+export {
+  registerIntent,
+  unregisterAllIntents,
+  handleIntent,
+} from "./intents";
+export type { IntentHandler } from "./intents";
 export { MemoryHost } from "./host";
 export type {
   HostBridge,

@@ -5,8 +5,12 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outfile = join(root, "dist/bundle.js");
-// Shipped as a resource of the watch target; JSRuntime.swift evaluates it.
-const watchAsset = join(root, "../app/targets/watch/assets/bundle.js");
+// Shipped as a resource of both targets: the watch app evaluates it to
+// run the UI; the widget extension evaluates it to handle control intents.
+const assets = [
+  join(root, "../app/targets/watch/assets/bundle.js"),
+  join(root, "../app/targets/widget/assets/bundle.js"),
+];
 
 await build({
   entryPoints: [join(root, "demo/entry.tsx")],
@@ -24,6 +28,8 @@ await build({
   logLevel: "info",
 });
 
-mkdirSync(dirname(watchAsset), { recursive: true });
-copyFileSync(outfile, watchAsset);
-console.log(`copied bundle to ${watchAsset}`);
+for (const asset of assets) {
+  mkdirSync(dirname(asset), { recursive: true });
+  copyFileSync(outfile, asset);
+  console.log(`copied bundle to ${asset}`);
+}

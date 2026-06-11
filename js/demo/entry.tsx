@@ -2,9 +2,20 @@
 import "../src/install-shims";
 import { publishWidgets, runApp } from "../src/index";
 import { registerDemoWidgets } from "./widgets";
+import { registerDemoIntents } from "./intents";
 import { App } from "./App";
 
 registerDemoWidgets();
-runApp(<App />);
-// Seed the complications so they show data before any interaction.
-publishWidgets();
+registerDemoIntents();
+
+// The widget extension evaluates this same bundle with
+// __entrypoint = "intent" to handle controls: it then calls
+// __handleIntent(name), whose handlers republish the timelines. Only the
+// watch app mounts the UI.
+const entrypoint =
+  (globalThis as { __entrypoint?: string }).__entrypoint ?? "app";
+if (entrypoint === "app") {
+  runApp(<App />);
+  // Seed the complications so they show data before any interaction.
+  publishWidgets();
+}

@@ -4,6 +4,7 @@ import {
   Text,
   VStack,
   publishWidgets,
+  registerControl,
   registerWidget,
   renderToTree,
   renderWidgets,
@@ -115,5 +116,66 @@ describe("widget timelines", () => {
     registerHydration(2);
     const payload = publishWidgets(NOW);
     expect(payload.widgets.hydration).toBeDefined();
+  });
+
+  it("supports multi-entry timelines with future-dated entries", () => {
+    registerWidget({
+      kind: "daypart",
+      families: ["accessoryInline"],
+      render: ({ now }) => ({
+        entries: [0, 1, 2].map((hours) => ({
+          date: now + hours * 3_600_000,
+          view: <Text>{`t+${hours}h`}</Text>,
+        })),
+      }),
+    });
+    const entries = renderWidgets(NOW).widgets.daypart.accessoryInline.entries;
+    expect(entries.map((e) => e.date)).toEqual([
+      NOW,
+      NOW + 3_600_000,
+      NOW + 7_200_000,
+    ]);
+    expect(entries[2].tree?.props.text).toBe("t+2h");
+  });
+
+  it("carries per-entry Smart Stack relevance into the payload", () => {
+    registerWidget({
+      kind: "daypart",
+      families: ["accessoryInline"],
+      render: ({ now }) => ({
+        entries: [
+          {
+            date: now,
+            relevance: { score: 80, durationMs: 6 * 3_600_000 },
+            view: <Text>morning</Text>,
+          },
+          { date: now + 1, view: <Text>no relevance</Text> },
+        ],
+      }),
+    });
+    const entries = renderWidgets(NOW).widgets.daypart.accessoryInline.entries;
+    expect(entries[0].relevance).toEqual({
+      score: 80,
+      durationMs: 21_600_000,
+    });
+    expect(entries[1].relevance).toBeUndefined();
+  });
+
+  it("publishes registered control metadata for the widget extension", () => {
+    registerControl({
+      kind: "hydration.addGlass",
+      intent: "addGlass",
+      label: "Add Glass",
+      systemName: "drop.fill",
+    });
+    expect(renderWidgets(NOW).controls).toEqual({
+      "hydration.addGlass": {
+        intent: "addGlass",
+        label: "Add Glass",
+        systemName: "drop.fill",
+      },
+    });
+    unregisterAllWidgets();
+    expect(renderWidgets(NOW).controls).toEqual({});
   });
 });

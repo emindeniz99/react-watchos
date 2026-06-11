@@ -7,9 +7,20 @@ import Foundation
 enum SharedWidgetStore {
     static let appGroupId = "group.com.emindeniz99.reactwatch"
     static let payloadKey = "react.widgets.payload"
+    /// Namespace for the JS Storage API (js/src/storage.ts).
+    static let storagePrefix = "react.storage."
+
+    static var defaults: UserDefaults? { UserDefaults(suiteName: appGroupId) }
 
     static func save(_ payloadJson: String) {
-        UserDefaults(suiteName: appGroupId)?
-            .set(payloadJson, forKey: payloadKey)
+        defaults?.set(payloadJson, forKey: payloadKey)
+    }
+
+    static func getItem(_ key: String) -> String? {
+        defaults?.string(forKey: storagePrefix + key)
+    }
+
+    static func setItem(_ key: String, _ value: String) {
+        defaults?.set(value, forKey: storagePrefix + key)
     }
 }

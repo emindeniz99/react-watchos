@@ -25,9 +25,17 @@ export interface WidgetRenderContext {
   now: number;
 }
 
+export interface EntryRelevance {
+  /** Smart Stack relevance score (higher = more prominent). */
+  score: number;
+  /** How long the score applies, in ms. */
+  durationMs?: number;
+}
+
 export interface WidgetTimelineEntry {
   date: number | Date;
   view: ReactNode;
+  relevance?: EntryRelevance;
 }
 
 export interface WidgetTimeline {
@@ -46,6 +54,22 @@ export interface WidgetDefinition {
 export interface PublishedEntry {
   date: number;
   tree: SerializedNode | null;
+  relevance?: EntryRelevance;
+}
+
+/**
+ * Metadata for a WidgetKit Control (watchOS 26 Control Center / Action
+ * button). Controls are templated by the OS — a symbol plus a label, not
+ * a free-form view — so React authors the metadata and handles the
+ * control's AppIntent via registerIntent.
+ */
+export interface ControlDefinition {
+  /** WidgetKit control kind, e.g. "hydration.addGlass". */
+  kind: string;
+  /** Intent name dispatched back into JS when the control is used. */
+  intent: string;
+  label: string;
+  systemName?: string;
 }
 
 export interface PublishedFamilyTimeline {
@@ -57,16 +81,23 @@ export interface PublishedWidgets {
   v: 1;
   publishedAt: number;
   widgets: Record<string, Record<string, PublishedFamilyTimeline>>;
+  controls: Record<string, Omit<ControlDefinition, "kind">>;
 }
 
 const registry = new Map<string, WidgetDefinition>();
+const controlRegistry = new Map<string, ControlDefinition>();
 
 export function registerWidget(definition: WidgetDefinition): void {
   registry.set(definition.kind, definition);
 }
 
+export function registerControl(definition: ControlDefinition): void {
+  controlRegistry.set(definition.kind, definition);
+}
+
 export function unregisterAllWidgets(): void {
   registry.clear();
+  controlRegistry.clear();
 }
 
 /** One-shot render: element in, serialized tree out. No host, no events. */
@@ -96,6 +127,7 @@ export function renderWidgets(now: number = Date.now()): PublishedWidgets {
         entries: timeline.entries.map((entry) => ({
           date: toMs(entry.date),
           tree: renderToTree(entry.view),
+          ...(entry.relevance ? { relevance: entry.relevance } : {}),
         })),
         ...(timeline.reloadAfter !== undefined
           ? { reloadAfter: toMs(timeline.reloadAfter) }
@@ -104,7 +136,11 @@ export function renderWidgets(now: number = Date.now()): PublishedWidgets {
     }
     widgets[definition.kind] = byFamily;
   }
-  return { v: 1, publishedAt: now, widgets };
+  const controls: PublishedWidgets["controls"] = {};
+  for (const { kind, ...metadata } of controlRegistry.values()) {
+    controls[kind] = metadata;
+  }
+  return { v: 1, publishedAt: now, widgets, controls };
 }
 
 /**
@@ -119,3 +155,10 @@ export function publishWidgets(now: number = Date.now()): PublishedWidgets {
   host?.publishWidgets?.(JSON.stringify(payload));
   return payload;
 }
+
+// Entry point for the widget extension's TimelineProvider: render fresh
+// timelines on demand (e.g. while the app stays closed) without
+// publishing back through the host.
+(globalThis as Record<string, unknown>).__renderWidgets = (
+  now?: number,
+): string => JSON.stringify(renderWidgets(now ?? Date.now()));

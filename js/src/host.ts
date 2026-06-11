@@ -52,4 +52,7 @@ export interface QuickJSHostGlobal {
   clearTimer?(id: number): void;
   /** Persists rendered widget timelines and reloads WidgetKit. */
   publishWidgets?(payloadJson: string): void;
+  /** App Group UserDefaults, shared between app and widget extension. */
+  getItem?(key: string): string | null;
+  setItem?(key: string, value: string): void;
 }

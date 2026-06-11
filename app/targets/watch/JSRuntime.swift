@@ -21,6 +21,10 @@ final class JSRuntime {
     /// __host.publishWidgets (persist + WidgetCenter reload).
     var onPublishWidgets: ((String) -> Void)?
 
+    /// Key/value storage bridge (App Group UserDefaults).
+    var onGetItem: ((String) -> String?)?
+    var onSetItem: ((String, String) -> Void)?
+
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
@@ -83,6 +87,10 @@ final class JSRuntime {
                           JS_NewCFunction(context, hostClearTimer, "clearTimer", 1))
         JS_SetPropertyStr(context, host, "publishWidgets",
                           JS_NewCFunction(context, hostPublishWidgets, "publishWidgets", 1))
+        JS_SetPropertyStr(context, host, "getItem",
+                          JS_NewCFunction(context, hostGetItem, "getItem", 1))
+        JS_SetPropertyStr(context, host, "setItem",
+                          JS_NewCFunction(context, hostSetItem, "setItem", 2))
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }
@@ -176,6 +184,32 @@ private func hostPublishWidgets(
     return qjs_undefined()
 }
 
+private func hostGetItem(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
+          let keyC = JS_ToCString(ctx, argv[0]) else { return qjs_null() }
+    let key = String(cString: keyC)
+    JS_FreeCString(ctx, keyC)
+    guard let value = runtime.getItemFromC(key) else { return qjs_null() }
+    return JS_NewString(ctx, value)
+}
+
+private func hostSetItem(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
+       let keyC = JS_ToCString(ctx, argv[0]),
+       let valueC = JS_ToCString(ctx, argv[1]) {
+        runtime.setItemFromC(String(cString: keyC), String(cString: valueC))
+        JS_FreeCString(ctx, keyC)
+        JS_FreeCString(ctx, valueC)
+    }
+    return qjs_undefined()
+}
+
 private func hostSetTimer(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -206,6 +240,10 @@ extension JSRuntime {
     fileprivate func handleCommitFromC(_ json: String) { handleCommit(json) }
     fileprivate func handlePublishWidgetsFromC(_ json: String) {
         onPublishWidgets?(json)
+    }
+    fileprivate func getItemFromC(_ key: String) -> String? { onGetItem?(key) }
+    fileprivate func setItemFromC(_ key: String, _ value: String) {
+        onSetItem?(key, value)
     }
     fileprivate func scheduleTimerFromC(id: Int32, milliseconds: Double) {
         scheduleTimer(id: id, milliseconds: milliseconds)

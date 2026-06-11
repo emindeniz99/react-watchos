@@ -93,6 +93,45 @@ print(JSON.stringify({
 }));
 `;
 
+// Mirrors IntentRuntime.swift in the widget extension: same bundle,
+// __entrypoint = "intent", storage bridge, no UI mount.
+const intentPrelude = `
+"use strict";
+globalThis.__entrypoint = "intent";
+const __published = [];
+const __storage = new Map();
+const __armedTimers = [];
+globalThis.__host = {
+  commit: () => { throw new Error("intent entrypoint must not mount UI"); },
+  log: () => {},
+  setTimer: (id, ms) => { __armedTimers.push(id); },
+  clearTimer: () => {},
+  publishWidgets: (json) => { __published.push(json); },
+  getItem: (key) => __storage.get(key) ?? null,
+  setItem: (key, value) => { __storage.set(key, value); },
+};
+`;
+
+const intentEpilogue = `
+const handled1 = globalThis.__handleIntent("addGlass");
+const handled2 = globalThis.__handleIntent("addGlass");
+const unknown = globalThis.__handleIntent("doesNotExist");
+const last = JSON.parse(__published[__published.length - 1]);
+const rendered = JSON.parse(globalThis.__renderWidgets(1750000000000));
+print(JSON.stringify({
+  handled1, handled2, unknown,
+  publishCount: __published.length,
+  storedGlasses: JSON.parse(__storage.get("hydration.glasses")),
+  gauge: last.widgets.hydration.accessoryCircular.entries[0].tree.props.value,
+  control: last.controls["hydration.addGlass"],
+  daypartEntryCount: last.widgets.daypart.accessoryRectangular.entries.length,
+  daypartRelevance:
+    last.widgets.daypart.accessoryRectangular.entries[0].relevance.score > 0,
+  renderedGauge:
+    rendered.widgets.hydration.accessoryCircular.entries[0].tree.props.value,
+}));
+`;
+
 describe("quickjs smoke", () => {
   let result: {
     logs: string[];
@@ -109,6 +148,18 @@ describe("quickjs smoke", () => {
     inlineAfterAdd: string;
     publishedFamilies: string[];
   };
+  let intentResult: {
+    handled1: boolean;
+    handled2: boolean;
+    unknown: boolean;
+    publishCount: number;
+    storedGlasses: number;
+    gauge: number;
+    control: { intent: string; label: string; systemName: string };
+    daypartEntryCount: number;
+    daypartRelevance: boolean;
+    renderedGauge: number;
+  };
 
   beforeAll(() => {
     execFileSync("node", [join(jsRoot, "scripts/build.mjs")], {
@@ -116,10 +167,18 @@ describe("quickjs smoke", () => {
     });
     const bundle = readFileSync(bundlePath, "utf8");
     const dir = mkdtempSync(join(tmpdir(), "qjs-smoke-"));
-    const scriptPath = join(dir, "smoke.js");
-    writeFileSync(scriptPath, harnessPrelude + bundle + harnessEpilogue);
-    const stdout = execFileSync("qjs", [scriptPath], { encoding: "utf8" });
-    result = JSON.parse(stdout.trim());
+
+    const appScript = join(dir, "smoke-app.js");
+    writeFileSync(appScript, harnessPrelude + bundle + harnessEpilogue);
+    result = JSON.parse(
+      execFileSync("qjs", [appScript], { encoding: "utf8" }).trim(),
+    );
+
+    const intentScript = join(dir, "smoke-intent.js");
+    writeFileSync(intentScript, intentPrelude + bundle + intentEpilogue);
+    intentResult = JSON.parse(
+      execFileSync("qjs", [intentScript], { encoding: "utf8" }).trim(),
+    );
   });
 
   it("renders the initial navigation tree inside QuickJS", () => {
@@ -152,5 +211,28 @@ describe("quickjs smoke", () => {
     expect(result.publishedOnAdd).toBe(true);
     expect(result.gaugeAfterAdd).toBe(1);
     expect(result.inlineAfterAdd).toBe("Water 1/8");
+  });
+
+  it("handles control intents without mounting UI (widget extension path)", () => {
+    expect(intentResult.handled1).toBe(true);
+    expect(intentResult.handled2).toBe(true);
+    expect(intentResult.unknown).toBe(false);
+    expect(intentResult.publishCount).toBe(2);
+    expect(intentResult.storedGlasses).toBe(2);
+    expect(intentResult.gauge).toBe(2);
+  });
+
+  it("publishes control metadata and multi-entry relevance timelines", () => {
+    expect(intentResult.control).toEqual({
+      intent: "addGlass",
+      label: "Add Glass",
+      systemName: "drop.fill",
+    });
+    expect(intentResult.daypartEntryCount).toBeGreaterThanOrEqual(4);
+    expect(intentResult.daypartRelevance).toBe(true);
+  });
+
+  it("renders fresh timelines on demand via __renderWidgets", () => {
+    expect(intentResult.renderedGauge).toBe(2);
   });
 });

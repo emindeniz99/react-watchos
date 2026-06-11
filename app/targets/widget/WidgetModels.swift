@@ -67,10 +67,22 @@ struct RNNode: Codable, Equatable, Identifiable {
     }
 }
 
+struct PublishedRelevance: Codable, Equatable {
+    let score: Double
+    let durationMs: Double?
+}
+
+struct PublishedControl: Codable, Equatable {
+    let intent: String
+    let label: String
+    let systemName: String?
+}
+
 struct PublishedEntry: Codable, Equatable {
     /** ms since epoch (JS Date.now()). */
     let date: Double
     let tree: RNNode?
+    let relevance: PublishedRelevance?
 
     var entryDate: Date { Date(timeIntervalSince1970: date / 1000) }
 }
@@ -88,11 +100,15 @@ struct PublishedWidgets: Codable, Equatable {
     let v: Int
     let publishedAt: Double
     let widgets: [String: [String: PublishedFamilyTimeline]]
+    let controls: [String: PublishedControl]?
 }
 
 enum WidgetStore {
     static let appGroupId = "group.com.emindeniz99.reactwatch"
     static let payloadKey = "react.widgets.payload"
+    /// Namespace for the JS Storage API (js/src/storage.ts); must match
+    /// SharedWidgetStore.storagePrefix in the watch target.
+    static let storagePrefix = "react.storage."
 
     static func load() -> PublishedWidgets? {
         guard let json = UserDefaults(suiteName: appGroupId)?
