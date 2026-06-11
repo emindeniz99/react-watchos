@@ -98,6 +98,66 @@ real native widgets, events bridged back to JS. The honest description is
 "React for watchOS, built the way react-native-tvos would be built if
 watchOS allowed it" — hence the project name, with this caveat stated.
 
+## Raycast architecture review (what they do best, what we borrowed)
+
+Sources:
+[How Raycast API extensions work](https://www.raycast.com/blog/how-raycast-api-extensions-work),
+[A technical deep dive into the new Raycast](https://www.raycast.com/blog/a-technical-deep-dive-into-the-new-raycast).
+
+Raycast's extension system is the closest production-grade relative of
+this project: developers write React, a **custom reconciler serializes
+each render pass into a JSON render tree**, and the native app
+reconstructs real native views from it — "v = f(s) across process
+boundaries". Their main app (the 2026 rewrite) is different: the shell UI
+is React in a system WebView with native overlay windows; it's the
+*extensions* pipeline that matches our design.
+
+What they do best, and how it maps here:
+
+| Raycast practice | Their reason | Status here |
+|---|---|---|
+| JSON render tree from a custom reconciler, natively rendered | React DX without shipping a browser per extension | Same design (`js/src/renderer.ts` → `NodeView.swift`) |
+| **JSON Patch diffs + gzip** between render trees | Trees are large (lists of hundreds of rows), IPC crosses processes | Deliberately not done: our trees are tens of nodes and the "IPC" is an in-process C call; full-tree commits are simpler and fast enough. Adopt their diffing if `List` screens grow |
+| **Registered messages only** — extensions can invoke only whitelisted operations | Security: no arbitrary native calls from JS | Same shape: the entire JS→native surface is `__host.{commit,log,setTimer,clearTimer,publishWidgets}` |
+| Worker-thread isolation, memory limits, crash isolation per extension | Third-party code must not take down the app | N/A for first-party bundles; relevant the day this loads untrusted JS |
+| **Synchronized versioning** — app, API, CLI release together; extensions declare API version only | Avoid compatibility matrices | Same property by construction: bundle and interpreter ship in one app binary; the wire schema carries `v: 1` for the day they diverge |
+| Message ordering via serial queues + single-threaded worker | Correctness under bidirectional streaming | Same property by construction: QuickJS entry points are synchronous calls on the main actor |
+| API evolution proposals + codemod-driven migrations | Long-term API stability | Worth copying if the component API grows users |
+
+Net lesson: our architecture is the watch-sized version of a pattern
+Raycast has validated at scale for years. Their two big additions —
+tree diffing and process isolation — are exactly the ones to reach for
+when (a) trees get big or (b) the JS becomes untrusted; neither holds for
+an on-watch first-party bundle yet.
+
+## Complications & widgets: React-authored WidgetKit timelines
+
+ClockKit (the linked
+[Keeping your complications up to date](https://developer.apple.com/documentation/clockkit/keeping-your-complications-up-to-date)
+era) is deprecated; since watchOS 9–10, complications and Smart Stack
+widgets are **WidgetKit accessory-family widgets**
+(`accessoryCircular`, `accessoryCorner`, `accessoryRectangular`,
+`accessoryInline`). Two constraints shape the design:
+
+1. Widget extensions are **not long-running** — WidgetKit asks a
+   `TimelineProvider` for dated entries of *static* views, on a budget.
+2. Running a second QuickJS inside the extension would work (tight but
+   within the ~30MB widget memory ceiling) at the cost of duplicating the
+   engine per process — and isn't needed for timelines the app can
+   pre-render.
+
+So the **watch app's React instance is the timeline author**: JS
+registers widgets (`registerWidget({kind, families, render})`), renders
+every (kind × family) timeline to serialized trees, and
+`publishWidgets()` hands the payload to `__host.publishWidgets`, which
+persists it to App Group storage and calls
+`WidgetCenter.reloadAllTimelines()`. The widget extension only decodes
+and renders. That is the modern equivalent of ClockKit's
+"update the timeline from your app" guidance. Future work: evaluating
+QuickJS inside the extension's `getTimeline` for refreshes that happen
+while the app stays closed (the `reloadAfter` policy re-displays
+pre-rendered future entries, but cannot compute new data).
+
 ## Alternative considered: phone-hosted rendering
 
 The first design ran React inside the existing RN iPhone app and mirrored

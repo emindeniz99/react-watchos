@@ -34,8 +34,10 @@ This project does the same *category* of thing with ~500 lines instead of a
 framework fork: a JS engine on the device, JSX + hooks driving real native
 widgets, events bridged back to JS. It shares no code with RN core — RN
 ecosystem libraries won't run here — and the component vocabulary is
-SwiftUI-like (`VStack`, `HStack`, `Text`, `Button`, `Toggle`, `Spacer`,
-`Image`), with SwiftUI stack layout rather than flexbox.
+SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `Button`, `Toggle`,
+`Spacer`, `Image`, `ScrollView`, `List`, `Divider`, `Gauge`,
+`ProgressView`, `NavigationStack`, `NavigationLink`), with SwiftUI layout
+rather than flexbox.
 
 ## Architecture
 
@@ -61,7 +63,38 @@ are tens of nodes, so diffing isn't worth a protocol. Function props cross
 the bridge as `true` flags; node ids are stable, so native events target
 live instances. Same producer/consumer pattern as
 [react-ssd1306](https://github.com/doodlewind/react-ssd1306),
-[react-tvml](https://github.com/sergioramos/react-tvml), and Raycast.
+[react-tvml](https://github.com/sergioramos/react-tvml), and Raycast
+(whose extension architecture is reviewed in
+[docs/research.md](./docs/research.md)).
+
+## Complications & widgets (React-authored)
+
+Watch complications and Smart Stack widgets are WidgetKit accessory
+widgets (ClockKit is deprecated). Widget extensions can't run a live app,
+so the **watch app's React renders the timelines** and the extension only
+displays them:
+
+```tsx
+registerWidget({
+  kind: "hydration",
+  families: ["accessoryCircular", "accessoryRectangular", "accessoryInline"],
+  render: ({ family, now }) => ({
+    entries: [{ date: now, view: <Gauge value={glasses} max={8} label="Water" /> }],
+    reloadAfter: now + 24 * 3_600_000,
+  }),
+});
+// after any state change:
+publishWidgets();
+```
+
+`publishWidgets()` renders every (kind × family) timeline to serialized
+trees and hands them to `__host.publishWidgets`, which writes App Group
+storage and calls `WidgetCenter.reloadAllTimelines()`. The
+`targets/widget` extension decodes the stored payload in its
+`TimelineProvider` and renders it with a static interpreter
+(`WidgetNodeView.swift`). The demo hydration tracker drives a circular
+gauge complication, a corner gauge, a rectangular Smart Stack card, and
+the inline text slot — all from one React render function.
 
 ## Layout
 
@@ -70,6 +103,7 @@ live instances. Same producer/consumer pattern as
 | `js/` | The renderer + demo app. Pure TypeScript, fully tested on any OS. |
 | `app/` | Expo SDK 56 iOS shell; the watch app is a [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) target. |
 | `app/targets/watch/` | Swift: `JSRuntime.swift` (QuickJS embed), `NodeView.swift` (SwiftUI interpreter), vendored quickjs-ng v0.10.1. |
+| `app/targets/widget/` | WidgetKit extension: decodes React-rendered timelines from App Group storage (`ReactWidgets.swift`, `WidgetNodeView.swift`). |
 | `tools/embed-smoke/` | Reference C host: compiles the vendored engine and runs the real bundle through the exact API sequence Swift uses. |
 | `docs/research.md` | Why RN-core-on-watchOS is impossible; engine and architecture comparison. |
 
@@ -80,7 +114,7 @@ live instances. Same producer/consumer pattern as
 ```bash
 cd js
 npm install
-npm test        # 15 tests, including a smoke test inside a real qjs binary
+npm test        # 29 tests, including smoke tests inside a real qjs binary
 npm run build   # dist/bundle.js → app/targets/watch/assets/bundle.js
 ```
 
@@ -101,7 +135,10 @@ xed ios                                   # open the workspace
 
 In Xcode: select the **React Watch** scheme, choose a paired watch
 simulator (or device), and run. Edit `js/demo/App.tsx`, re-run
-`npm run build`, and rebuild the watch target to see changes.
+`npm run build`, and rebuild the watch target to see changes. To see the
+complications, add the Hydration complication to a watch face (or the
+widget to the Smart Stack), then tap "Add glass" in the app — the gauge
+updates via `publishWidgets()`.
 
 **Expected first-build friction (untested on a real Mac — Rule 12):**
 
@@ -113,11 +150,19 @@ simulator (or device), and run. Edit `js/demo/App.tsx`, re-run
 - Confirm `assets/bundle.js` landed in the watch target's bundle resources.
 - If prebuild didn't apply `WKRunsIndependentlyOfCompanionApp`, add it to
   the watch target's Info.plist.
+- App Groups: both the watch and widget targets must have the
+  `group.com.emindeniz99.reactwatch` App Group capability (declared in
+  their `expo-target.config.js`; verify under Signing & Capabilities, and
+  register the group id for your team).
 
 ## Limitations (honest list)
 
 - **Not RN core.** No RN components, no RN ecosystem libraries, no Yoga
-  flexbox. Seven SwiftUI-like primitives in v1.
+  flexbox. Fifteen SwiftUI-like primitives.
+- **Widgets refresh when the app publishes.** Timelines are pre-rendered
+  by the app's React; `reloadAfter` re-displays future entries but can't
+  compute new data while the app stays closed (QuickJS inside the widget
+  extension's `getTimeline` is the documented future path).
 - **The Swift side has never been compiled** — this repo was built in a
   Linux environment without Xcode. The JS↔engine contract is pinned by
   tests (vitest + real `qjs` + the C reference host), but expect minor
@@ -141,6 +186,14 @@ simulator (or device), and run. Edit `js/demo/App.tsx`, re-run
 - The Espruino/Bangle.js community ran React for a 64KB watch by keeping
   React on the phone; Apple Watch has the RAM to skip the Bluetooth hop
   entirely.
-- Future: WatchConnectivity data sync in the companion app, `List`/
-  `ScrollView`/`NavigationStack` primitives, Hermes once it grows a
-  watchOS target, minified bundles.
+- Raycast's extension pipeline (custom reconciler → JSON render tree →
+  native views, registered-messages-only IPC) independently validates this
+  architecture at scale; their tree-diffing and process isolation are the
+  upgrades to reach for if trees grow or the JS becomes untrusted — see
+  docs/research.md.
+- esbuild evaluates imported module bodies before the entry's statements,
+  so React's scheduler captures `setTimeout` at module init —
+  `src/install-shims.ts` must stay the bundle's first import.
+- Future: WatchConnectivity data sync in the companion app, Hermes once
+  it grows a watchOS target, minified bundles, QuickJS inside the widget
+  extension for app-closed timeline refreshes.
