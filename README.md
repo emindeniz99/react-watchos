@@ -36,8 +36,11 @@ widgets, events bridged back to JS. It shares no code with RN core — RN
 ecosystem libraries won't run here — and the component vocabulary is
 SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `Button`, `Toggle`,
 `Spacer`, `Image`, `ScrollView`, `List`, `Divider`, `Gauge`,
-`ProgressView`, `NavigationStack`, `NavigationLink`), with SwiftUI layout
-rather than flexbox.
+`ProgressView`, `NavigationStack`, `NavigationLink`, `TextField`,
+`Picker`, `TabView`), with SwiftUI layout rather than flexbox. Beyond
+views there's `Storage` (App Group UserDefaults), `playHaptic`, widget
+timelines, and control intents — all bridged through the same
+registered-message host surface.
 
 ## Architecture
 
@@ -96,6 +99,21 @@ storage and calls `WidgetCenter.reloadAllTimelines()`. The
 gauge complication, a corner gauge, a rectangular Smart Stack card, and
 the inline text slot — all from one React render function.
 
+The extension also embeds its own QuickJS (`IntentRuntime.swift`,
+measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
+
+- **Controls (watchOS 26)**: the "Add Glass" Control Center / Action
+  button control runs an AppIntent that evaluates the bundle with
+  `__entrypoint = "intent"` and dispatches to the handler registered via
+  `registerIntent("addGlass", …)` — React updates shared Storage and
+  republishes the complications without the app ever opening. Control
+  label/symbol come from `registerControl(...)` metadata in the payload.
+- **Self-refreshing timelines**: `getTimeline` prefers a fresh in-process
+  React render (`__renderWidgets`) over the stored payload.
+- **Timelines & relevance**: the daypart demo widget publishes
+  future-dated entries (WidgetKit swaps them all day with no process
+  running) plus Smart Stack relevance scores per entry.
+
 ## Layout
 
 | Path | What |
@@ -114,9 +132,16 @@ the inline text slot — all from one React render function.
 ```bash
 cd js
 npm install
-npm test        # 29 tests, including smoke tests inside a real qjs binary
-npm run build   # dist/bundle.js → app/targets/watch/assets/bundle.js
+npm test             # 48 tests, including smoke tests inside a real qjs binary
+npm run build        # bundle → both targets' assets/ (470KB, readable traces)
+npm run build:min    # minified (~139KB)
+npm run dev          # live reload: esbuild watch+serve on 127.0.0.1:8788
 ```
+
+With `npm run dev` running, DEBUG builds of the watch app poll the dev
+server every 2s and hot-restart the QuickJS runtime when the bundle
+changes — edit `demo/App.tsx` and the simulator updates without an
+Xcode rebuild.
 
 The qjs smoke test needs a `qjs` binary on PATH (`apt install quickjs` /
 `brew install quickjs`). `tools/embed-smoke/run.sh` additionally compiles
@@ -158,11 +183,11 @@ updates via `publishWidgets()`.
 ## Limitations (honest list)
 
 - **Not RN core.** No RN components, no RN ecosystem libraries, no Yoga
-  flexbox. Fifteen SwiftUI-like primitives.
-- **Widgets refresh when the app publishes.** Timelines are pre-rendered
-  by the app's React; `reloadAfter` re-displays future entries but can't
-  compute new data while the app stays closed (QuickJS inside the widget
-  extension's `getTimeline` is the documented future path).
+  flexbox. Eighteen SwiftUI-like primitives.
+- **Controls require watchOS 26**; gated with `#available`, everything
+  else runs on watchOS 10+.
+- **Input round-trips**: Toggle/Picker/TextField keep optimistic local
+  state to hide the JS round-trip; values reconcile on the next commit.
 - **The Swift side has never been compiled** — this repo was built in a
   Linux environment without Xcode. The JS↔engine contract is pinned by
   tests (vitest + real `qjs` + the C reference host), but expect minor
