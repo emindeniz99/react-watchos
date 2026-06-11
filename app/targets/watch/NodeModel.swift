@@ -75,5 +75,7 @@ struct RNNode: Codable, Equatable, Identifiable {
 
 struct RNTree: Codable, Equatable {
     let v: Int
+    /// Ack of the highest dispatched event seq (see ReactAppModel.dispatch).
+    let seq: Int?
     let root: RNNode?
 }

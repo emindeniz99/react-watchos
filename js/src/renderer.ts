@@ -22,6 +22,8 @@ export interface Container {
   children: Instance[];
   instances: Map<number, Instance>;
   nextId: number;
+  /** Highest event seq processed; acked on every commit (tree.seq). */
+  lastSeq: number;
   onCommit: () => void;
 }
 
@@ -188,13 +190,18 @@ export class WatchRoot {
   private container: Container;
   private root: unknown;
   private uncaughtError: unknown = null;
+  private commitCount = 0;
 
   constructor(host: HostBridge) {
     const container: Container = {
       children: [],
       instances: new Map(),
       nextId: 1,
-      onCommit: () => host.commit(serializeTree(container)),
+      lastSeq: 0,
+      onCommit: () => {
+        this.commitCount += 1;
+        host.commit(serializeTree(container));
+      },
     };
     this.container = container;
     this.root = reconciler.createContainer(
@@ -227,6 +234,10 @@ export class WatchRoot {
   dispatchEvent(event: WatchEvent): boolean {
     const instance = this.container.instances.get(event.nodeId);
     if (!instance) return false;
+    if (event.seq !== undefined && event.seq > this.container.lastSeq) {
+      this.container.lastSeq = event.seq;
+    }
+    const commitsBefore = this.commitCount;
     const previousPriority = currentUpdatePriority;
     currentUpdatePriority = DiscreteEventPriority;
     try {
@@ -235,6 +246,11 @@ export class WatchRoot {
       currentUpdatePriority = previousPriority;
     }
     this.flush();
+    // A handler that causes no re-render still owes native the seq ack,
+    // or optimistic controls would hold their local value forever.
+    if (event.seq !== undefined && this.commitCount === commitsBefore) {
+      this.container.onCommit();
+    }
     return true;
   }
 

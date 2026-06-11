@@ -28,5 +28,9 @@ export function serializeInstance(instance: Instance): SerializedNode {
 
 export function serializeTree(container: Container): SerializedTree {
   const root = container.children[0];
-  return { v: 1, root: root ? serializeInstance(root) : null };
+  return {
+    v: 1,
+    seq: container.lastSeq,
+    root: root ? serializeInstance(root) : null,
+  };
 }

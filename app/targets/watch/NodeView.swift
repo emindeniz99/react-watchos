@@ -174,6 +174,7 @@ private struct OptimisticPicker: View {
     let node: RNNode
     @EnvironmentObject private var model: ReactAppModel
     @State private var localSelection: Int?
+    @State private var pendingSeq: Int?
 
     private var options: [String] { node.stringArray("options") ?? [] }
 
@@ -183,7 +184,12 @@ private struct OptimisticPicker: View {
                 Text(option).tag(index)
             }
         }
-        .onChange(of: node.double("value")) { _, _ in localSelection = nil }
+        .onChange(of: model.ackedSeq) { _, acked in
+            if let pending = pendingSeq, acked >= pending {
+                localSelection = nil
+                pendingSeq = nil
+            }
+        }
     }
 
     private var binding: Binding<Int> {
@@ -191,7 +197,7 @@ private struct OptimisticPicker: View {
             get: { localSelection ?? Int(node.double("value") ?? 0) },
             set: { newValue in
                 localSelection = newValue
-                model.dispatch(
+                pendingSeq = model.dispatch(
                     nodeId: node.id, event: "change",
                     payload: ["value": newValue])
             })
@@ -199,16 +205,24 @@ private struct OptimisticPicker: View {
 }
 
 /// The change event round-trips through QuickJS before the new tree
-/// commits; a local override keeps the switch from visually snapping
-/// back in the meantime, and clears once React confirms the value.
+/// commits; a local override hides that. It releases only once React
+/// acks this control's *latest* dispatch (seq protocol) — releasing on
+/// value change alone snaps back when interactions arrive faster than
+/// commits, and never releases if the handler ignores the change.
 private struct OptimisticToggle: View {
     let node: RNNode
     @EnvironmentObject private var model: ReactAppModel
     @State private var localValue: Bool?
+    @State private var pendingSeq: Int?
 
     var body: some View {
         Toggle(isOn: binding) { Text(node.string("label") ?? "") }
-            .onChange(of: node.bool("value")) { _, _ in localValue = nil }
+            .onChange(of: model.ackedSeq) { _, acked in
+                if let pending = pendingSeq, acked >= pending {
+                    localValue = nil
+                    pendingSeq = nil
+                }
+            }
     }
 
     private var binding: Binding<Bool> {
@@ -216,7 +230,7 @@ private struct OptimisticToggle: View {
             get: { localValue ?? node.bool("value") ?? false },
             set: { newValue in
                 localValue = newValue
-                model.dispatch(
+                pendingSeq = model.dispatch(
                     nodeId: node.id, event: "change",
                     payload: ["value": newValue])
             })

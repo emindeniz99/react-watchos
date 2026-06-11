@@ -28,6 +28,7 @@ describe("render", () => {
     expect(host.commits).toHaveLength(1);
     expect(host.lastCommit).toEqual({
       v: 1,
+      seq: 0,
       root: {
         id: 4,
         type: "VStack",

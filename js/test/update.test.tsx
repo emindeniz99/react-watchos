@@ -76,6 +76,38 @@ describe("updates", () => {
     const root = new WatchRoot(host);
     root.render(<Text>bye</Text>);
     root.unmount();
-    expect(host.lastCommit).toEqual({ v: 1, root: null });
+    expect(host.lastCommit).toEqual({ v: 1, seq: 0, root: null });
+  });
+
+  it("acks the dispatched seq on the resulting commit", () => {
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Counter />);
+    expect(host.lastCommit!.seq).toBe(0);
+
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    root.dispatchEvent({ nodeId: button.id, event: "press", seq: 7 });
+    expect(host.lastCommit!.seq).toBe(7);
+    // Later commits keep acking the latest processed seq.
+    root.dispatchEvent({ nodeId: button.id, event: "press", seq: 8 });
+    expect(host.lastCommit!.seq).toBe(8);
+  });
+
+  it("acks a seq even when the handler causes no re-render", () => {
+    const noop = () => {};
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <Button onPress={noop}>
+        <Text>inert</Text>
+      </Button>,
+    );
+    const commitsBefore = host.commits.length;
+    const button = host.lastCommit!.root!;
+    root.dispatchEvent({ nodeId: button.id, event: "press", seq: 3 });
+    // No state change, but native still gets an ack commit so its
+    // optimistic controls can release their local values.
+    expect(host.commits.length).toBe(commitsBefore + 1);
+    expect(host.lastCommit!.seq).toBe(3);
   });
 });

@@ -71,13 +71,19 @@ final class JSRuntime {
         drainJobs()
     }
 
-    func dispatchEvent(nodeId: Int, event: String, payload: [String: Any]? = nil) {
-        var call = "globalThis.__dispatchEvent(\(nodeId), \(jsStringLiteral(event))"
+    func dispatchEvent(
+        nodeId: Int, event: String, payload: [String: Any]? = nil,
+        seq: Int? = nil
+    ) {
+        var payloadArg = "undefined"
         if let payload,
            let data = try? JSONSerialization.data(withJSONObject: payload),
            let json = String(data: data, encoding: .utf8) {
-            call += ", \(jsStringLiteral(json))"
+            payloadArg = jsStringLiteral(json)
         }
+        var call = "globalThis.__dispatchEvent(\(nodeId), "
+            + "\(jsStringLiteral(event)), \(payloadArg)"
+        if let seq { call += ", \(seq)" }
         call += ")"
         evaluateReportingErrors(call, filename: "dispatch.js")
     }

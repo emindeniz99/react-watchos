@@ -59,7 +59,8 @@ const initialCount = textStartingWith(initial, "Count: ").props.text;
 const initialPublished = latestPublished();
 
 const pressHandled = globalThis.__dispatchEvent(
-  buttonWithLabel(initial, "+").id, "press");
+  buttonWithLabel(initial, "+").id, "press", undefined, 11);
+const ackedSeq = JSON.parse(__commits[__commits.length - 1]).seq;
 const countAfterPress = textStartingWith(latestTree(), "Count: ").props.text;
 
 const toggle = findAll(latestTree(), "Toggle")[0];
@@ -76,6 +77,7 @@ print(JSON.stringify({
   rootType: initial.type,
   initialCount,
   pressHandled,
+  ackedSeq,
   countAfterPress,
   changeHandled,
   toggleAfterChange,
@@ -138,6 +140,7 @@ describe("quickjs smoke", () => {
     rootType: string;
     initialCount: string;
     pressHandled: boolean;
+    ackedSeq: number;
     countAfterPress: string;
     changeHandled: boolean;
     toggleAfterChange: boolean;
@@ -186,9 +189,10 @@ describe("quickjs smoke", () => {
     expect(result.initialCount).toBe("Count: 0");
   });
 
-  it("handles a press event end-to-end", () => {
+  it("handles a press event end-to-end and acks its seq", () => {
     expect(result.pressHandled).toBe(true);
     expect(result.countAfterPress).toBe("Count: 1");
+    expect(result.ackedSeq).toBe(11);
   });
 
   it("handles a change event with JSON payload end-to-end", () => {

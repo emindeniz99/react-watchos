@@ -11,8 +11,12 @@ final class ReactAppModel: ObservableObject {
     @Published var startupError: String?
     /// Non-fatal JS errors (event handlers, timers) surfaced as a banner.
     @Published var runtimeError: String?
+    /// Highest event seq React has acknowledged (tree.seq). Optimistic
+    /// controls hold their local value until their dispatch is acked.
+    @Published var ackedSeq = 0
 
     private var runtime: JSRuntime?
+    private var nextSeq = 1
 
     func start() {
         guard runtime == nil else { return }
@@ -34,6 +38,8 @@ final class ReactAppModel: ObservableObject {
         root = nil
         runtimeError = nil
         startupError = nil
+        ackedSeq = 0
+        nextSeq = 1
         do {
             let js = try makeRuntime()
             runtime = js
@@ -48,7 +54,13 @@ final class ReactAppModel: ObservableObject {
         js.onCommit = { [weak self] json in
             let tree = try? JSONDecoder().decode(
                 RNTree.self, from: Data(json.utf8))
-            DispatchQueue.main.async { self?.root = tree?.root }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.root = tree?.root
+                if let seq = tree?.seq, seq > self.ackedSeq {
+                    self.ackedSeq = seq
+                }
+            }
         }
         js.onPublishWidgets = { json in
             SharedWidgetStore.save(json)
@@ -128,8 +140,15 @@ final class ReactAppModel: ObservableObject {
         }
     }
 
-    func dispatch(nodeId: Int, event: String, payload: [String: Any]? = nil) {
-        runtime?.dispatchEvent(nodeId: nodeId, event: event, payload: payload)
+    /// Returns the seq assigned to this dispatch; optimistic controls
+    /// compare it against ackedSeq to know when React has caught up.
+    @discardableResult
+    func dispatch(nodeId: Int, event: String, payload: [String: Any]? = nil) -> Int {
+        let seq = nextSeq
+        nextSeq += 1
+        runtime?.dispatchEvent(
+            nodeId: nodeId, event: event, payload: payload, seq: seq)
+        return seq
     }
 
     #if DEBUG

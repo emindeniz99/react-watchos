@@ -13,6 +13,14 @@ export interface SerializedNode {
 
 export interface SerializedTree {
   v: 1;
+  /**
+   * Acknowledges the highest native event sequence number processed
+   * before this commit. Native optimistic controls hold their local
+   * value until the ack for their dispatch arrives, which kills the
+   * stale-commit race on rapid interactions (Raycast solves the same
+   * ordering problem with session ids over its IPC).
+   */
+  seq: number;
   root: SerializedNode | null;
 }
 
@@ -20,6 +28,8 @@ export interface WatchEvent {
   nodeId: number;
   event: string;
   payload?: Record<string, unknown>;
+  /** Native-assigned, monotonically increasing; echoed back via tree.seq. */
+  seq?: number;
 }
 
 /** Where committed trees go. Swift provides this via the `__host` global. */

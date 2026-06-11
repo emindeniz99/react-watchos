@@ -188,7 +188,11 @@ updates via `publishWidgets()`.
 - **Controls require watchOS 26**; gated with `#available`, everything
   else runs on watchOS 10+.
 - **Input round-trips**: Toggle/Picker/TextField keep optimistic local
-  state to hide the JS round-trip; values reconcile on the next commit.
+  state to hide the JS round-trip, released by a seq-ack protocol —
+  every dispatch carries a sequence number, every commit acks the
+  highest one processed (`tree.seq`, with a guaranteed ack commit even
+  when React doesn't re-render), so rapid interactions can't snap back
+  to stale values.
 - **The Swift side has never been compiled** — this repo was built in a
   Linux environment without Xcode. The JS↔engine contract is pinned by
   tests (vitest + real `qjs` + the C reference host), but expect minor

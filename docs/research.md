@@ -121,7 +121,7 @@ What they do best, and how it maps here:
 | **Registered messages only** — extensions can invoke only whitelisted operations | Security: no arbitrary native calls from JS | Same shape: the entire JS→native surface is `__host.{commit,log,setTimer,clearTimer,publishWidgets}` |
 | Worker-thread isolation, memory limits, crash isolation per extension | Third-party code must not take down the app | N/A for first-party bundles; relevant the day this loads untrusted JS |
 | **Synchronized versioning** — app, API, CLI release together; extensions declare API version only | Avoid compatibility matrices | Same property by construction: bundle and interpreter ship in one app binary; the wire schema carries `v: 1` for the day they diverge |
-| Message ordering via serial queues + single-threaded worker | Correctness under bidirectional streaming | Same property by construction: QuickJS entry points are synchronous calls on the main actor |
+| Message ordering via serial queues + single-threaded worker; session ids track instances | Correctness under bidirectional streaming | Ordering is synchronous by construction; their session-id idea inspired our **seq ack protocol**: every native dispatch carries a monotonically increasing `seq`, every commit acks the highest processed one (`tree.seq`), and optimistic controls release local state only on ack — fixing rapid-interaction snap-back and the no-rerender case |
 | API evolution proposals + codemod-driven migrations | Long-term API stability | Worth copying if the component API grows users |
 
 Net lesson: our architecture is the watch-sized version of a pattern

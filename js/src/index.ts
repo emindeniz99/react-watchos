@@ -110,11 +110,13 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
     nodeId: number,
     event: string,
     payloadJson?: string,
+    seq?: number,
   ): boolean =>
     root.dispatchEvent({
       nodeId,
       event,
       payload: payloadJson ? JSON.parse(payloadJson) : undefined,
+      seq,
     });
   root.render(element);
   return root;
