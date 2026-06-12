@@ -133,7 +133,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 ```bash
 cd js
 npm install
-npm test             # 52 tests, including smoke tests inside a real qjs binary
+npm test             # full suite, incl. smoke tests inside a real qjs binary
 npm run build        # bundle → both targets' assets/ (470KB, readable traces)
 npm run build:min    # minified (~139KB)
 npm run dev          # live reload: esbuild watch+serve on 127.0.0.1:8788
@@ -222,8 +222,9 @@ updates via `publishWidgets()`.
   upgrades to reach for if trees grow or the JS becomes untrusted — see
   docs/research.md.
 - esbuild evaluates imported module bodies before the entry's statements,
-  so React's scheduler captures `setTimeout` at module init —
-  `src/install-shims.ts` must stay the bundle's first import.
+  so React's scheduler captures `setTimeout` at module init — the QuickJS
+  shims are therefore force-prepended via esbuild's `inject` option
+  (`scripts/config.mjs`), not by import-order convention.
 - Future: WatchConnectivity data sync in the companion app, Hermes once
   it grows a watchOS target, minified bundles, QuickJS inside the widget
   extension for app-closed timeline refreshes.
