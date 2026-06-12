@@ -1,5 +1,6 @@
-// Shims first: react/scheduler capture setTimeout & co. at module init.
-import "../src/install-shims";
+// QuickJS shims are prepended by esbuild's `inject` (scripts/config.mjs),
+// so they run before react/scheduler module init regardless of import
+// order here.
 import { publishWidgets, runApp } from "../src/index";
 import { registerDemoWidgets } from "./widgets";
 import { registerDemoIntents } from "./intents";

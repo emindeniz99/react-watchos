@@ -72,3 +72,8 @@ export interface QuickJSHostGlobal {
   scheduleNotification?(payloadJson: string): void;
   cancelNotification?(id: string): void;
 }
+
+/** The native bridge installed by JSRuntime/IntentRuntime, if present. */
+export function getHost(): QuickJSHostGlobal | undefined {
+  return (globalThis as { __host?: QuickJSHostGlobal }).__host;
+}

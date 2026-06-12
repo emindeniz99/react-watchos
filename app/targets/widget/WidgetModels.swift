@@ -65,6 +65,14 @@ struct RNNode: Codable, Equatable, Identifiable {
         if case .bool(let value)? = props[key] { return value }
         return nil
     }
+
+    func stringArray(_ key: String) -> [String]? {
+        guard case .array(let values)? = props[key] else { return nil }
+        return values.compactMap {
+            if case .string(let value) = $0 { return value }
+            return nil
+        }
+    }
 }
 
 struct PublishedRelevance: Codable, Equatable {

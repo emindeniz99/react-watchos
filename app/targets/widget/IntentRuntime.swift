@@ -47,8 +47,17 @@ final class IntentRuntime {
     }
 
     /// Recomputes all timelines without going through publish. Persists
-    /// the result so other widget kinds see it too.
-    static func renderFreshTimelines(now: Date = .now) -> PublishedWidgets? {
+    /// the result so other widget kinds see it too. WidgetKit asks every
+    /// kind/family in a burst, so a short-lived cache keeps one reload
+    /// cycle to a single bundle evaluation.
+    static func renderFreshTimelines(
+        now: Date = .now, maxAge: TimeInterval = 5
+    ) -> PublishedWidgets? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cache = freshCache, now.timeIntervalSince(cache.date) < maxAge {
+            return cache.payload
+        }
         guard let runtime = IntentRuntime() else { return nil }
         let ms = now.timeIntervalSince1970 * 1000
         guard let json = runtime.callString("globalThis.__renderWidgets(\(ms))"),
@@ -58,7 +67,18 @@ final class IntentRuntime {
         }
         UserDefaults(suiteName: WidgetStore.appGroupId)?
             .set(json, forKey: WidgetStore.payloadKey)
+        freshCache = (now, payload)
         return payload
+    }
+
+    private static let cacheLock = NSLock()
+    private static var freshCache: (date: Date, payload: PublishedWidgets)?
+
+    /// Called when an intent handler publishes a newer payload.
+    static func invalidateCache() {
+        cacheLock.lock()
+        freshCache = nil
+        cacheLock.unlock()
     }
 
     // MARK: - Evaluation
@@ -119,6 +139,10 @@ final class IntentRuntime {
             JS_FreeValue(context, result)
             while JS_ExecutePendingJob(runtime, &ctx) > 0 {}
             rounds += 1
+        }
+        if !armedTimers.isEmpty {
+            print("[widget-js] timer drain cap hit; dropped",
+                  armedTimers.count, "timers")
         }
     }
 
@@ -227,6 +251,7 @@ private func widgetPublish(
         UserDefaults(suiteName: WidgetStore.appGroupId)?
             .set(String(cString: cString), forKey: WidgetStore.payloadKey)
         JS_FreeCString(ctx, cString)
+        IntentRuntime.invalidateCache()
         WidgetCenter.shared.reloadAllTimelines()
     }
     return qjs_undefined()

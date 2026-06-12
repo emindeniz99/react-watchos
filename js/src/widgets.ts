@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { QuickJSHostGlobal, SerializedNode } from "./host";
-import { MemoryHost } from "./host";
+import type { SerializedNode } from "./host";
+import { MemoryHost, getHost } from "./host";
 import { WatchRoot } from "./renderer";
 
 /**
@@ -116,8 +116,19 @@ function toMs(value: number | Date): number {
   return value instanceof Date ? value.getTime() : value;
 }
 
+let renderingWidgets = false;
+
 /** Renders every registered widget for every family it supports. */
 export function renderWidgets(now: number = Date.now()): PublishedWidgets {
+  renderingWidgets = true;
+  try {
+    return renderWidgetsInner(now);
+  } finally {
+    renderingWidgets = false;
+  }
+}
+
+function renderWidgetsInner(now: number): PublishedWidgets {
   const widgets: PublishedWidgets["widgets"] = {};
   for (const definition of registry.values()) {
     const byFamily: Record<string, PublishedFamilyTimeline> = {};
@@ -150,9 +161,17 @@ export function renderWidgets(now: number = Date.now()): PublishedWidgets {
  * it; a missing host method is fine on platforms without widgets).
  */
 export function publishWidgets(now: number = Date.now()): PublishedWidgets {
+  // A widget render() callback calling publishWidgets would recurse and,
+  // worse, trigger WidgetCenter reload -> getTimeline -> render again — an
+  // infinite reload loop in the extension. Ignore the call entirely.
+  if (renderingWidgets) {
+    getHost()?.log?.(
+      "publishWidgets called inside a widget render; ignored to avoid a reload loop",
+    );
+    return { v: 1, publishedAt: now, widgets: {}, controls: {} };
+  }
   const payload = renderWidgets(now);
-  const host = (globalThis as { __host?: QuickJSHostGlobal }).__host;
-  host?.publishWidgets?.(JSON.stringify(payload));
+  getHost()?.publishWidgets?.(JSON.stringify(payload));
   return payload;
 }
 

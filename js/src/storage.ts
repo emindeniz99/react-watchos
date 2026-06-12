@@ -1,4 +1,4 @@
-import type { QuickJSHostGlobal } from "./host";
+import { getHost } from "./host";
 
 /**
  * Key/value storage backed by App Group UserDefaults on the watch
@@ -9,19 +9,15 @@ import type { QuickJSHostGlobal } from "./host";
 
 const memoryFallback = new Map<string, string>();
 
-function host(): QuickJSHostGlobal | undefined {
-  return (globalThis as { __host?: QuickJSHostGlobal }).__host;
-}
-
 export const Storage = {
   getString(key: string): string | null {
-    const h = host();
+    const h = getHost();
     if (h?.getItem) return h.getItem(key);
     return memoryFallback.get(key) ?? null;
   },
 
   setString(key: string, value: string): void {
-    const h = host();
+    const h = getHost();
     if (h?.setItem) h.setItem(key, value);
     else memoryFallback.set(key, value);
   },

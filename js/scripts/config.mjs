@@ -19,6 +19,10 @@ export function buildOptions({ minify = false } = {}) {
     outfile,
     bundle: true,
     format: "iife",
+    // Guarantees the QuickJS shims execute before react/scheduler module
+    // init (they capture setTimeout & co. at load); import order in the
+    // entry can no longer break this.
+    inject: [join(root, "src/install-shims.ts")],
     // Bellard QuickJS (used in CI smoke tests) and quickjs-ng (on the
     // watch) both cover ES2020.
     target: "es2020",

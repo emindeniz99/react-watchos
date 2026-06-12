@@ -14,6 +14,9 @@ final class ReactAppModel: ObservableObject {
     /// Highest event seq React has acknowledged (tree.seq). Optimistic
     /// controls hold their local value until their dispatch is acked.
     @Published var ackedSeq = 0
+    /// Optimistic values keyed by node id — lives on the model (not view
+    /// @State) so it survives SwiftUI view identity changes mid-flight.
+    @Published private var optimistic: [Int: (seq: Int, value: JSONValue)] = [:]
 
     private var runtime: JSRuntime?
     private var nextSeq = 1
@@ -40,6 +43,7 @@ final class ReactAppModel: ObservableObject {
         startupError = nil
         ackedSeq = 0
         nextSeq = 1
+        optimistic = [:]
         do {
             let js = try makeRuntime()
             runtime = js
@@ -52,13 +56,22 @@ final class ReactAppModel: ObservableObject {
     private func makeRuntime() throws -> JSRuntime {
         let js = try JSRuntime()
         js.onCommit = { [weak self] json in
-            let tree = try? JSONDecoder().decode(
-                RNTree.self, from: Data(json.utf8))
             DispatchQueue.main.async {
                 guard let self else { return }
-                self.root = tree?.root
-                if let seq = tree?.seq, seq > self.ackedSeq {
-                    self.ackedSeq = seq
+                do {
+                    let tree = try JSONDecoder().decode(
+                        RNTree.self, from: Data(json.utf8))
+                    self.root = tree.root
+                    if tree.seq > self.ackedSeq {
+                        self.ackedSeq = tree.seq
+                        self.optimistic = self.optimistic.filter {
+                            $0.value.seq > tree.seq
+                        }
+                    }
+                } catch {
+                    // Keep the previous tree; a silently-dropped commit
+                    // would freeze acks and the UI with no trace.
+                    self.runtimeError = "tree decode failed: \(error)"
                 }
             }
         }
@@ -126,6 +139,11 @@ final class ReactAppModel: ObservableObject {
         } else {
             seconds = (payload.afterMs ?? 0) / 1000
         }
+        if seconds < -1 {
+            // Don't silently turn a past time into "in 1 second".
+            runtimeError =
+                "notification '\(payload.id)' scheduled in the past; delivering now"
+        }
         let request = UNNotificationRequest(
             identifier: payload.id,
             content: content,
@@ -149,6 +167,25 @@ final class ReactAppModel: ObservableObject {
         runtime?.dispatchEvent(
             nodeId: nodeId, event: event, payload: payload, seq: seq)
         return seq
+    }
+
+    /// Dispatches a change event and remembers `value` as the node's
+    /// optimistic value until React acks this dispatch.
+    func dispatchOptimistic(nodeId: Int, value: JSONValue, payload: [String: Any]) {
+        let seq = dispatch(nodeId: nodeId, event: "change", payload: payload)
+        optimistic[nodeId] = (seq, value)
+    }
+
+    func optimisticBool(_ nodeId: Int) -> Bool? {
+        if case .bool(let value)? = optimistic[nodeId]?.value { return value }
+        return nil
+    }
+
+    func optimisticInt(_ nodeId: Int) -> Int? {
+        if case .number(let value)? = optimistic[nodeId]?.value {
+            return Int(value)
+        }
+        return nil
     }
 
     #if DEBUG

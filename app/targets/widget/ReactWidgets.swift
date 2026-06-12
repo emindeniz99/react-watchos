@@ -126,15 +126,18 @@ struct AddGlassIntent: AppIntent {
 
 @available(watchOS 26.0, *)
 struct AddGlassControl: ControlWidget {
-    private static let metadata =
+    // Computed (not static let) so republished React metadata is picked
+    // up on every render instead of being frozen at process start.
+    private var metadata: PublishedControl? {
         WidgetStore.load()?.controls?["hydration.addGlass"]
+    }
 
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "hydration.addGlass") {
             ControlWidgetButton(action: AddGlassIntent()) {
                 Label(
-                    Self.metadata?.label ?? "Add Glass",
-                    systemImage: Self.metadata?.systemName ?? "drop.fill")
+                    metadata?.label ?? "Add Glass",
+                    systemImage: metadata?.systemName ?? "drop.fill")
             }
         }
         .displayName("Add Glass")

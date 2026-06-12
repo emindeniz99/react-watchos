@@ -43,10 +43,14 @@ struct WidgetNodeView: View {
             }
         // Interactive/navigation nodes degrade to their content.
         case "Button", "NavigationStack", "NavigationLink", "ScrollView",
-             "List":
+             "List", "TabView":
             children(node)
         case "Toggle":
             Text(node.string("label") ?? "")
+        case "TextField":
+            Text(node.string("value") ?? node.string("placeholder") ?? "")
+        case "Picker":
+            Text(pickerSummary(node))
         default:
             EmptyView()
         }
@@ -84,6 +88,13 @@ struct WidgetNodeView: View {
             text = text.font(.system(size: CGFloat(size)))
         }
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
+    }
+
+    private func pickerSummary(_ node: RNNode) -> String {
+        let options = node.stringArray("options") ?? []
+        let index = Int(node.double("value") ?? 0)
+        if options.indices.contains(index) { return options[index] }
+        return node.string("label") ?? ""
     }
 
     private func formatted(_ value: Double) -> String {
