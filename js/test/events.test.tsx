@@ -7,15 +7,8 @@ import {
   Toggle,
   VStack,
   WatchRoot,
-  type SerializedNode,
 } from "../src/index";
-
-function findByType(node: SerializedNode, type: string): SerializedNode[] {
-  return [
-    ...(node.type === type ? [node] : []),
-    ...node.children.flatMap((child) => findByType(child, type)),
-  ];
-}
+import { findByType } from "./helpers";
 
 describe("events", () => {
   it("dispatches press to the onPress handler", () => {

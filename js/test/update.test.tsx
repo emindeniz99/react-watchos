@@ -1,13 +1,7 @@
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
-import {
-  Button,
-  MemoryHost,
-  Text,
-  VStack,
-  WatchRoot,
-  type SerializedNode,
-} from "../src/index";
+import { Button, MemoryHost, Text, VStack, WatchRoot } from "../src/index";
+import { findByType } from "./helpers";
 
 function Counter() {
   const [count, setCount] = useState(0);
@@ -19,13 +13,6 @@ function Counter() {
       </Button>
     </VStack>
   );
-}
-
-function findByType(node: SerializedNode, type: string): SerializedNode[] {
-  return [
-    ...(node.type === type ? [node] : []),
-    ...node.children.flatMap((child) => findByType(child, type)),
-  ];
 }
 
 describe("updates", () => {

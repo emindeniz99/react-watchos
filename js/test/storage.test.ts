@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { Storage } from "../src/index";
+import { installMockHost } from "./helpers";
 
 afterEach(() => {
   Storage.clearMemoryFallback();
@@ -17,13 +18,11 @@ describe("Storage", () => {
 
   it("uses the host storage bridge when available", () => {
     const backing = new Map<string, string>();
-    (globalThis as Record<string, unknown>).__host = {
-      commit: vi.fn(),
-      log: vi.fn(),
-      setTimer: vi.fn(),
-      getItem: (key: string) => backing.get(key) ?? null,
-      setItem: (key: string, value: string) => backing.set(key, value),
-    };
+    const host = installMockHost();
+    host.getItem.mockImplementation((key: string) => backing.get(key) ?? null);
+    host.setItem.mockImplementation((key: string, value: string) => {
+      backing.set(key, value);
+    });
 
     Storage.set("glasses", 5);
     expect(backing.get("glasses")).toBe("5");
@@ -31,13 +30,7 @@ describe("Storage", () => {
   });
 
   it("returns null for corrupt stored JSON instead of throwing", () => {
-    (globalThis as Record<string, unknown>).__host = {
-      commit: vi.fn(),
-      log: vi.fn(),
-      setTimer: vi.fn(),
-      getItem: () => "{not json",
-      setItem: vi.fn(),
-    };
+    installMockHost().getItem.mockReturnValue("{not json");
     expect(Storage.get("anything")).toBeNull();
   });
 });

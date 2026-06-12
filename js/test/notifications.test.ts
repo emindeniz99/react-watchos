@@ -1,22 +1,10 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   cancelNotification,
   requestNotificationPermission,
   scheduleNotification,
 } from "../src/index";
-
-function installHost() {
-  const host = {
-    commit: vi.fn(),
-    log: vi.fn(),
-    setTimer: vi.fn(),
-    requestNotificationPermission: vi.fn(),
-    scheduleNotification: vi.fn(),
-    cancelNotification: vi.fn(),
-  };
-  (globalThis as Record<string, unknown>).__host = host;
-  return host;
-}
+import { installMockHost } from "./helpers";
 
 afterEach(() => {
   delete (globalThis as Record<string, unknown>).__host;
@@ -24,7 +12,7 @@ afterEach(() => {
 
 describe("notifications", () => {
   it("schedules with a generated id and defaults", () => {
-    const host = installHost();
+    const host = installMockHost();
     const id = scheduleNotification({ title: "Hydration", afterMs: 60_000 });
     expect(id).toMatch(/^react-notification-/);
     expect(JSON.parse(host.scheduleNotification.mock.calls[0][0])).toEqual({
@@ -38,7 +26,7 @@ describe("notifications", () => {
   });
 
   it("keeps explicit ids and normalizes Date `at` to epoch ms", () => {
-    const host = installHost();
+    const host = installMockHost();
     const at = new Date(1_750_000_000_000);
     const id = scheduleNotification({
       id: "hydration.reminder",
@@ -54,7 +42,7 @@ describe("notifications", () => {
   });
 
   it("forwards permission requests and cancellations to the host", () => {
-    const host = installHost();
+    const host = installMockHost();
     requestNotificationPermission();
     cancelNotification("hydration.reminder");
     expect(host.requestNotificationPermission).toHaveBeenCalledTimes(1);

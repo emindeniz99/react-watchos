@@ -18,6 +18,7 @@ import {
   playHaptic,
   type SerializedNode,
 } from "../src/index";
+import { installMockHost } from "./helpers";
 
 afterEach(() => {
   delete (globalThis as Record<string, unknown>).__host;
@@ -155,15 +156,9 @@ describe("input primitives", () => {
 
 describe("haptics", () => {
   it("forwards to the host bridge when available", () => {
-    const play = vi.fn();
-    (globalThis as Record<string, unknown>).__host = {
-      commit: vi.fn(),
-      log: vi.fn(),
-      setTimer: vi.fn(),
-      playHaptic: play,
-    };
+    const host = installMockHost();
     playHaptic("success");
-    expect(play).toHaveBeenCalledWith("success");
+    expect(host.playHaptic).toHaveBeenCalledWith("success");
   });
 
   it("is a no-op without a haptics-capable host", () => {

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   Gauge,
   Text,
@@ -10,6 +10,7 @@ import {
   renderWidgets,
   unregisterAllWidgets,
 } from "../src/index";
+import { installMockHost } from "./helpers";
 
 afterEach(() => {
   unregisterAllWidgets();
@@ -96,20 +97,39 @@ describe("widget timelines", () => {
 
   it("publishWidgets hands the JSON payload to the native host", () => {
     registerHydration(4);
-    const published = vi.fn();
-    (globalThis as Record<string, unknown>).__host = {
-      commit: vi.fn(),
-      log: vi.fn(),
-      setTimer: vi.fn(),
-      publishWidgets: published,
-    };
+    const host = installMockHost();
 
     const payload = publishWidgets(NOW);
 
-    expect(published).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(published.mock.calls[0][0])).toEqual(
+    expect(host.publishWidgets).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(host.publishWidgets.mock.calls[0][0])).toEqual(
       JSON.parse(JSON.stringify(payload)),
     );
+  });
+
+  it("ignores publishWidgets from inside a widget render (reload-loop guard)", () => {
+    const host = installMockHost();
+    registerWidget({
+      kind: "selfPublisher",
+      families: ["accessoryInline"],
+      render: ({ now }) => {
+        // A buggy widget render publishing would otherwise trigger
+        // WidgetCenter reload -> getTimeline -> render -> publish forever.
+        publishWidgets(now);
+        return { entries: [{ date: now, view: <Text>ok</Text> }] };
+      },
+    });
+
+    const payload = publishWidgets(NOW);
+
+    expect(host.publishWidgets).toHaveBeenCalledTimes(1);
+    expect(host.log).toHaveBeenCalledWith(
+      expect.stringContaining("reload loop"),
+    );
+    expect(
+      payload.widgets.selfPublisher.accessoryInline.entries[0].tree?.props
+        .text,
+    ).toBe("ok");
   });
 
   it("publishWidgets still renders when the host lacks widget support", () => {
