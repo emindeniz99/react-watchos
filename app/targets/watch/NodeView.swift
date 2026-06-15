@@ -7,6 +7,12 @@ struct NodeView: View {
     @EnvironmentObject private var model: ReactAppModel
 
     var body: some View {
+        rendered.modifier(A11yModifier(
+            label: node.string("accessibilityLabel"),
+            hint: node.string("accessibilityHint")))
+    }
+
+    @ViewBuilder private var rendered: some View {
         switch node.type {
         case "VStack":
             VStack(spacing: cgFloat("spacing")) { childViews }
@@ -219,3 +225,24 @@ private struct OptimisticTextField: View {
     }
 }
 
+
+/// Applies optional VoiceOver metadata to any node (A11yProps in
+/// js/src/components.ts). Only set when present so unlabeled nodes keep
+/// SwiftUI's inferred accessibility.
+private struct A11yModifier: ViewModifier {
+    let label: String?
+    let hint: String?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        switch (label, hint) {
+        case let (label?, hint?):
+            content.accessibilityLabel(label).accessibilityHint(hint)
+        case let (label?, nil):
+            content.accessibilityLabel(label)
+        case let (nil, hint?):
+            content.accessibilityHint(hint)
+        case (nil, nil):
+            content
+        }
+    }
+}

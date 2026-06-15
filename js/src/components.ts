@@ -8,17 +8,27 @@ import type { FC, ReactNode } from "react";
 
 type TextContent = string | number | Array<string | number>;
 
-export interface VStackProps {
+/**
+ * VoiceOver metadata supported by every primitive (applied as SwiftUI
+ * .accessibilityLabel/.accessibilityHint in NodeView). Watch users rely
+ * on VoiceOver, so author labels for icon-only or composite controls.
+ */
+export interface A11yProps {
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
+}
+
+export interface VStackProps extends A11yProps {
   spacing?: number;
   children?: ReactNode;
 }
 
-export interface HStackProps {
+export interface HStackProps extends A11yProps {
   spacing?: number;
   children?: ReactNode;
 }
 
-export interface TextProps {
+export interface TextProps extends A11yProps {
   /** Text children must be strings/numbers; nested elements are not supported. */
   children?: TextContent;
   bold?: boolean;
@@ -27,12 +37,12 @@ export interface TextProps {
   color?: string;
 }
 
-export interface ButtonProps {
+export interface ButtonProps extends A11yProps {
   onPress?: () => void;
   children?: ReactNode;
 }
 
-export interface ToggleProps {
+export interface ToggleProps extends A11yProps {
   value?: boolean;
   onChange?: (value: boolean) => void;
   label?: string;
@@ -40,7 +50,7 @@ export interface ToggleProps {
 
 export interface SpacerProps {}
 
-export interface ImageProps {
+export interface ImageProps extends A11yProps {
   /** SF Symbol name, e.g. "heart.fill". */
   systemName: string;
   color?: string;
@@ -61,7 +71,7 @@ export interface ListProps {
 
 export interface DividerProps {}
 
-export interface GaugeProps {
+export interface GaugeProps extends A11yProps {
   value: number;
   min?: number;
   max?: number;
@@ -71,7 +81,7 @@ export interface GaugeProps {
   color?: string;
 }
 
-export interface ProgressViewProps {
+export interface ProgressViewProps extends A11yProps {
   /** Fraction 0...1 when total omitted, else value out of total. */
   value?: number;
   total?: number;
@@ -89,14 +99,14 @@ export interface NavigationLinkProps {
   children?: ReactNode;
 }
 
-export interface TextFieldProps {
+export interface TextFieldProps extends A11yProps {
   value?: string;
   placeholder?: string;
   /** Fired on input commit (watchOS input is modal: dictation/scribble/QWERTY). */
   onChange?: (value: string) => void;
 }
 
-export interface PickerProps {
+export interface PickerProps extends A11yProps {
   label?: string;
   options: string[];
   /** Selected index into options. */
@@ -115,7 +125,7 @@ export interface TabViewProps {
  * so a stopwatch/countdown costs zero per-frame JS. For a paused/stopped
  * value, render a plain <Text> with the frozen string instead.
  */
-export interface TimerTextProps {
+export interface TimerTextProps extends A11yProps {
   /** Count up from this epoch-ms start (elapsed time). */
   since?: number;
   /** Count down to this epoch-ms deadline. Takes precedence over `since`. */

@@ -101,6 +101,7 @@ function CounterScreen() {
         <Image
           systemName={liked ? "heart.fill" : "heart"}
           color={liked ? "red" : "secondary"}
+          accessibilityLabel={liked ? "Liked" : "Not liked"}
         />
         <Text bold size={16}>
           React on watchOS

@@ -8,10 +8,20 @@ struct WidgetNodeView: View {
 
     var body: some View {
         if let node {
-            render(node)
+            applyA11y(render(node), node)
         } else {
             // Placeholder/redacted state before the app publishes data.
             Image(systemName: "drop")
+        }
+    }
+
+    @ViewBuilder private func applyA11y(
+        _ content: some View, _ node: RNNode
+    ) -> some View {
+        if let label = node.string("accessibilityLabel") {
+            content.accessibilityLabel(label)
+        } else {
+            content
         }
     }
 
