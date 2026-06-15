@@ -71,6 +71,26 @@ final class JSRuntime {
         drainJobs()
     }
 
+    /// Loads a precompiled QuickJS bytecode bundle (no parser, faster cold
+    /// start). The bytecode must come from the same quickjs-ng version the
+    /// app embeds (tools/qjs-compile); callers should fall back to the JS
+    /// source if this throws.
+    func evaluateBytecode(_ data: Data) throws {
+        let fn = data.withUnsafeBytes { raw -> JSValue in
+            JS_ReadObject(context, raw.bindMemory(to: UInt8.self).baseAddress,
+                          data.count, qjs_read_obj_bytecode())
+        }
+        if JS_IsException(fn) != 0 {
+            throw JSError.exception(takeExceptionMessage())
+        }
+        let result = JS_EvalFunction(context, fn)
+        defer { JS_FreeValue(context, result) }
+        if JS_IsException(result) != 0 {
+            throw JSError.exception(takeExceptionMessage())
+        }
+        drainJobs()
+    }
+
     func dispatchEvent(
         nodeId: Int, event: String, payload: [String: Any]? = nil,
         seq: Int? = nil

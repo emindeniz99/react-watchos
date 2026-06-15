@@ -23,20 +23,16 @@ final class ReactAppModel: ObservableObject {
 
     func start() {
         guard runtime == nil else { return }
-        guard let url = Bundle.main.url(
-            forResource: "bundle", withExtension: "js"),
-            let code = try? String(contentsOf: url, encoding: .utf8) else {
-            startupError = "bundle.js missing — run `npm run build` in js/"
-            return
-        }
-        boot(code: code)
+        boot()
         #if DEBUG
         startDevReload()
         #endif
     }
 
-    /// Tears down any existing runtime and evaluates `code` in a fresh one.
-    private func boot(code: String) {
+    /// Boots a fresh runtime from the bundled code. Prefers precompiled
+    /// bytecode (bundle.qbc, faster cold start) and falls back to parsing
+    /// bundle.js if the bytecode is missing or version-mismatched.
+    private func boot(devCode: String? = nil) {
         runtime = nil
         root = nil
         runtimeError = nil
@@ -47,10 +43,32 @@ final class ReactAppModel: ObservableObject {
         do {
             let js = try makeRuntime()
             runtime = js
-            try js.evaluate(code)
+            if let devCode {
+                try js.evaluate(devCode)
+            } else {
+                try load(into: js)
+            }
         } catch {
             startupError = "JS startup failed: \(error)"
         }
+    }
+
+    private func load(into js: JSRuntime) throws {
+        if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
+           let data = try? Data(contentsOf: qbc) {
+            do {
+                try js.evaluateBytecode(data)
+                return
+            } catch {
+                // Stale/mismatched bytecode — fall through to the source.
+                runtimeError = "bytecode load failed, using bundle.js: \(error)"
+            }
+        }
+        guard let jsURL = Bundle.main.url(forResource: "bundle", withExtension: "js"),
+              let code = try? String(contentsOf: jsURL, encoding: .utf8) else {
+            throw JSRuntime.JSError.exception("bundle.js missing — run `npm run build`")
+        }
+        try js.evaluate(code)
     }
 
     private func makeRuntime() throws -> JSRuntime {
@@ -225,7 +243,7 @@ final class ReactAppModel: ObservableObject {
         // The first fetch usually matches the built-in bundle; only
         // restart once the dev server serves something newer.
         if !isFirstFetch {
-            boot(code: code)
+            boot(devCode: code)
         }
     }
     #endif

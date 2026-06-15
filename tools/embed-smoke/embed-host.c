@@ -129,7 +129,24 @@ int main(int argc, char **argv) {
     JS_SetPropertyStr(ctx, global, "__timers", JS_NewArray(ctx));
     JS_FreeValue(ctx, global);
 
-    JSValue result = JS_Eval(ctx, bundle, len, "bundle.js", JS_EVAL_TYPE_GLOBAL);
+    // Bytecode (.qbc) loads via JS_ReadObject + JS_EvalFunction (no parser),
+    // exactly like JSRuntime.swift; .js goes through the source parser.
+    size_t arglen = strlen(argv[1]);
+    int is_bytecode = arglen > 4 && strcmp(argv[1] + arglen - 4, ".qbc") == 0;
+    JSValue result;
+    if (is_bytecode) {
+        JSValue fn = JS_ReadObject(ctx, (const uint8_t *)bundle, len,
+                                   JS_READ_OBJ_BYTECODE);
+        if (JS_IsException(fn)) {
+            JSValue exc = JS_GetException(ctx);
+            const char *msg = JS_ToCString(ctx, exc);
+            fprintf(stderr, "bytecode read failed: %s\n", msg ? msg : "?");
+            return 1;
+        }
+        result = JS_EvalFunction(ctx, fn);
+    } else {
+        result = JS_Eval(ctx, bundle, len, "bundle.js", JS_EVAL_TYPE_GLOBAL);
+    }
     free(bundle);
     if (JS_IsException(result)) {
         JSValue exc = JS_GetException(ctx);

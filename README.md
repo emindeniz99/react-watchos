@@ -160,8 +160,10 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 cd js
 npm install
 npm test             # full suite, incl. smoke tests inside a real qjs binary
+npm run codegen      # regenerate Swift models + TS wire types from schema
 npm run build        # bundle → both targets' assets/ (470KB, readable traces)
 npm run build:min    # minified (~139KB)
+npm run build:bytecode  # precompile bundle.qbc (faster cold start; see below)
 npm run dev          # live reload: esbuild watch+serve on 127.0.0.1:8788
 ```
 
@@ -251,6 +253,16 @@ updates via `publishWidgets()`.
   so React's scheduler captures `setTimeout` at module init — the QuickJS
   shims are therefore force-prepended via esbuild's `inject` option
   (`scripts/config.mjs`), not by import-order convention.
+- `npm run build:bytecode` precompiles the bundle to QuickJS bytecode
+  (`bundle.qbc`) so cold start skips the parser — the watch-sized analog of
+  Hermes AOT. The watch/widget runtimes load `.qbc` if present and fall back
+  to parsing `.js`. Trade-offs: bytecode is ~4× larger on disk (~2 MB vs
+  ~480 KB) and is coupled to the vendored quickjs-ng version, so it's a
+  build artifact (git-ignored), regenerated from the vendored sources at
+  package time — never committed.
+- The JS↔Swift wire model and `__host` surface are generated from one
+  schema (`js/codegen/schema.mjs`) into the Swift models and TS types; a
+  drift test and a host-method cross-check keep the two languages in sync.
 - Future: WatchConnectivity data sync in the companion app, Hermes once
   it grows a watchOS target, minified bundles, QuickJS inside the widget
   extension for app-closed timeline refreshes.

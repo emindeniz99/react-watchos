@@ -84,6 +84,24 @@ final class IntentRuntime {
     // MARK: - Evaluation
 
     private func evaluateBundle() -> Bool {
+        // Prefer precompiled bytecode (faster cold start in the short-lived
+        // extension), fall back to parsing bundle.js.
+        if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
+           let data = try? Data(contentsOf: qbc) {
+            let fn = data.withUnsafeBytes { raw -> JSValue in
+                JS_ReadObject(context, raw.bindMemory(to: UInt8.self).baseAddress,
+                              data.count, qjs_read_obj_bytecode())
+            }
+            if JS_IsException(fn) == 0 {
+                let result = JS_EvalFunction(context, fn)
+                defer { JS_FreeValue(context, result) }
+                if JS_IsException(result) == 0 {
+                    drain()
+                    return true
+                }
+            }
+            logException()  // fall through to source
+        }
         guard let url = Bundle.main.url(forResource: "bundle", withExtension: "js"),
               let code = try? String(contentsOf: url, encoding: .utf8) else {
             return false
