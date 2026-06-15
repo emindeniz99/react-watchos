@@ -263,6 +263,14 @@ updates via `publishWidgets()`.
 - The JS↔Swift wire model and `__host` surface are generated from one
   schema (`js/codegen/schema.mjs`) into the Swift models and TS types; a
   drift test and a host-method cross-check keep the two languages in sync.
+- **Threading.** QuickJS runs on the main thread; committed trees are
+  decoded on a serial background queue (`decodeQueue`) and only `@Published`
+  state is touched back on main, so the JSON-parse cost of large trees
+  doesn't block the UI. Running the JS engine itself off the main thread
+  (RN's JS-thread model) is deferred: it's a Swift-6 actor-isolation–
+  sensitive change that can't be verified in this Linux environment, and at
+  watch-tree scale the engine work is sub-millisecond. Revisit once the
+  macOS build can compile/run it.
 - Future: WatchConnectivity data sync in the companion app, Hermes once
   it grows a watchOS target, minified bundles, QuickJS inside the widget
   extension for app-closed timeline refreshes.

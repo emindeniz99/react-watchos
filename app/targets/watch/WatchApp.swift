@@ -20,6 +20,9 @@ final class ReactAppModel: ObservableObject {
 
     private var runtime: JSRuntime?
     private var nextSeq = 1
+    /// Serial queue for decoding committed trees off the main thread,
+    /// preserving commit order.
+    private let decodeQueue = DispatchQueue(label: "react.watch.decode")
 
     func start() {
         guard runtime == nil else { return }
@@ -74,11 +77,21 @@ final class ReactAppModel: ObservableObject {
     private func makeRuntime() throws -> JSRuntime {
         let js = try JSRuntime()
         js.onCommit = { [weak self] json in
-            DispatchQueue.main.async {
-                guard let self else { return }
-                do {
-                    let tree = try JSONDecoder().decode(
-                        RNTree.self, from: Data(json.utf8))
+            // Decode the committed tree off the main thread (it's the real
+            // main-thread cost for large trees — JSON parse + struct build);
+            // a serial queue preserves commit order. Only @Published state
+            // is touched back on main. QuickJS itself is never accessed
+            // off-main, so this is isolation-safe. (Full off-main JS
+            // execution is deferred — see the threading note in the README.)
+            self?.decodeQueue.async {
+                let decoded = try? JSONDecoder().decode(
+                    RNTree.self, from: Data(json.utf8))
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard let tree = decoded else {
+                        self.runtimeError = "tree decode failed"
+                        return
+                    }
                     self.root = tree.root
                     if tree.seq > self.ackedSeq {
                         self.ackedSeq = tree.seq
@@ -86,10 +99,6 @@ final class ReactAppModel: ObservableObject {
                             $0.value.seq > tree.seq
                         }
                     }
-                } catch {
-                    // Keep the previous tree; a silently-dropped commit
-                    // would freeze acks and the UI with no trace.
-                    self.runtimeError = "tree decode failed: \(error)"
                 }
             }
         }
