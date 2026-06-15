@@ -1,0 +1,42 @@
+{
+  "v": 1,
+  "seq": 0,
+  "root": {
+    "id": 4,
+    "type": "VStack",
+    "props": {
+      "spacing": 8
+    },
+    "children": [
+      {
+        "id": 1,
+        "type": "TimerText",
+        "props": {
+          "since": 1000,
+          "bold": true,
+          "size": 28,
+          "color": "green"
+        },
+        "children": []
+      },
+      {
+        "id": 2,
+        "type": "Toggle",
+        "props": {
+          "value": true,
+          "label": "Live",
+          "onChange": true
+        },
+        "children": []
+      },
+      {
+        "id": 3,
+        "type": "Text",
+        "props": {
+          "text": "Connected"
+        },
+        "children": []
+      }
+    ]
+  }
+}

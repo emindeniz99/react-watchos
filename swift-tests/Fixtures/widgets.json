@@ -1,0 +1,59 @@
+{
+  "v": 1,
+  "publishedAt": 1000,
+  "widgets": {
+    "stopwatch": {
+      "accessoryCircular": {
+        "entries": [
+          {
+            "date": 1000,
+            "tree": {
+              "id": 1,
+              "type": "Gauge",
+              "props": {
+                "value": 0.5,
+                "label": "Go",
+                "style": "circular"
+              },
+              "children": []
+            },
+            "relevance": {
+              "score": 50,
+              "durationMs": 3600000
+            }
+          }
+        ],
+        "reloadAfter": 3601000
+      },
+      "accessoryInline": {
+        "entries": [
+          {
+            "date": 1000,
+            "tree": {
+              "id": 1,
+              "type": "Gauge",
+              "props": {
+                "value": 0.5,
+                "label": "Go",
+                "style": "circular"
+              },
+              "children": []
+            },
+            "relevance": {
+              "score": 50,
+              "durationMs": 3600000
+            }
+          }
+        ],
+        "reloadAfter": 3601000
+      }
+    }
+  },
+  "controls": {
+    "sw.start": {
+      "intent": "start",
+      "label": "Start",
+      "systemName": "play.fill"
+    }
+  }
+}
