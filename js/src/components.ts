@@ -109,6 +109,22 @@ export interface TabViewProps {
   children?: ReactNode;
 }
 
+/**
+ * A self-ticking time label. React renders this ONCE with a start/end
+ * timestamp and SwiftUI animates the digits natively (Text(timerInterval:)),
+ * so a stopwatch/countdown costs zero per-frame JS. For a paused/stopped
+ * value, render a plain <Text> with the frozen string instead.
+ */
+export interface TimerTextProps {
+  /** Count up from this epoch-ms start (elapsed time). */
+  since?: number;
+  /** Count down to this epoch-ms deadline. Takes precedence over `since`. */
+  until?: number;
+  bold?: boolean;
+  size?: number;
+  color?: string;
+}
+
 export const VStack = "VStack" as unknown as FC<VStackProps>;
 export const HStack = "HStack" as unknown as FC<HStackProps>;
 export const Text = "Text" as unknown as FC<TextProps>;
@@ -129,3 +145,4 @@ export const NavigationLink =
 export const TextField = "TextField" as unknown as FC<TextFieldProps>;
 export const Picker = "Picker" as unknown as FC<PickerProps>;
 export const TabView = "TabView" as unknown as FC<TabViewProps>;
+export const TimerText = "TimerText" as unknown as FC<TimerTextProps>;

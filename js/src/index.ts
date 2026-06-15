@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { HostBridge, QuickJSHostGlobal, SerializedTree } from "./host";
 import { WatchRoot } from "./renderer";
+import { dispatchNativeEvent } from "./nativeEvents";
 
 export {
   VStack,
@@ -21,6 +22,7 @@ export {
   TextField,
   Picker,
   TabView,
+  TimerText,
 } from "./components";
 export type {
   VStackProps,
@@ -41,7 +43,14 @@ export type {
   TextFieldProps,
   PickerProps,
   TabViewProps,
+  TimerTextProps,
 } from "./components";
+export {
+  registerNativeListener,
+  unregisterAllNativeListeners,
+  dispatchNativeEvent,
+} from "./nativeEvents";
+export type { NativeEventHandler } from "./nativeEvents";
 export { playHaptic } from "./haptics";
 export type { HapticType } from "./haptics";
 export {
@@ -118,6 +127,15 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
       payload: payloadJson ? JSON.parse(payloadJson) : undefined,
       seq,
     });
+  // Native state pushes: run the listener at urgent priority + flush so it
+  // commits instantly (like a tap), not on the scheduler's next turn.
+  g.__pushNativeEvent = (name: string, payloadJson?: string): boolean =>
+    root.runSync(() =>
+      dispatchNativeEvent(
+        name,
+        payloadJson ? JSON.parse(payloadJson) : undefined,
+      ),
+    );
   root.render(element);
   return root;
 }

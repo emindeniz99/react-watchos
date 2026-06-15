@@ -12,6 +12,7 @@ import {
   TabView,
   Text,
   TextField,
+  TimerText,
   VStack,
   WatchRoot,
   ZStack,
@@ -136,6 +137,23 @@ describe("input primitives", () => {
     });
     expect(onText).toHaveBeenCalledWith("hello");
     expect(onPick).toHaveBeenCalledWith(1);
+  });
+
+  it("serializes TimerText with timestamp props and no children", () => {
+    const root = render(
+      <TimerText since={1000} bold size={28} color="green" />,
+    );
+    expect(root).toEqual({
+      id: root.id,
+      type: "TimerText",
+      props: { since: 1000, bold: true, size: 28, color: "green" },
+      children: [],
+    });
+  });
+
+  it("serializes a countdown TimerText", () => {
+    const root = render(<TimerText until={5000} />);
+    expect(root).toMatchObject({ type: "TimerText", props: { until: 5000 } });
   });
 
   it("serializes TabView pages as children", () => {

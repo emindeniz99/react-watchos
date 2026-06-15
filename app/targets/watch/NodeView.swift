@@ -13,7 +13,9 @@ struct NodeView: View {
         case "HStack":
             HStack(spacing: cgFloat("spacing")) { childViews }
         case "Text":
-            styledText
+            styled(Text(node.string("text") ?? ""))
+        case "TimerText":
+            timerText
         case "Button":
             Button(action: { model.dispatch(nodeId: node.id, event: "press") }) {
                 childViews
@@ -89,13 +91,27 @@ struct NodeView: View {
         }
     }
 
-    private var styledText: some View {
-        var text = Text(node.string("text") ?? "")
+    private func styled(_ base: Text) -> some View {
+        var text = base
         if node.bool("bold") == true { text = text.bold() }
         if let size = node.double("size") {
             text = text.font(.system(size: CGFloat(size)))
         }
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
+    }
+
+    // Self-ticking label: SwiftUI updates the digits natively (no per-frame
+    // JS). `until` counts down to a deadline; otherwise count up from `since`.
+    @ViewBuilder private var timerText: some View {
+        if let until = node.double("until") {
+            let end = Date(timeIntervalSince1970: until / 1000)
+            styled(Text(timerInterval: Date()...Swift.max(Date(), end),
+                        countsDown: true))
+        } else {
+            let start = Date(timeIntervalSince1970: (node.double("since") ?? 0) / 1000)
+            styled(Text(timerInterval: start...Date.distantFuture,
+                        countsDown: false))
+        }
     }
 
     @ViewBuilder private var gauge: some View {

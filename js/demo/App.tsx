@@ -1,4 +1,4 @@
-import { version, useState } from "react";
+import { version, useEffect, useState } from "react";
 import {
   Button,
   Divider,
@@ -15,15 +15,80 @@ import {
   TabView,
   Text,
   TextField,
+  TimerText,
   Toggle,
   VStack,
   ZStack,
   playHaptic,
   publishWidgets,
+  registerNativeListener,
   requestNotificationPermission,
   scheduleNotification,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
+
+function formatElapsed(ms: number): string {
+  const total = Math.floor(ms / 1000);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
+/**
+ * Stopwatch driven by <TimerText>: React commits once on start/stop;
+ * SwiftUI ticks the digits natively (zero per-frame JS). When stopped, a
+ * plain <Text> shows the frozen elapsed time. The footer reflects app
+ * lifecycle pushed from native via runSync (instant, no polling).
+ */
+function StopwatchScreen() {
+  const [startedAt, setStartedAt] = useState<number | null>(null);
+  const [frozen, setFrozen] = useState(0);
+  const [phase, setPhase] = useState("active");
+  const running = startedAt !== null;
+
+  useEffect(() => {
+    registerNativeListener("scenePhase", (p) =>
+      setPhase(String(p?.phase ?? "active")),
+    );
+  }, []);
+
+  return (
+    <VStack spacing={6}>
+      {running ? (
+        <TimerText since={startedAt} bold size={30} />
+      ) : (
+        <Text bold size={30}>
+          {formatElapsed(frozen)}
+        </Text>
+      )}
+      <HStack spacing={8}>
+        <Button
+          onPress={() => {
+            if (running) {
+              setFrozen(frozen + (Date.now() - startedAt));
+              setStartedAt(null);
+            } else {
+              setStartedAt(Date.now() - frozen);
+            }
+          }}
+        >
+          <Text>{running ? "Stop" : "Start"}</Text>
+        </Button>
+        <Button
+          onPress={() => {
+            setStartedAt(null);
+            setFrozen(0);
+          }}
+        >
+          <Text>Reset</Text>
+        </Button>
+      </HStack>
+      <Text size={11} color="secondary">
+        {`SwiftUI ticks this · phase: ${phase}`}
+      </Text>
+    </VStack>
+  );
+}
 
 /** The original showcase: state, both event kinds, stacks and symbols. */
 function CounterScreen() {
@@ -192,6 +257,9 @@ export function App() {
         </NavigationLink>
         <NavigationLink title="Tabs">
           <TabsScreen />
+        </NavigationLink>
+        <NavigationLink title="Stopwatch">
+          <StopwatchScreen />
         </NavigationLink>
       </List>
     </NavigationStack>

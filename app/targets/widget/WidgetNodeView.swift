@@ -24,7 +24,9 @@ struct WidgetNodeView: View {
         case "ZStack":
             ZStack { children(node) }
         case "Text":
-            styledText(node)
+            styled(node, Text(node.string("text") ?? ""))
+        case "TimerText":
+            timerText(node)
         case "Image":
             Image(systemName: node.string("systemName") ?? "questionmark")
                 .font(.system(size: CGFloat(node.double("size") ?? 17)))
@@ -81,13 +83,27 @@ struct WidgetNodeView: View {
         }
     }
 
-    private func styledText(_ node: RNNode) -> some View {
-        var text = Text(node.string("text") ?? "")
+    private func styled(_ node: RNNode, _ base: Text) -> some View {
+        var text = base
         if node.bool("bold") == true { text = text.bold() }
         if let size = node.double("size") {
             text = text.font(.system(size: CGFloat(size)))
         }
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
+    }
+
+    // Auto-updating timer label; valid in widgets (Text(timerInterval:) is
+    // one of the few views WidgetKit ticks without a timeline reload).
+    @ViewBuilder private func timerText(_ node: RNNode) -> some View {
+        if let until = node.double("until") {
+            let end = Date(timeIntervalSince1970: until / 1000)
+            styled(node, Text(timerInterval: Date()...Swift.max(Date(), end),
+                              countsDown: true))
+        } else {
+            let start = Date(timeIntervalSince1970: (node.double("since") ?? 0) / 1000)
+            styled(node, Text(timerInterval: start...Date.distantFuture,
+                              countsDown: false))
+        }
     }
 
     private func pickerSummary(_ node: RNNode) -> String {

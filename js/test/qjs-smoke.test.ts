@@ -72,6 +72,16 @@ const publishedBefore = __published.length;
 globalThis.__dispatchEvent(buttonWithLabel(latestTree(), "Add glass").id, "press");
 const hydrationPublished = latestPublished();
 
+// Native push entrypoint: the Stopwatch screen (eagerly mounted as a
+// NavigationLink destination) registers a "scenePhase" listener, so a
+// native push routes through runSync and commits a new tree synchronously.
+const pushExists = typeof globalThis.__pushNativeEvent === "function";
+const pushHandled = globalThis.__pushNativeEvent("scenePhase",
+  JSON.stringify({ phase: "background" }));
+const phaseText = findAll(latestTree(), "Text")
+  .map((t) => String(t.props.text))
+  .find((t) => t.indexOf("phase:") >= 0);
+
 print(JSON.stringify({
   logs: __logs,
   rootType: initial.type,
@@ -79,6 +89,9 @@ print(JSON.stringify({
   pressHandled,
   ackedSeq,
   countAfterPress,
+  pushExists,
+  pushHandled,
+  phaseText,
   changeHandled,
   toggleAfterChange,
   initialGauge: initialPublished
@@ -142,6 +155,9 @@ describe("quickjs smoke", () => {
     pressHandled: boolean;
     ackedSeq: number;
     countAfterPress: string;
+    pushExists: boolean;
+    pushHandled: boolean;
+    phaseText: string;
     changeHandled: boolean;
     toggleAfterChange: boolean;
     initialGauge: number;
@@ -193,6 +209,13 @@ describe("quickjs smoke", () => {
     expect(result.pressHandled).toBe(true);
     expect(result.countAfterPress).toBe("Count: 1");
     expect(result.ackedSeq).toBe(11);
+  });
+
+  it("routes a native push through runSync and commits synchronously", () => {
+    expect(result.pushExists).toBe(true);
+    expect(result.pushHandled).toBe(true);
+    // The pushed phase landed in the committed tree without any awaiting.
+    expect(result.phaseText).toContain("background");
   });
 
   it("handles a change event with JSON payload end-to-end", () => {

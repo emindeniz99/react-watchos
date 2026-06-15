@@ -88,6 +88,21 @@ final class JSRuntime {
         evaluateReportingErrors(call, filename: "dispatch.js")
     }
 
+    /// Pushes a named native event into JS at urgent priority (runSync), so
+    /// the resulting UI update commits immediately. Use for non-interaction
+    /// state: connectivity, sensors, app lifecycle.
+    func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
+        var payloadArg = "undefined"
+        if let payload,
+           let data = try? JSONSerialization.data(withJSONObject: payload),
+           let json = String(data: data, encoding: .utf8) {
+            payloadArg = jsStringLiteral(json)
+        }
+        let call = "globalThis.__pushNativeEvent("
+            + "\(jsStringLiteral(name)), \(payloadArg))"
+        evaluateReportingErrors(call, filename: "push.js")
+    }
+
     private func evaluateReportingErrors(_ code: String, filename: String) {
         do {
             try evaluate(code, filename: filename)

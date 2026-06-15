@@ -34,14 +34,39 @@ This project does the same *category* of thing with ~500 lines instead of a
 framework fork: a JS engine on the device, JSX + hooks driving real native
 widgets, events bridged back to JS. It shares no code with RN core — RN
 ecosystem libraries won't run here — and the component vocabulary is
-SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `Button`, `Toggle`,
-`Spacer`, `Image`, `ScrollView`, `List`, `Divider`, `Gauge`,
+SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `TimerText`, `Button`,
+`Toggle`, `Spacer`, `Image`, `ScrollView`, `List`, `Divider`, `Gauge`,
 `ProgressView`, `NavigationStack`, `NavigationLink`, `TextField`,
 `Picker`, `TabView`), with SwiftUI layout rather than flexbox. Beyond
 views there's `Storage` (App Group UserDefaults), `playHaptic`,
 `scheduleNotification` (local notifications with permission request and
-cancel), widget timelines, and control intents — all bridged through the
-same registered-message host surface.
+cancel), `registerNativeListener` (instant native→React pushes), widget
+timelines, and control intents — all bridged through the same
+registered-message host surface.
+
+## Updating the UI: instant, periodic, smooth
+
+The renderer is pull/event-driven — it commits only when something
+re-enters JS, so it costs nothing while idle. Match the mechanism to the
+update frequency:
+
+- **Instant** (taps, native pushes): a tap runs at urgent priority and
+  flushes synchronously, so the commit happens before the native call
+  returns (latency ≈ one display frame). For native state that isn't a tap
+  — connectivity, sensors, lifecycle — register a listener with
+  `registerNativeListener(name, handler)` and have Swift call
+  `model.pushNativeEvent(name, payload)`; it routes through `runSync` so it
+  reacts instantly too, instead of on the scheduler's next turn. (Demo: the
+  Stopwatch screen's `phase:` footer, pushed from `scenePhase`.)
+- **Periodic** (seconds clock, polling): drive it from JS with
+  `setTimeout`/`setInterval`, ideally aligned to the boundary.
+- **Smooth / high-frequency** (stopwatch, countdown, animated timer): do
+  **not** drive it from React — render `<TimerText since={startMs} />` or
+  `<TimerText until={endMs} />` once and SwiftUI ticks the digits natively
+  (`Text(timerInterval:)`), zero per-frame JS, even while the bundle is
+  idle. For a paused value, render a plain `<Text>` with the frozen string.
+  Same idea as the widget timelines: hand native the declarative target and
+  let it run. (Demo: the Stopwatch screen.)
 
 ## Architecture
 
@@ -124,6 +149,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 | `app/targets/watch/` | Swift: `JSRuntime.swift` (QuickJS embed), `NodeView.swift` (SwiftUI interpreter), vendored quickjs-ng v0.10.1. |
 | `app/targets/widget/` | WidgetKit extension: decodes React-rendered timelines from App Group storage (`ReactWidgets.swift`, `WidgetNodeView.swift`). |
 | `tools/embed-smoke/` | Reference C host: compiles the vendored engine and runs the real bundle through the exact API sequence Swift uses. |
+| `swift-tests/` | Linux Swift contract tests: compile the real Foundation-only model files and decode real serializer fixtures (see its README). |
 | `docs/research.md` | Why RN-core-on-watchOS is impossible; engine and architecture comparison. |
 
 ## How to run

@@ -169,6 +169,12 @@ final class ReactAppModel: ObservableObject {
         return seq
     }
 
+    /// Forwards a native state push (connectivity, lifecycle, sensors) into
+    /// React at urgent priority — commits instantly, like a tap.
+    func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
+        runtime?.pushNativeEvent(name, payload: payload)
+    }
+
     /// Dispatches a change event and remembers `value` as the node's
     /// optimistic value until React acks this dispatch.
     func dispatchOptimistic(nodeId: Int, value: JSONValue, payload: [String: Any]) {
@@ -228,6 +234,7 @@ final class ReactAppModel: ObservableObject {
 @main
 struct ReactWatchApp: App {
     @StateObject private var model = ReactAppModel()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -256,6 +263,12 @@ struct ReactWatchApp: App {
             }
             .environmentObject(model)
             .onAppear { model.start() }
+            // Example native push: lifecycle changes reach React instantly
+            // via runSync (a "phase" listener can react without polling).
+            .onChange(of: scenePhase) { _, phase in
+                model.pushNativeEvent(
+                    "scenePhase", payload: ["phase": "\(phase)"])
+            }
         }
     }
 }

@@ -254,6 +254,26 @@ export class WatchRoot {
     return true;
   }
 
+  /**
+   * Runs `fn` at urgent (discrete) priority and flushes synchronously, so
+   * any state it changes commits before returning — the same path a tap
+   * takes. Native pushes (connection state, sensors, incoming messages)
+   * go through here to react instantly instead of waiting for the
+   * scheduler's next default-priority turn.
+   */
+  runSync<T>(fn: () => T): T {
+    const previousPriority = currentUpdatePriority;
+    currentUpdatePriority = DiscreteEventPriority;
+    let result: T;
+    try {
+      result = fn();
+    } finally {
+      currentUpdatePriority = previousPriority;
+    }
+    this.flush();
+    return result;
+  }
+
   private flush(): void {
     reconciler.flushSyncWork();
     reconciler.flushPassiveEffects();

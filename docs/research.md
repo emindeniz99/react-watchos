@@ -176,3 +176,31 @@ the door open to re-adding a phone link later for data sync.
 - This repo's development environment is Linux without Xcode: the JS side
   is fully tested here (vitest + real `qjs`); the Swift side is
   best-effort until built on a Mac with Xcode 16+.
+
+## Update model: latency vs frequency
+
+The renderer is pull/event-driven — there is no render loop and no frame
+rate. A commit (full-tree serialize → host push) happens only when
+something re-enters JS: a native event (`__dispatchEvent`), a native push
+(`__pushNativeEvent`), or a JS timer (`setTimeout`, which becomes
+`__host.setTimer`/`__fireTimer`). Idle = zero work, which is the right
+default on a watch.
+
+Two properties follow, and they shaped the API:
+
+- **Priority decides latency.** A tap forces `DiscreteEventPriority` and
+  calls `flush()`, so its commit happens before the native call returns —
+  latency is bounded by the display's own refresh (~one frame), the same
+  floor a native app hits. A bare `setState` (e.g. inside a `setTimeout`
+  tick) falls to default priority and flushes via React's Scheduler, which
+  in QuickJS is one extra `setTimeout(0)` hop — sub-frame, invisible, but
+  not synchronous. `WatchRoot.runSync` exposes the urgent path for native
+  pushes (connectivity, sensors, lifecycle) so they react like taps.
+- **Frequency decides cost.** Each commit serializes the whole tree, crosses
+  the C boundary, JSON-decodes in Swift, and re-diffs SwiftUI. Driving a
+  centisecond stopwatch this way (100 commits/s) would burn CPU and battery
+  and get throttled. So high-frequency/smooth UI is **not** driven from
+  React: `<TimerText>` emits a declarative self-ticking label backed by
+  SwiftUI's `Text(timerInterval:)`, which animates at the display rate with
+  zero per-frame JS — the same "describe it once, let native run it"
+  principle as the widget timelines.
