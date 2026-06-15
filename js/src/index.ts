@@ -51,6 +51,7 @@ export {
   dispatchNativeEvent,
 } from "./nativeEvents";
 export type { NativeEventHandler } from "./nativeEvents";
+export { ErrorBoundary } from "./errorBoundary";
 export { playHaptic } from "./haptics";
 export type { HapticType } from "./haptics";
 export {

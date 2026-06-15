@@ -2,6 +2,7 @@ import { version, useEffect, useState } from "react";
 import {
   Button,
   Divider,
+  ErrorBoundary,
   Gauge,
   HStack,
   Image,
@@ -240,6 +241,25 @@ function TabsScreen() {
 }
 
 export function App() {
+  return (
+    <ErrorBoundary
+      fallback={(e) => (
+        <VStack spacing={4}>
+          <Text bold color="red">
+            Something broke
+          </Text>
+          <Text size={11} color="secondary">
+            {e.message}
+          </Text>
+        </VStack>
+      )}
+    >
+      <AppScreens />
+    </ErrorBoundary>
+  );
+}
+
+function AppScreens() {
   return (
     <NavigationStack title="React Watch">
       <List>
