@@ -1,36 +1,12 @@
-/**
- * The wire contract shared with the Swift side (NodeModel.swift /
- * JSRuntime.swift). Changing any of these shapes is a breaking change for
- * the watch app.
- */
-
-export interface SerializedNode {
-  id: number;
-  type: string;
-  props: Record<string, unknown>;
-  children: SerializedNode[];
-}
-
-export interface SerializedTree {
-  v: 1;
-  /**
-   * Acknowledges the highest native event sequence number processed
-   * before this commit. Native optimistic controls hold their local
-   * value until the ack for their dispatch arrives, which kills the
-   * stale-commit race on rapid interactions (Raycast solves the same
-   * ordering problem with session ids over its IPC).
-   */
-  seq: number;
-  root: SerializedNode | null;
-}
-
-export interface WatchEvent {
-  nodeId: number;
-  event: string;
-  payload?: Record<string, unknown>;
-  /** Native-assigned, monotonically increasing; echoed back via tree.seq. */
-  seq?: number;
-}
+// The wire contract is generated from codegen/schema.mjs into one place;
+// the Swift models (Generated/WireModel.swift) are generated from the same
+// schema, so the two sides cannot drift.
+export type {
+  SerializedNode,
+  SerializedTree,
+  WatchEvent,
+} from "./generated/wire";
+import type { SerializedTree } from "./generated/wire";
 
 /** Where committed trees go. Swift provides this via the `__host` global. */
 export interface HostBridge {

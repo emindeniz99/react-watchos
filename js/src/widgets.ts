@@ -1,7 +1,18 @@
 import type { ReactNode } from "react";
 import type { SerializedNode } from "./host";
+import type {
+  PublishedEntry,
+  PublishedFamilyTimeline,
+  PublishedWidgets,
+} from "./generated/wire";
 import { MemoryHost, getHost } from "./host";
 import { WatchRoot } from "./renderer";
+
+export type {
+  PublishedEntry,
+  PublishedFamilyTimeline,
+  PublishedWidgets,
+} from "./generated/wire";
 
 /**
  * React-rendered WidgetKit timelines (watch complications and Smart Stack
@@ -51,12 +62,6 @@ export interface WidgetDefinition {
   render: (context: WidgetRenderContext) => WidgetTimeline;
 }
 
-export interface PublishedEntry {
-  date: number;
-  tree: SerializedNode | null;
-  relevance?: EntryRelevance;
-}
-
 /**
  * Metadata for a WidgetKit Control (watchOS 26 Control Center / Action
  * button). Controls are templated by the OS — a symbol plus a label, not
@@ -70,18 +75,6 @@ export interface ControlDefinition {
   intent: string;
   label: string;
   systemName?: string;
-}
-
-export interface PublishedFamilyTimeline {
-  entries: PublishedEntry[];
-  reloadAfter?: number;
-}
-
-export interface PublishedWidgets {
-  v: 1;
-  publishedAt: number;
-  widgets: Record<string, Record<string, PublishedFamilyTimeline>>;
-  controls: Record<string, Omit<ControlDefinition, "kind">>;
 }
 
 const registry = new Map<string, WidgetDefinition>();

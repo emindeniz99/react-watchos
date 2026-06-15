@@ -1,0 +1,1 @@
+../../../app/targets/watch/Generated/WireModel.swift

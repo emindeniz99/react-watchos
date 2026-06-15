@@ -8,6 +8,7 @@
     "build": "node scripts/build.mjs",
     "build:min": "node scripts/build.mjs --minify",
     "dev": "node scripts/dev.mjs",
+    "codegen": "node codegen/generate.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

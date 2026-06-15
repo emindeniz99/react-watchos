@@ -1,1 +1,0 @@
-../../../app/targets/widget/WidgetModels.swift
