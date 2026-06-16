@@ -9,6 +9,7 @@
     "build:min": "node scripts/build.mjs --minify",
     "dev": "node scripts/dev.mjs",
     "build:bytecode": "sh ../tools/qjs-compile/run.sh",
+    "check:size": "node scripts/check-size.mjs",
     "codegen": "node codegen/generate.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
