@@ -70,4 +70,30 @@ describe("fetch shim (QuickJS environment)", () => {
     expect(res.ok).toBe(false);
     expect(res.status).toBe(404);
   });
+
+  it("exposes response headers", async () => {
+    const fetch = g.fetch as (url: string) => Promise<any>;
+    const promise = fetch("https://api.test/h");
+    const [id] = hostFetch.mock.calls[0];
+    (g.__resolveFetch as (i: number, j: string) => void)(
+      id,
+      JSON.stringify({ status: 200, body: "", headers: { "content-type": "application/json" } }),
+    );
+    const res = await promise;
+    expect(res.headers["content-type"]).toBe("application/json");
+  });
+
+  it("rejects on timeout and ignores a late response", async () => {
+    const fetch = g.fetch as (url: string, o?: unknown) => Promise<unknown>;
+    const promise = fetch("https://slow.test", { timeout: 5 });
+    const [id] = hostFetch.mock.calls[0];
+    await expect(promise).rejects.toThrow(/timeout/);
+    // A response arriving after the timeout must not throw or double-settle.
+    expect(() =>
+      (g.__resolveFetch as (i: number, j: string) => void)(
+        id,
+        JSON.stringify({ status: 200, body: "late" }),
+      ),
+    ).not.toThrow();
+  });
 });

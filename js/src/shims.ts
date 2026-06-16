@@ -87,8 +87,18 @@ export function installShims(): void {
     interface Pending {
       resolve: (response: unknown) => void;
       reject: (error: unknown) => void;
+      timer?: number;
     }
     const pending = new Map<number, Pending>();
+    const settle = (id: number): Pending | undefined => {
+      const p = pending.get(id);
+      if (!p) return undefined;
+      pending.delete(id);
+      if (p.timer !== undefined) {
+        (g.clearTimeout as (id: number) => void)(p.timer);
+      }
+      return p;
+    };
     const makeResponse = (r: {
       status?: number;
       headers?: Record<string, string>;
@@ -110,11 +120,24 @@ export function installShims(): void {
         method?: string;
         headers?: Record<string, string>;
         body?: string;
+        /** Reject after this many ms (the request is abandoned). */
+        timeout?: number;
       },
     ): Promise<unknown> =>
       new Promise((resolve, reject) => {
         const id = nextFetchId++;
-        pending.set(id, { resolve, reject });
+        const entry: Pending = { resolve, reject };
+        if (options?.timeout) {
+          entry.timer = (g.setTimeout as (fn: () => void, ms: number) => number)(
+            () => {
+              if (settle(id)) {
+                reject(new Error(`fetch timeout after ${options.timeout}ms`));
+              }
+            },
+            options.timeout,
+          );
+        }
+        pending.set(id, entry);
         g.__host?.fetch?.(
           id,
           JSON.stringify({
@@ -126,9 +149,8 @@ export function installShims(): void {
         );
       });
     g.__resolveFetch = (id: number, responseJson: string) => {
-      const p = pending.get(id);
+      const p = settle(id);
       if (!p) return;
-      pending.delete(id);
       try {
         p.resolve(makeResponse(JSON.parse(responseJson)));
       } catch (error) {
@@ -136,9 +158,8 @@ export function installShims(): void {
       }
     };
     g.__rejectFetch = (id: number, message: string) => {
-      const p = pending.get(id);
+      const p = settle(id);
       if (!p) return;
-      pending.delete(id);
       p.reject(new Error(message));
     };
   }

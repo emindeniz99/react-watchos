@@ -255,10 +255,15 @@ final class ReactAppModel: ObservableObject {
                         id: id, message: error.localizedDescription)
                     return
                 }
-                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let http = response as? HTTPURLResponse
+                let status = http?.statusCode ?? 0
                 let bodyStr = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                var headers: [String: String] = [:]
+                http?.allHeaderFields.forEach { key, value in
+                    headers["\(key)".lowercased()] = "\(value)"
+                }
                 let payload: [String: Any] = [
-                    "status": status, "body": bodyStr, "headers": [String: String](),
+                    "status": status, "body": bodyStr, "headers": headers,
                 ]
                 let json = (try? JSONSerialization.data(withJSONObject: payload))
                     .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
