@@ -44,7 +44,20 @@ export interface TextProps extends A11yProps {
   /** Text children must be strings/numbers; nested elements are not supported. */
   children?: TextContent;
   bold?: boolean;
+  /** Fixed point size. Prefer `textStyle` so text scales with Dynamic Type. */
   size?: number;
+  /** Semantic font that scales with the user's Dynamic Type setting. */
+  textStyle?:
+    | "largeTitle"
+    | "title"
+    | "title2"
+    | "title3"
+    | "headline"
+    | "body"
+    | "callout"
+    | "subheadline"
+    | "footnote"
+    | "caption";
   /** SwiftUI system color name, e.g. "green", "secondary". */
   color?: string;
 }

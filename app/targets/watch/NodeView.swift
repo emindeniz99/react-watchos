@@ -142,7 +142,10 @@ struct NodeView: View {
     private func styled(_ base: Text) -> some View {
         var text = base
         if node.bool("bold") == true { text = text.bold() }
-        if let size = node.double("size") {
+        // Semantic textStyle scales with Dynamic Type; fixed size doesn't.
+        if let style = node.string("textStyle") {
+            text = text.font(semanticFont(style))
+        } else if let size = node.double("size") {
             text = text.font(.system(size: CGFloat(size)))
         }
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
@@ -182,6 +185,21 @@ struct NodeView: View {
     private func formatted(_ value: Double) -> String {
         value.truncatingRemainder(dividingBy: 1) == 0
             ? String(Int(value)) : String(format: "%.1f", value)
+    }
+
+    private func semanticFont(_ style: String) -> Font {
+        switch style {
+        case "largeTitle": .largeTitle
+        case "title": .title
+        case "title2": .title2
+        case "title3": .title3
+        case "headline": .headline
+        case "callout": .callout
+        case "subheadline": .subheadline
+        case "footnote": .footnote
+        case "caption": .caption
+        default: .body
+        }
     }
 
     // Optimistic bindings: the change event round-trips through QuickJS

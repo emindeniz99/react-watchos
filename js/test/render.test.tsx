@@ -58,6 +58,15 @@ describe("render", () => {
     expect(host.lastCommit?.root?.props.text).toBe("Count: 3");
   });
 
+  it("serializes a Dynamic Type textStyle", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(<Text textStyle="headline">Title</Text>);
+    expect(host.lastCommit?.root?.props).toMatchObject({
+      text: "Title",
+      textStyle: "headline",
+    });
+  });
+
   it("replaces function props with true flags so Swift sees interactivity", () => {
     const host = new MemoryHost();
     new WatchRoot(host).render(

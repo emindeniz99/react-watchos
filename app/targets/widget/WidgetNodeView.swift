@@ -112,10 +112,27 @@ struct WidgetNodeView: View {
     private func styled(_ node: RNNode, _ base: Text) -> some View {
         var text = base
         if node.bool("bold") == true { text = text.bold() }
-        if let size = node.double("size") {
+        if let style = node.string("textStyle") {
+            text = text.font(semanticFont(style))
+        } else if let size = node.double("size") {
             text = text.font(.system(size: CGFloat(size)))
         }
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
+    }
+
+    private func semanticFont(_ style: String) -> Font {
+        switch style {
+        case "largeTitle": .largeTitle
+        case "title": .title
+        case "title2": .title2
+        case "title3": .title3
+        case "headline": .headline
+        case "callout": .callout
+        case "subheadline": .subheadline
+        case "footnote": .footnote
+        case "caption": .caption
+        default: .body
+        }
     }
 
     // Auto-updating timer label; valid in widgets (Text(timerInterval:) is
