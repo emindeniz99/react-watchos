@@ -21,10 +21,26 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
   **bytecode precompile**, **no-op commit bailout**, **Linux CI + swift
   contract tests**.
 
-Remaining: gestures + Slider/Stepper/DatePicker (T1-P1), tree-diff
-(T2-P1, **measure-first**), sensors/HealthKit (T3-P1), Dynamic Type/
-reduce-motion + Live Activities (T3-P2). All are SwiftUI-gated except the
-JS halves — get the macOS build green before piling on more.
+- **Slider + Stepper** (T1-P1), **gestures** (onLongPress + onSwipe, T1-P1),
+  **bitmap/photo Image** (URL + base64), **BLE bridge** (movie remote),
+  **fetch** (+ timeout + headers), **focus** (`focusable`, T1-P2),
+  **Dynamic Type** (`textStyle`, T3-P2), **richer dev error overlay**
+  (stack + scrollable, T2-P2), **iPhone-side WatchConnectivity**
+  (react-native-watch-connectivity in the companion app), **Bluetooth
+  entitlement** — all done.
+
+Remaining: **DatePicker** + continuous drag-scrub (T1-P1), **tree-diff**
+(T2-P1, **measure-first**), **sensors/HealthKit** (T3-P1).
+
+**Live Activities — deferred (by design).** They're iOS ActivityKit
+(authored on iOS, only *surfaced* on the watch Smart Stack), need a
+separate iOS widget target we don't have, and are push/ActivityKit-driven
+rather than rendered through our React pipeline — so they don't fit and
+can't be verified here. The Smart Stack *ranking* (relevance scores) is
+already implemented. Revisit only if a real app needs an iOS Live Activity.
+
+All SwiftUI/CoreBluetooth code added across these passes is **unverified
+until the macOS build runs green** — that's the gate.
 
 ## Track 1 — Input & interaction
 
