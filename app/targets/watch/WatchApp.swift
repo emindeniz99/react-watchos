@@ -116,6 +116,9 @@ final class ReactAppModel: ObservableObject {
         js.onGetItem = { SharedWidgetStore.getItem($0) }
         js.onSetItem = { SharedWidgetStore.setItem($0, $1) }
         js.onSendToPhone = { [weak self] json in self?.connectivity.send(json) }
+        js.onFetch = { [weak self] id, reqJson in
+            self?.performFetch(id: id, requestJson: reqJson)
+        }
         js.onError = { [weak self] message in
             DispatchQueue.main.async { self?.runtimeError = message }
         }
@@ -208,6 +211,48 @@ final class ReactAppModel: ObservableObject {
     /// React at urgent priority — commits instantly, like a tap.
     func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
         runtime?.pushNativeEvent(name, payload: payload)
+    }
+
+    private struct FetchRequest: Decodable {
+        let url: String
+        let method: String
+        let headers: [String: String]?
+        let body: String?
+    }
+
+    /// Runs a JS fetch over URLSession. The completion hops back to the main
+    /// thread before settling the Promise, because the QuickJS context is
+    /// single-threaded and lives on main.
+    private func performFetch(id: Int, requestJson: String) {
+        guard let req = try? JSONDecoder().decode(
+            FetchRequest.self, from: Data(requestJson.utf8)),
+            let url = URL(string: req.url) else {
+            runtime?.rejectFetch(id: id, message: "invalid fetch request")
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = req.method
+        req.headers?.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
+        if let body = req.body { request.httpBody = Data(body.utf8) }
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let error {
+                    self.runtime?.rejectFetch(
+                        id: id, message: error.localizedDescription)
+                    return
+                }
+                let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+                let bodyStr = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                let payload: [String: Any] = [
+                    "status": status, "body": bodyStr, "headers": [String: String](),
+                ]
+                let json = (try? JSONSerialization.data(withJSONObject: payload))
+                    .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+                self.runtime?.resolveFetch(id: id, responseJson: json)
+            }
+        }.resume()
     }
 
     /// Dispatches a change event and remembers `value` as the node's

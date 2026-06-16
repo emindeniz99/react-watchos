@@ -49,6 +49,8 @@ export interface QuickJSHostGlobal {
   cancelNotification?(id: string): void;
   /** WatchConnectivity: send a message to the paired iPhone. */
   sendToPhone?(json: string): void;
+  /** Async HTTP via URLSession; settles via __resolveFetch/__rejectFetch. */
+  fetch?(id: number, requestJson: string): void;
 }
 
 /** The native bridge installed by JSRuntime/IntentRuntime, if present. */

@@ -40,6 +40,10 @@ final class JSRuntime {
     /// WatchConnectivity send (js/src/connectivity.ts).
     var onSendToPhone: ((String) -> Void)?
 
+    /// Async HTTP request (js/src/shims.ts fetch). Settle with
+    /// resolveFetch/rejectFetch on the main thread.
+    var onFetch: ((Int, String) -> Void)?
+
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
@@ -114,6 +118,20 @@ final class JSRuntime {
     /// Pushes a named native event into JS at urgent priority (runSync), so
     /// the resulting UI update commits immediately. Use for non-interaction
     /// state: connectivity, sensors, app lifecycle.
+    /// Settles a JS fetch Promise. MUST be called on the main thread (the
+    /// QuickJS context lives there); URLSession completions hop here.
+    func resolveFetch(id: Int, responseJson: String) {
+        evaluateReportingErrors(
+            "globalThis.__resolveFetch(\(id), \(jsStringLiteral(responseJson)))",
+            filename: "fetch.js")
+    }
+
+    func rejectFetch(id: Int, message: String) {
+        evaluateReportingErrors(
+            "globalThis.__rejectFetch(\(id), \(jsStringLiteral(message)))",
+            filename: "fetch.js")
+    }
+
     func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
         var payloadArg = "undefined"
         if let payload,
@@ -173,6 +191,8 @@ final class JSRuntime {
                             "cancelNotification", 1))
         JS_SetPropertyStr(context, host, "sendToPhone",
                           JS_NewCFunction(context, hostSendToPhone, "sendToPhone", 1))
+        JS_SetPropertyStr(context, host, "fetch",
+                          JS_NewCFunction(context, hostFetch, "fetch", 2))
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }
@@ -323,6 +343,20 @@ private func hostSendToPhone(
     return qjs_undefined()
 }
 
+private func hostFetch(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
+       let cString = JS_ToCString(ctx, argv[1]) {
+        var id: Int32 = 0
+        JS_ToInt32(ctx, &id, argv[0])
+        runtime.fetchFromC(Int(id), String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
 private func hostGetItem(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -393,6 +427,9 @@ extension JSRuntime {
     }
     fileprivate func sendToPhoneFromC(_ json: String) {
         onSendToPhone?(json)
+    }
+    fileprivate func fetchFromC(_ id: Int, _ json: String) {
+        onFetch?(id, json)
     }
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)

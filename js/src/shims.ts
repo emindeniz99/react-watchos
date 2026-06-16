@@ -77,4 +77,69 @@ export function installShims(): void {
   if (typeof g.performance === "undefined") {
     g.performance = { now: () => Date.now() };
   }
+
+  // Minimal fetch over the host bridge: __host.fetch arms an async
+  // URLSession request keyed by id; Swift settles it on the main thread via
+  // __resolveFetch/__rejectFetch (the Promise resolution then commits any
+  // resulting React update through the scheduler).
+  if (typeof g.fetch !== "function") {
+    let nextFetchId = 1;
+    interface Pending {
+      resolve: (response: unknown) => void;
+      reject: (error: unknown) => void;
+    }
+    const pending = new Map<number, Pending>();
+    const makeResponse = (r: {
+      status?: number;
+      headers?: Record<string, string>;
+      body?: string;
+    }) => {
+      const status = r.status ?? 0;
+      const body = r.body ?? "";
+      return {
+        status,
+        ok: status >= 200 && status < 300,
+        headers: r.headers ?? {},
+        text: () => Promise.resolve(body),
+        json: () => Promise.resolve(JSON.parse(body || "null")),
+      };
+    };
+    g.fetch = (
+      url: string,
+      options?: {
+        method?: string;
+        headers?: Record<string, string>;
+        body?: string;
+      },
+    ): Promise<unknown> =>
+      new Promise((resolve, reject) => {
+        const id = nextFetchId++;
+        pending.set(id, { resolve, reject });
+        g.__host?.fetch?.(
+          id,
+          JSON.stringify({
+            url,
+            method: options?.method ?? "GET",
+            headers: options?.headers ?? {},
+            body: options?.body ?? null,
+          }),
+        );
+      });
+    g.__resolveFetch = (id: number, responseJson: string) => {
+      const p = pending.get(id);
+      if (!p) return;
+      pending.delete(id);
+      try {
+        p.resolve(makeResponse(JSON.parse(responseJson)));
+      } catch (error) {
+        p.reject(error);
+      }
+    };
+    g.__rejectFetch = (id: number, message: string) => {
+      const p = pending.get(id);
+      if (!p) return;
+      pending.delete(id);
+      p.reject(new Error(message));
+    };
+  }
 }

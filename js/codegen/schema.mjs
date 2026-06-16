@@ -129,4 +129,5 @@ export const hostMethods = [
   { name: "scheduleNotification", targets: ["watch"] },
   { name: "cancelNotification", targets: ["watch"] },
   { name: "sendToPhone", targets: ["watch"] },
+  { name: "fetch", targets: ["watch"] },
 ];
