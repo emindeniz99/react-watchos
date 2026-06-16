@@ -343,6 +343,16 @@ private struct GestureModifier: ViewModifier {
     let model: ReactAppModel
 
     @ViewBuilder func body(content: Content) -> some View {
+        // Only opt into focus when asked — applying .focusable(false) would
+        // break the default Crown focusability of Slider/Picker/etc.
+        if node.bool("focusable") == true {
+            gestured(content).focusable()
+        } else {
+            gestured(content)
+        }
+    }
+
+    @ViewBuilder private func gestured(_ content: Content) -> some View {
         let longPress = node.bool("onLongPress") == true
         let swipe = node.bool("onSwipe") == true
         if longPress, swipe {

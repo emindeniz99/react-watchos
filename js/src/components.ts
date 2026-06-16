@@ -26,6 +26,8 @@ export interface A11yProps {
 export interface GestureProps {
   onLongPress?: () => void;
   onSwipe?: (direction: "left" | "right" | "up" | "down") => void;
+  /** Make this view Crown/focus-addressable (watchOS focus traversal). */
+  focusable?: boolean;
 }
 
 export interface VStackProps extends A11yProps, GestureProps {

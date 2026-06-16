@@ -64,6 +64,16 @@ describe("events", () => {
     expect(onLongPress).toHaveBeenCalledTimes(1);
   });
 
+  it("serializes the focusable flag", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(
+      <VStack focusable>
+        <Text>focus me</Text>
+      </VStack>,
+    );
+    expect(host.lastCommit!.root!.props.focusable).toBe(true);
+  });
+
   it("dispatches swipe with its direction", () => {
     const onSwipe = vi.fn();
     const host = new MemoryHost();
