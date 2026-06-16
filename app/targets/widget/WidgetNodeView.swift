@@ -69,6 +69,12 @@ struct WidgetNodeView: View {
             children(node)
         case "Toggle":
             Text(node.string("label") ?? "")
+        case "Slider", "Stepper":
+            // Read-only in widgets: show the value as a fraction.
+            let lo = node.double("from") ?? 0
+            let hi = node.double("through") ?? 1
+            let v = node.double("value") ?? 0
+            ProgressView(value: max(0, min(1, hi > lo ? (v - lo) / (hi - lo) : 0)))
         case "TextField":
             Text(node.string("value") ?? node.string("placeholder") ?? "")
         case "Picker":

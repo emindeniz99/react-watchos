@@ -73,6 +73,20 @@ struct NodeView: View {
             TabView { childViews }
         case "CrownRotation":
             CrownRotationView(node: node)
+        case "Slider":
+            let lo = node.double("from") ?? 0
+            let hi = node.double("through") ?? 1
+            if let step = node.double("step") {
+                Slider(value: doubleBinding, in: lo...hi, step: step)
+            } else {
+                Slider(value: doubleBinding, in: lo...hi)
+            }
+        case "Stepper":
+            Stepper(
+                value: doubleBinding,
+                in: (node.double("from") ?? 0)...(node.double("through") ?? 100),
+                step: node.double("step") ?? 1
+            ) { Text(node.string("label") ?? "") }
         default:
             // Unknown node type: skip it but keep rendering siblings, so a
             // newer JS bundle degrades gracefully on an older interpreter.
@@ -180,6 +194,19 @@ struct NodeView: View {
             set: { newValue in
                 model.dispatchOptimistic(
                     nodeId: node.id, value: .bool(newValue),
+                    payload: ["value": newValue])
+            })
+    }
+
+    /// Optimistic Double binding shared by Slider and Stepper.
+    private var doubleBinding: Binding<Double> {
+        Binding(
+            get: {
+                model.optimisticDouble(node.id) ?? (node.double("value") ?? 0)
+            },
+            set: { newValue in
+                model.dispatchOptimistic(
+                    nodeId: node.id, value: .number(newValue),
                     payload: ["value": newValue])
             })
     }

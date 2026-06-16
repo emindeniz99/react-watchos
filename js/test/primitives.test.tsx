@@ -7,6 +7,8 @@ import {
   NavigationLink,
   NavigationStack,
   CrownRotation,
+  Slider,
+  Stepper,
   Image,
   Picker,
   ProgressView,
@@ -217,6 +219,36 @@ describe("input primitives", () => {
       payload: { value: 7 },
     });
     expect(onChange).toHaveBeenCalledWith(7);
+  });
+
+  it("serializes Slider and dispatches its change", () => {
+    const onChange = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <Slider value={0.5} from={0} through={1} step={0.1} onChange={onChange} />,
+    );
+    const slider = host.lastCommit!.root!;
+    expect(slider).toMatchObject({
+      type: "Slider",
+      props: { value: 0.5, from: 0, through: 1, step: 0.1, onChange: true },
+    });
+    root.dispatchEvent({
+      nodeId: slider.id,
+      event: "change",
+      payload: { value: 0.8 },
+    });
+    expect(onChange).toHaveBeenCalledWith(0.8);
+  });
+
+  it("serializes Stepper with label and range", () => {
+    const root = render(
+      <Stepper value={3} from={0} through={10} step={1} label="Count" onChange={() => {}} />,
+    );
+    expect(root).toMatchObject({
+      type: "Stepper",
+      props: { value: 3, from: 0, through: 10, step: 1, label: "Count", onChange: true },
+    });
   });
 
   it("serializes TabView pages as children", () => {

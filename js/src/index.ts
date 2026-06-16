@@ -24,6 +24,8 @@ export {
   TabView,
   TimerText,
   CrownRotation,
+  Slider,
+  Stepper,
 } from "./components";
 export type {
   VStackProps,
@@ -46,6 +48,8 @@ export type {
   TabViewProps,
   TimerTextProps,
   CrownRotationProps,
+  SliderProps,
+  StepperProps,
 } from "./components";
 export {
   registerNativeListener,

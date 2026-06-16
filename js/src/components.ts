@@ -123,6 +123,25 @@ export interface TabViewProps {
   children?: ReactNode;
 }
 
+/** A draggable value slider (also Crown-adjustable when focused). */
+export interface SliderProps extends A11yProps {
+  value: number;
+  from?: number;
+  through?: number;
+  step?: number;
+  onChange?: (value: number) => void;
+}
+
+/** Numeric +/- stepper. */
+export interface StepperProps extends A11yProps {
+  value: number;
+  from?: number;
+  through?: number;
+  step?: number;
+  label?: string;
+  onChange?: (value: number) => void;
+}
+
 /**
  * Binds the Digital Crown to a numeric value over its children (SwiftUI
  * `digitalCrownRotation`). The wrapped view becomes crown-focusable;
@@ -183,3 +202,5 @@ export const TabView = "TabView" as unknown as FC<TabViewProps>;
 export const TimerText = "TimerText" as unknown as FC<TimerTextProps>;
 export const CrownRotation =
   "CrownRotation" as unknown as FC<CrownRotationProps>;
+export const Slider = "Slider" as unknown as FC<SliderProps>;
+export const Stepper = "Stepper" as unknown as FC<StepperProps>;
