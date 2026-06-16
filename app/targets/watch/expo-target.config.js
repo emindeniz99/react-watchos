@@ -12,9 +12,12 @@ module.exports = (config) => ({
     ],
   },
   // Standalone: the watch app runs (and updates its UI) without the phone.
-  // If this key is not applied by prebuild, set it manually in the watch
+  // If a key is not applied by prebuild, set it manually in the watch
   // target's Info.plist in Xcode.
   infoPlist: {
     WKRunsIndependentlyOfCompanionApp: true,
+    // Required for the CoreBluetooth central (BluetoothBridge / movie remote).
+    NSBluetoothAlwaysUsageDescription:
+      "Connect to a nearby device (e.g. your laptop) to control playback.",
   },
 });
