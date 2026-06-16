@@ -7,17 +7,24 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
 
 ## Already shipped (don't redo)
 
-These were proposed but already exist as of this branch:
-
-- **ErrorBoundary** (`js/src/errorBoundary.tsx`) and an on-device error
-  banner (`runtimeError` overlay in `WatchApp.swift`). Remaining delta: a
-  richer dev overlay with stack/source.
-- **VoiceOver labels** — `A11yProps` (label/hint) on every primitive,
-  applied in `NodeView`/`WidgetNodeView`. Remaining delta: Dynamic Type and
-  reduce-motion.
+- **Digital Crown** (`CrownRotation`, T1-P0) — done.
+- **`setInterval`/`clearInterval` shim** (T2-P0) — done.
+- **CI bundle-size budget** (`check:size`, T2-P1) — done.
+- **WatchConnectivity bridge** (`sendToPhone`/`onPhoneMessage`, T3-P0) —
+  watch side done; **iPhone-side WCSession still needs wiring in the Expo
+  companion app**.
+- **`fetch` shim over URLSession** (T3-P1) — done.
+- **ErrorBoundary** + on-device error banner. Remaining: richer dev overlay
+  with stack/source.
+- **VoiceOver labels** (`A11yProps`). Remaining: Dynamic Type, reduce-motion.
 - **TimerText**, **runSync / native-event push**, **codegen wire contract**,
   **bytecode precompile**, **no-op commit bailout**, **Linux CI + swift
   contract tests**.
+
+Remaining: gestures + Slider/Stepper/DatePicker (T1-P1), tree-diff
+(T2-P1, **measure-first**), sensors/HealthKit (T3-P1), Dynamic Type/
+reduce-motion + Live Activities (T3-P2). All are SwiftUI-gated except the
+JS halves — get the macOS build green before piling on more.
 
 ## Track 1 — Input & interaction
 
