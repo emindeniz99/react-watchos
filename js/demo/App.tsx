@@ -1,6 +1,7 @@
 import { version, useEffect, useState } from "react";
 import {
   Button,
+  CrownRotation,
   Divider,
   ErrorBoundary,
   Gauge,
@@ -241,6 +242,31 @@ function TabsScreen() {
   );
 }
 
+/** The Digital Crown drives a 0–100 value (volume-style). */
+function CrownScreen() {
+  const [volume, setVolume] = useState(30);
+  return (
+    <CrownRotation
+      value={volume}
+      from={0}
+      through={100}
+      step={1}
+      onChange={setVolume}
+      accessibilityLabel="Volume"
+    >
+      <VStack spacing={6}>
+        <Gauge value={volume} min={0} max={100} label="Volume" style="circular" />
+        <Text bold size={24}>
+          {String(volume)}
+        </Text>
+        <Text size={11} color="secondary">
+          Turn the Crown
+        </Text>
+      </VStack>
+    </CrownRotation>
+  );
+}
+
 export function App() {
   return (
     <ErrorBoundary
@@ -281,6 +307,9 @@ function AppScreens() {
         </NavigationLink>
         <NavigationLink title="Stopwatch">
           <StopwatchScreen />
+        </NavigationLink>
+        <NavigationLink title="Crown">
+          <CrownScreen />
         </NavigationLink>
       </List>
     </NavigationStack>

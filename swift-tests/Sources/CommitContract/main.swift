@@ -17,6 +17,14 @@ func find(_ node: RNNode, _ type: String) -> RNNode? {
     return nil
 }
 
+func findText(_ node: RNNode, _ text: String) -> RNNode? {
+    if node.type == "Text", node.string("text") == text { return node }
+    for child in node.children {
+        if let match = findText(child, text) { return match }
+    }
+    return nil
+}
+
 let path = CommandLine.arguments.count > 1
     ? CommandLine.arguments[1] : "Fixtures/tree.json"
 guard let data = FileManager.default.contents(atPath: path) else {
@@ -41,8 +49,13 @@ guard timer.double("since") == 1000 else {
 guard let toggle = find(root, "Toggle"), toggle.bool("value") == true else {
     fail("Toggle.value not true")
 }
-guard let text = find(root, "Text"), text.string("text") == "Connected" else {
+guard findText(root, "Connected") != nil else {
     fail("Text.text not folded correctly")
 }
+guard let crown = find(root, "CrownRotation"),
+      crown.double("from") == 0, crown.double("through") == 10,
+      crown.double("value") == 5 else {
+    fail("CrownRotation range/value not decoded")
+}
 
-print("CommitContract OK: seq=\(tree.seq), TimerText.since=\(timer.double("since")!), Toggle.value=\(toggle.bool("value")!)")
+print("CommitContract OK: seq=\(tree.seq), TimerText.since=\(timer.double("since")!), Toggle.value=\(toggle.bool("value")!), Crown.through=\(crown.double("through")!)")

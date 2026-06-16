@@ -6,6 +6,7 @@ import {
   MemoryHost,
   NavigationLink,
   NavigationStack,
+  CrownRotation,
   Picker,
   ProgressView,
   ScrollView,
@@ -154,6 +155,51 @@ describe("input primitives", () => {
   it("serializes a countdown TimerText", () => {
     const root = render(<TimerText until={5000} />);
     expect(root).toMatchObject({ type: "TimerText", props: { until: 5000 } });
+  });
+
+  it("serializes CrownRotation with range/step and folds onChange to a flag", () => {
+    const root = render(
+      <CrownRotation
+        value={5}
+        from={0}
+        through={10}
+        step={1}
+        haptic
+        onChange={() => {}}
+      >
+        <Text>5</Text>
+      </CrownRotation>,
+    );
+    expect(root).toMatchObject({
+      type: "CrownRotation",
+      props: {
+        value: 5,
+        from: 0,
+        through: 10,
+        step: 1,
+        haptic: true,
+        onChange: true,
+      },
+    });
+    expect(root.children[0].props.text).toBe("5");
+  });
+
+  it("dispatches Crown rotation as a change event with the new value", () => {
+    const onChange = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <CrownRotation value={5} onChange={onChange}>
+        <Text>5</Text>
+      </CrownRotation>,
+    );
+    const crown = host.lastCommit!.root!;
+    root.dispatchEvent({
+      nodeId: crown.id,
+      event: "change",
+      payload: { value: 7 },
+    });
+    expect(onChange).toHaveBeenCalledWith(7);
   });
 
   it("serializes TabView pages as children", () => {

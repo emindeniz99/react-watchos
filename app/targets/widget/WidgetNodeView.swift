@@ -55,7 +55,7 @@ struct WidgetNodeView: View {
             }
         // Interactive/navigation nodes degrade to their content.
         case "Button", "NavigationStack", "NavigationLink", "ScrollView",
-             "List", "TabView":
+             "List", "TabView", "CrownRotation":
             children(node)
         case "Toggle":
             Text(node.string("label") ?? "")

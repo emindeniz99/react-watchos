@@ -2,7 +2,7 @@
   "v": 1,
   "seq": 0,
   "root": {
-    "id": 4,
+    "id": 6,
     "type": "VStack",
     "props": {
       "spacing": 8
@@ -30,7 +30,28 @@
         "children": []
       },
       {
-        "id": 3,
+        "id": 4,
+        "type": "CrownRotation",
+        "props": {
+          "value": 5,
+          "from": 0,
+          "through": 10,
+          "step": 1,
+          "onChange": true
+        },
+        "children": [
+          {
+            "id": 3,
+            "type": "Text",
+            "props": {
+              "text": "5"
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 5,
         "type": "Text",
         "props": {
           "text": "Connected"

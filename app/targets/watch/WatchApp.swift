@@ -221,6 +221,11 @@ final class ReactAppModel: ObservableObject {
         return nil
     }
 
+    func optimisticDouble(_ nodeId: Int) -> Double? {
+        if case .number(let value)? = optimistic[nodeId]?.value { return value }
+        return nil
+    }
+
     #if DEBUG
     // Live reload: polls the esbuild dev server (`npm run dev` in js/,
     // port 8788 — the watch simulator shares the Mac's network) and

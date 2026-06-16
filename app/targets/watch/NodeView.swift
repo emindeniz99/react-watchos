@@ -72,6 +72,8 @@ struct NodeView: View {
             }
         case "TabView":
             TabView { childViews }
+        case "CrownRotation":
+            CrownRotationView(node: node)
         default:
             // Unknown node type: skip it but keep rendering siblings, so a
             // newer JS bundle degrades gracefully on an older interpreter.
@@ -244,5 +246,38 @@ private struct A11yModifier: ViewModifier {
         case (nil, nil):
             content
         }
+    }
+}
+
+/// Binds the Digital Crown to a numeric value over its children. The
+/// optimistic value (model-keyed) holds the displayed number until React
+/// acks the change, like the other input controls.
+private struct CrownRotationView: View {
+    let node: RNNode
+    @EnvironmentObject private var model: ReactAppModel
+
+    var body: some View {
+        VStack { ForEach(node.children) { NodeView(node: $0) } }
+            .focusable()
+            .digitalCrownRotation(
+                binding,
+                from: node.double("from") ?? 0,
+                through: node.double("through") ?? 100,
+                by: node.double("step") ?? 1,
+                sensitivity: .medium,
+                isContinuous: false,
+                isHapticFeedbackEnabled: node.bool("haptic") ?? true)
+    }
+
+    private var binding: Binding<Double> {
+        Binding(
+            get: {
+                model.optimisticDouble(node.id) ?? (node.double("value") ?? 0)
+            },
+            set: { newValue in
+                model.dispatchOptimistic(
+                    nodeId: node.id, value: .number(newValue),
+                    payload: ["value": newValue])
+            })
     }
 }

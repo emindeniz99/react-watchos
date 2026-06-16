@@ -120,6 +120,27 @@ export interface TabViewProps {
 }
 
 /**
+ * Binds the Digital Crown to a numeric value over its children (SwiftUI
+ * `digitalCrownRotation`). The wrapped view becomes crown-focusable;
+ * rotating the Crown fires `onChange` with the new value. Use for volume,
+ * zoom, scrubbing — anything the Crown should drive directly (vs. the
+ * Crown's implicit role inside Picker/ScrollView).
+ */
+export interface CrownRotationProps extends A11yProps {
+  value: number;
+  /** Range lower bound (default 0). */
+  from?: number;
+  /** Range upper bound (default 100). */
+  through?: number;
+  /** Detent size (default 1). */
+  step?: number;
+  /** Crown haptic detents (default true). */
+  haptic?: boolean;
+  onChange?: (value: number) => void;
+  children?: ReactNode;
+}
+
+/**
  * A self-ticking time label. React renders this ONCE with a start/end
  * timestamp and SwiftUI animates the digits natively (Text(timerInterval:)),
  * so a stopwatch/countdown costs zero per-frame JS. For a paused/stopped
@@ -156,3 +177,5 @@ export const TextField = "TextField" as unknown as FC<TextFieldProps>;
 export const Picker = "Picker" as unknown as FC<PickerProps>;
 export const TabView = "TabView" as unknown as FC<TabViewProps>;
 export const TimerText = "TimerText" as unknown as FC<TimerTextProps>;
+export const CrownRotation =
+  "CrownRotation" as unknown as FC<CrownRotationProps>;

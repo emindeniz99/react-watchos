@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  CrownRotation,
   Gauge,
   MemoryHost,
   Text,
@@ -30,6 +31,9 @@ describe("swift contract fixtures", () => {
       <VStack spacing={8}>
         <TimerText since={1000} bold size={28} color="green" />
         <Toggle value={true} label="Live" onChange={() => {}} />
+        <CrownRotation value={5} from={0} through={10} step={1} onChange={() => {}}>
+          <Text>5</Text>
+        </CrownRotation>
         <Text>Connected</Text>
       </VStack>,
     );

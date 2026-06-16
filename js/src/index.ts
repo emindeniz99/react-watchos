@@ -23,6 +23,7 @@ export {
   Picker,
   TabView,
   TimerText,
+  CrownRotation,
 } from "./components";
 export type {
   VStackProps,
@@ -44,6 +45,7 @@ export type {
   PickerProps,
   TabViewProps,
   TimerTextProps,
+  CrownRotationProps,
 } from "./components";
 export {
   registerNativeListener,
