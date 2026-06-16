@@ -19,25 +19,52 @@ export function installShims(): void {
 
   if (typeof g.setTimeout !== "function") {
     let nextTimerId = 1;
-    const timers = new Map<number, () => void>();
+    interface Timer {
+      run: () => void;
+      /** Set for setInterval; the period to re-arm with after each fire. */
+      intervalMs?: number;
+    }
+    const timers = new Map<number, Timer>();
+    const arm = (
+      fn: (...args: unknown[]) => void,
+      ms: number | undefined,
+      args: unknown[],
+      intervalMs?: number,
+    ): number => {
+      const id = nextTimerId++;
+      timers.set(id, { run: () => fn(...args), intervalMs });
+      g.__host?.setTimer(id, ms ?? 0);
+      return id;
+    };
     g.setTimeout = (
       fn: (...args: unknown[]) => void,
       ms?: number,
       ...args: unknown[]
-    ): number => {
-      const id = nextTimerId++;
-      timers.set(id, () => fn(...args));
-      g.__host?.setTimer(id, ms ?? 0);
-      return id;
-    };
+    ): number => arm(fn, ms, args);
+    // setInterval rides on the host's one-shot timer: re-arm in __fireTimer
+    // after each callback. QuickJS has no native setInterval, so an
+    // interval-driven update would otherwise throw and never commit.
+    g.setInterval = (
+      fn: (...args: unknown[]) => void,
+      ms?: number,
+      ...args: unknown[]
+    ): number => arm(fn, ms, args, ms ?? 0);
     g.clearTimeout = (id: number) => {
       timers.delete(id);
       g.__host?.clearTimer?.(id);
     };
+    g.clearInterval = g.clearTimeout;
     g.__fireTimer = (id: number) => {
-      const fn = timers.get(id);
-      timers.delete(id);
-      fn?.();
+      const timer = timers.get(id);
+      if (!timer) return;
+      if (timer.intervalMs === undefined) {
+        timers.delete(id);
+        timer.run();
+      } else {
+        timer.run();
+        // Re-arm unless the callback cleared the interval.
+        if (timers.has(id)) g.__host?.setTimer(id, timer.intervalMs);
+      }
     };
   }
 
