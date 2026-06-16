@@ -3,7 +3,9 @@ import type { Instance } from "./renderer";
 
 const eventToProp: Record<string, string> = {
   press: "onPress",
+  longPress: "onLongPress",
   change: "onChange",
+  swipe: "onSwipe",
 };
 
 /** Calls the matching handler prop on a live instance. */
@@ -17,6 +19,8 @@ export function dispatchToInstance(
   if (typeof handler !== "function") return false;
   if (event.event === "change") {
     handler(event.payload?.value);
+  } else if (event.event === "swipe") {
+    handler(event.payload?.direction);
   } else {
     handler(event.payload);
   }

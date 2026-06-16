@@ -8,9 +8,11 @@ struct NodeView: View {
     @EnvironmentObject private var model: ReactAppModel
 
     var body: some View {
-        rendered.modifier(A11yModifier(
-            label: node.string("accessibilityLabel"),
-            hint: node.string("accessibilityHint")))
+        rendered
+            .modifier(A11yModifier(
+                label: node.string("accessibilityLabel"),
+                hint: node.string("accessibilityHint")))
+            .modifier(GestureModifier(node: node, model: model))
     }
 
     @ViewBuilder private var rendered: some View {
@@ -330,5 +332,48 @@ private struct CrownRotationView: View {
                     nodeId: node.id, value: .number(newValue),
                     payload: ["value": newValue])
             })
+    }
+}
+
+/// Applies opt-in gestures (GestureProps in js/src/components.ts) to any
+/// node. Only attaches a gesture when its flag is present, so unmarked
+/// nodes are untouched.
+private struct GestureModifier: ViewModifier {
+    let node: RNNode
+    let model: ReactAppModel
+
+    @ViewBuilder func body(content: Content) -> some View {
+        let longPress = node.bool("onLongPress") == true
+        let swipe = node.bool("onSwipe") == true
+        if longPress, swipe {
+            content.onLongPressGesture { dispatchLongPress() }
+                .gesture(swipeGesture)
+        } else if longPress {
+            content.onLongPressGesture { dispatchLongPress() }
+        } else if swipe {
+            content.gesture(swipeGesture)
+        } else {
+            content
+        }
+    }
+
+    private func dispatchLongPress() {
+        model.dispatch(nodeId: node.id, event: "longPress")
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 20).onEnded { value in
+            let dx = value.translation.width
+            let dy = value.translation.height
+            let direction: String
+            if abs(dx) > abs(dy) {
+                direction = dx < 0 ? "left" : "right"
+            } else {
+                direction = dy < 0 ? "up" : "down"
+            }
+            model.dispatch(
+                nodeId: node.id, event: "swipe",
+                payload: ["direction": direction])
+        }
     }
 }

@@ -47,6 +47,41 @@ describe("events", () => {
     expect(updated.props.value).toBe(true);
   });
 
+  it("dispatches longPress to the onLongPress handler", () => {
+    const onLongPress = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <Button onPress={() => {}} onLongPress={onLongPress}>
+        <Text>hold</Text>
+      </Button>,
+    );
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    expect(button.props).toMatchObject({ onPress: true, onLongPress: true });
+    expect(root.dispatchEvent({ nodeId: button.id, event: "longPress" })).toBe(
+      true,
+    );
+    expect(onLongPress).toHaveBeenCalledTimes(1);
+  });
+
+  it("dispatches swipe with its direction", () => {
+    const onSwipe = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <VStack onSwipe={onSwipe}>
+        <Text>swipe me</Text>
+      </VStack>,
+    );
+    const stack = host.lastCommit!.root!;
+    root.dispatchEvent({
+      nodeId: stack.id,
+      event: "swipe",
+      payload: { direction: "left" },
+    });
+    expect(onSwipe).toHaveBeenCalledWith("left");
+  });
+
   it("ignores events for stale or unknown node ids", () => {
     const host = new MemoryHost();
     const root = new WatchRoot(host);

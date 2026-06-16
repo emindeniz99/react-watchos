@@ -18,12 +18,22 @@ export interface A11yProps {
   accessibilityHint?: string;
 }
 
-export interface VStackProps extends A11yProps {
+/**
+ * Gestures any view can opt into (applied in NodeView like a11y). onSwipe
+ * gets a direction. Avoid onSwipe on scroll containers — it competes with
+ * scrolling and the system swipe-back.
+ */
+export interface GestureProps {
+  onLongPress?: () => void;
+  onSwipe?: (direction: "left" | "right" | "up" | "down") => void;
+}
+
+export interface VStackProps extends A11yProps, GestureProps {
   spacing?: number;
   children?: ReactNode;
 }
 
-export interface HStackProps extends A11yProps {
+export interface HStackProps extends A11yProps, GestureProps {
   spacing?: number;
   children?: ReactNode;
 }
@@ -37,7 +47,7 @@ export interface TextProps extends A11yProps {
   color?: string;
 }
 
-export interface ButtonProps extends A11yProps {
+export interface ButtonProps extends A11yProps, GestureProps {
   onPress?: () => void;
   children?: ReactNode;
 }
