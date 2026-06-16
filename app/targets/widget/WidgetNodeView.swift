@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Non-interactive interpreter for React-rendered widget trees. Same node
 /// vocabulary as the watch app's NodeView, minus events (WidgetKit views
@@ -38,9 +39,18 @@ struct WidgetNodeView: View {
         case "TimerText":
             timerText(node)
         case "Image":
-            Image(systemName: node.string("systemName") ?? "questionmark")
-                .font(.system(size: CGFloat(node.double("size") ?? 17)))
-                .foregroundStyle(color(node.string("color")) ?? .primary)
+            // Widgets can't load remote images (no async at render time), so
+            // a `source` URL falls back to a symbol; base64 `data` works.
+            if let b64 = node.string("data"),
+               let data = Data(base64Encoded: b64),
+               let ui = UIImage(data: data) {
+                Image(uiImage: ui).resizable().scaledToFit()
+                    .frame(width: cgFloat(node, "size"), height: cgFloat(node, "size"))
+            } else {
+                Image(systemName: node.string("systemName") ?? "photo")
+                    .font(.system(size: CGFloat(node.double("size") ?? 17)))
+                    .foregroundStyle(color(node.string("color")) ?? .primary)
+            }
         case "Spacer":
             Spacer(minLength: 0)
         case "Divider":

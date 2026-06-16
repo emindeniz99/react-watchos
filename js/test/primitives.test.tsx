@@ -7,6 +7,7 @@ import {
   NavigationLink,
   NavigationStack,
   CrownRotation,
+  Image,
   Picker,
   ProgressView,
   ScrollView,
@@ -83,6 +84,22 @@ describe("data display primitives", () => {
       type: "ProgressView",
       props: { value: 3, total: 8, label: "Goal" },
     });
+  });
+});
+
+describe("Image sources", () => {
+  it("serializes an SF Symbol, a remote URL, and inline base64", () => {
+    const symbol = render(<Image systemName="play.fill" color="green" />);
+    expect(symbol.props).toMatchObject({ systemName: "play.fill", color: "green" });
+
+    const remote = render(<Image source="https://cdn.test/poster.jpg" size={60} />);
+    expect(remote.props).toMatchObject({
+      source: "https://cdn.test/poster.jpg",
+      size: 60,
+    });
+
+    const inline = render(<Image data="iVBORw0KGgo=" />);
+    expect(inline.props).toMatchObject({ data: "iVBORw0KGgo=" });
   });
 });
 

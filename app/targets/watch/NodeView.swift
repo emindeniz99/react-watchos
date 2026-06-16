@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Interprets the serialized React tree as SwiftUI views. One case per
 /// primitive in js/src/components.ts.
@@ -31,9 +32,7 @@ struct NodeView: View {
         case "Spacer":
             Spacer(minLength: 0)
         case "Image":
-            Image(systemName: node.string("systemName") ?? "questionmark")
-                .font(.system(size: CGFloat(node.double("size") ?? 17)))
-                .foregroundStyle(color(node.string("color")) ?? .primary)
+            imageView
         case "ZStack":
             ZStack { childViews }
         case "ScrollView":
@@ -96,6 +95,31 @@ struct NodeView: View {
             NodeView(node: node.children[0])
         } else {
             ScrollView { childViews }
+        }
+    }
+
+    // Three image sources: base64 inline bitmap, remote URL (AsyncImage,
+    // native-loaded + cached), or an SF Symbol. Symbols for icons, URLs for
+    // photos/posters, base64 only for small inline bitmaps.
+    @ViewBuilder private var imageView: some View {
+        let side = cgFloat("size")
+        if let b64 = node.string("data"),
+           let data = Data(base64Encoded: b64),
+           let ui = UIImage(data: data) {
+            Image(uiImage: ui).resizable().scaledToFit()
+                .frame(width: side, height: side)
+        } else if let urlString = node.string("source"),
+                  let url = URL(string: urlString) {
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFit()
+            } placeholder: {
+                ProgressView()
+            }
+            .frame(width: side, height: side)
+        } else {
+            Image(systemName: node.string("systemName") ?? "questionmark")
+                .font(.system(size: CGFloat(node.double("size") ?? 17)))
+                .foregroundStyle(color(node.string("color")) ?? .primary)
         }
     }
 

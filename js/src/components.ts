@@ -51,8 +51,12 @@ export interface ToggleProps extends A11yProps {
 export interface SpacerProps {}
 
 export interface ImageProps extends A11yProps {
-  /** SF Symbol name, e.g. "heart.fill". */
-  systemName: string;
+  /** SF Symbol name — vector icons (tiny, themeable). */
+  systemName?: string;
+  /** Remote image URL — native loads & caches (best for photos/posters). */
+  source?: string;
+  /** Base64 PNG/JPEG for small inline bitmaps (bloats the tree — avoid for large). */
+  data?: string;
   color?: string;
   size?: number;
 }
