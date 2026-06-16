@@ -152,6 +152,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 | `swift-tests/` | Linux Swift contract tests: compile the real Foundation-only model files and decode real serializer fixtures (see its README). |
 | `docs/research.md` | Why RN-core-on-watchOS is impossible; engine and architecture comparison. |
 | `docs/prior-art.md` | Where this sits among production React renderers (RN, Raycast, r3f, Ink, …) and which techniques we adopt/skip/defer. |
+| `docs/roadmap.md` | Forward plan in three parallel tracks (input, runtime, platform) with priorities, dependencies, and the Mac-build gate. |
 
 ## How to run
 
