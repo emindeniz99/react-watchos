@@ -151,6 +151,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 | `tools/embed-smoke/` | Reference C host: compiles the vendored engine and runs the real bundle through the exact API sequence Swift uses. |
 | `swift-tests/` | Linux Swift contract tests: compile the real Foundation-only model files and decode real serializer fixtures (see its README). |
 | `docs/research.md` | Why RN-core-on-watchOS is impossible; engine and architecture comparison. |
+| `docs/prior-art.md` | Where this sits among production React renderers (RN, Raycast, r3f, Ink, …) and which techniques we adopt/skip/defer. |
 
 ## How to run
 
