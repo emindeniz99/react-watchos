@@ -11,7 +11,8 @@
     "@bacons/apple-targets": "^4.0.7",
     "expo": "~56.0.11",
     "react": "19.2.3",
-    "react-native": "0.85.3"
+    "react-native": "0.85.3",
+    "react-native-watch-connectivity": "^2.0.0"
   },
   "devDependencies": {
     "@types/react": "~19.2.0",
