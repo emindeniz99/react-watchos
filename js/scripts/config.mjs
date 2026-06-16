@@ -1,5 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { reactCompilerPlugin } from "./react-compiler-plugin.mjs";
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const outfile = join(root, "dist/bundle.js");
@@ -19,6 +20,9 @@ export function buildOptions({ minify = false } = {}) {
     outfile,
     bundle: true,
     format: "iife",
+    // React Compiler auto-memoizes our components (fewer re-renders ->
+    // fewer commits). Runs before bundling via Babel.
+    plugins: [reactCompilerPlugin()],
     // Guarantees the QuickJS shims execute before react/scheduler module
     // init (they capture setTimeout & co. at load); import order in the
     // entry can no longer break this.

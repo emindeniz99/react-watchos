@@ -255,6 +255,12 @@ updates via `publishWidgets()`.
   so React's scheduler captures `setTimeout` at module init — the QuickJS
   shims are therefore force-prepended via esbuild's `inject` option
   (`scripts/config.mjs`), not by import-order convention.
+- The build runs the **React Compiler** (`babel-plugin-react-compiler`) over
+  our source via an esbuild plugin (`scripts/react-compiler-plugin.mjs`).
+  Auto-memoization means React re-renders less and emits fewer commits —
+  fewer serialize/decode trips across the bridge, compounding with the
+  renderer's no-op-commit bailout. React 19 ships the compiler runtime, so
+  it adds ~7 KB minified and no new runtime dependency.
 - `npm run build:bytecode` precompiles the bundle to QuickJS bytecode
   (`bundle.qbc`) so cold start skips the parser — the watch-sized analog of
   Hermes AOT. The watch/widget runtimes load `.qbc` if present and fall back
