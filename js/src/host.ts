@@ -51,6 +51,8 @@ export interface QuickJSHostGlobal {
   sendToPhone?(json: string): void;
   /** Async HTTP via URLSession; settles via __resolveFetch/__rejectFetch. */
   fetch?(id: number, requestJson: string): void;
+  /** Cancel an in-flight fetch by id (AbortController/timeout). */
+  abortFetch?(id: number): void;
   /** CoreBluetooth central ops: { op, ... }. Events arrive as native pushes. */
   ble?(json: string): void;
 }

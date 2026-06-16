@@ -40,9 +40,11 @@ final class JSRuntime {
     /// WatchConnectivity send (js/src/connectivity.ts).
     var onSendToPhone: ((String) -> Void)?
 
-    /// Async HTTP request (js/src/shims.ts fetch). Settle with
+    /// Async HTTP request (js/src/fetch.ts). Settle with
     /// resolveFetch/rejectFetch on the main thread.
     var onFetch: ((Int, String) -> Void)?
+    /// Cancel an in-flight fetch by id.
+    var onAbortFetch: ((Int) -> Void)?
 
     /// CoreBluetooth op channel (js/src/bluetooth.ts): { op, ... }.
     var onBle: ((String) -> Void)?
@@ -196,6 +198,8 @@ final class JSRuntime {
                           JS_NewCFunction(context, hostSendToPhone, "sendToPhone", 1))
         JS_SetPropertyStr(context, host, "fetch",
                           JS_NewCFunction(context, hostFetch, "fetch", 2))
+        JS_SetPropertyStr(context, host, "abortFetch",
+                          JS_NewCFunction(context, hostAbortFetch, "abortFetch", 1))
         JS_SetPropertyStr(context, host, "ble",
                           JS_NewCFunction(context, hostBle, "ble", 1))
         // JS_SetPropertyStr takes ownership of `host`.
@@ -384,6 +388,18 @@ private func hostBle(
     return qjs_undefined()
 }
 
+private func hostAbortFetch(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1 {
+        var id: Int32 = 0
+        JS_ToInt32(ctx, &id, argv[0])
+        runtime.abortFetchFromC(Int(id))
+    }
+    return qjs_undefined()
+}
+
 private func hostGetItem(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -457,6 +473,9 @@ extension JSRuntime {
     }
     fileprivate func fetchFromC(_ id: Int, _ json: String) {
         onFetch?(id, json)
+    }
+    fileprivate func abortFetchFromC(_ id: Int) {
+        onAbortFetch?(id)
     }
     fileprivate func bleFromC(_ json: String) {
         onBle?(json)

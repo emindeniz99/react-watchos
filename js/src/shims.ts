@@ -1,4 +1,5 @@
 import type { QuickJSHostGlobal } from "./host";
+import { installFetch } from "./fetch";
 
 /**
  * Fills in the platform globals React and scheduler expect but bare
@@ -78,89 +79,5 @@ export function installShims(): void {
     g.performance = { now: () => Date.now() };
   }
 
-  // Minimal fetch over the host bridge: __host.fetch arms an async
-  // URLSession request keyed by id; Swift settles it on the main thread via
-  // __resolveFetch/__rejectFetch (the Promise resolution then commits any
-  // resulting React update through the scheduler).
-  if (typeof g.fetch !== "function") {
-    let nextFetchId = 1;
-    interface Pending {
-      resolve: (response: unknown) => void;
-      reject: (error: unknown) => void;
-      timer?: number;
-    }
-    const pending = new Map<number, Pending>();
-    const settle = (id: number): Pending | undefined => {
-      const p = pending.get(id);
-      if (!p) return undefined;
-      pending.delete(id);
-      if (p.timer !== undefined) {
-        (g.clearTimeout as (id: number) => void)(p.timer);
-      }
-      return p;
-    };
-    const makeResponse = (r: {
-      status?: number;
-      headers?: Record<string, string>;
-      body?: string;
-    }) => {
-      const status = r.status ?? 0;
-      const body = r.body ?? "";
-      return {
-        status,
-        ok: status >= 200 && status < 300,
-        headers: r.headers ?? {},
-        text: () => Promise.resolve(body),
-        json: () => Promise.resolve(JSON.parse(body || "null")),
-      };
-    };
-    g.fetch = (
-      url: string,
-      options?: {
-        method?: string;
-        headers?: Record<string, string>;
-        body?: string;
-        /** Reject after this many ms (the request is abandoned). */
-        timeout?: number;
-      },
-    ): Promise<unknown> =>
-      new Promise((resolve, reject) => {
-        const id = nextFetchId++;
-        const entry: Pending = { resolve, reject };
-        if (options?.timeout) {
-          entry.timer = (g.setTimeout as (fn: () => void, ms: number) => number)(
-            () => {
-              if (settle(id)) {
-                reject(new Error(`fetch timeout after ${options.timeout}ms`));
-              }
-            },
-            options.timeout,
-          );
-        }
-        pending.set(id, entry);
-        g.__host?.fetch?.(
-          id,
-          JSON.stringify({
-            url,
-            method: options?.method ?? "GET",
-            headers: options?.headers ?? {},
-            body: options?.body ?? null,
-          }),
-        );
-      });
-    g.__resolveFetch = (id: number, responseJson: string) => {
-      const p = settle(id);
-      if (!p) return;
-      try {
-        p.resolve(makeResponse(JSON.parse(responseJson)));
-      } catch (error) {
-        p.reject(error);
-      }
-    };
-    g.__rejectFetch = (id: number, message: string) => {
-      const p = settle(id);
-      if (!p) return;
-      p.reject(new Error(message));
-    };
-  }
+  installFetch(g);
 }

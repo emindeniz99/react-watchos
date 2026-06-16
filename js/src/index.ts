@@ -74,6 +74,7 @@ export {
 } from "./bluetooth";
 export type { BleState } from "./bluetooth";
 export { ErrorBoundary } from "./errorBoundary";
+export { Headers } from "./fetch";
 export { playHaptic } from "./haptics";
 export type { HapticType } from "./haptics";
 export {

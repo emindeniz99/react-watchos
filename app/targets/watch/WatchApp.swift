@@ -25,6 +25,7 @@ final class ReactAppModel: ObservableObject {
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
     private let connectivity = PhoneConnectivity()
     private let bluetooth = BluetoothBridge()
+    private var fetchTasks: [Int: URLSessionDataTask] = [:]
 
     func start() {
         guard runtime == nil else { return }
@@ -130,6 +131,7 @@ final class ReactAppModel: ObservableObject {
         js.onFetch = { [weak self] id, reqJson in
             self?.performFetch(id: id, requestJson: reqJson)
         }
+        js.onAbortFetch = { [weak self] id in self?.abortFetch(id: id) }
         js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
         js.onError = { [weak self] message in
             DispatchQueue.main.async { self?.runtimeError = message }
@@ -247,12 +249,17 @@ final class ReactAppModel: ObservableObject {
         req.headers?.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
         if let body = req.body { request.httpBody = Data(body.utf8) }
 
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
             DispatchQueue.main.async {
                 guard let self else { return }
+                self.fetchTasks[id] = nil
                 if let error {
-                    self.runtime?.rejectFetch(
-                        id: id, message: error.localizedDescription)
+                    // A cancelled task (AbortController) was already rejected
+                    // on the JS side; don't double-reject.
+                    if (error as NSError).code != NSURLErrorCancelled {
+                        self.runtime?.rejectFetch(
+                            id: id, message: error.localizedDescription)
+                    }
                     return
                 }
                 let http = response as? HTTPURLResponse
@@ -263,13 +270,26 @@ final class ReactAppModel: ObservableObject {
                     headers["\(key)".lowercased()] = "\(value)"
                 }
                 let payload: [String: Any] = [
-                    "status": status, "body": bodyStr, "headers": headers,
+                    "status": status,
+                    "statusText": HTTPURLResponse.localizedString(forStatusCode: status),
+                    "url": http?.url?.absoluteString ?? req.url,
+                    "body": bodyStr,
+                    "headers": headers,
                 ]
                 let json = (try? JSONSerialization.data(withJSONObject: payload))
                     .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
                 self.runtime?.resolveFetch(id: id, responseJson: json)
             }
-        }.resume()
+        }
+        fetchTasks[id] = task
+        task.resume()
+    }
+
+    /// Cancels an in-flight fetch (AbortController/timeout). The JS Promise
+    /// is already rejected; this just stops the network work.
+    private func abortFetch(id: Int) {
+        fetchTasks[id]?.cancel()
+        fetchTasks[id] = nil
     }
 
     /// Dispatches a change event and remembers `value` as the node's
