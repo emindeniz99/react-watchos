@@ -117,3 +117,94 @@ Wire-contract rules:
 
 See [prior-art.md](./prior-art.md) for which of these align with how RN,
 Raycast, and other production reconcilers solve the same problems.
+
+---
+
+# Future opportunities (web research, 2026)
+
+Findings from a detailed scan of the 2026 platform, engine, React, and
+market landscape, with the implications for this project. Sourced inline.
+
+## 1. Strategic: generalize to "React → SwiftUI on any Apple platform"
+
+The single biggest opportunity. SwiftUI now spans **iOS, iPadOS, macOS,
+tvOS, watchOS, and visionOS** with the same view vocabulary
+([Apple](https://developer.apple.com/visionos/)), and our renderer is
+already "React commits → JSON tree → SwiftUI." The watch is the *hardest*
+target (no UIKit/JSC, tiny screen); the same `NodeView` interpreter + QuickJS
+bundle would run on the others with little change. Community proof exists —
+[a2ui-swift](https://a2ui.org/ecosystem/renderers/) is a SwiftUI renderer
+already covering iOS/macOS/visionOS/watchOS/tvOS.
+
+Action: factor the SwiftUI interpreter + JS runtime out of the watch target
+into a shared core, then add thin `tvos`/`macos` targets. tvOS is the
+natural second target (10-foot UI, focus engine, the Crown's cousin). This
+turns a watch demo into "**React Native for the parts of Apple that RN
+can't reach**."
+
+## 2. Ride watchOS 26's new APIs
+
+watchOS 26 added exactly the surfaces this project already models
+([Apple newsroom](https://www.apple.com/newsroom/2025/06/watchos-26-delivers-more-personalized-ways-to-stay-active-and-connected/),
+[WWDC25](https://developer.apple.com/wwdc25/guides/watchos/)):
+
+- **Fitness APIs** — real-time heart rate, gyroscope, all-day accelerometer,
+  route maps. Makes the deferred **sensors/HealthKit (T3-P1)** the highest-
+  value remaining feature: a watchOS app's killer differentiator is sensor +
+  complication, and the React app gets these for free via the push channel.
+- **Smart Stack Relevance API + Points-of-Interest signals** — extend our
+  existing relevance scores with location/POI signals so widgets surface at
+  the right place/time.
+- **Control Widget API + iOS controls shared to watchOS** — our controls
+  already match this; a shared control authored once could appear on both.
+- **MapKit** (search, routing, overlays) → a new **`Map` primitive**
+  (annotations + a route) — high value for the navigation app category.
+- **Liquid Glass** design + new SwiftUI materials/tab/split views — adopt the
+  new modifiers so apps look native to 2026, not 2023.
+
+## 3. Engine & React perf
+
+- **React Compiler** (React 19) auto-memoizes components, cutting re-renders
+  ([React 19](https://reliasoftware.com/blog/new-features-and-improvements-in-react-19)).
+  Adding it to the esbuild pipeline would reduce commit churn for free, on top
+  of our no-op-commit bailout. Cheap, JS-side, verifiable here — strong
+  near-term pick.
+- **Static Hermes / Hermes V1** can compile JS to native and run typed
+  bytecode ([RN Hermes](https://reactnative.dev/docs/hermes),
+  [next-gen Hermes](https://blog.swmansion.com/welcoming-the-next-generation-of-hermes-67ab5679e184)).
+  No watchOS build target exists yet, so QuickJS stays the pragmatic choice
+  ([QuickJS vs Hermes](https://www.fractolog.com/2025/04/comparing-hermes-and-quickjs/));
+  our `.qbc` bytecode is the QuickJS analog of Hermes `.hbc`. Track Static
+  Hermes as a future engine swap behind the existing `HostBridge` seam.
+
+## 4. Distribution: OTA / hot-reload in production (bounded)
+
+Bundled interpreted JS is allowed, and OTA updates to the bundle are
+permitted **for fixes and UI within already-reviewed functionality** — not
+to add materially new native capability
+([Apple 2.5.2](https://developer.apple.com/app-store/review/guidelines/),
+[OTA policy](https://bitrise.io/blog/post/what-app-stores-allow-with-ota-updates-apple-and-google-policy-explained)).
+Our dev live-reload could graduate to a production **EAS-Update-style** bundle
+channel: ship UI fixes without an App Store round-trip, with a documented
+guardrail that new host APIs still need a native release + review.
+
+## 5. App opportunities this unlocks
+
+2026 demand skews to glanceable, fast, **complication-first**, often
+**BLE-/sensor-connected** apps
+([independent watchOS apps](https://developer.apple.com/documentation/watchos-apps/creating-independent-watchos-apps)):
+media remotes (validates the **BLE movie remote** we built — same shape as
+podcast/streaming remotes), fitness + connected sensors (CGM, sports
+equipment), navigation, timers, medication reminders. The reusable play is a
+**starter-kit of React watch apps** (remote, tracker, timer, now-playing
+complication) on top of this renderer.
+
+## Re-prioritized "what's next"
+
+1. **macOS build green** (gate — unchanged).
+2. **Sensors/HealthKit** (was T3-P1) — promoted: watchOS 26's fitness APIs +
+   market demand make it the top *feature*.
+3. **React Compiler** in the build — cheap perf, verifiable here.
+4. **Cross-platform core extraction** (→ tvOS) — the strategic bet.
+5. **`Map` primitive** + Smart Stack POI signals — ride the new APIs.
+6. Then: DatePicker, tree-diff (still measure-first), OTA channel.
