@@ -191,6 +191,7 @@ export class WatchRoot {
   private root: unknown;
   private uncaughtError: unknown = null;
   private commitCount = 0;
+  private lastCommitJson: string | null = null;
 
   constructor(host: HostBridge) {
     const container: Container = {
@@ -199,8 +200,17 @@ export class WatchRoot {
       nextId: 1,
       lastSeq: 0,
       onCommit: () => {
+        const tree = serializeTree(container);
+        const json = JSON.stringify(tree);
+        // Bail on no-op commits: a re-render that produces a byte-identical
+        // payload (seq is in the payload, so identity covers both tree and
+        // ack) needs no native decode or SwiftUI invalidation. Every
+        // production reconciler skips no-op commits; any real change or seq
+        // advance makes the JSON differ and is sent.
+        if (json === this.lastCommitJson) return;
+        this.lastCommitJson = json;
         this.commitCount += 1;
-        host.commit(serializeTree(container));
+        host.commit(tree);
       },
     };
     this.container = container;

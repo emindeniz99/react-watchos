@@ -97,4 +97,36 @@ describe("updates", () => {
     expect(host.commits.length).toBe(commitsBefore + 1);
     expect(host.lastCommit!.seq).toBe(3);
   });
+
+  it("skips a no-op commit when the re-rendered tree is unchanged", () => {
+    function Stable() {
+      const [, bump] = useState(0);
+      return (
+        <Button onPress={() => bump((n) => n + 1)}>
+          <Text>same</Text>
+        </Button>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Stable />);
+    const before = host.commits.length;
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+
+    // State changes (React commits) but the serialized tree is identical
+    // and no seq is carried, so the bailout suppresses the native push.
+    root.dispatchEvent({ nodeId: button.id, event: "press" });
+    expect(host.commits.length).toBe(before);
+  });
+
+  it("commits again once the rendered output actually changes", () => {
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Text>a</Text>);
+    expect(host.commits).toHaveLength(1);
+    root.render(<Text>a</Text>);
+    expect(host.commits).toHaveLength(1); // identical → skipped
+    root.render(<Text>b</Text>);
+    expect(host.commits).toHaveLength(2); // changed → sent
+  });
 });
