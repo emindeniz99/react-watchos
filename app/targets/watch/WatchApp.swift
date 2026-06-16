@@ -355,12 +355,18 @@ struct ReactWatchApp: App {
             }
             .overlay(alignment: .bottom) {
                 if let error = model.runtimeError {
-                    Text(error)
-                        .font(.footnote)
-                        .lineLimit(2)
-                        .padding(6)
-                        .background(.red.opacity(0.85), in: .rect(cornerRadius: 8))
-                        .onTapGesture { model.runtimeError = nil }
+                    // Scrollable so the JS message + stack are readable in
+                    // DEBUG; tap to dismiss.
+                    ScrollView {
+                        Text(error)
+                            .font(.footnote.monospaced())
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(6)
+                    }
+                    .frame(maxHeight: 120)
+                    .background(.red.opacity(0.85), in: .rect(cornerRadius: 8))
+                    .onTapGesture { model.runtimeError = nil }
                 }
             }
             .environmentObject(model)

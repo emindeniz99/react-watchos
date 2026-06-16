@@ -232,11 +232,21 @@ final class JSRuntime {
     private func takeExceptionMessage() -> String {
         let exception = JS_GetException(context)
         defer { JS_FreeValue(context, exception) }
-        guard let cString = JS_ToCString(context, exception) else {
-            return "unknown JS exception"
+        var message = "unknown JS exception"
+        if let cString = JS_ToCString(context, exception) {
+            message = String(cString: cString)
+            JS_FreeCString(context, cString)
         }
-        defer { JS_FreeCString(context, cString) }
-        return String(cString: cString)
+        // Append the JS stack (QuickJS exposes it on the error object) so
+        // the dev overlay shows where it threw, not just the message.
+        let stackVal = JS_GetPropertyStr(context, exception, "stack")
+        if let stackC = JS_ToCString(context, stackVal) {
+            let stack = String(cString: stackC)
+            if !stack.isEmpty { message += "\n" + stack }
+            JS_FreeCString(context, stackC)
+        }
+        JS_FreeValue(context, stackVal)
+        return message
     }
 
     private func jsStringLiteral(_ value: String) -> String {
