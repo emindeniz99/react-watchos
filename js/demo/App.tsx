@@ -21,11 +21,13 @@ import {
   Toggle,
   VStack,
   ZStack,
+  onPhoneMessage,
   playHaptic,
   publishWidgets,
   registerNativeListener,
   requestNotificationPermission,
   scheduleNotification,
+  sendToPhone,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 
@@ -242,6 +244,25 @@ function TabsScreen() {
   );
 }
 
+/** Phone <-> watch: shows the last phone message, pings the phone. */
+function ConnectivityScreen() {
+  const [last, setLast] = useState("none yet");
+  useEffect(() => {
+    onPhoneMessage((p) => setLast(JSON.stringify(p)));
+  }, []);
+  return (
+    <VStack spacing={6}>
+      <Text bold>From phone:</Text>
+      <Text size={12} color="secondary">
+        {last}
+      </Text>
+      <Button onPress={() => sendToPhone({ kind: "ping", at: Date.now() })}>
+        <Text>Ping phone</Text>
+      </Button>
+    </VStack>
+  );
+}
+
 /** The Digital Crown drives a 0–100 value (volume-style). */
 function CrownScreen() {
   const [volume, setVolume] = useState(30);
@@ -310,6 +331,9 @@ function AppScreens() {
         </NavigationLink>
         <NavigationLink title="Crown">
           <CrownScreen />
+        </NavigationLink>
+        <NavigationLink title="Phone">
+          <ConnectivityScreen />
         </NavigationLink>
       </List>
     </NavigationStack>

@@ -23,9 +23,16 @@ final class ReactAppModel: ObservableObject {
     /// Serial queue for decoding committed trees off the main thread,
     /// preserving commit order.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
+    private let connectivity = PhoneConnectivity()
 
     func start() {
         guard runtime == nil else { return }
+        // Phone -> watch messages arrive as a native push, so they commit
+        // instantly via runSync, exactly like any other native event.
+        connectivity.onMessage = { [weak self] message in
+            self?.pushNativeEvent("watchConnectivity", payload: message)
+        }
+        connectivity.activate()
         boot()
         #if DEBUG
         startDevReload()
@@ -108,6 +115,7 @@ final class ReactAppModel: ObservableObject {
         }
         js.onGetItem = { SharedWidgetStore.getItem($0) }
         js.onSetItem = { SharedWidgetStore.setItem($0, $1) }
+        js.onSendToPhone = { [weak self] json in self?.connectivity.send(json) }
         js.onError = { [weak self] message in
             DispatchQueue.main.async { self?.runtimeError = message }
         }

@@ -128,4 +128,5 @@ export const hostMethods = [
   { name: "requestNotificationPermission", targets: ["watch"] },
   { name: "scheduleNotification", targets: ["watch"] },
   { name: "cancelNotification", targets: ["watch"] },
+  { name: "sendToPhone", targets: ["watch"] },
 ];

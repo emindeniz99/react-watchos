@@ -53,6 +53,11 @@ export {
   dispatchNativeEvent,
 } from "./nativeEvents";
 export type { NativeEventHandler } from "./nativeEvents";
+export {
+  sendToPhone,
+  onPhoneMessage,
+  PHONE_MESSAGE_EVENT,
+} from "./connectivity";
 export { ErrorBoundary } from "./errorBoundary";
 export { playHaptic } from "./haptics";
 export type { HapticType } from "./haptics";

@@ -37,6 +37,9 @@ final class JSRuntime {
     var onScheduleNotification: ((String) -> Void)?
     var onCancelNotification: ((String) -> Void)?
 
+    /// WatchConnectivity send (js/src/connectivity.ts).
+    var onSendToPhone: ((String) -> Void)?
+
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
@@ -168,6 +171,8 @@ final class JSRuntime {
             context, host, "cancelNotification",
             JS_NewCFunction(context, hostCancelNotification,
                             "cancelNotification", 1))
+        JS_SetPropertyStr(context, host, "sendToPhone",
+                          JS_NewCFunction(context, hostSendToPhone, "sendToPhone", 1))
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }
@@ -306,6 +311,18 @@ private func hostCancelNotification(
     return qjs_undefined()
 }
 
+private func hostSendToPhone(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
+       let cString = JS_ToCString(ctx, argv[0]) {
+        runtime.sendToPhoneFromC(String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
 private func hostGetItem(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -373,6 +390,9 @@ extension JSRuntime {
     }
     fileprivate func cancelNotificationFromC(_ id: String) {
         onCancelNotification?(id)
+    }
+    fileprivate func sendToPhoneFromC(_ json: String) {
+        onSendToPhone?(json)
     }
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)
