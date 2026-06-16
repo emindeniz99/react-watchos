@@ -30,6 +30,8 @@ export function installMockHost() {
     scheduleNotification: vi.fn(),
     cancelNotification: vi.fn(),
     sendToPhone: vi.fn(),
+    fetch: vi.fn(),
+    ble: vi.fn(),
   };
   (globalThis as Record<string, unknown>).__host = host;
   return host;

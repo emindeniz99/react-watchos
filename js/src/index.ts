@@ -58,6 +58,17 @@ export {
   onPhoneMessage,
   PHONE_MESSAGE_EVENT,
 } from "./connectivity";
+export {
+  bleConnect,
+  bleDisconnect,
+  bleWrite,
+  bleSubscribe,
+  onBleState,
+  onBleNotify,
+  BLE_STATE_EVENT,
+  BLE_NOTIFY_EVENT,
+} from "./bluetooth";
+export type { BleState } from "./bluetooth";
 export { ErrorBoundary } from "./errorBoundary";
 export { playHaptic } from "./haptics";
 export type { HapticType } from "./haptics";

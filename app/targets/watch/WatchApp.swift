@@ -24,6 +24,7 @@ final class ReactAppModel: ObservableObject {
     /// preserving commit order.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
     private let connectivity = PhoneConnectivity()
+    private let bluetooth = BluetoothBridge()
 
     func start() {
         guard runtime == nil else { return }
@@ -33,6 +34,16 @@ final class ReactAppModel: ObservableObject {
             self?.pushNativeEvent("watchConnectivity", payload: message)
         }
         connectivity.activate()
+        // BLE state/notifications reach React as native pushes (commit
+        // instantly via runSync), same channel as connectivity.
+        bluetooth.onState = { [weak self] state in
+            self?.pushNativeEvent("ble.state", payload: ["state": state])
+        }
+        bluetooth.onNotify = { [weak self] characteristic, value in
+            self?.pushNativeEvent(
+                "ble.notify",
+                payload: ["characteristic": characteristic, "value": value])
+        }
         boot()
         #if DEBUG
         startDevReload()
@@ -119,6 +130,7 @@ final class ReactAppModel: ObservableObject {
         js.onFetch = { [weak self] id, reqJson in
             self?.performFetch(id: id, requestJson: reqJson)
         }
+        js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
         js.onError = { [weak self] message in
             DispatchQueue.main.async { self?.runtimeError = message }
         }

@@ -130,4 +130,5 @@ export const hostMethods = [
   { name: "cancelNotification", targets: ["watch"] },
   { name: "sendToPhone", targets: ["watch"] },
   { name: "fetch", targets: ["watch"] },
+  { name: "ble", targets: ["watch"] },
 ];

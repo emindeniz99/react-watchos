@@ -22,6 +22,11 @@ import {
   VStack,
   ZStack,
   onPhoneMessage,
+  bleConnect,
+  bleWrite,
+  bleSubscribe,
+  onBleState,
+  onBleNotify,
   playHaptic,
   publishWidgets,
   registerNativeListener,
@@ -244,6 +249,56 @@ function TabsScreen() {
   );
 }
 
+/**
+ * Movie remote over BLE: connects to a laptop's GATT service, shows the
+ * now-playing title, drives transport with buttons and volume with the
+ * Crown. The watch is the central; the laptop is the peripheral.
+ */
+function MovieRemoteScreen() {
+  const [state, setState] = useState("connecting…");
+  const [title, setTitle] = useState("—");
+  const [volume, setVolume] = useState(50);
+  useEffect(() => {
+    onBleState((p) => setState(String(p?.state ?? "")));
+    onBleNotify((p) => {
+      if (p?.characteristic === "title") setTitle(String(p.value));
+    });
+    bleConnect("4D4F-5649-4500"); // the laptop remote's service UUID
+    bleSubscribe("title");
+  }, []);
+  return (
+    <VStack spacing={4}>
+      <Text size={11} color="secondary">
+        {state}
+      </Text>
+      <Text bold>{title}</Text>
+      <HStack spacing={10}>
+        <Button onPress={() => bleWrite("transport", "prev")}>
+          <Image systemName="backward.fill" accessibilityLabel="Previous" />
+        </Button>
+        <Button onPress={() => bleWrite("transport", "playpause")}>
+          <Image systemName="playpause.fill" accessibilityLabel="Play or pause" />
+        </Button>
+        <Button onPress={() => bleWrite("transport", "next")}>
+          <Image systemName="forward.fill" accessibilityLabel="Next" />
+        </Button>
+      </HStack>
+      <CrownRotation
+        value={volume}
+        from={0}
+        through={100}
+        accessibilityLabel="Volume"
+        onChange={(v) => {
+          setVolume(v);
+          bleWrite("volume", String(Math.round(v)));
+        }}
+      >
+        <Gauge value={volume} min={0} max={100} label="Vol" style="circular" />
+      </CrownRotation>
+    </VStack>
+  );
+}
+
 /** Phone <-> watch: shows the last phone message, pings the phone. */
 function ConnectivityScreen() {
   const [last, setLast] = useState("none yet");
@@ -334,6 +389,9 @@ function AppScreens() {
         </NavigationLink>
         <NavigationLink title="Phone">
           <ConnectivityScreen />
+        </NavigationLink>
+        <NavigationLink title="Movie Remote">
+          <MovieRemoteScreen />
         </NavigationLink>
       </List>
     </NavigationStack>
