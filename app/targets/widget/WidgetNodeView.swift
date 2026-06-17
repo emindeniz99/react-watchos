@@ -75,6 +75,10 @@ struct WidgetNodeView: View {
             let hi = node.double("through") ?? 1
             let v = node.double("value") ?? 0
             ProgressView(value: max(0, min(1, hi > lo ? (v - lo) / (hi - lo) : 0)))
+        case "DatePicker":
+            // Read-only in widgets: the formatted date.
+            Text(Date(timeIntervalSince1970: (node.double("value") ?? 0) / 1000),
+                 style: .date)
         case "TextField":
             Text(node.string("value") ?? node.string("placeholder") ?? "")
         case "Picker":

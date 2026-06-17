@@ -167,6 +167,15 @@ export interface StepperProps extends A11yProps {
   onChange?: (value: number) => void;
 }
 
+/** Date/time picker. value and onChange are epoch milliseconds. */
+export interface DatePickerProps extends A11yProps {
+  value: number;
+  label?: string;
+  /** "date" | "hourAndMinute" | "dateAndTime" (default). */
+  mode?: "date" | "hourAndMinute" | "dateAndTime";
+  onChange?: (value: number) => void;
+}
+
 /**
  * Binds the Digital Crown to a numeric value over its children (SwiftUI
  * `digitalCrownRotation`). The wrapped view becomes crown-focusable;
@@ -229,3 +238,4 @@ export const CrownRotation =
   "CrownRotation" as unknown as FC<CrownRotationProps>;
 export const Slider = "Slider" as unknown as FC<SliderProps>;
 export const Stepper = "Stepper" as unknown as FC<StepperProps>;
+export const DatePicker = "DatePicker" as unknown as FC<DatePickerProps>;

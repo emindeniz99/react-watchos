@@ -9,6 +9,7 @@ import {
   CrownRotation,
   Slider,
   Stepper,
+  DatePicker,
   Image,
   Picker,
   ProgressView,
@@ -249,6 +250,26 @@ describe("input primitives", () => {
       type: "Stepper",
       props: { value: 3, from: 0, through: 10, step: 1, label: "Count", onChange: true },
     });
+  });
+
+  it("serializes DatePicker and dispatches its change (epoch ms)", () => {
+    const onChange = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <DatePicker value={1_750_000_000_000} mode="date" label="When" onChange={onChange} />,
+    );
+    const picker = host.lastCommit!.root!;
+    expect(picker).toMatchObject({
+      type: "DatePicker",
+      props: { value: 1_750_000_000_000, mode: "date", label: "When", onChange: true },
+    });
+    root.dispatchEvent({
+      nodeId: picker.id,
+      event: "change",
+      payload: { value: 1_750_000_100_000 },
+    });
+    expect(onChange).toHaveBeenCalledWith(1_750_000_100_000);
   });
 
   it("serializes TabView pages as children", () => {

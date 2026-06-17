@@ -89,6 +89,11 @@ struct NodeView: View {
                 in: (node.double("from") ?? 0)...(node.double("through") ?? 100),
                 step: node.double("step") ?? 1
             ) { Text(node.string("label") ?? "") }
+        case "DatePicker":
+            DatePicker(
+                node.string("label") ?? "",
+                selection: dateBinding,
+                displayedComponents: dateComponents(node.string("mode")))
         default:
             // Unknown node type: skip it but keep rendering siblings, so a
             // newer JS bundle degrades gracefully on an older interpreter.
@@ -215,6 +220,28 @@ struct NodeView: View {
                 model.dispatchOptimistic(
                     nodeId: node.id, value: .bool(newValue),
                     payload: ["value": newValue])
+            })
+    }
+
+    private func dateComponents(_ mode: String?) -> DatePickerComponents {
+        switch mode {
+        case "date": [.date]
+        case "hourAndMinute": [.hourAndMinute]
+        default: [.date, .hourAndMinute]
+        }
+    }
+
+    /// Optimistic Date binding: value/onChange cross the bridge as epoch ms.
+    private var dateBinding: Binding<Date> {
+        Binding(
+            get: {
+                let ms = model.optimisticDouble(node.id) ?? (node.double("value") ?? 0)
+                return Date(timeIntervalSince1970: ms / 1000)
+            },
+            set: { newDate in
+                let ms = newDate.timeIntervalSince1970 * 1000
+                model.dispatchOptimistic(
+                    nodeId: node.id, value: .number(ms), payload: ["value": ms])
             })
     }
 

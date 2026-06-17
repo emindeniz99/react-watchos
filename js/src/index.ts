@@ -26,6 +26,7 @@ export {
   CrownRotation,
   Slider,
   Stepper,
+  DatePicker,
 } from "./components";
 export type {
   VStackProps,
@@ -50,6 +51,7 @@ export type {
   CrownRotationProps,
   SliderProps,
   StepperProps,
+  DatePickerProps,
 } from "./components";
 export {
   registerNativeListener,
