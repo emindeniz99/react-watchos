@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   MemoryHost,
-  Text,
   runApp,
   startGyroscope,
   startHeartRate,
   startLocation,
   startSensor,
   stopSensor,
+  Text,
   unregisterAllNativeListeners,
 } from "../src/index";
 import { installMockHost } from "./helpers";

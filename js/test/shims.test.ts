@@ -36,7 +36,11 @@ function withBareEngine(
   };
   installShims();
   try {
-    body({ armed, cleared, fire: (id) => (g.__fireTimer as (i: number) => void)(id) });
+    body({
+      armed,
+      cleared,
+      fire: (id) => (g.__fireTimer as (i: number) => void)(id),
+    });
   } finally {
     for (const k of TIMER_GLOBALS) g[k] = saved[k];
     delete g.__host;

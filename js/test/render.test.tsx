@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { VStackProps } from "../src/index";
 import {
   Button,
   HStack,
@@ -79,13 +80,22 @@ describe("render", () => {
     );
     const [button, toggle] = host.lastCommit!.root!.children;
     expect(button.props).toEqual({ onPress: true });
-    expect(toggle.props).toEqual({ value: false, onChange: true, label: "Wifi" });
+    expect(toggle.props).toEqual({
+      value: false,
+      onChange: true,
+      label: "Wifi",
+    });
   });
 
   it("produces only plist/JSON-safe prop values", () => {
     const host = new MemoryHost();
+    // spacing is explicitly undefined to prove the serializer drops
+    // undefined-valued props (the assertions below require every value to
+    // be a JSON scalar). exactOptionalPropertyTypes rejects an inline
+    // `spacing={undefined}`, so pass it through a deliberately-cast spread.
+    const undefinedSpacing = { spacing: undefined } as unknown as VStackProps;
     new WatchRoot(host).render(
-      <VStack spacing={undefined}>
+      <VStack {...undefinedSpacing}>
         <Button onPress={() => {}}>
           <Text color="green">ok</Text>
         </Button>
@@ -103,7 +113,9 @@ describe("render", () => {
       children: { props: Record<string, unknown>; children: unknown[] }[];
     }): void => {
       Object.values(node.props).forEach(checkScalarOrArray);
-      node.children.forEach((child) => check(child as never));
+      node.children.forEach((child) => {
+        check(child as never);
+      });
     };
     check(host.lastCommit!.root! as never);
   });

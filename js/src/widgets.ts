@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
-import type { SerializedNode } from "./host";
 import type {
-  PublishedEntry,
   PublishedFamilyTimeline,
   PublishedWidgets,
 } from "./generated/wire";
-import { MemoryHost, getHost } from "./host";
+import type { SerializedNode } from "./host";
+import { getHost, MemoryHost } from "./host";
 import { WatchRoot } from "./renderer";
 
 export type {

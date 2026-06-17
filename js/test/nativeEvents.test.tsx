@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   MemoryHost,
-  Text,
   registerNativeListener,
   runApp,
+  Text,
   unregisterAllNativeListeners,
 } from "../src/index";
 

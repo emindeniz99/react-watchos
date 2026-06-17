@@ -1,0 +1,45 @@
+# SwiftLint config for the watch/widget targets and contract tests.
+# Runs on the macOS build workflow (`swiftlint` from this directory); the
+# SwiftUI sources are not Linux-verifiable, so this is enforced on macOS CI.
+
+included:
+  - app/targets
+  - swift-tests/Sources
+
+excluded:
+  - app/targets/watch/Vendor
+  - app/targets/widget/Vendor
+  - app/targets/watch/Generated
+  - app/targets/widget/Generated
+  - swift-tests/.build
+
+# The wire models are generated; their decode-helpers are intentionally terse.
+analyzer_rules:
+  - unused_import
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - explicit_init
+  - first_where
+  - force_unwrapping
+  - redundant_nil_coalescing
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+
+line_length:
+  warning: 100
+  error: 140
+  ignores_comments: true
+
+identifier_name:
+  min_length: 1 # short SwiftUI bindings (x, v, p) are idiomatic
+  max_length: 50
+
+type_body_length:
+  warning: 400
+  error: 600
+
+file_length:
+  warning: 600
+  error: 900

@@ -1,5 +1,5 @@
-import { transformAsync } from "@babel/core";
 import { readFile } from "node:fs/promises";
+import { transformAsync } from "@babel/core";
 
 /**
  * esbuild plugin that runs the React Compiler (babel-plugin-react-compiler)

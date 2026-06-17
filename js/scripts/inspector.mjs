@@ -55,5 +55,7 @@ createServer((req, res) => {
   res.setHeader("content-type", "text/html");
   res.end(PAGE);
 }).listen(PORT, () => {
-  console.log(`inspector: http://127.0.0.1:${PORT}  (watch posts to /snapshot)`);
+  console.log(
+    `inspector: http://127.0.0.1:${PORT}  (watch posts to /snapshot)`,
+  );
 });

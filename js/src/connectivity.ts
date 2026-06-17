@@ -1,5 +1,8 @@
 import { getHost } from "./host";
-import { registerNativeListener, type NativeEventHandler } from "./nativeEvents";
+import {
+  type NativeEventHandler,
+  registerNativeListener,
+} from "./nativeEvents";
 
 /**
  * Phone <-> watch messaging over WatchConnectivity, surfaced through the

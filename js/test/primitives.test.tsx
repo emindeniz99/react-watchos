@@ -1,19 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  CrownRotation,
+  DatePicker,
   Divider,
   Gauge,
+  Image,
   List,
   MemoryHost,
   NavigationLink,
   NavigationStack,
-  CrownRotation,
-  Slider,
-  Stepper,
-  DatePicker,
-  Image,
   Picker,
   ProgressView,
+  playHaptic,
   ScrollView,
+  type SerializedNode,
+  Slider,
+  Stepper,
   TabView,
   Text,
   TextField,
@@ -21,8 +23,6 @@ import {
   VStack,
   WatchRoot,
   ZStack,
-  playHaptic,
-  type SerializedNode,
 } from "../src/index";
 import { installMockHost } from "./helpers";
 
@@ -93,9 +93,14 @@ describe("data display primitives", () => {
 describe("Image sources", () => {
   it("serializes an SF Symbol, a remote URL, and inline base64", () => {
     const symbol = render(<Image systemName="play.fill" color="green" />);
-    expect(symbol.props).toMatchObject({ systemName: "play.fill", color: "green" });
+    expect(symbol.props).toMatchObject({
+      systemName: "play.fill",
+      color: "green",
+    });
 
-    const remote = render(<Image source="https://cdn.test/poster.jpg" size={60} />);
+    const remote = render(
+      <Image source="https://cdn.test/poster.jpg" size={60} />,
+    );
     expect(remote.props).toMatchObject({
       source: "https://cdn.test/poster.jpg",
       size: 60,
@@ -227,7 +232,13 @@ describe("input primitives", () => {
     const host = new MemoryHost();
     const root = new WatchRoot(host);
     root.render(
-      <Slider value={0.5} from={0} through={1} step={0.1} onChange={onChange} />,
+      <Slider
+        value={0.5}
+        from={0}
+        through={1}
+        step={0.1}
+        onChange={onChange}
+      />,
     );
     const slider = host.lastCommit!.root!;
     expect(slider).toMatchObject({
@@ -244,11 +255,25 @@ describe("input primitives", () => {
 
   it("serializes Stepper with label and range", () => {
     const root = render(
-      <Stepper value={3} from={0} through={10} step={1} label="Count" onChange={() => {}} />,
+      <Stepper
+        value={3}
+        from={0}
+        through={10}
+        step={1}
+        label="Count"
+        onChange={() => {}}
+      />,
     );
     expect(root).toMatchObject({
       type: "Stepper",
-      props: { value: 3, from: 0, through: 10, step: 1, label: "Count", onChange: true },
+      props: {
+        value: 3,
+        from: 0,
+        through: 10,
+        step: 1,
+        label: "Count",
+        onChange: true,
+      },
     });
   });
 
@@ -257,12 +282,22 @@ describe("input primitives", () => {
     const host = new MemoryHost();
     const root = new WatchRoot(host);
     root.render(
-      <DatePicker value={1_750_000_000_000} mode="date" label="When" onChange={onChange} />,
+      <DatePicker
+        value={1_750_000_000_000}
+        mode="date"
+        label="When"
+        onChange={onChange}
+      />,
     );
     const picker = host.lastCommit!.root!;
     expect(picker).toMatchObject({
       type: "DatePicker",
-      props: { value: 1_750_000_000_000, mode: "date", label: "When", onChange: true },
+      props: {
+        value: 1_750_000_000_000,
+        mode: "date",
+        label: "When",
+        onChange: true,
+      },
     });
     root.dispatchEvent({
       nodeId: picker.id,

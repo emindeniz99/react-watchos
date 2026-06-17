@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { MemoryHost, Text, VStack, runApp } from "../src/index";
+import { MemoryHost, runApp, Text, VStack } from "../src/index";
 
 afterEach(() => {
   delete (globalThis as Record<string, unknown>).__inspect;

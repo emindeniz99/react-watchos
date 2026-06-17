@@ -1,5 +1,5 @@
-import { context } from "esbuild";
 import { join } from "node:path";
+import { context } from "esbuild";
 import { buildOptions, root } from "./config.mjs";
 
 /**

@@ -23,7 +23,10 @@ describe("on-device AI (generateText)", () => {
       instructions: "Be terse.",
     });
 
-    (g.__resolveGenerate as (i: number, t: string) => void)(id, "Busy but good.");
+    (g.__resolveGenerate as (i: number, t: string) => void)(
+      id,
+      "Busy but good.",
+    );
     expect(await promise).toBe("Busy but good.");
   });
 

@@ -5,15 +5,15 @@ import {
   CrownRotation,
   Gauge,
   MemoryHost,
-  Text,
-  TimerText,
-  Toggle,
-  VStack,
-  WatchRoot,
   registerControl,
   registerWidget,
   renderWidgets,
+  Text,
+  TimerText,
+  Toggle,
   unregisterAllWidgets,
+  VStack,
+  WatchRoot,
 } from "../src/index";
 
 // Writes the JSON the Swift NodeModel/WidgetModels decoders consume in
@@ -31,7 +31,13 @@ describe("swift contract fixtures", () => {
       <VStack spacing={8}>
         <TimerText since={1000} bold size={28} color="green" />
         <Toggle value={true} label="Live" onChange={() => {}} />
-        <CrownRotation value={5} from={0} through={10} step={1} onChange={() => {}}>
+        <CrownRotation
+          value={5}
+          from={0}
+          through={10}
+          step={1}
+          onChange={() => {}}
+        >
           <Text>5</Text>
         </CrownRotation>
         <Text>Connected</Text>

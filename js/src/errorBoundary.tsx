@@ -19,17 +19,17 @@ interface State {
  * surface through the host's onError banner.
  */
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { error: null };
+  override state: State = { error: null };
 
   static getDerivedStateFromError(error: Error): State {
     return { error };
   }
 
-  componentDidCatch(error: Error): void {
+  override componentDidCatch(error: Error): void {
     this.props.onError?.(error);
   }
 
-  render(): ReactNode {
+  override render(): ReactNode {
     const { error } = this.state;
     if (error) {
       const { fallback } = this.props;

@@ -1,5 +1,8 @@
 import { getHost } from "./host";
-import { registerNativeListener, type NativeEventHandler } from "./nativeEvents";
+import {
+  type NativeEventHandler,
+  registerNativeListener,
+} from "./nativeEvents";
 
 /**
  * Live sensor streams (heart rate via HealthKit, motion via CoreMotion).
@@ -22,7 +25,10 @@ function sensor(op: "start" | "stop", kind: SensorKind): void {
 }
 
 /** Starts a sensor and routes its readings to `handler` (`{ ...reading }`). */
-export function startSensor(kind: SensorKind, handler: NativeEventHandler): void {
+export function startSensor(
+  kind: SensorKind,
+  handler: NativeEventHandler,
+): void {
   registerNativeListener(SENSOR_EVENT_PREFIX + kind, handler);
   sensor("start", kind);
 }

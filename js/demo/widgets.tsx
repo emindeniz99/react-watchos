@@ -3,10 +3,10 @@ import {
   HStack,
   Image,
   ProgressView,
-  Text,
-  VStack,
   registerControl,
   registerWidget,
+  Text,
+  VStack,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 
@@ -17,8 +17,14 @@ interface Daypart {
   score: number;
 }
 
+const NIGHT: Daypart = {
+  name: "Night",
+  systemName: "moon.stars.fill",
+  startHour: 0,
+  score: 10,
+};
 const DAYPARTS: Daypart[] = [
-  { name: "Night", systemName: "moon.stars.fill", startHour: 0, score: 10 },
+  NIGHT,
   { name: "Morning", systemName: "sunrise.fill", startHour: 6, score: 80 },
   { name: "Afternoon", systemName: "sun.max.fill", startHour: 12, score: 60 },
   { name: "Evening", systemName: "sunset.fill", startHour: 18, score: 40 },
@@ -26,7 +32,7 @@ const DAYPARTS: Daypart[] = [
 
 function daypartAt(date: Date): Daypart {
   const hour = date.getHours();
-  return [...DAYPARTS].reverse().find((p) => hour >= p.startHour)!;
+  return [...DAYPARTS].reverse().find((p) => hour >= p.startHour) ?? NIGHT;
 }
 
 /** The current daypart (dated now) plus every boundary in the next 24h. */

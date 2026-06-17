@@ -1,19 +1,33 @@
-import { version, useEffect, useState } from "react";
+import { useEffect, useState, version } from "react";
 import {
+  applyUpdate,
   Button,
+  bleConnect,
+  bleSubscribe,
+  bleWrite,
   CrownRotation,
   Divider,
   ErrorBoundary,
   Gauge,
+  generateText,
   HStack,
   Image,
   List,
   NavigationLink,
   NavigationStack,
+  onBleNotify,
+  onBleState,
+  onPhoneMessage,
   Picker,
   ProgressView,
+  playHaptic,
+  publishWidgets,
+  registerNativeListener,
+  requestNotificationPermission,
   ScrollView,
   Spacer,
+  scheduleNotification,
+  sendToPhone,
   TabView,
   Text,
   TextField,
@@ -21,20 +35,6 @@ import {
   Toggle,
   VStack,
   ZStack,
-  applyUpdate,
-  generateText,
-  onPhoneMessage,
-  bleConnect,
-  bleWrite,
-  bleSubscribe,
-  onBleState,
-  onBleNotify,
-  playHaptic,
-  publishWidgets,
-  registerNativeListener,
-  requestNotificationPermission,
-  scheduleNotification,
-  sendToPhone,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 
@@ -226,9 +226,7 @@ function InputsScreen() {
         {name ? `Hi, ${name}!` : "Dictate or scribble above"}
       </Text>
       <Picker label="Mood" options={MOODS} value={mood} onChange={setMood} />
-      <Button
-        onPress={() => playHaptic(mood === 3 ? "success" : "click")}
-      >
+      <Button onPress={() => playHaptic(mood === 3 ? "success" : "click")}>
         <Text size={12}>{`Feel ${MOODS[mood]} (haptic)`}</Text>
       </Button>
     </VStack>
@@ -279,7 +277,10 @@ function MovieRemoteScreen() {
           <Image systemName="backward.fill" accessibilityLabel="Previous" />
         </Button>
         <Button onPress={() => bleWrite("transport", "playpause")}>
-          <Image systemName="playpause.fill" accessibilityLabel="Play or pause" />
+          <Image
+            systemName="playpause.fill"
+            accessibilityLabel="Play or pause"
+          />
         </Button>
         <Button onPress={() => bleWrite("transport", "next")}>
           <Image systemName="forward.fill" accessibilityLabel="Next" />
@@ -367,7 +368,13 @@ function CrownScreen() {
       accessibilityLabel="Volume"
     >
       <VStack spacing={6}>
-        <Gauge value={volume} min={0} max={100} label="Volume" style="circular" />
+        <Gauge
+          value={volume}
+          min={0}
+          max={100}
+          label="Volume"
+          style="circular"
+        />
         <Text bold size={24}>
           {String(volume)}
         </Text>
@@ -397,7 +404,11 @@ function AIScreen() {
   };
   return (
     <VStack spacing={6}>
-      <TextField value={prompt} placeholder="Ask the watch…" onChange={setPrompt} />
+      <TextField
+        value={prompt}
+        placeholder="Ask the watch…"
+        onChange={setPrompt}
+      />
       <Button primaryAction onPress={go}>
         <Text>Generate</Text>
       </Button>

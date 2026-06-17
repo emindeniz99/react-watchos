@@ -142,8 +142,6 @@ describe("events", () => {
     const root = new WatchRoot(host);
     root.render(<Text>static</Text>);
     const text = host.lastCommit!.root!;
-    expect(root.dispatchEvent({ nodeId: text.id, event: "press" })).toBe(
-      false,
-    );
+    expect(root.dispatchEvent({ nodeId: text.id, event: "press" })).toBe(false);
   });
 });

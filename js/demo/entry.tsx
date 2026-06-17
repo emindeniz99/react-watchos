@@ -2,9 +2,9 @@
 // so they run before react/scheduler module init regardless of import
 // order here.
 import { publishWidgets, runApp, startInspector } from "../src/index";
-import { registerDemoWidgets } from "./widgets";
-import { registerDemoIntents } from "./intents";
 import { App } from "./App";
+import { registerDemoIntents } from "./intents";
+import { registerDemoWidgets } from "./widgets";
 
 registerDemoWidgets();
 registerDemoIntents();
@@ -21,6 +21,7 @@ if (entrypoint === "app") {
   publishWidgets();
   // DEBUG-only: WatchApp sets __inspectorUrl so the tree + logs stream to
   // the `npm run inspector` viewer.
-  const inspectorUrl = (globalThis as { __inspectorUrl?: string }).__inspectorUrl;
+  const inspectorUrl = (globalThis as { __inspectorUrl?: string })
+    .__inspectorUrl;
   if (inspectorUrl) startInspector({ url: inspectorUrl });
 }

@@ -1,7 +1,7 @@
-import { build } from "esbuild";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { build } from "esbuild";
 import { describe, expect, it } from "vitest";
 import { buildOptions } from "../scripts/config.mjs";
 

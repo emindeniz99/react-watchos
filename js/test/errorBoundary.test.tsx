@@ -3,10 +3,10 @@ import {
   Button,
   ErrorBoundary,
   MemoryHost,
+  type SerializedNode,
   Text,
   VStack,
   WatchRoot,
-  type SerializedNode,
 } from "../src/index";
 
 function Boom(): never {

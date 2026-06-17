@@ -1,0 +1,10 @@
+{
+  // Tests inherit every strict flag except noUncheckedIndexedAccess: asserting
+  // on arr[0] / record[key] of fixtures built two lines up is idiomatic, and a
+  // bad index throws and fails the test anyway. All other guarantees still hold.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["test"]
+}

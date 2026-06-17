@@ -1,5 +1,5 @@
-import type { QuickJSHostGlobal } from "./host";
 import { installFetch } from "./fetch";
+import type { QuickJSHostGlobal } from "./host";
 
 /**
  * Fills in the platform globals React and scheduler expect but bare
@@ -23,7 +23,7 @@ export function installShims(): void {
     interface Timer {
       run: () => void;
       /** Set for setInterval; the period to re-arm with after each fire. */
-      intervalMs?: number;
+      intervalMs?: number | undefined;
     }
     const timers = new Map<number, Timer>();
     const arm = (

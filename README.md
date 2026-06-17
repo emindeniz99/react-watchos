@@ -162,12 +162,34 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 cd js
 npm install
 npm test             # full suite, incl. smoke tests inside a real qjs binary
+npm run typecheck    # strict tsc: src (max strict) + tests (one config each)
+npm run lint         # Biome: format + lint + import order (CI gate)
+npm run lint:fix     # Biome: auto-fix and format in place
 npm run codegen      # regenerate Swift models + TS wire types from schema
 npm run build        # bundle → both targets' assets/ (470KB, readable traces)
 npm run build:min    # minified (~139KB)
 npm run build:bytecode  # precompile bundle.qbc (faster cold start; see below)
 npm run dev          # live reload: esbuild watch+serve on 127.0.0.1:8788
 ```
+
+### Type safety & linting
+
+- **TypeScript** runs at maximum strictness. `tsconfig.base.json` enables
+  `strict` plus `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`,
+  `noImplicitOverride`/`Returns`, `noFallthroughCasesInSwitch`,
+  `noUnused*`, `verbatimModuleSyntax`, and `allowUnreachableCode: false`.
+  `tsconfig.json` (production: `src`/`demo`/`scripts`/`codegen`) inherits all
+  of it; `tsconfig.test.json` inherits everything **except**
+  `noUncheckedIndexedAccess`, which is pure noise when asserting on
+  just-built fixtures. `npm run typecheck` checks both.
+- **Biome** is the linter + formatter (`biome.json`): recommended rules,
+  double quotes, 2-space, 80 cols, organized imports. Generated wire types
+  are excluded so it never fights codegen. Non-null assertions and `any` are
+  allowed only under `test/**`.
+- **Swift** contract tests build in Swift 6 language mode (strict
+  concurrency) with `-warnings-as-errors`. `.swiftformat` + `.swiftlint.yml`
+  cover the watch/widget targets and run on the macOS workflow (SourceKit
+  isn't available on the Linux CI).
 
 With `npm run dev` running, DEBUG builds of the watch app poll the dev
 server every 2s and hot-restart the QuickJS runtime when the bundle

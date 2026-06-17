@@ -26,17 +26,25 @@ describe("inspector snapshot", () => {
 describe("inspector server", () => {
   it("accepts a POSTed snapshot and serves it back + the HTML page", async () => {
     const port = 8731;
-    const server = spawn("node", [join(__dirname, "../scripts/inspector.mjs")], {
-      env: { ...process.env, INSPECTOR_PORT: String(port) },
-      stdio: "ignore",
-    });
+    const server = spawn(
+      "node",
+      [join(__dirname, "../scripts/inspector.mjs")],
+      {
+        env: { ...process.env, INSPECTOR_PORT: String(port) },
+        stdio: "ignore",
+      },
+    );
     try {
       await new Promise((r) => setTimeout(r, 400));
       const base = `http://127.0.0.1:${port}`;
       await fetch(`${base}/snapshot`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ commits: 1, tree: { type: "Text" }, logs: ["x"] }),
+        body: JSON.stringify({
+          commits: 1,
+          tree: { type: "Text" },
+          logs: ["x"],
+        }),
       });
       const snap = await (await fetch(`${base}/snapshot`)).json();
       expect(snap.tree).toEqual({ type: "Text" });

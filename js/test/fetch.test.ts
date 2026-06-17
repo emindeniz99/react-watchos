@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { installShims } from "../src/shims";
 import { Headers } from "../src/index";
+import { installShims } from "../src/shims";
 
 // Simulates the bare QuickJS engine (no native fetch/Headers/AbortController):
 // installShims installs ours; a mock host records requests, settled the way
@@ -89,7 +89,10 @@ describe("fetch shim (QuickJS environment)", () => {
 
   it("aborts via AbortController with an AbortError and cancels natively", async () => {
     const fetch = g.fetch as (url: string, o?: unknown) => Promise<unknown>;
-    const Controller = g.AbortController as new () => { signal: unknown; abort: () => void };
+    const Controller = g.AbortController as new () => {
+      signal: unknown;
+      abort: () => void;
+    };
     const controller = new Controller();
     const promise = fetch("https://slow.test", { signal: controller.signal });
     const [id] = hostFetch.mock.calls[0];
@@ -108,7 +111,10 @@ describe("fetch shim (QuickJS environment)", () => {
 
   it("rejects immediately if the signal is already aborted", async () => {
     const fetch = g.fetch as (url: string, o?: unknown) => Promise<unknown>;
-    const Controller = g.AbortController as new () => { signal: unknown; abort: () => void };
+    const Controller = g.AbortController as new () => {
+      signal: unknown;
+      abort: () => void;
+    };
     const controller = new Controller();
     controller.abort();
     await expect(

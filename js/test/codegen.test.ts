@@ -22,17 +22,23 @@ describe("codegen", () => {
     const installed = (file: string): Set<string> => {
       const src = readFileSync(file, "utf8");
       const found = new Set<string>();
-      for (const m of src.matchAll(/JS_SetPropertyStr\(\s*\w+,\s*host,\s*"(\w+)"/g)) {
+      for (const m of src.matchAll(
+        /JS_SetPropertyStr\(\s*\w+,\s*host,\s*"(\w+)"/g,
+      )) {
         found.add(m[1]);
       }
       return found;
     };
     const watch = installed(join(appRoot, "targets/watch/JSRuntime.swift"));
-    const widget = installed(join(appRoot, "targets/widget/IntentRuntime.swift"));
+    const widget = installed(
+      join(appRoot, "targets/widget/IntentRuntime.swift"),
+    );
 
     const expected = (target: string) =>
       new Set(
-        hostMethods.filter((m) => m.targets.includes(target)).map((m) => m.name),
+        hostMethods
+          .filter((m) => m.targets.includes(target))
+          .map((m) => m.name),
       );
     expect([...watch].sort()).toEqual([...expected("watch")].sort());
     expect([...widget].sort()).toEqual([...expected("widget")].sort());

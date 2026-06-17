@@ -6,6 +6,7 @@ export type {
   SerializedTree,
   WatchEvent,
 } from "./generated/wire";
+
 import type { SerializedTree } from "./generated/wire";
 
 /** Where committed trees go. Swift provides this via the `__host` global. */

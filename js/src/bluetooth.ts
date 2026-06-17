@@ -1,5 +1,8 @@
 import { getHost } from "./host";
-import { registerNativeListener, type NativeEventHandler } from "./nativeEvents";
+import {
+  type NativeEventHandler,
+  registerNativeListener,
+} from "./nativeEvents";
 
 /**
  * BLE central over CoreBluetooth, for talking to a peripheral like a laptop

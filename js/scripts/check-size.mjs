@@ -3,10 +3,10 @@
 // Current minified size is ~143 KB; the budget gives headroom for React
 // point bumps but catches large regressions.
 
-import { build } from "esbuild";
 import { mkdtempSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { build } from "esbuild";
 import { buildOptions } from "./config.mjs";
 
 const BUDGET_KB = 200;

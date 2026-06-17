@@ -15,10 +15,7 @@ import type { QuickJSHostGlobal } from "./host";
  * __host.abortFetch(id) cancels an in-flight request.
  */
 
-type HeadersInit =
-  | Headers
-  | Record<string, string>
-  | Array<[string, string]>;
+type HeadersInit = Headers | Record<string, string> | Array<[string, string]>;
 
 /** HTTP header names are case-insensitive — store and look up lowercased. */
 export class Headers {
@@ -26,11 +23,13 @@ export class Headers {
 
   constructor(init?: HeadersInit) {
     if (init instanceof Headers) {
-      init.forEach((value, key) => this.set(key, value));
+      init.forEach((value, key) => {
+        this.set(key, value);
+      });
     } else if (Array.isArray(init)) {
       for (const [key, value] of init) this.append(key, value);
     } else if (init) {
-      for (const key of Object.keys(init)) this.set(key, init[key]);
+      for (const [key, value] of Object.entries(init)) this.set(key, value);
     }
   }
 
@@ -52,7 +51,9 @@ export class Headers {
     this.map.delete(name.toLowerCase());
   }
   forEach(cb: (value: string, key: string, parent: Headers) => void): void {
-    this.map.forEach((value, key) => cb(value, key, this));
+    this.map.forEach((value, key) => {
+      cb(value, key, this);
+    });
   }
   toJSON(): Record<string, string> {
     const out: Record<string, string> = {};
@@ -88,15 +89,19 @@ class WatchAbortSignal {
     if (this.aborted) return;
     this.aborted = true;
     this.reason = reason;
-    this.listeners.forEach((l) => l());
+    this.listeners.forEach((l) => {
+      l();
+    });
     this.listeners.clear();
   }
 
   static timeout(ms: number): WatchAbortSignal {
     const signal = new WatchAbortSignal();
-    const setTimeoutFn = (globalThis as {
-      setTimeout?: (fn: () => void, ms: number) => number;
-    }).setTimeout;
+    const setTimeoutFn = (
+      globalThis as {
+        setTimeout?: (fn: () => void, ms: number) => number;
+      }
+    ).setTimeout;
     setTimeoutFn?.(() => signal.fire(abortError(`timeout after ${ms}ms`)), ms);
     return signal;
   }
@@ -177,14 +182,17 @@ export function installFetch(g: Global): void {
     new Promise((resolve, reject) => {
       const signal =
         options?.signal ??
-        (options?.timeout ? WatchAbortSignal.timeout(options.timeout) : undefined);
+        (options?.timeout
+          ? WatchAbortSignal.timeout(options.timeout)
+          : undefined);
       if (signal?.aborted) {
         reject(signalReason(signal));
         return;
       }
       const id = nextId++;
-      const entry: Pending = { resolve, reject, signal };
+      const entry: Pending = { resolve, reject };
       if (signal) {
+        entry.signal = signal;
         entry.onAbort = () => {
           if (settle(id)) {
             g.__host?.abortFetch?.(id);

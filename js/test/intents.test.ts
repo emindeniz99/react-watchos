@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { handleIntent, registerIntent, unregisterAllIntents } from "../src/index";
+import {
+  handleIntent,
+  registerIntent,
+  unregisterAllIntents,
+} from "../src/index";
 
 afterEach(() => {
   unregisterAllIntents();

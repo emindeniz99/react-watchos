@@ -6,8 +6,8 @@ import {
   DiscreteEventPriority,
   NoEventPriority,
 } from "react-reconciler/constants";
-import type { HostBridge, SerializedTree, WatchEvent } from "./host";
 import { dispatchToInstance } from "./events";
+import type { HostBridge, SerializedTree, WatchEvent } from "./host";
 import { serializeTree } from "./serialize";
 
 export interface Instance {
@@ -166,12 +166,10 @@ const hostConfig = {
   NotPendingTransition: null,
   HostTransitionContext: createContext(null),
   resetFormInstance() {},
-  bindToConsole:
-    (method: string, args: unknown[]) =>
-    () => {
-      const fn = (console as unknown as Record<string, unknown>)[method];
-      if (typeof fn === "function") fn.apply(console, args);
-    },
+  bindToConsole: (method: string, args: unknown[]) => () => {
+    const fn = (console as unknown as Record<string, unknown>)[method];
+    if (typeof fn === "function") fn.apply(console, args);
+  },
 };
 
 // The 0.32 typings predate this host-config revision; the shape above is

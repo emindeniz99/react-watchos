@@ -79,7 +79,7 @@ export interface ToggleProps extends A11yProps {
   label?: string;
 }
 
-export interface SpacerProps {}
+export type SpacerProps = Record<string, never>;
 
 export interface ImageProps extends A11yProps {
   /** SF Symbol name — vector icons (tiny, themeable). */
@@ -104,7 +104,7 @@ export interface ListProps {
   children?: ReactNode;
 }
 
-export interface DividerProps {}
+export type DividerProps = Record<string, never>;
 
 export interface GaugeProps extends A11yProps {
   value: number;

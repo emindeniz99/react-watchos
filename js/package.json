@@ -13,7 +13,10 @@
     "check:size": "node scripts/check-size.mjs",
     "codegen": "node codegen/generate.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "format": "biome format --write"
   },
   "dependencies": {
     "react": "^19.2.0",
@@ -23,6 +26,7 @@
     "@babel/core": "^8.0.0",
     "@babel/preset-react": "^8.0.0",
     "@babel/preset-typescript": "^8.0.0",
+    "@biomejs/biome": "2.5.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-reconciler": "^0.32.0",

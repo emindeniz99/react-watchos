@@ -17,9 +17,7 @@ export function captureLog(line: string): void {
   if (logs.length > MAX_LOGS) logs.shift();
 }
 
-interface Inspect {
-  (): { commits: number; tree: unknown };
-}
+type Inspect = () => { commits: number; tree: unknown };
 
 /** Snapshot the inspector sends to the viewer. */
 export function inspectorSnapshot(): {

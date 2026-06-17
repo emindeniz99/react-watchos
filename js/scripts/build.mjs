@@ -1,6 +1,6 @@
-import { build } from "esbuild";
 import { copyFileSync, mkdirSync, statSync } from "node:fs";
 import { dirname } from "node:path";
+import { build } from "esbuild";
 import { assets, buildOptions, outfile } from "./config.mjs";
 
 // `npm run build -- --minify` (or MINIFY=1) roughly halves the bundle;

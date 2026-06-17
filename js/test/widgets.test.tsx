@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   Gauge,
-  Text,
-  VStack,
   publishWidgets,
   registerControl,
   registerWidget,
   renderToTree,
   renderWidgets,
+  Text,
   unregisterAllWidgets,
+  VStack,
 } from "../src/index";
 import { installMockHost } from "./helpers";
 
@@ -90,8 +90,8 @@ describe("widget timelines", () => {
   it("re-registering a kind replaces its definition", () => {
     registerHydration(1);
     registerHydration(5);
-    const tree = renderWidgets(NOW).widgets.hydration.accessoryCircular
-      .entries[0].tree;
+    const tree =
+      renderWidgets(NOW).widgets.hydration.accessoryCircular.entries[0].tree;
     expect(tree?.props.value).toBe(5);
   });
 
@@ -127,8 +127,7 @@ describe("widget timelines", () => {
       expect.stringContaining("reload loop"),
     );
     expect(
-      payload.widgets.selfPublisher.accessoryInline.entries[0].tree?.props
-        .text,
+      payload.widgets.selfPublisher.accessoryInline.entries[0].tree?.props.text,
     ).toBe("ok");
   });
 

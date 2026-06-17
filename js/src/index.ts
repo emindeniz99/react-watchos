@@ -1,141 +1,141 @@
 import type { ReactNode } from "react";
 import type { HostBridge, QuickJSHostGlobal, SerializedTree } from "./host";
-import { WatchRoot } from "./renderer";
 import { dispatchNativeEvent } from "./nativeEvents";
+import { WatchRoot } from "./renderer";
 
-export {
-  VStack,
-  HStack,
-  Text,
-  Button,
-  Toggle,
-  Spacer,
-  Image,
-  ZStack,
-  ScrollView,
-  List,
-  Divider,
-  Gauge,
-  ProgressView,
-  NavigationStack,
-  NavigationLink,
-  TextField,
-  Picker,
-  TabView,
-  TimerText,
-  CrownRotation,
-  Slider,
-  Stepper,
-  DatePicker,
-  MapView,
-} from "./components";
-export type {
-  VStackProps,
-  HStackProps,
-  TextProps,
-  ButtonProps,
-  ToggleProps,
-  SpacerProps,
-  ImageProps,
-  ZStackProps,
-  ScrollViewProps,
-  ListProps,
-  DividerProps,
-  GaugeProps,
-  ProgressViewProps,
-  NavigationStackProps,
-  NavigationLinkProps,
-  TextFieldProps,
-  PickerProps,
-  TabViewProps,
-  TimerTextProps,
-  CrownRotationProps,
-  SliderProps,
-  StepperProps,
-  DatePickerProps,
-  MapProps,
-  MapAnnotation,
-} from "./components";
-export {
-  registerNativeListener,
-  unregisterAllNativeListeners,
-  dispatchNativeEvent,
-} from "./nativeEvents";
-export type { NativeEventHandler } from "./nativeEvents";
-export {
-  sendToPhone,
-  onPhoneMessage,
-  PHONE_MESSAGE_EVENT,
-} from "./connectivity";
-export {
-  bleConnect,
-  bleDisconnect,
-  bleWrite,
-  bleSubscribe,
-  onBleState,
-  onBleNotify,
-  BLE_STATE_EVENT,
-  BLE_NOTIFY_EVENT,
-} from "./bluetooth";
+export type { GenerateOptions } from "./ai";
+export { generateText } from "./ai";
 export type { BleState } from "./bluetooth";
 export {
-  startSensor,
-  stopSensor,
-  startHeartRate,
-  startMotion,
-  startGyroscope,
-  startLocation,
-  SENSOR_EVENT_PREFIX,
-} from "./sensors";
-export type { SensorKind } from "./sensors";
+  BLE_NOTIFY_EVENT,
+  BLE_STATE_EVENT,
+  bleConnect,
+  bleDisconnect,
+  bleSubscribe,
+  bleWrite,
+  onBleNotify,
+  onBleState,
+} from "./bluetooth";
+export type {
+  ButtonProps,
+  CrownRotationProps,
+  DatePickerProps,
+  DividerProps,
+  GaugeProps,
+  HStackProps,
+  ImageProps,
+  ListProps,
+  MapAnnotation,
+  MapProps,
+  NavigationLinkProps,
+  NavigationStackProps,
+  PickerProps,
+  ProgressViewProps,
+  ScrollViewProps,
+  SliderProps,
+  SpacerProps,
+  StepperProps,
+  TabViewProps,
+  TextFieldProps,
+  TextProps,
+  TimerTextProps,
+  ToggleProps,
+  VStackProps,
+  ZStackProps,
+} from "./components";
+export {
+  Button,
+  CrownRotation,
+  DatePicker,
+  Divider,
+  Gauge,
+  HStack,
+  Image,
+  List,
+  MapView,
+  NavigationLink,
+  NavigationStack,
+  Picker,
+  ProgressView,
+  ScrollView,
+  Slider,
+  Spacer,
+  Stepper,
+  TabView,
+  Text,
+  TextField,
+  TimerText,
+  Toggle,
+  VStack,
+  ZStack,
+} from "./components";
+export {
+  onPhoneMessage,
+  PHONE_MESSAGE_EVENT,
+  sendToPhone,
+} from "./connectivity";
 export { ErrorBoundary } from "./errorBoundary";
 export { Headers } from "./fetch";
-export { playHaptic } from "./haptics";
 export type { HapticType } from "./haptics";
-export {
-  requestNotificationPermission,
-  scheduleNotification,
-  cancelNotification,
-} from "./notifications";
-export type { NotificationRequest } from "./notifications";
-export {
-  registerWidget,
-  registerControl,
-  unregisterAllWidgets,
-  renderToTree,
-  renderWidgets,
-  publishWidgets,
-} from "./widgets";
-export type {
-  WidgetFamily,
-  WidgetRenderContext,
-  WidgetTimeline,
-  WidgetTimelineEntry,
-  WidgetDefinition,
-  ControlDefinition,
-  EntryRelevance,
-  PublishedWidgets,
-} from "./widgets";
-export { Storage } from "./storage";
-export {
-  registerIntent,
-  unregisterAllIntents,
-  handleIntent,
-} from "./intents";
-export type { IntentHandler } from "./intents";
-export { applyUpdate } from "./update";
-export { startInspector, inspectorSnapshot, captureLog } from "./inspector";
-export type { InspectorOptions } from "./inspector";
-export { generateText } from "./ai";
-export type { GenerateOptions } from "./ai";
-export { MemoryHost } from "./host";
+export { playHaptic } from "./haptics";
 export type {
   HostBridge,
   SerializedNode,
   SerializedTree,
   WatchEvent,
 } from "./host";
+export { MemoryHost } from "./host";
+export type { InspectorOptions } from "./inspector";
+export { captureLog, inspectorSnapshot, startInspector } from "./inspector";
+export type { IntentHandler } from "./intents";
+export {
+  handleIntent,
+  registerIntent,
+  unregisterAllIntents,
+} from "./intents";
+export type { NativeEventHandler } from "./nativeEvents";
+export {
+  dispatchNativeEvent,
+  registerNativeListener,
+  unregisterAllNativeListeners,
+} from "./nativeEvents";
+export type { NotificationRequest } from "./notifications";
+export {
+  cancelNotification,
+  requestNotificationPermission,
+  scheduleNotification,
+} from "./notifications";
 export { WatchRoot } from "./renderer";
+export type { SensorKind } from "./sensors";
+export {
+  SENSOR_EVENT_PREFIX,
+  startGyroscope,
+  startHeartRate,
+  startLocation,
+  startMotion,
+  startSensor,
+  stopSensor,
+} from "./sensors";
+export { Storage } from "./storage";
+export { applyUpdate } from "./update";
+export type {
+  ControlDefinition,
+  EntryRelevance,
+  PublishedWidgets,
+  WidgetDefinition,
+  WidgetFamily,
+  WidgetRenderContext,
+  WidgetTimeline,
+  WidgetTimelineEntry,
+} from "./widgets";
+export {
+  publishWidgets,
+  registerControl,
+  registerWidget,
+  renderToTree,
+  renderWidgets,
+  unregisterAllWidgets,
+} from "./widgets";
 
 /**
  * Mounts the app. With an explicit host (tests), trees are delivered as
@@ -164,13 +164,14 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
     event: string,
     payloadJson?: string,
     seq?: number,
-  ): boolean =>
-    root.dispatchEvent({
-      nodeId,
-      event,
-      payload: payloadJson ? JSON.parse(payloadJson) : undefined,
-      seq,
-    });
+  ): boolean => {
+    const payload = payloadJson ? JSON.parse(payloadJson) : undefined;
+    return root.dispatchEvent(
+      seq === undefined
+        ? { nodeId, event, payload }
+        : { nodeId, event, payload, seq },
+    );
+  };
   // Native state pushes: run the listener at urgent priority + flush so it
   // commits instantly (like a tap), not on the scheduler's next turn.
   g.__pushNativeEvent = (name: string, payloadJson?: string): boolean =>
