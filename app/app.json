@@ -15,7 +15,8 @@
         {
           "appleTeamId": "REPLACE_WITH_YOUR_TEAM_ID"
         }
-      ]
+      ],
+      "./plugins/with-quickjs-bridging.js"
     ]
   }
 }

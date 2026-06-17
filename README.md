@@ -198,11 +198,13 @@ updates via `publishWidgets()`.
 
 **Expected first-build friction (untested on a real Mac — Rule 12):**
 
-- If Swift can't see the QuickJS API, set the watch target's
-  `SWIFT_OBJC_BRIDGING_HEADER` to
-  `../targets/watch/Vendor/quickjs/quickjs-swift-shim.h` (path relative to
-  the generated `ios/` project) and confirm the vendored `.c` files are in
-  the target's Compile Sources.
+- The QuickJS bridging header is set by the
+  `plugins/with-quickjs-bridging.js` config plugin during prebuild. If Swift
+  still can't see the QuickJS API ("cannot find 'JS_NewRuntime' in scope"),
+  the target match or relative path may be off — set the watch/widget
+  targets' `SWIFT_OBJC_BRIDGING_HEADER` to
+  `Vendor/quickjs/quickjs-swift-shim.h` manually in Xcode and confirm the
+  vendored `.c` files are in Compile Sources.
 - Confirm `assets/bundle.js` landed in the watch target's bundle resources.
 - If prebuild didn't apply `WKRunsIndependentlyOfCompanionApp`, add it to
   the watch target's Info.plist.
