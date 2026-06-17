@@ -173,6 +173,8 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
         payloadJson ? JSON.parse(payloadJson) : undefined,
       ),
     );
+  // Debug inspector: returns the current serialized tree + commit count.
+  g.__inspect = () => root.inspect();
   root.render(element);
   return root;
 }

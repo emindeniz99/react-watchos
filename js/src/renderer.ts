@@ -6,7 +6,7 @@ import {
   DiscreteEventPriority,
   NoEventPriority,
 } from "react-reconciler/constants";
-import type { HostBridge, WatchEvent } from "./host";
+import type { HostBridge, SerializedTree, WatchEvent } from "./host";
 import { dispatchToInstance } from "./events";
 import { serializeTree } from "./serialize";
 
@@ -184,7 +184,21 @@ const reconciler = Reconciler(hostConfig as never) as unknown as {
   defaultOnUncaughtError(error: unknown): void;
   defaultOnCaughtError(error: unknown): void;
   defaultOnRecoverableError(error: unknown): void;
+  injectIntoDevTools(config: unknown): boolean;
 };
+
+// Register with React DevTools if a backend hook is present (e.g.
+// react-devtools-core connected over the dev server). Inert otherwise.
+try {
+  reconciler.injectIntoDevTools({
+    bundleType: process.env.NODE_ENV === "production" ? 0 : 1,
+    version: "19.2.0",
+    rendererPackageName: "react-native-watchos",
+    findFiberByHostInstance: () => null,
+  });
+} catch {
+  // No DevTools hook — fine.
+}
 
 export class WatchRoot {
   private container: Container;
@@ -238,6 +252,11 @@ export class WatchRoot {
   unmount(): void {
     reconciler.updateContainerSync(null, this.root, null, null);
     this.flush();
+  }
+
+  /** Debug inspector: the current serialized tree + commit count. */
+  inspect(): { commits: number; tree: SerializedTree } {
+    return { commits: this.commitCount, tree: serializeTree(this.container) };
   }
 
   /** Entry point for native interaction events. Returns false for unknown/stale nodes. */
