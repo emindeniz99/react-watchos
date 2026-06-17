@@ -121,6 +121,7 @@ export {
   handleIntent,
 } from "./intents";
 export type { IntentHandler } from "./intents";
+export { applyUpdate } from "./update";
 export { MemoryHost } from "./host";
 export type {
   HostBridge,

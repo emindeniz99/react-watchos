@@ -34,6 +34,7 @@ export function installMockHost() {
     abortFetch: vi.fn(),
     ble: vi.fn(),
     sensor: vi.fn(),
+    saveUpdate: vi.fn(),
   };
   (globalThis as Record<string, unknown>).__host = host;
   return host;

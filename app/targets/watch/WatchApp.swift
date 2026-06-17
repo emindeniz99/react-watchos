@@ -79,17 +79,45 @@ final class ReactAppModel: ObservableObject {
         }
     }
 
+    /// App Group file holding an OTA bundle (js/src/update.ts), if any.
+    private var otaBundleURL: URL? {
+        FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier:
+                SharedWidgetStore.appGroupId)?
+            .appendingPathComponent("ota-bundle.js")
+    }
+
+    private func saveUpdate(_ js: String) {
+        guard let url = otaBundleURL else { return }
+        try? js.write(to: url, atomically: true, encoding: .utf8)
+    }
+
     private func load(into js: JSRuntime) throws {
+        // 1. An OTA bundle takes precedence (UI fixes shipped without an App
+        //    Store round-trip; see js/src/update.ts for the 2.5.2 guardrail).
+        if let ota = otaBundleURL,
+           let code = try? String(contentsOf: ota, encoding: .utf8),
+           !code.isEmpty {
+            do {
+                try js.evaluate(code)
+                return
+            } catch {
+                // A bad OTA bundle shouldn't brick the app — drop it.
+                try? FileManager.default.removeItem(at: ota)
+                runtimeError = "OTA bundle failed, using shipped bundle: \(error)"
+            }
+        }
+        // 2. Precompiled bytecode (faster cold start).
         if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
            let data = try? Data(contentsOf: qbc) {
             do {
                 try js.evaluateBytecode(data)
                 return
             } catch {
-                // Stale/mismatched bytecode — fall through to the source.
                 runtimeError = "bytecode load failed, using bundle.js: \(error)"
             }
         }
+        // 3. The shipped JS source.
         guard let jsURL = Bundle.main.url(forResource: "bundle", withExtension: "js"),
               let code = try? String(contentsOf: jsURL, encoding: .utf8) else {
             throw JSRuntime.JSError.exception("bundle.js missing — run `npm run build`")
@@ -138,6 +166,7 @@ final class ReactAppModel: ObservableObject {
         js.onAbortFetch = { [weak self] id in self?.abortFetch(id: id) }
         js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
         js.onSensor = { [weak self] json in self?.sensors.handleOp(json) }
+        js.onSaveUpdate = { [weak self] code in self?.saveUpdate(code) }
         js.onError = { [weak self] message in
             DispatchQueue.main.async { self?.runtimeError = message }
         }

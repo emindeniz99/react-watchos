@@ -57,6 +57,8 @@ export interface QuickJSHostGlobal {
   ble?(json: string): void;
   /** Sensor streams (HealthKit/CoreMotion): { op, kind }. Readings push back. */
   sensor?(json: string): void;
+  /** Persists an OTA JS bundle; loaded on next launch in preference to the bundled one. */
+  saveUpdate?(js: string): void;
 }
 
 /** The native bridge installed by JSRuntime/IntentRuntime, if present. */

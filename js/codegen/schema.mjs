@@ -152,4 +152,5 @@ export const hostMethods = [
   { name: "abortFetch", targets: ["watch"] },
   { name: "ble", targets: ["watch"] },
   { name: "sensor", targets: ["watch"] },
+  { name: "saveUpdate", targets: ["watch"] },
 ];
