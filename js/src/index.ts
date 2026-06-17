@@ -27,6 +27,7 @@ export {
   Slider,
   Stepper,
   DatePicker,
+  MapView,
 } from "./components";
 export type {
   VStackProps,
@@ -52,6 +53,8 @@ export type {
   SliderProps,
   StepperProps,
   DatePickerProps,
+  MapProps,
+  MapAnnotation,
 } from "./components";
 export {
   registerNativeListener,

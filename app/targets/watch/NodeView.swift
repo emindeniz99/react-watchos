@@ -1,3 +1,4 @@
+import MapKit
 import SwiftUI
 import UIKit
 
@@ -94,6 +95,8 @@ struct NodeView: View {
                 node.string("label") ?? "",
                 selection: dateBinding,
                 displayedComponents: dateComponents(node.string("mode")))
+        case "Map":
+            mapView
         default:
             // Unknown node type: skip it but keep rendering siblings, so a
             // newer JS bundle degrades gracefully on an older interpreter.
@@ -221,6 +224,48 @@ struct NodeView: View {
                     nodeId: node.id, value: .bool(newValue),
                     payload: ["value": newValue])
             })
+    }
+
+    // MapKit map with markers + an optional polyline route. Annotations and
+    // route are nested JSONValue arrays-of-objects in the wire tree.
+    @ViewBuilder private var mapView: some View {
+        let annotations = coordinates(node.props["annotations"])
+        let route = coordinates(node.props["route"]).map(\.coordinate)
+        Map {
+            ForEach(Array(annotations.enumerated()), id: \.offset) { _, a in
+                Marker(a.title ?? "", systemImage: a.systemImage ?? "mappin",
+                       coordinate: a.coordinate)
+                    .tint(color(a.tint) ?? .red)
+            }
+            if route.count > 1 {
+                MapPolyline(coordinates: route).stroke(.blue, lineWidth: 3)
+            }
+        }
+        .frame(height: cgFloat("height") ?? 120)
+    }
+
+    private struct MapPoint {
+        let coordinate: CLLocationCoordinate2D
+        let title: String?
+        let systemImage: String?
+        let tint: String?
+    }
+
+    private func coordinates(_ value: JSONValue?) -> [MapPoint] {
+        guard case .array(let items)? = value else { return [] }
+        return items.compactMap { item in
+            guard case .object(let dict) = item,
+                  case .number(let lat)? = dict["lat"],
+                  case .number(let lon)? = dict["lon"] else { return nil }
+            func str(_ k: String) -> String? {
+                if case .string(let s)? = dict[k] { return s }
+                return nil
+            }
+            return MapPoint(
+                coordinate: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                title: str("title"), systemImage: str("systemImage"),
+                tint: str("tint"))
+        }
     }
 
     private func dateComponents(_ mode: String?) -> DatePickerComponents {

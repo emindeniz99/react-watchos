@@ -79,6 +79,9 @@ struct WidgetNodeView: View {
             // Read-only in widgets: the formatted date.
             Text(Date(timeIntervalSince1970: (node.double("value") ?? 0) / 1000),
                  style: .date)
+        case "Map":
+            // Maps aren't supported in widget timelines; show a placeholder.
+            Image(systemName: "map")
         case "TextField":
             Text(node.string("value") ?? node.string("placeholder") ?? "")
         case "Picker":

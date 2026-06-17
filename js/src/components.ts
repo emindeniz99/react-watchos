@@ -169,6 +169,27 @@ export interface StepperProps extends A11yProps {
   onChange?: (value: number) => void;
 }
 
+export interface MapAnnotation {
+  lat: number;
+  lon: number;
+  title?: string;
+  /** SF Symbol for the marker. */
+  systemImage?: string;
+  tint?: string;
+}
+
+/** A MapKit map (watchOS 26): a region with markers and an optional route. */
+export interface MapProps extends A11yProps {
+  /** Region center + span (degrees). Defaults to fit the annotations. */
+  latitude?: number;
+  longitude?: number;
+  span?: number;
+  annotations?: MapAnnotation[];
+  /** Polyline route as lat/lon points. */
+  route?: Array<{ lat: number; lon: number }>;
+  height?: number;
+}
+
 /** Date/time picker. value and onChange are epoch milliseconds. */
 export interface DatePickerProps extends A11yProps {
   value: number;
@@ -241,3 +262,5 @@ export const CrownRotation =
 export const Slider = "Slider" as unknown as FC<SliderProps>;
 export const Stepper = "Stepper" as unknown as FC<StepperProps>;
 export const DatePicker = "DatePicker" as unknown as FC<DatePickerProps>;
+// Exported as MapView to avoid shadowing the global `Map`; node type "Map".
+export const MapView = "Map" as unknown as FC<MapProps>;
