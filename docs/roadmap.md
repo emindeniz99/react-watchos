@@ -31,12 +31,33 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
 
 Also shipped: **DatePicker**, **onDrag** scrub (T1), **sensors/HealthKit**
 (T3-P1), **Map** primitive, **Smart Stack relevantContexts**, **Liquid
-Glass** (`glass`), **React DevTools + __inspect**, **OTA update channel**
-(`applyUpdate`), and the **QuickJS bridging-header config plugin** (toward
-the macOS build).
+Glass** (`glass`), **OTA update channel** (`applyUpdate`), **React Compiler**
+in the esbuild pipeline (auto-memoization), **double-tap** (`primaryAction`
+→ `handGestureShortcut(.primaryAction)`, watchOS 11+), **on-device AI**
+(`generateText` over Foundation Models, watchOS 26+), and the **QuickJS
+bridging-header config plugin** (toward the macOS build).
+
+**DevTools — shipped as a remote inspector**, not the official React
+DevTools. Full DevTools needs a WebSocket transport QuickJS doesn't provide,
+so instead `startInspector({url})` tees `console.log` into a ring buffer and
+POSTs `inspectorSnapshot()` (the serialized tree via `__inspect` + logs) over
+the existing `fetch` every 1 s; `js/scripts/inspector.mjs` is a Node viewer.
+The `injectIntoDevTools` hook is still wired for when a transport exists.
 
 Dropped after measurement: **tree-diff** (see Track 2 — not warranted at
 watch scale).
+
+**Suspense — attempted, not supported (by design).** The renderer is
+sync-first (`updateContainerSync` + `flushSyncWork` on a discrete priority),
+which is what makes commits deterministic and verifiable in `qjs`. Suspense
+*boundaries* render (fixed by returning a non-null empty `getRootHostContext`,
+which a `null` context crashed on), but Suspense-**for-data** never commits:
+the concurrent retry lanes that resolve a thrown promise are never driven by
+the sync-first loop. Driving retries via `flushSyncFromReconciler(updateContainer)`
+and the classic throw-promise pattern both failed. Recommendation for apps:
+the explicit `useState` + `fetch` loading pattern, not `<Suspense>`. Revisit
+only if we move to a concurrent (time-sliced) scheduler, which would trade
+away the sync-commit determinism the test harness relies on.
 
 **Live Activities — deferred (by design).** They're iOS ActivityKit
 (authored on iOS, only *surfaced* on the watch Smart Stack), need a
@@ -205,12 +226,34 @@ equipment), navigation, timers, medication reminders. The reusable play is a
 **starter-kit of React watch apps** (remote, tracker, timer, now-playing
 complication) on top of this renderer.
 
+## 6. On-device intelligence (shipped, room to grow)
+
+`generateText` now brokers Apple's **Foundation Models** (~3B on-device LLM,
+watchOS 26+) entirely on the watch — no network, no phone — through the
+`generate` host method, settled on the main actor. Natural extensions, all
+behind the same `HostBridge` seam:
+
+- **Streaming tokens** via the existing `__pushNativeEvent` channel (partial
+  results as they decode), instead of one resolve.
+- **Structured output** — Foundation Models `@Generable` guided generation
+  maps cleanly onto a typed `generateObject(schema)`.
+- **Tool calling** — let the model invoke our host methods (haptics, widgets,
+  fetch) as tools.
+- **App Shortcuts / Siri** — surface app actions to Siri so a phrase can drive
+  the React app; pairs with the **double-tap** primary action already shipped.
+
 ## Re-prioritized "what's next"
 
-1. **macOS build green** (gate — unchanged).
-2. **Sensors/HealthKit** (was T3-P1) — promoted: watchOS 26's fitness APIs +
-   market demand make it the top *feature*.
-3. **React Compiler** in the build — cheap perf, verifiable here.
+1. **macOS build green** (gate — unchanged). Now also gates double-tap,
+   on-device AI, and the inspector's on-watch side.
+2. **Sensors/HealthKit** — watchOS 26's fitness APIs + market demand keep it
+   the top *feature* (watch side done; verify on-device).
+3. **Foundation Models streaming + structured output** — high-leverage now
+   that the synchronous path ships; reuses the push channel.
 4. **Cross-platform core extraction** (→ tvOS) — the strategic bet.
 5. **`Map` primitive** + Smart Stack POI signals — ride the new APIs.
-6. Then: DatePicker, tree-diff (still measure-first), OTA channel.
+6. Then: OTA channel hardening, tree-diff (still measure-first).
+
+Done since the last pass: **React Compiler** (build), **DevTools** (remote
+inspector), **double-tap** (`primaryAction`), **on-device AI** (`generateText`).
+**Suspense** investigated and deliberately not adopted (see above).
