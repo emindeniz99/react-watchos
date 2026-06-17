@@ -21,6 +21,7 @@ import {
   Toggle,
   VStack,
   ZStack,
+  applyUpdate,
   onPhoneMessage,
   bleConnect,
   bleWrite,
@@ -299,6 +300,40 @@ function MovieRemoteScreen() {
   );
 }
 
+/**
+ * OTA update: fetch a JS bundle and stage it (applyUpdate). It takes effect
+ * on the next launch — the watch loads a staged bundle before the shipped
+ * one. Within App Store 2.5.2 (UI fixes to reviewed features only).
+ */
+function UpdatesScreen() {
+  const [status, setStatus] = useState("up to date");
+  const check = async () => {
+    setStatus("checking…");
+    try {
+      const res = await fetch("https://example.com/react-watch/bundle.js");
+      if (!res.ok) {
+        setStatus(`server returned ${res.status}`);
+        return;
+      }
+      applyUpdate(await res.text());
+      setStatus("update staged — relaunch to apply");
+    } catch (e) {
+      setStatus(`no update: ${(e as Error).message}`);
+    }
+  };
+  return (
+    <VStack spacing={6}>
+      <Text bold>OTA Update</Text>
+      <Text size={11} color="secondary">
+        {status}
+      </Text>
+      <Button onPress={check}>
+        <Text>Check for update</Text>
+      </Button>
+    </VStack>
+  );
+}
+
 /** Phone <-> watch: shows the last phone message, pings the phone. */
 function ConnectivityScreen() {
   const [last, setLast] = useState("none yet");
@@ -392,6 +427,9 @@ function AppScreens() {
         </NavigationLink>
         <NavigationLink title="Movie Remote">
           <MovieRemoteScreen />
+        </NavigationLink>
+        <NavigationLink title="Updates">
+          <UpdatesScreen />
         </NavigationLink>
       </List>
     </NavigationStack>
