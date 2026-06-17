@@ -47,6 +47,16 @@ describe("events", () => {
     expect(updated.props.value).toBe(true);
   });
 
+  it("serializes the primaryAction (double-tap) flag", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(
+      <Button primaryAction onPress={() => {}}>
+        <Text>go</Text>
+      </Button>,
+    );
+    expect(host.lastCommit!.root!.props.primaryAction).toBe(true);
+  });
+
   it("dispatches longPress to the onLongPress handler", () => {
     const onLongPress = vi.fn();
     const host = new MemoryHost();

@@ -28,9 +28,7 @@ struct NodeView: View {
         case "TimerText":
             timerText
         case "Button":
-            Button(action: { model.dispatch(nodeId: node.id, event: "press") }) {
-                childViews
-            }
+            buttonView
         case "Toggle":
             Toggle(isOn: toggleBinding) { Text(node.string("label") ?? "") }
         case "Spacer":
@@ -102,6 +100,18 @@ struct NodeView: View {
             // Unknown node type: skip it but keep rendering siblings, so a
             // newer JS bundle degrades gracefully on an older interpreter.
             EmptyView()
+        }
+    }
+
+    // A Button, optionally bound to the double-tap gesture (watchOS 11+).
+    @ViewBuilder private var buttonView: some View {
+        let button = Button(
+            action: { model.dispatch(nodeId: node.id, event: "press") }
+        ) { childViews }
+        if node.bool("primaryAction") == true, #available(watchOS 11.0, *) {
+            button.handGestureShortcut(.primaryAction)
+        } else {
+            button
         }
     }
 

@@ -68,6 +68,8 @@ export interface TextProps extends A11yProps {
 
 export interface ButtonProps extends A11yProps, GestureProps {
   onPress?: () => void;
+  /** Bind this button to the Apple Watch double-tap gesture (watchOS 11+). */
+  primaryAction?: boolean;
   children?: ReactNode;
 }
 
