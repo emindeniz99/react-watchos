@@ -4,7 +4,9 @@ import {
   MemoryHost,
   Text,
   runApp,
+  startGyroscope,
   startHeartRate,
+  startLocation,
   startSensor,
   stopSensor,
   unregisterAllNativeListeners,
@@ -47,6 +49,16 @@ describe("sensor streams", () => {
     expect(host.sensor.mock.calls.map((c) => JSON.parse(c[0]))).toEqual([
       { op: "start", kind: "motion" },
       { op: "stop", kind: "motion" },
+    ]);
+  });
+
+  it("gyroscope and location conveniences start their kinds", () => {
+    const host = installMockHost();
+    startGyroscope(() => {});
+    startLocation(() => {});
+    expect(host.sensor.mock.calls.map((c) => JSON.parse(c[0]).kind)).toEqual([
+      "gyroscope",
+      "location",
     ]);
   });
 });

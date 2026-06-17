@@ -10,7 +10,12 @@ import { registerNativeListener, type NativeEventHandler } from "./nativeEvents"
  */
 export const SENSOR_EVENT_PREFIX = "sensor.";
 
-export type SensorKind = "heartRate" | "motion" | string;
+export type SensorKind =
+  | "heartRate"
+  | "motion"
+  | "gyroscope"
+  | "location"
+  | string;
 
 function sensor(op: "start" | "stop", kind: SensorKind): void {
   getHost()?.sensor?.(JSON.stringify({ op, kind }));
@@ -34,4 +39,14 @@ export function startHeartRate(handler: NativeEventHandler): void {
 /** Device motion: handler gets `{ x, y, z }` (user acceleration). */
 export function startMotion(handler: NativeEventHandler): void {
   startSensor("motion", handler);
+}
+
+/** Gyroscope rotation rate: handler gets `{ x, y, z }` (rad/s). */
+export function startGyroscope(handler: NativeEventHandler): void {
+  startSensor("gyroscope", handler);
+}
+
+/** Location: handler gets `{ latitude, longitude, speed, course }`. */
+export function startLocation(handler: NativeEventHandler): void {
+  startSensor("location", handler);
 }

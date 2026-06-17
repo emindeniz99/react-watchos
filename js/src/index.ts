@@ -83,6 +83,8 @@ export {
   stopSensor,
   startHeartRate,
   startMotion,
+  startGyroscope,
+  startLocation,
   SENSOR_EVENT_PREFIX,
 } from "./sensors";
 export type { SensorKind } from "./sensors";

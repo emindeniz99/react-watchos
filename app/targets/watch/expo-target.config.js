@@ -27,5 +27,7 @@ module.exports = (config) => ({
     NSHealthUpdateUsageDescription:
       "Record a workout session to read live heart rate.",
     NSMotionUsageDescription: "Use device motion for interactive features.",
+    NSLocationWhenInUseUsageDescription:
+      "Show your location and route while the app is open.",
   },
 });
