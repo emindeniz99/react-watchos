@@ -29,8 +29,14 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
   (react-native-watch-connectivity in the companion app), **Bluetooth
   entitlement** — all done.
 
-Remaining: **DatePicker** + continuous drag-scrub (T1-P1), **tree-diff**
-(T2-P1, **measure-first**), **sensors/HealthKit** (T3-P1).
+Also shipped: **DatePicker**, **onDrag** scrub (T1), **sensors/HealthKit**
+(T3-P1), **Map** primitive, **Smart Stack relevantContexts**, **Liquid
+Glass** (`glass`), **React DevTools + __inspect**, **OTA update channel**
+(`applyUpdate`), and the **QuickJS bridging-header config plugin** (toward
+the macOS build).
+
+Dropped after measurement: **tree-diff** (see Track 2 — not warranted at
+watch scale).
 
 **Live Activities — deferred (by design).** They're iOS ActivityKit
 (authored on iOS, only *surfaced* on the watch Smart Stack), need a
@@ -60,7 +66,7 @@ Owns `shims.ts`, `renderer.ts`, `scripts/`, CI.
 | Item | Pri | Effort | Notes |
 |---|---|---|---|
 | **`setInterval` shim** | P0 | S | The confirmed bug: `setInterval`/`clearInterval` are undefined in QuickJS, so an interval-driven update throws. Add them on top of the existing `setTimeout`→`__host.setTimer` bridge (re-arm on fire). *Async `setState` already commits via the scheduler's `setTimeout` hop* — this is the missing piece, not a scheduler redesign. Document the scheduler integration. Accept: an interval counter commits with no tap. **Land first** — unblocks Track 3's fetch/sensors. |
-| Tree diff / patch protocol | P1 | L | The scale-gated upgrade. **Measure first**: build a 200-row `List` benchmark and prove per-commit serialize+decode shows in a profile before building it. The no-op bailout is the cheap partial already in place; SwiftUI still re-diffs regardless, so the only win is wire+decode size. Highest effort, narrowest payoff. |
+| Tree diff / patch protocol | P1→**dropped** | L | **Measured (`treediff.bench`): 200 rows = ~13 KB, ~0.04 ms/serialize.** In-process serialize+decode is negligible and SwiftUI re-diffs the decoded tree regardless, so a patch protocol is **not warranted** at this scale — confirmed, not built. The no-op bailout is the cheap partial already in place. Revisit only if a profile on a real device shows commit cost (e.g. thousands of nodes). |
 | Minified/bytecode shipped artifact + CI size budget | P1 | S | Ship minified (`build:min`, ~halves it) or `.qbc` for production; keep unminified default for readable on-watch traces. Add a CI byte-size budget check. |
 | Richer dev error overlay | P2 | S | Build on the existing banner: stack frames, tap-to-dismiss already there; add source context in DEBUG. |
 
