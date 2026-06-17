@@ -8,6 +8,7 @@
     "build": "node scripts/build.mjs",
     "build:min": "node scripts/build.mjs --minify",
     "dev": "node scripts/dev.mjs",
+    "inspector": "node scripts/inspector.mjs",
     "build:bytecode": "sh ../tools/qjs-compile/run.sh",
     "check:size": "node scripts/check-size.mjs",
     "codegen": "node codegen/generate.mjs",

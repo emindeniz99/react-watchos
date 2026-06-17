@@ -124,6 +124,8 @@ export {
 } from "./intents";
 export type { IntentHandler } from "./intents";
 export { applyUpdate } from "./update";
+export { startInspector, inspectorSnapshot, captureLog } from "./inspector";
+export type { InspectorOptions } from "./inspector";
 export { MemoryHost } from "./host";
 export type {
   HostBridge,

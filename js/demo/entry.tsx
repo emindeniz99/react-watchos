@@ -1,7 +1,7 @@
 // QuickJS shims are prepended by esbuild's `inject` (scripts/config.mjs),
 // so they run before react/scheduler module init regardless of import
 // order here.
-import { publishWidgets, runApp } from "../src/index";
+import { publishWidgets, runApp, startInspector } from "../src/index";
 import { registerDemoWidgets } from "./widgets";
 import { registerDemoIntents } from "./intents";
 import { App } from "./App";
@@ -19,4 +19,8 @@ if (entrypoint === "app") {
   runApp(<App />);
   // Seed the complications so they show data before any interaction.
   publishWidgets();
+  // DEBUG-only: WatchApp sets __inspectorUrl so the tree + logs stream to
+  // the `npm run inspector` viewer.
+  const inspectorUrl = (globalThis as { __inspectorUrl?: string }).__inspectorUrl;
+  if (inspectorUrl) startInspector({ url: inspectorUrl });
 }

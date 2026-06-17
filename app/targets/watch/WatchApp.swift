@@ -69,6 +69,12 @@ final class ReactAppModel: ObservableObject {
         do {
             let js = try makeRuntime()
             runtime = js
+            #if DEBUG
+            // Stream the tree + logs to `npm run inspector` (entry.tsx reads
+            // this). The simulator shares the Mac's network.
+            try? js.evaluate(
+                "globalThis.__inspectorUrl='http://127.0.0.1:8099/snapshot'")
+            #endif
             if let devCode {
                 try js.evaluate(devCode)
             } else {
