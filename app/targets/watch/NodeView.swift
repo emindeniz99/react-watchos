@@ -10,6 +10,7 @@ struct NodeView: View {
 
     var body: some View {
         rendered
+            .modifier(GlassModifier(glass: node.bool("glass") == true))
             .modifier(A11yModifier(
                 label: node.string("accessibilityLabel"),
                 hint: node.string("accessibilityHint")))
@@ -490,5 +491,19 @@ private struct GestureModifier: ViewModifier {
                     nodeId: node.id, event: "swipe",
                     payload: ["direction": direction])
             }
+    }
+}
+
+/// Applies the watchOS 26 Liquid Glass effect when opted in; a no-op on
+/// older OSes so the same JS runs everywhere.
+private struct GlassModifier: ViewModifier {
+    let glass: Bool
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if glass, #available(watchOS 26.0, *) {
+            content.glassEffect()
+        } else {
+            content
+        }
     }
 }

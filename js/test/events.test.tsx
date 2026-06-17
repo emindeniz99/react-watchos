@@ -64,14 +64,17 @@ describe("events", () => {
     expect(onLongPress).toHaveBeenCalledTimes(1);
   });
 
-  it("serializes the focusable flag", () => {
+  it("serializes the focusable and glass flags", () => {
     const host = new MemoryHost();
     new WatchRoot(host).render(
-      <VStack focusable>
+      <VStack focusable glass>
         <Text>focus me</Text>
       </VStack>,
     );
-    expect(host.lastCommit!.root!.props.focusable).toBe(true);
+    expect(host.lastCommit!.root!.props).toMatchObject({
+      focusable: true,
+      glass: true,
+    });
   });
 
   it("streams drag translation to the onDrag handler", () => {

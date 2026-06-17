@@ -30,6 +30,8 @@ export interface GestureProps {
   onDrag?: (translation: { x: number; y: number }) => void;
   /** Make this view Crown/focus-addressable (watchOS focus traversal). */
   focusable?: boolean;
+  /** Apply the watchOS 26 Liquid Glass effect (no-op on older OSes). */
+  glass?: boolean;
 }
 
 export interface VStackProps extends A11yProps, GestureProps {
