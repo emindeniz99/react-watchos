@@ -61,12 +61,31 @@ export const structs = [
     ],
   },
   {
+    swift: "PublishedRelevantContext",
+    ts: "PublishedRelevantContext",
+    targets: ["widget"],
+    fields: [
+      { name: "date", swift: "Double?", ts: "number", optional: true },
+      { name: "latitude", swift: "Double?", ts: "number", optional: true },
+      { name: "longitude", swift: "Double?", ts: "number", optional: true },
+      { name: "radius", swift: "Double?", ts: "number", optional: true },
+    ],
+  },
+  {
     swift: "PublishedFamilyTimeline",
     ts: "PublishedFamilyTimeline",
     targets: ["widget"],
     fields: [
       { name: "entries", swift: "[PublishedEntry]", ts: "PublishedEntry[]" },
       { name: "reloadAfter", swift: "Double?", ts: "number", optional: true },
+      {
+        // Smart Stack relevance hints (date/location) so the watch surfaces
+        // the widget at the right time/place.
+        name: "relevantContexts",
+        swift: "[PublishedRelevantContext]?",
+        ts: "PublishedRelevantContext[]",
+        optional: true,
+      },
     ],
     swiftComputed: [
       "var reloadAfterDate: Date? {\n        reloadAfter.map { Date(timeIntervalSince1970: $0 / 1000) }\n    }",

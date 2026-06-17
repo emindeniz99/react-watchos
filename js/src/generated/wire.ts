@@ -37,9 +37,17 @@ export interface PublishedEntry {
   relevance?: PublishedRelevance;
 }
 
+export interface PublishedRelevantContext {
+  date?: number;
+  latitude?: number;
+  longitude?: number;
+  radius?: number;
+}
+
 export interface PublishedFamilyTimeline {
   entries: PublishedEntry[];
   reloadAfter?: number;
+  relevantContexts?: PublishedRelevantContext[];
 }
 
 export interface PublishedWidgets {

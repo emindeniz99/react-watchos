@@ -181,6 +181,25 @@ describe("widget timelines", () => {
     expect(entries[1].relevance).toBeUndefined();
   });
 
+  it("serializes Smart Stack relevantContexts (date/location)", () => {
+    registerWidget({
+      kind: "geo",
+      families: ["accessoryInline"],
+      render: ({ now }) => ({
+        entries: [{ date: now, view: <Text>x</Text> }],
+        relevantContexts: [
+          { latitude: 37.33, longitude: -122.03, radius: 100 },
+          { date: now + 3_600_000 },
+        ],
+      }),
+    });
+    const timeline = renderWidgets(NOW).widgets.geo.accessoryInline;
+    expect(timeline.relevantContexts).toEqual([
+      { latitude: 37.33, longitude: -122.03, radius: 100 },
+      { date: NOW + 3_600_000 },
+    ]);
+  });
+
   it("publishes registered control metadata for the widget extension", () => {
     registerControl({
       kind: "hydration.addGlass",

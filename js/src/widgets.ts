@@ -49,10 +49,21 @@ export interface WidgetTimelineEntry {
   relevance?: EntryRelevance;
 }
 
+/** A Smart Stack relevance hint: surface near this time and/or place. */
+export interface RelevantContext {
+  date?: number | Date;
+  latitude?: number;
+  longitude?: number;
+  /** Geofence radius in meters. */
+  radius?: number;
+}
+
 export interface WidgetTimeline {
   entries: WidgetTimelineEntry[];
   /** Ask WidgetKit to re-publish after this time (ms or Date). */
   reloadAfter?: number | Date;
+  /** Smart Stack date/location relevance hints. */
+  relevantContexts?: RelevantContext[];
 }
 
 export interface WidgetDefinition {
@@ -135,6 +146,18 @@ function renderWidgetsInner(now: number): PublishedWidgets {
         })),
         ...(timeline.reloadAfter !== undefined
           ? { reloadAfter: toMs(timeline.reloadAfter) }
+          : {}),
+        ...(timeline.relevantContexts
+          ? {
+              relevantContexts: timeline.relevantContexts.map((c) => ({
+                ...(c.date !== undefined ? { date: toMs(c.date) } : {}),
+                ...(c.latitude !== undefined ? { latitude: c.latitude } : {}),
+                ...(c.longitude !== undefined
+                  ? { longitude: c.longitude }
+                  : {}),
+                ...(c.radius !== undefined ? { radius: c.radius } : {}),
+              })),
+            }
           : {}),
       };
     }

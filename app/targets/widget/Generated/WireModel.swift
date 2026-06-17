@@ -94,9 +94,17 @@ struct PublishedEntry: Codable, Equatable {
     var entryDate: Date { Date(timeIntervalSince1970: date / 1000) }
 }
 
+struct PublishedRelevantContext: Codable, Equatable {
+    let date: Double?
+    let latitude: Double?
+    let longitude: Double?
+    let radius: Double?
+}
+
 struct PublishedFamilyTimeline: Codable, Equatable {
     let entries: [PublishedEntry]
     let reloadAfter: Double?
+    let relevantContexts: [PublishedRelevantContext]?
 
     var reloadAfterDate: Date? {
         reloadAfter.map { Date(timeIntervalSince1970: $0 / 1000) }
