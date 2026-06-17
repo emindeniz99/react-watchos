@@ -39,7 +39,18 @@ struct ReactTimelineProvider: TimelineProvider {
         let entries = timeline.entries.map { entry(from: $0) }
         let policy: TimelineReloadPolicy =
             timeline.reloadAfterDate.map { .after($0) } ?? .atEnd
+        // Per-entry relevance score (above) is the Smart Stack ranking signal.
+        // Date/location `relevantContexts` (decoded into timeline) feed the
+        // Smart Stack's contextual surfacing; the WidgetRelevances mapping is
+        // a watchOS-version-specific API and the remaining native step.
         completion(Timeline(entries: entries, policy: policy))
+    }
+
+    /// Date/location relevance hints published from React (js/src/widgets.ts).
+    /// Available to a future WidgetRelevances/RelevantContext mapping.
+    var relevantContexts: [PublishedRelevantContext] {
+        WidgetStore.load()?.widgets[kind]?[familyKey(.accessoryInline)]?
+            .relevantContexts ?? []
     }
 
     private func entry(from published: PublishedEntry) -> ReactEntry {
