@@ -2,6 +2,9 @@ import SwiftUI
 import UserNotifications
 import WatchKit
 import WidgetKit
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
 /// Loads bundle.js into QuickJS and republishes every committed React
 /// tree as SwiftUI state.
@@ -98,6 +101,47 @@ final class ReactAppModel: ObservableObject {
         try? js.write(to: url, atomically: true, encoding: .utf8)
     }
 
+    private struct GenerateRequest: Decodable {
+        let prompt: String
+        let instructions: String?
+        let temperature: Double?
+    }
+
+    /// On-device text generation via Foundation Models (js/src/ai.ts).
+    /// Settles on the main thread. NOTE: needs the Foundation Models SDK +
+    /// an Apple Intelligence–capable device; unverified here.
+    private func generate(id: Int, requestJson: String) {
+        guard let req = try? JSONDecoder().decode(
+            GenerateRequest.self, from: Data(requestJson.utf8)) else {
+            runtime?.rejectGenerate(id: id, message: "bad request")
+            return
+        }
+        #if canImport(FoundationModels)
+        if #available(watchOS 26.0, *) {
+            Task { [weak self] in
+                do {
+                    let session = LanguageModelSession(
+                        instructions: req.instructions ?? "")
+                    var options = GenerationOptions()
+                    if let t = req.temperature { options.temperature = t }
+                    let response = try await session.respond(
+                        to: req.prompt, options: options)
+                    await MainActor.run {
+                        self?.runtime?.resolveGenerate(id: id, text: response.content)
+                    }
+                } catch {
+                    await MainActor.run {
+                        self?.runtime?.rejectGenerate(
+                            id: id, message: error.localizedDescription)
+                    }
+                }
+            }
+            return
+        }
+        #endif
+        runtime?.rejectGenerate(id: id, message: "on-device AI unavailable")
+    }
+
     private func load(into js: JSRuntime) throws {
         // 1. An OTA bundle takes precedence (UI fixes shipped without an App
         //    Store round-trip; see js/src/update.ts for the 2.5.2 guardrail).
@@ -173,6 +217,9 @@ final class ReactAppModel: ObservableObject {
         js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
         js.onSensor = { [weak self] json in self?.sensors.handleOp(json) }
         js.onSaveUpdate = { [weak self] code in self?.saveUpdate(code) }
+        js.onGenerate = { [weak self] id, reqJson in
+            self?.generate(id: id, requestJson: reqJson)
+        }
         js.onError = { [weak self] message in
             DispatchQueue.main.async { self?.runtimeError = message }
         }

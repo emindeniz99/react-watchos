@@ -59,6 +59,8 @@ export interface QuickJSHostGlobal {
   sensor?(json: string): void;
   /** Persists an OTA JS bundle; loaded on next launch in preference to the bundled one. */
   saveUpdate?(js: string): void;
+  /** On-device LLM (Foundation Models); settles via __resolveGenerate/__rejectGenerate. */
+  generate?(id: number, requestJson: string): void;
 }
 
 /** The native bridge installed by JSRuntime/IntentRuntime, if present. */

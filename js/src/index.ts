@@ -126,6 +126,8 @@ export type { IntentHandler } from "./intents";
 export { applyUpdate } from "./update";
 export { startInspector, inspectorSnapshot, captureLog } from "./inspector";
 export type { InspectorOptions } from "./inspector";
+export { generateText } from "./ai";
+export type { GenerateOptions } from "./ai";
 export { MemoryHost } from "./host";
 export type {
   HostBridge,

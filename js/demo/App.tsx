@@ -22,6 +22,7 @@ import {
   VStack,
   ZStack,
   applyUpdate,
+  generateText,
   onPhoneMessage,
   bleConnect,
   bleWrite,
@@ -378,6 +379,35 @@ function CrownScreen() {
   );
 }
 
+/**
+ * On-device AI via Apple's Foundation Models (~3B LLM, watchOS 26+). The
+ * prompt runs entirely on the watch — no network, no phone. The Generate
+ * button is double-tap-enabled (primaryAction), so it fires on a pinch.
+ */
+function AIScreen() {
+  const [prompt, setPrompt] = useState("");
+  const [result, setResult] = useState("");
+  const go = async () => {
+    setResult("thinking…");
+    try {
+      setResult(await generateText(prompt || "Say hi in three words"));
+    } catch (e) {
+      setResult(`error: ${(e as Error).message}`);
+    }
+  };
+  return (
+    <VStack spacing={6}>
+      <TextField value={prompt} placeholder="Ask the watch…" onChange={setPrompt} />
+      <Button primaryAction onPress={go}>
+        <Text>Generate</Text>
+      </Button>
+      <Text size={12} color="secondary">
+        {result || "Runs on-device · double-tap to generate"}
+      </Text>
+    </VStack>
+  );
+}
+
 export function App() {
   return (
     <ErrorBoundary
@@ -427,6 +457,9 @@ function AppScreens() {
         </NavigationLink>
         <NavigationLink title="Movie Remote">
           <MovieRemoteScreen />
+        </NavigationLink>
+        <NavigationLink title="AI">
+          <AIScreen />
         </NavigationLink>
         <NavigationLink title="Updates">
           <UpdatesScreen />

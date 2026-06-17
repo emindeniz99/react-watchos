@@ -153,4 +153,5 @@ export const hostMethods = [
   { name: "ble", targets: ["watch"] },
   { name: "sensor", targets: ["watch"] },
   { name: "saveUpdate", targets: ["watch"] },
+  { name: "generate", targets: ["watch"] },
 ];

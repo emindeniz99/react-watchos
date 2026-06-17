@@ -52,6 +52,9 @@ final class JSRuntime {
     var onSensor: ((String) -> Void)?
     /// Persist an OTA JS bundle (js/src/update.ts).
     var onSaveUpdate: ((String) -> Void)?
+    /// On-device LLM generate (js/src/ai.ts). Settle with
+    /// resolveGenerate/rejectGenerate on the main thread.
+    var onGenerate: ((Int, String) -> Void)?
 
     private let runtime: OpaquePointer
     private let context: OpaquePointer
@@ -210,6 +213,8 @@ final class JSRuntime {
                           JS_NewCFunction(context, hostSensor, "sensor", 1))
         JS_SetPropertyStr(context, host, "saveUpdate",
                           JS_NewCFunction(context, hostSaveUpdate, "saveUpdate", 1))
+        JS_SetPropertyStr(context, host, "generate",
+                          JS_NewCFunction(context, hostGenerate, "generate", 2))
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }
@@ -420,6 +425,20 @@ private func hostSaveUpdate(
     return qjs_undefined()
 }
 
+private func hostGenerate(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
+       let cString = JS_ToCString(ctx, argv[1]) {
+        var id: Int32 = 0
+        JS_ToInt32(ctx, &id, argv[0])
+        runtime.generateFromC(Int(id), String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
 private func hostAbortFetch(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -517,6 +536,22 @@ extension JSRuntime {
     }
     fileprivate func saveUpdateFromC(_ js: String) {
         onSaveUpdate?(js)
+    }
+    fileprivate func generateFromC(_ id: Int, _ json: String) {
+        onGenerate?(id, json)
+    }
+
+    /// Settles a generateText Promise on the main thread (where the context
+    /// lives).
+    func resolveGenerate(id: Int, text: String) {
+        evaluateReportingErrors(
+            "globalThis.__resolveGenerate(\(id), \(jsStringLiteral(text)))",
+            filename: "ai.js")
+    }
+    func rejectGenerate(id: Int, message: String) {
+        evaluateReportingErrors(
+            "globalThis.__rejectGenerate(\(id), \(jsStringLiteral(message)))",
+            filename: "ai.js")
     }
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)
