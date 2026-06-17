@@ -25,6 +25,7 @@ final class ReactAppModel: ObservableObject {
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
     private let connectivity = PhoneConnectivity()
     private let bluetooth = BluetoothBridge()
+    private let sensors = SensorBridge()
     private var fetchTasks: [Int: URLSessionDataTask] = [:]
 
     func start() {
@@ -44,6 +45,9 @@ final class ReactAppModel: ObservableObject {
             self?.pushNativeEvent(
                 "ble.notify",
                 payload: ["characteristic": characteristic, "value": value])
+        }
+        sensors.onReading = { [weak self] kind, payload in
+            self?.pushNativeEvent("sensor.\(kind)", payload: payload)
         }
         boot()
         #if DEBUG
@@ -133,6 +137,7 @@ final class ReactAppModel: ObservableObject {
         }
         js.onAbortFetch = { [weak self] id in self?.abortFetch(id: id) }
         js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
+        js.onSensor = { [weak self] json in self?.sensors.handleOp(json) }
         js.onError = { [weak self] message in
             DispatchQueue.main.async { self?.runtimeError = message }
         }

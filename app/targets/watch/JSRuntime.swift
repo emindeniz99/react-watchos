@@ -48,6 +48,8 @@ final class JSRuntime {
 
     /// CoreBluetooth op channel (js/src/bluetooth.ts): { op, ... }.
     var onBle: ((String) -> Void)?
+    /// Sensor op channel (js/src/sensors.ts): { op, kind }.
+    var onSensor: ((String) -> Void)?
 
     private let runtime: OpaquePointer
     private let context: OpaquePointer
@@ -202,6 +204,8 @@ final class JSRuntime {
                           JS_NewCFunction(context, hostAbortFetch, "abortFetch", 1))
         JS_SetPropertyStr(context, host, "ble",
                           JS_NewCFunction(context, hostBle, "ble", 1))
+        JS_SetPropertyStr(context, host, "sensor",
+                          JS_NewCFunction(context, hostSensor, "sensor", 1))
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }
@@ -388,6 +392,18 @@ private func hostBle(
     return qjs_undefined()
 }
 
+private func hostSensor(
+    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
+       let cString = JS_ToCString(ctx, argv[0]) {
+        runtime.sensorFromC(String(cString: cString))
+        JS_FreeCString(ctx, cString)
+    }
+    return qjs_undefined()
+}
+
 private func hostAbortFetch(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -479,6 +495,9 @@ extension JSRuntime {
     }
     fileprivate func bleFromC(_ json: String) {
         onBle?(json)
+    }
+    fileprivate func sensorFromC(_ json: String) {
+        onSensor?(json)
     }
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)

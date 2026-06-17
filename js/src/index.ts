@@ -75,6 +75,14 @@ export {
   BLE_NOTIFY_EVENT,
 } from "./bluetooth";
 export type { BleState } from "./bluetooth";
+export {
+  startSensor,
+  stopSensor,
+  startHeartRate,
+  startMotion,
+  SENSOR_EVENT_PREFIX,
+} from "./sensors";
+export type { SensorKind } from "./sensors";
 export { ErrorBoundary } from "./errorBoundary";
 export { Headers } from "./fetch";
 export { playHaptic } from "./haptics";

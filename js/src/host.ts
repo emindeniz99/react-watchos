@@ -55,6 +55,8 @@ export interface QuickJSHostGlobal {
   abortFetch?(id: number): void;
   /** CoreBluetooth central ops: { op, ... }. Events arrive as native pushes. */
   ble?(json: string): void;
+  /** Sensor streams (HealthKit/CoreMotion): { op, kind }. Readings push back. */
+  sensor?(json: string): void;
 }
 
 /** The native bridge installed by JSRuntime/IntentRuntime, if present. */
