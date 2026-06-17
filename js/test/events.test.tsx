@@ -74,6 +74,25 @@ describe("events", () => {
     expect(host.lastCommit!.root!.props.focusable).toBe(true);
   });
 
+  it("streams drag translation to the onDrag handler", () => {
+    const onDrag = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <VStack onDrag={onDrag}>
+        <Text>scrub</Text>
+      </VStack>,
+    );
+    const stack = host.lastCommit!.root!;
+    expect(stack.props.onDrag).toBe(true);
+    root.dispatchEvent({
+      nodeId: stack.id,
+      event: "drag",
+      payload: { x: 12, y: 0 },
+    });
+    expect(onDrag).toHaveBeenCalledWith({ x: 12, y: 0 });
+  });
+
   it("dispatches swipe with its direction", () => {
     const onSwipe = vi.fn();
     const host = new MemoryHost();

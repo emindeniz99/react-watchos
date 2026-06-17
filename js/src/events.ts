@@ -6,6 +6,7 @@ const eventToProp: Record<string, string> = {
   longPress: "onLongPress",
   change: "onChange",
   swipe: "onSwipe",
+  drag: "onDrag",
 };
 
 /** Calls the matching handler prop on a live instance. */

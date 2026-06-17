@@ -386,6 +386,8 @@ private struct CrownRotationView: View {
 private struct GestureModifier: ViewModifier {
     let node: RNNode
     let model: ReactAppModel
+    // Last quantized drag point dispatched, to throttle onDrag streaming.
+    @State private var lastDrag: CGPoint?
 
     @ViewBuilder func body(content: Content) -> some View {
         // Only opt into focus when asked — applying .focusable(false) would
@@ -399,14 +401,14 @@ private struct GestureModifier: ViewModifier {
 
     @ViewBuilder private func gestured(_ content: Content) -> some View {
         let longPress = node.bool("onLongPress") == true
-        let swipe = node.bool("onSwipe") == true
-        if longPress, swipe {
+        let drags = node.bool("onSwipe") == true || node.bool("onDrag") == true
+        if longPress, drags {
             content.onLongPressGesture { dispatchLongPress() }
-                .gesture(swipeGesture)
+                .gesture(dragGesture)
         } else if longPress {
             content.onLongPressGesture { dispatchLongPress() }
-        } else if swipe {
-            content.gesture(swipeGesture)
+        } else if drags {
+            content.gesture(dragGesture)
         } else {
             content
         }
@@ -416,19 +418,32 @@ private struct GestureModifier: ViewModifier {
         model.dispatch(nodeId: node.id, event: "longPress")
     }
 
-    private var swipeGesture: some Gesture {
-        DragGesture(minimumDistance: 20).onEnded { value in
-            let dx = value.translation.width
-            let dy = value.translation.height
-            let direction: String
-            if abs(dx) > abs(dy) {
-                direction = dx < 0 ? "left" : "right"
-            } else {
-                direction = dy < 0 ? "up" : "down"
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: node.bool("onDrag") == true ? 0 : 20)
+            .onChanged { value in
+                guard node.bool("onDrag") == true else { return }
+                // Quantize to 4pt steps so streaming doesn't flood the bridge.
+                let qx = (value.translation.width / 4).rounded() * 4
+                let qy = (value.translation.height / 4).rounded() * 4
+                let point = CGPoint(x: qx, y: qy)
+                if point != lastDrag {
+                    lastDrag = point
+                    model.dispatch(
+                        nodeId: node.id, event: "drag",
+                        payload: ["x": qx, "y": qy])
+                }
             }
-            model.dispatch(
-                nodeId: node.id, event: "swipe",
-                payload: ["direction": direction])
-        }
+            .onEnded { value in
+                lastDrag = nil
+                guard node.bool("onSwipe") == true else { return }
+                let dx = value.translation.width
+                let dy = value.translation.height
+                let direction = abs(dx) > abs(dy)
+                    ? (dx < 0 ? "left" : "right")
+                    : (dy < 0 ? "up" : "down")
+                model.dispatch(
+                    nodeId: node.id, event: "swipe",
+                    payload: ["direction": direction])
+            }
     }
 }
