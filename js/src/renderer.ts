@@ -40,6 +40,8 @@ function insertInto(list: Instance[], child: Instance, before: Instance): void {
 
 let currentUpdatePriority: number = NoEventPriority;
 
+const emptyContext = {};
+
 const hostConfig = {
   supportsMutation: true,
   supportsPersistence: false,
@@ -55,7 +57,10 @@ const hostConfig = {
   rendererPackageName: "react-native-watchos",
   extraDevToolsConfig: null,
 
-  getRootHostContext: () => null,
+  // A stable non-null host context. Returning null breaks Suspense:
+  // React's context stack rejects null when crossing a Suspense boundary
+  // ("Expected host context to exist").
+  getRootHostContext: () => emptyContext,
   getChildHostContext: (parentContext: unknown) => parentContext,
   getPublicInstance: (instance: Instance) => instance,
   prepareForCommit: () => null,
