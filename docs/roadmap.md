@@ -111,7 +111,7 @@ Owns the companion app, new `__host` methods, native-event streams.
   independent and parallelizable across agents.
 - **Hard gate:** every SwiftUI change is unverified until the macOS build
   (`.github/workflows/react-native-watchos-build.yml`) runs green. The
-  Linux `swift-tests` only verify *wire decode* of new props, not the view.
+  Linux `swift test` only verifies *wire decode* of new props, not the view.
   Get that workflow green before trusting Crown/gestures/WatchConnectivity
   on-device.
 
@@ -126,7 +126,7 @@ For every new **primitive** (a node type with props):
 4. A schema assertion in `primitives.test.tsx` (the convention for added
    primitives; `render.test.tsx` is the original showcase).
 5. A node in the Swift contract fixture (`contract-fixture.test.tsx` →
-   `swift-tests/`) so the prop decode is checked on Linux.
+   the package's `swift test`) so the prop decode is checked on Linux.
 
 Wire-contract rules:
 
@@ -138,7 +138,7 @@ Wire-contract rules:
   `RNTree`, `Published*`), and do it through `js/codegen/schema.mjs` so both
   Swift models regenerate together. New *payload structs* (not node types)
   also go through the schema.
-- Keep pure-Foundation Swift Linux-compilable so `swift-tests` covers the
+- Keep pure-Foundation Swift Linux-compilable so `swift test` covers the
   contract without a Mac. SwiftUI-touching code (`NodeView` cases) is not
   Linux-testable — it needs the macOS workflow.
 
@@ -309,6 +309,13 @@ build-file objects into the apple-targets watch/widget targets during
 edits the pbxproj directly). It's idempotent and wrapped so it can't fail
 prebuild; the manual Xcode step remains the documented fallback. The pbxproj
 logic is unit-smoke-tested on Linux, but Xcode acceptance is the macOS gate.
+
+**Package polish — done.** The contract tests are now a `swift test` target in
+the package (the separate `swift-tests/` package is gone); the widget's second
+QuickJS embedding was unified onto `ReactWatchRuntime.JSRuntime` (one engine
+embedding, ~200 fewer lines, no duplicated host); and `ReactWatchConfig`'s
+`nonisolated(unsafe)` global is replaced by an injected, `Sendable`
+`SharedWidgetStore` in `ReactWatchCore` (Linux-built, no global mutable state).
 
 **Remaining packaging polish:** publish the package to a registry (remote SPM)
 so consumers get a versioned dependency instead of a path reference — then the

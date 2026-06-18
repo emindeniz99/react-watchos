@@ -63,12 +63,17 @@ public final class JSRuntime {
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
 
-    public init() throws {
+    /// - Parameter memoryLimitBytes: caps the QuickJS heap (the widget
+    ///   extension runs in a tight ~30MB budget; nil = unlimited).
+    public init(memoryLimitBytes: Int? = nil) throws {
         guard let rt = JS_NewRuntime(), let ctx = JS_NewContext(rt) else {
             throw JSError.initialization
         }
         runtime = rt
         context = ctx
+        if let memoryLimitBytes {
+            JS_SetMemoryLimit(rt, size_t(memoryLimitBytes))
+        }
         JS_SetContextOpaque(ctx, Unmanaged.passUnretained(self).toOpaque())
         installHostObject()
     }
@@ -157,6 +162,38 @@ public final class JSRuntime {
         let call = "globalThis.__pushNativeEvent("
             + "\(jsStringLiteral(name)), \(payloadArg))"
         evaluateReportingErrors(call, filename: "push.js")
+    }
+
+    /// Evaluates `code` and returns its result as a Bool (false on exception).
+    /// Used by the widget extension's intent path (__handleIntent).
+    public func evaluateBool(_ code: String) -> Bool {
+        let result = code.withCString {
+            JS_Eval(context, $0, strlen($0), "eval.js", qjs_eval_type_global())
+        }
+        defer { JS_FreeValue(context, result) }
+        drainJobs()
+        if JS_IsException(result) {
+            onError?(takeExceptionMessage())
+            return false
+        }
+        return JS_ToBool(context, result) == 1
+    }
+
+    /// Evaluates `code` and returns its result as a String (nil on exception).
+    /// Used by the widget extension's intent path (__renderWidgets).
+    public func evaluateString(_ code: String) -> String? {
+        let result = code.withCString {
+            JS_Eval(context, $0, strlen($0), "eval.js", qjs_eval_type_global())
+        }
+        defer { JS_FreeValue(context, result) }
+        drainJobs()
+        guard !JS_IsException(result),
+              let cString = JS_ToCString(context, result) else {
+            onError?(takeExceptionMessage())
+            return nil
+        }
+        defer { JS_FreeCString(context, cString) }
+        return String(cString: cString)
     }
 
     private func evaluateReportingErrors(_ code: String, filename: String) {

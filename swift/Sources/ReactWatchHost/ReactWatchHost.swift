@@ -18,13 +18,6 @@ import FoundationModels
 // models (ReactWatchCore), and the embedding (ReactWatchRuntime) are all
 // built and smoke-tested on Linux.
 
-/// Launch configuration a consumer sets once (e.g. in ReactWatchRootView).
-public enum ReactWatchConfig {
-    /// App Group id for shared widget/Storage state. nil disables sharing.
-    /// Set once at launch on the main thread.
-    nonisolated(unsafe) public static var appGroupId: String?
-}
-
 /// Loads bundle.js into QuickJS and republishes every committed React tree
 /// as SwiftUI state.
 @MainActor
@@ -40,6 +33,9 @@ final class ReactWatchModel: ObservableObject {
     /// @State) so it survives SwiftUI view identity changes mid-flight.
     @Published private var optimistic: [Int: (seq: Int, value: JSONValue)] = [:]
 
+    /// App Group storage, configured with the consumer's group id at init —
+    /// no global mutable state. nil disables widget/Storage sharing.
+    private let store: SharedWidgetStore
     private var runtime: JSRuntime?
     private var nextSeq = 1
     /// Set once after reporting a renderer-vs-runtime wire mismatch.
@@ -50,6 +46,10 @@ final class ReactWatchModel: ObservableObject {
     private let bluetooth = BluetoothBridge()
     private let sensors = SensorBridge()
     private var fetchTasks: [Int: URLSessionDataTask] = [:]
+
+    init(appGroupId: String?) {
+        store = SharedWidgetStore(appGroupId: appGroupId)
+    }
 
     func start() {
         guard runtime == nil else { return }
@@ -103,7 +103,7 @@ final class ReactWatchModel: ObservableObject {
 
     /// App Group file holding an OTA bundle (js/src/update.ts), if any.
     private var otaBundleURL: URL? {
-        guard let group = ReactWatchConfig.appGroupId else { return nil }
+        guard let group = store.appGroupId else { return nil }
         return FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: group)?
             .appendingPathComponent("ota-bundle.js")
@@ -212,12 +212,12 @@ final class ReactWatchModel: ObservableObject {
                 }
             }
         }
-        js.onPublishWidgets = { json in
-            SharedWidgetStore.save(json)
+        js.onPublishWidgets = { [store] json in
+            store.save(json)
             WidgetCenter.shared.reloadAllTimelines()
         }
-        js.onGetItem = { SharedWidgetStore.getItem($0) }
-        js.onSetItem = { SharedWidgetStore.setItem($0, $1) }
+        js.onGetItem = { [store] in store.getItem($0) }
+        js.onSetItem = { [store] in store.setItem($0, $1) }
         js.onSendToPhone = { [weak self] json in self?.connectivity.send(json) }
         js.onFetch = { [weak self] id, reqJson in
             self?.performFetch(id: id, requestJson: reqJson)
@@ -437,11 +437,11 @@ final class ReactWatchModel: ObservableObject {
 /// The watch UI. Embed this in your @main App's scene; ship bundle.js as a
 /// resource. `appGroupId` enables shared widget/Storage state (optional).
 public struct ReactWatchRootView: View {
-    @StateObject private var model = ReactWatchModel()
+    @StateObject private var model: ReactWatchModel
     @Environment(\.scenePhase) private var scenePhase
 
     public init(appGroupId: String? = nil) {
-        ReactWatchConfig.appGroupId = appGroupId
+        _model = StateObject(wrappedValue: ReactWatchModel(appGroupId: appGroupId))
     }
 
     public var body: some View {

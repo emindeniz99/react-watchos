@@ -150,7 +150,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 | `app/targets/widget/` | WidgetKit extension: decodes React-rendered timelines from App Group storage (`ReactWidgets.swift`, `WidgetNodeView.swift`); imports `ReactWatchCore`. |
 | `examples/` | External-consumer templates (`minimal-watch-app`, `expo-watch-app`), each a workspace member. |
 | `tools/embed-smoke/` | Reference C host: compiles the package's quickjs-ng and runs the real bundle through the exact API sequence Swift uses. |
-| `swift-tests/` | Linux Swift contract tests: compile the real Foundation-only model files and decode real serializer fixtures (see its README). |
+| `swift/Tests/` | The package's `swift test` wire-contract tests: decode real serializer fixtures with the codegen'd `ReactWatchCore` models on Linux. |
 | `docs/research.md` | Why RN-core-on-watchOS is impossible; engine and architecture comparison. |
 | `docs/prior-art.md` | Where this sits among production React renderers (RN, Raycast, r3f, Ink, …) and which techniques we adopt/skip/defer. |
 | `docs/roadmap.md` | Forward plan in three parallel tracks (input, runtime, platform) with priorities, dependencies, and the Mac-build gate. |
