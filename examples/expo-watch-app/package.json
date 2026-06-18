@@ -1,0 +1,30 @@
+{
+  "name": "expo-watch-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An Expo iPhone app that adds a watch feature powered by react-native-watchos",
+  "main": "index.js",
+  "scripts": {
+    "build:watch": "node scripts/build-watch.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "prebuild": "expo prebuild -p ios --clean"
+  },
+  "dependencies": {
+    "expo": "~56.0.11",
+    "react": "19.2.3",
+    "react-native": "0.85.3",
+    "react-native-watch-connectivity": "^2.0.0",
+    "react-native-watchos": "workspace:*",
+    "react-reconciler": "0.33.0"
+  },
+  "devDependencies": {
+    "@bacons/apple-targets": "^4.0.7",
+    "@types/node": "^24.0.0",
+    "@types/react": "~19.2.0",
+    "esbuild": "^0.27.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}

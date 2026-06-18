@@ -1,0 +1,5 @@
+node_modules/
+dist/
+ios/
+# Generated watch bundle (build it with `npm run build:watch`).
+targets/watch/assets/bundle.js

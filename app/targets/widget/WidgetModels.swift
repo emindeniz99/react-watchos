@@ -1,4 +1,5 @@
 import Foundation
+import ReactWatchCore
 
 // The wire structs (JSONValue, RNNode, Published*) are generated from
 // js/codegen/schema.mjs into Generated/WireModel.swift. Only the App Group

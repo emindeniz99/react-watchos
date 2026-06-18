@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { hostMethods, node, structs, tsOnly } from "./schema.mjs";
+import { hostMethods, node, structs, tsOnly, wireVersion } from "./schema.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -14,7 +14,7 @@ const banner = () =>
 
 // --- Swift -----------------------------------------------------------------
 
-const JSON_VALUE_SWIFT = `enum JSONValue: Codable, Equatable {
+const JSON_VALUE_SWIFT = `public enum JSONValue: Codable, Equatable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -22,7 +22,7 @@ const JSON_VALUE_SWIFT = `enum JSONValue: Codable, Equatable {
     case object([String: JSONValue])
     case null
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self = .null
@@ -42,7 +42,7 @@ const JSON_VALUE_SWIFT = `enum JSONValue: Codable, Equatable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .string(let value): try container.encode(value)
@@ -56,28 +56,28 @@ const JSON_VALUE_SWIFT = `enum JSONValue: Codable, Equatable {
 }`;
 
 const nodeSwift =
-  () => `struct ${node.swift}: Codable, Equatable, Identifiable {
-    let id: Int
-    let type: String
-    let props: [String: JSONValue]
-    let children: [${node.swift}]
+  () => `public struct ${node.swift}: Codable, Equatable, Identifiable {
+    public let id: Int
+    public let type: String
+    public let props: [String: JSONValue]
+    public let children: [${node.swift}]
 
-    func string(_ key: String) -> String? {
+    public func string(_ key: String) -> String? {
         if case .string(let value)? = props[key] { return value }
         return nil
     }
 
-    func double(_ key: String) -> Double? {
+    public func double(_ key: String) -> Double? {
         if case .number(let value)? = props[key] { return value }
         return nil
     }
 
-    func bool(_ key: String) -> Bool? {
+    public func bool(_ key: String) -> Bool? {
         if case .bool(let value)? = props[key] { return value }
         return nil
     }
 
-    func stringArray(_ key: String) -> [String]? {
+    public func stringArray(_ key: String) -> [String]? {
         guard case .array(let values)? = props[key] else { return nil }
         return values.compactMap {
             if case .string(let value) = $0 { return value }
@@ -87,20 +87,22 @@ const nodeSwift =
 }`;
 
 function swiftStruct(def) {
-  const lines = [`struct ${def.swift}: Codable, Equatable {`];
+  const lines = [`public struct ${def.swift}: Codable, Equatable {`];
   for (const f of def.fields) {
     if (f.doc) lines.push(`    /// ${f.doc}`);
-    lines.push(`    let ${f.name}: ${f.swift}`);
+    lines.push(`    public let ${f.name}: ${f.swift}`);
   }
   for (const computed of def.swiftComputed ?? []) {
     lines.push("");
-    lines.push(`    ${computed}`);
+    lines.push(`    public ${computed}`);
   }
   lines.push("}");
   return lines.join("\n");
 }
 
-function swiftModel(target) {
+// One unified module (ReactWatchCore) for both the watch host and the widget,
+// so JSONValue + RNNode are defined once. All `public` for cross-module use.
+function swiftModel() {
   const parts = [
     banner(),
     "import Foundation",
@@ -109,9 +111,15 @@ function swiftModel(target) {
     "",
     nodeSwift(),
   ];
-  for (const def of structs) {
-    if (def.targets.includes(target)) parts.push("", swiftStruct(def));
-  }
+  for (const def of structs) parts.push("", swiftStruct(def));
+  // Expose the committed-tree wire version so the runtime can flag a
+  // renderer-vs-runtime mismatch (see ReactAppModel.decode).
+  parts.push(
+    "",
+    "public enum RNWire {",
+    `    public static let version = ${wireVersion}`,
+    "}",
+  );
   return `${parts.join("\n")}\n`;
 }
 
@@ -153,6 +161,9 @@ function tsModel() {
     "",
     "/** Native bridge methods and which runtime installs each. */",
     `export const HOST_METHODS = ${manifest} as const;`,
+    "",
+    "/** Committed-tree wire version (SerializedTree.v). Bump on shape changes. */",
+    `export const WIRE_VERSION = ${wireVersion} as const;`,
   );
   return `${parts.join("\n")}\n`;
 }
@@ -160,8 +171,7 @@ function tsModel() {
 // --- Outputs ---------------------------------------------------------------
 
 const outputs = [
-  ["../app/targets/watch/Generated/WireModel.swift", swiftModel("watch")],
-  ["../app/targets/widget/Generated/WireModel.swift", swiftModel("widget")],
+  ["../swift/Sources/ReactWatchCore/WireModel.swift", swiftModel()],
   ["src/generated/wire.ts", tsModel()],
 ];
 

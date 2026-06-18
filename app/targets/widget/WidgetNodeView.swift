@@ -1,3 +1,4 @@
+import ReactWatchCore
 import SwiftUI
 import UIKit
 

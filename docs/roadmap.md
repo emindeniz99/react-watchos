@@ -111,7 +111,7 @@ Owns the companion app, new `__host` methods, native-event streams.
   independent and parallelizable across agents.
 - **Hard gate:** every SwiftUI change is unverified until the macOS build
   (`.github/workflows/react-native-watchos-build.yml`) runs green. The
-  Linux `swift-tests` only verify *wire decode* of new props, not the view.
+  Linux `swift test` only verifies *wire decode* of new props, not the view.
   Get that workflow green before trusting Crown/gestures/WatchConnectivity
   on-device.
 
@@ -126,7 +126,7 @@ For every new **primitive** (a node type with props):
 4. A schema assertion in `primitives.test.tsx` (the convention for added
    primitives; `render.test.tsx` is the original showcase).
 5. A node in the Swift contract fixture (`contract-fixture.test.tsx` →
-   `swift-tests/`) so the prop decode is checked on Linux.
+   the package's `swift test`) so the prop decode is checked on Linux.
 
 Wire-contract rules:
 
@@ -138,7 +138,7 @@ Wire-contract rules:
   `RNTree`, `Published*`), and do it through `js/codegen/schema.mjs` so both
   Swift models regenerate together. New *payload structs* (not node types)
   also go through the schema.
-- Keep pure-Foundation Swift Linux-compilable so `swift-tests` covers the
+- Keep pure-Foundation Swift Linux-compilable so `swift test` covers the
   contract without a Mac. SwiftUI-touching code (`NodeView` cases) is not
   Linux-testable — it needs the macOS workflow.
 
@@ -257,3 +257,66 @@ behind the same `HostBridge` seam:
 Done since the last pass: **React Compiler** (build), **DevTools** (remote
 inspector), **double-tap** (`primaryAction`), **on-device AI** (`generateText`).
 **Suspense** investigated and deliberately not adopted (see above).
+
+---
+
+# Packaging (consumer feedback — see docs/consumer-feedback.md)
+
+Acted on the ctrl-a-remote feedback ("a framework wearing a source folder's
+clothes"). Shipped:
+
+- **Consumable package** — `exports` (`.`, `./build`, `./testing`), `types`,
+  `files`, and `peerDependencies` for react / react-reconciler. The renderer is
+  now a real dependency, not a relative source reach-in.
+- **pnpm workspace** rooted at this project (`js` + `examples/*` + `app`).
+  `workspace:*` gives every consumer one React instance automatically — the
+  alias / nodePaths / tsconfig-paths glue is gone. CI installs once with pnpm.
+- **Exported build preset** — `react-native-watchos/build`
+  (`watchBuildOptions`), so the QuickJS-correct esbuild config isn't copied.
+- **Exported testing helpers** — `react-native-watchos/testing`
+  (`findByType`, `findByText`).
+- **Typed host surface** — `getHost()` + `QuickJSHostGlobal` exported, with a
+  native-capability recipe (`docs/extending.md`).
+- **Commit-model + serialization docs** (`docs/updates.md`).
+- **Visible wire version** — `WIRE_VERSION` is codegen'd into TS *and* Swift
+  (`RNWire.version`); the watch runtime raises a loud `runtimeError` on a
+  renderer-vs-runtime `tree.v` mismatch instead of mis-decoding silently.
+- **Two examples** — `examples/minimal-watch-app` (smallest consumer) and
+  `examples/expo-watch-app` (Expo iPhone app + watch target). Both verified on
+  Linux via `workspace:*`.
+
+**SwiftPM host package — shipped.** The Swift host is now the `swift/` SwiftPM
+package, so a consumer's watch target depends on it instead of copying ~2k
+lines + the vendored C. Targets:
+
+- `CQuickJS` — quickjs-ng as a Clang module (replaces the bridging header).
+- `ReactWatchCore` — the codegen'd wire models (one `public` module; the watch
+  + widget `WireModel`s are unified, no more duplicated `JSONValue`/`RNNode`).
+- `ReactWatchRuntime` — the QuickJS embedding (`JSRuntime`).
+- `ReactWatchHost` — the SwiftUI interpreter + bridges + `public
+  ReactWatchRootView(appGroupId:)`.
+
+The first three are **Foundation/C only and build on Linux** (CI `swift build`
++ the contract tests now decode through `ReactWatchCore`); making `JSRuntime`
+Linux-buildable even caught real latent bugs (`JS_IsException` returns `Bool`
+in quickjs-ng, so the never-compiled `!= 0` checks were wrong). `ReactWatchHost`
+(SwiftUI) and the Expo/apple-targets local-SPM wiring remain the macOS gate.
+
+**SPM auto-wiring — done (best-effort).** `with-react-watch-package.js` now
+writes the `XCLocalSwiftPackageReference` + `XCSwiftPackageProductDependency` +
+build-file objects into the apple-targets watch/widget targets during
+`expo prebuild` (apple-targets/node-xcode have no local-package API, so it
+edits the pbxproj directly). It's idempotent and wrapped so it can't fail
+prebuild; the manual Xcode step remains the documented fallback. The pbxproj
+logic is unit-smoke-tested on Linux, but Xcode acceptance is the macOS gate.
+
+**Package polish — done.** The contract tests are now a `swift test` target in
+the package (the separate `swift-tests/` package is gone); the widget's second
+QuickJS embedding was unified onto `ReactWatchRuntime.JSRuntime` (one engine
+embedding, ~200 fewer lines, no duplicated host); and `ReactWatchConfig`'s
+`nonisolated(unsafe)` global is replaced by an injected, `Sendable`
+`SharedWidgetStore` in `ReactWatchCore` (Linux-built, no global mutable state).
+
+**Remaining packaging polish:** publish the package to a registry (remote SPM)
+so consumers get a versioned dependency instead of a path reference — then the
+plugin's local-package wiring becomes a normal `dependencies` entry.

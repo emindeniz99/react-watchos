@@ -76,15 +76,17 @@ export {
 } from "./connectivity";
 export { ErrorBoundary } from "./errorBoundary";
 export { Headers } from "./fetch";
+export { WIRE_VERSION } from "./generated/wire";
 export type { HapticType } from "./haptics";
 export { playHaptic } from "./haptics";
 export type {
   HostBridge,
+  QuickJSHostGlobal,
   SerializedNode,
   SerializedTree,
   WatchEvent,
 } from "./host";
-export { MemoryHost } from "./host";
+export { getHost, MemoryHost } from "./host";
 export type { InspectorOptions } from "./inspector";
 export { captureLog, inspectorSnapshot, startInspector } from "./inspector";
 export type { IntentHandler } from "./intents";

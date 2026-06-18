@@ -1,0 +1,5 @@
+module CQuickJS [system] {
+    header "quickjs.h"
+    header "quickjs-swift-shim.h"
+    export *
+}

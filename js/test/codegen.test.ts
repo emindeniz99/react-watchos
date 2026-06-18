@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { hostMethods } from "../codegen/schema.mjs";
 
 const jsRoot = join(__dirname, "..");
-const appRoot = join(jsRoot, "..", "app");
+const swiftRoot = join(jsRoot, "..", "swift");
 
 describe("codegen", () => {
   it("committed generated files are up to date (no drift)", () => {
@@ -18,29 +18,21 @@ describe("codegen", () => {
     ).not.toThrow();
   });
 
-  it("both Swift runtimes install exactly their schema host methods", () => {
-    const installed = (file: string): Set<string> => {
-      const src = readFileSync(file, "utf8");
-      const found = new Set<string>();
-      for (const m of src.matchAll(
-        /JS_SetPropertyStr\(\s*\w+,\s*host,\s*"(\w+)"/g,
-      )) {
-        found.add(m[1]);
-      }
-      return found;
-    };
-    const watch = installed(join(appRoot, "targets/watch/JSRuntime.swift"));
-    const widget = installed(
-      join(appRoot, "targets/widget/IntentRuntime.swift"),
+  it("the Swift runtime installs exactly the schema's host methods", () => {
+    // One embedding now: ReactWatchRuntime.JSRuntime serves both the watch app
+    // and the widget extension (IntentRuntime reuses it), so it must install
+    // every host method the schema declares. Cross-checks codegen <-> Swift.
+    const src = readFileSync(
+      join(swiftRoot, "Sources/ReactWatchRuntime/JSRuntime.swift"),
+      "utf8",
     );
-
-    const expected = (target: string) =>
-      new Set(
-        hostMethods
-          .filter((m) => m.targets.includes(target))
-          .map((m) => m.name),
-      );
-    expect([...watch].sort()).toEqual([...expected("watch")].sort());
-    expect([...widget].sort()).toEqual([...expected("widget")].sort());
+    const installed = new Set<string>();
+    for (const m of src.matchAll(
+      /JS_SetPropertyStr\(\s*\w+,\s*host,\s*"(\w+)"/g,
+    )) {
+      installed.add(m[1] as string);
+    }
+    const expected = new Set(hostMethods.map((m) => m.name));
+    expect([...installed].sort()).toEqual([...expected].sort());
   });
 });

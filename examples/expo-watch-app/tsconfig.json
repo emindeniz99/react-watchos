@@ -1,0 +1,18 @@
+{
+  // Typechecks the renderer-side watch UI + its build script + tests — the
+  // parts that consume react-native-watchos. The iPhone App.tsx / index.js
+  // belong to Expo's own toolchain (Metro + react-native types) and are
+  // built on macOS, so they're intentionally out of this program.
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "types": ["node"]
+  },
+  "include": ["watch-ui", "scripts", "test"]
+}

@@ -7,6 +7,12 @@
 // mapping is unambiguous. JSONValue and the node struct are fixed templates
 // (special: a union enum and helper accessors); the rest are plain structs.
 
+// The committed-tree wire version (SerializedTree.v / RNTree.v). Bump on ANY
+// breaking change to the shared tree structs so the native runtime can detect
+// a renderer-vs-runtime mismatch loudly instead of mis-decoding silently.
+// Keep this in sync with the `v` field literal type in `structs` below.
+export const wireVersion = 1;
+
 /** The node struct, named differently per side. */
 export const node = { swift: "RNNode", ts: "SerializedNode" };
 

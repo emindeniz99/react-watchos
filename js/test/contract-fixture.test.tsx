@@ -16,11 +16,14 @@ import {
   WatchRoot,
 } from "../src/index";
 
-// Writes the JSON the Swift NodeModel/WidgetModels decoders consume in
-// swift-tests/, straight from the real serializer — so the cross-language
-// wire contract is checked against actual output, never a hand-authored
-// copy. swift-tests/ compiles the real model files and decodes these.
-const fixturesDir = join(__dirname, "../../swift-tests/Fixtures");
+// Writes the JSON the Swift ReactWatchCore decoders consume, straight from
+// the real serializer — so the cross-language wire contract is checked
+// against actual output, never a hand-authored copy. The SwiftPM package's
+// `swift test` (ReactWatchCoreTests) decodes these fixtures.
+const fixturesDir = join(
+  __dirname,
+  "../../swift/Tests/ReactWatchCoreTests/Fixtures",
+);
 
 afterEach(() => unregisterAllWidgets());
 
