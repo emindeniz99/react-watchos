@@ -1,0 +1,25 @@
+{
+  "name": "minimal-watch-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal external app on the react-native-watchos engine (no source reach-in)",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:min": "node scripts/build.mjs --minify",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-native-watchos": "workspace:*",
+    "react-reconciler": "0.33.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "esbuild": "^0.27.0",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  }
+}

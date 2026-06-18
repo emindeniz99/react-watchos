@@ -23,6 +23,9 @@ final class ReactAppModel: ObservableObject {
 
     private var runtime: JSRuntime?
     private var nextSeq = 1
+    /// Set once after reporting a renderer-vs-runtime wire mismatch, so the
+    /// loud error isn't re-raised on every subsequent commit.
+    private var warnedWireMismatch = false
     /// Serial queue for decoding committed trees off the main thread,
     /// preserving commit order.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
@@ -192,6 +195,15 @@ final class ReactAppModel: ObservableObject {
                     guard let tree = decoded else {
                         self.runtimeError = "tree decode failed"
                         return
+                    }
+                    // The JS bundle and this native target version
+                    // independently; a wire-version mismatch means the tree
+                    // may mis-decode silently. Surface it loudly (once).
+                    if tree.v != RNWire.version, !self.warnedWireMismatch {
+                        self.warnedWireMismatch = true
+                        self.runtimeError =
+                            "wire version mismatch: bundle v\(tree.v) vs "
+                            + "runtime v\(RNWire.version) — rebuild the bundle"
                     }
                     self.root = tree.root
                     if tree.seq > self.ackedSeq {

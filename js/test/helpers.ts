@@ -1,16 +1,8 @@
 import { vi } from "vitest";
-import type { SerializedNode } from "../src/index";
 
-/** Recursive search for nodes of a type in a serialized tree. */
-export function findByType(
-  node: SerializedNode,
-  type: string,
-): SerializedNode[] {
-  return [
-    ...(node.type === type ? [node] : []),
-    ...node.children.flatMap((child) => findByType(child, type)),
-  ];
-}
+// The query helpers are the public testing surface now; re-export so the
+// existing suite exercises the same code consumers import.
+export { findByText, findByType } from "../src/testing";
 
 /**
  * Installs a fully-mocked `__host` global (every bridge method) and

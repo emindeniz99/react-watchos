@@ -158,19 +158,47 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 
 ### JS side — works on Linux/macOS/anywhere
 
+This project is a **pnpm workspace** (`js` = the renderer, `examples/*` =
+consumer apps, `app` = the reference watch app). Run from the project root:
+
 ```bash
-cd js
-npm install
-npm test             # full suite, incl. smoke tests inside a real qjs binary
-npm run typecheck    # strict tsc: src (max strict) + tests (one config each)
-npm run lint         # Biome: format + lint + import order (CI gate)
-npm run lint:fix     # Biome: auto-fix and format in place
-npm run codegen      # regenerate Swift models + TS wire types from schema
-npm run build        # bundle → both targets' assets/ (470KB, readable traces)
-npm run build:min    # minified (~139KB)
-npm run build:bytecode  # precompile bundle.qbc (faster cold start; see below)
-npm run dev          # live reload: esbuild watch+serve on 127.0.0.1:8788
+pnpm install                                 # one install for every member
+pnpm --filter react-native-watchos test      # full suite, incl. real qjs smoke
+pnpm --filter react-native-watchos typecheck  # strict tsc: src + tests
+pnpm --filter react-native-watchos lint       # Biome (CI gate)
+pnpm --filter react-native-watchos codegen    # Swift models + TS wire types
+pnpm --filter react-native-watchos build      # bundle → both targets' assets/
+pnpm --filter react-native-watchos build:bytecode  # precompile bundle.qbc
+pnpm --filter react-native-watchos dev        # live reload on 127.0.0.1:8788
 ```
+
+### Consuming it in your own app
+
+The renderer is a real package: `exports` (main, `/build`, `/testing`),
+`peerDependencies` for react / react-reconciler, and a typed host surface.
+
+```ts
+import { runApp, VStack, Text, Button, getHost } from "react-native-watchos";
+import { findByType } from "react-native-watchos/testing";   // tree queries
+import { watchBuildOptions } from "react-native-watchos/build"; // esbuild preset
+```
+
+- **Single React instance:** react / react-reconciler are peers — your app
+  provides the one copy. In this workspace `workspace:*` dedupes it
+  automatically; published, a normal install + the build preset's `nodePaths`
+  does the same. Two copies silently break hooks/context.
+- **No copied build config:** `watchBuildOptions({ entry, outfile })` is the
+  QuickJS-correct esbuild preset (shim inject, es2020, neutral IIFE).
+- **Extending natively:** `getHost()` + `QuickJSHostGlobal` are public — see
+  [docs/extending.md](./docs/extending.md) for the "add a native capability"
+  recipe, and [docs/updates.md](./docs/updates.md) for how updates commit.
+
+Two worked examples (each its own workspace member, both verified on Linux):
+
+- [`examples/minimal-watch-app`](./examples/minimal-watch-app) — the smallest
+  consumer: watch UI only, imports the package, builds with the preset.
+- [`examples/expo-watch-app`](./examples/expo-watch-app) — an Expo iPhone app
+  that adds a watch target whose UI runs on this engine (the realistic shape).
 
 ### Type safety & linting
 

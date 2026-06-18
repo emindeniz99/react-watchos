@@ -79,3 +79,7 @@ struct RNTree: Codable, Equatable {
     let seq: Int
     let root: RNNode?
 }
+
+enum RNWire {
+    static let version = 1
+}

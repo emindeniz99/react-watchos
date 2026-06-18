@@ -1,3 +1,4 @@
+import { WIRE_VERSION } from "./generated/wire";
 import type { SerializedNode, SerializedTree } from "./host";
 import type { Container, Instance } from "./renderer";
 
@@ -29,7 +30,7 @@ export function serializeInstance(instance: Instance): SerializedNode {
 export function serializeTree(container: Container): SerializedTree {
   const root = container.children[0];
   return {
-    v: 1,
+    v: WIRE_VERSION,
     seq: container.lastSeq,
     root: root ? serializeInstance(root) : null,
   };

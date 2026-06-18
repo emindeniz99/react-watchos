@@ -257,3 +257,36 @@ behind the same `HostBridge` seam:
 Done since the last pass: **React Compiler** (build), **DevTools** (remote
 inspector), **double-tap** (`primaryAction`), **on-device AI** (`generateText`).
 **Suspense** investigated and deliberately not adopted (see above).
+
+---
+
+# Packaging (consumer feedback — see docs/consumer-feedback.md)
+
+Acted on the ctrl-a-remote feedback ("a framework wearing a source folder's
+clothes"). Shipped:
+
+- **Consumable package** — `exports` (`.`, `./build`, `./testing`), `types`,
+  `files`, and `peerDependencies` for react / react-reconciler. The renderer is
+  now a real dependency, not a relative source reach-in.
+- **pnpm workspace** rooted at this project (`js` + `examples/*` + `app`).
+  `workspace:*` gives every consumer one React instance automatically — the
+  alias / nodePaths / tsconfig-paths glue is gone. CI installs once with pnpm.
+- **Exported build preset** — `react-native-watchos/build`
+  (`watchBuildOptions`), so the QuickJS-correct esbuild config isn't copied.
+- **Exported testing helpers** — `react-native-watchos/testing`
+  (`findByType`, `findByText`).
+- **Typed host surface** — `getHost()` + `QuickJSHostGlobal` exported, with a
+  native-capability recipe (`docs/extending.md`).
+- **Commit-model + serialization docs** (`docs/updates.md`).
+- **Visible wire version** — `WIRE_VERSION` is codegen'd into TS *and* Swift
+  (`RNWire.version`); the watch runtime raises a loud `runtimeError` on a
+  renderer-vs-runtime `tree.v` mismatch instead of mis-decoding silently.
+- **Two examples** — `examples/minimal-watch-app` (smallest consumer) and
+  `examples/expo-watch-app` (Expo iPhone app + watch target). Both verified on
+  Linux via `workspace:*`.
+
+**Next packaging step: a SwiftPM host package.** The JS is consumable, but the
+Swift host (QuickJS embed + `NodeView` interpreter + bridges) still has to be
+copied from `app/targets/watch/` into a consumer's target (see the expo example
+README). Publishing it as a SwiftPM dependency would make the native side a
+one-line `Package.swift` add — the analog of the JS `exports` work.

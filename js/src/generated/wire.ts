@@ -66,3 +66,6 @@ export interface WatchEvent {
 
 /** Native bridge methods and which runtime installs each. */
 export const HOST_METHODS = [{"name":"commit","targets":["watch","widget"]},{"name":"log","targets":["watch","widget"]},{"name":"setTimer","targets":["watch","widget"]},{"name":"clearTimer","targets":["watch","widget"]},{"name":"publishWidgets","targets":["watch","widget"]},{"name":"getItem","targets":["watch","widget"]},{"name":"setItem","targets":["watch","widget"]},{"name":"playHaptic","targets":["watch"]},{"name":"requestNotificationPermission","targets":["watch"]},{"name":"scheduleNotification","targets":["watch"]},{"name":"cancelNotification","targets":["watch"]},{"name":"sendToPhone","targets":["watch"]},{"name":"fetch","targets":["watch"]},{"name":"abortFetch","targets":["watch"]},{"name":"ble","targets":["watch"]},{"name":"sensor","targets":["watch"]},{"name":"saveUpdate","targets":["watch"]},{"name":"generate","targets":["watch"]}] as const;
+
+/** Committed-tree wire version (SerializedTree.v). Bump on shape changes. */
+export const WIRE_VERSION = 1 as const;

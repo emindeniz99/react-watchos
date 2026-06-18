@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { hostMethods, node, structs, tsOnly } from "./schema.mjs";
+import { hostMethods, node, structs, tsOnly, wireVersion } from "./schema.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -112,6 +112,16 @@ function swiftModel(target) {
   for (const def of structs) {
     if (def.targets.includes(target)) parts.push("", swiftStruct(def));
   }
+  // The committed-tree contract is the watch target's; expose the version so
+  // the runtime can flag a renderer-vs-runtime mismatch (see decodeTree).
+  if (target === "watch") {
+    parts.push(
+      "",
+      "enum RNWire {",
+      `    static let version = ${wireVersion}`,
+      "}",
+    );
+  }
   return `${parts.join("\n")}\n`;
 }
 
@@ -153,6 +163,9 @@ function tsModel() {
     "",
     "/** Native bridge methods and which runtime installs each. */",
     `export const HOST_METHODS = ${manifest} as const;`,
+    "",
+    "/** Committed-tree wire version (SerializedTree.v). Bump on shape changes. */",
+    `export const WIRE_VERSION = ${wireVersion} as const;`,
   );
   return `${parts.join("\n")}\n`;
 }
