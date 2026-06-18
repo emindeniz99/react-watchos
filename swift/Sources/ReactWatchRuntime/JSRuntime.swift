@@ -1,3 +1,4 @@
+import CQuickJS
 import Foundation
 
 /// Embeds QuickJS and hosts the React bundle. Mirrors the verified
@@ -7,60 +8,62 @@ import Foundation
 ///   3. drain pending jobs after every entry into JS
 ///   4. deliver interactions via __dispatchEvent and timers via __fireTimer
 ///
-/// NOTE: untested until built with Xcode on macOS — see project README.
-final class JSRuntime {
-    enum JSError: Error {
+/// Foundation + the CQuickJS module only (no SwiftUI), so this — the actual
+/// engine embedding — compiles and is smoke-tested on Linux. The SwiftUI
+/// interpreter and native bridges live in ReactWatchHost.
+public final class JSRuntime {
+    public enum JSError: Error {
         case initialization
         case exception(String)
     }
 
     /// Called with the raw JSON tree string on every React commit.
-    var onCommit: ((String) -> Void)?
+    public var onCommit: ((String) -> Void)?
 
     /// Called with the rendered widget-timelines payload whenever JS calls
     /// __host.publishWidgets (persist + WidgetCenter reload).
-    var onPublishWidgets: ((String) -> Void)?
+    public var onPublishWidgets: ((String) -> Void)?
 
     /// Key/value storage bridge (App Group UserDefaults).
-    var onGetItem: ((String) -> String?)?
-    var onSetItem: ((String, String) -> Void)?
+    public var onGetItem: ((String) -> String?)?
+    public var onSetItem: ((String, String) -> Void)?
 
     /// Non-fatal JS exceptions (event handlers, timers). Without this,
     /// runtime errors after startup would be silently swallowed.
-    var onError: ((String) -> Void)?
+    public var onError: ((String) -> Void)?
 
     /// WKHapticType name from js/src/haptics.ts.
-    var onPlayHaptic: ((String) -> Void)?
+    public var onPlayHaptic: ((String) -> Void)?
 
     /// Local notifications (js/src/notifications.ts).
-    var onRequestNotificationPermission: (() -> Void)?
-    var onScheduleNotification: ((String) -> Void)?
-    var onCancelNotification: ((String) -> Void)?
+    public var onRequestNotificationPermission: (() -> Void)?
+    public var onScheduleNotification: ((String) -> Void)?
+    public var onCancelNotification: ((String) -> Void)?
 
     /// WatchConnectivity send (js/src/connectivity.ts).
-    var onSendToPhone: ((String) -> Void)?
+    public var onSendToPhone: ((String) -> Void)?
 
     /// Async HTTP request (js/src/fetch.ts). Settle with
     /// resolveFetch/rejectFetch on the main thread.
-    var onFetch: ((Int, String) -> Void)?
+    public var onFetch: ((Int, String) -> Void)?
     /// Cancel an in-flight fetch by id.
-    var onAbortFetch: ((Int) -> Void)?
+    public var onAbortFetch: ((Int) -> Void)?
 
     /// CoreBluetooth op channel (js/src/bluetooth.ts): { op, ... }.
-    var onBle: ((String) -> Void)?
+    public var onBle: ((String) -> Void)?
     /// Sensor op channel (js/src/sensors.ts): { op, kind }.
-    var onSensor: ((String) -> Void)?
+    public var onSensor: ((String) -> Void)?
     /// Persist an OTA JS bundle (js/src/update.ts).
-    var onSaveUpdate: ((String) -> Void)?
+    public var onSaveUpdate: ((String) -> Void)?
     /// On-device LLM generate (js/src/ai.ts). Settle with
     /// resolveGenerate/rejectGenerate on the main thread.
-    var onGenerate: ((Int, String) -> Void)?
+    public var onGenerate: ((Int, String) -> Void)?
 
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
 
-    init() throws {
+    public init() throws {
         guard let rt = JS_NewRuntime(), let ctx = JS_NewContext(rt) else {
             throw JSError.initialization
         }
@@ -78,13 +81,13 @@ final class JSRuntime {
 
     // MARK: - Public API
 
-    func evaluate(_ code: String, filename: String = "bundle.js") throws {
+    public func evaluate(_ code: String, filename: String = "bundle.js") throws {
         let result = code.withCString { codePtr in
             JS_Eval(context, codePtr, strlen(codePtr), filename,
                     qjs_eval_type_global())
         }
         defer { JS_FreeValue(context, result) }
-        if JS_IsException(result) != 0 {
+        if JS_IsException(result) {
             throw JSError.exception(takeExceptionMessage())
         }
         drainJobs()
@@ -94,23 +97,23 @@ final class JSRuntime {
     /// start). The bytecode must come from the same quickjs-ng version the
     /// app embeds (tools/qjs-compile); callers should fall back to the JS
     /// source if this throws.
-    func evaluateBytecode(_ data: Data) throws {
+    public func evaluateBytecode(_ data: Data) throws {
         let fn = data.withUnsafeBytes { raw -> JSValue in
             JS_ReadObject(context, raw.bindMemory(to: UInt8.self).baseAddress,
                           data.count, qjs_read_obj_bytecode())
         }
-        if JS_IsException(fn) != 0 {
+        if JS_IsException(fn) {
             throw JSError.exception(takeExceptionMessage())
         }
         let result = JS_EvalFunction(context, fn)
         defer { JS_FreeValue(context, result) }
-        if JS_IsException(result) != 0 {
+        if JS_IsException(result) {
             throw JSError.exception(takeExceptionMessage())
         }
         drainJobs()
     }
 
-    func dispatchEvent(
+    public func dispatchEvent(
         nodeId: Int, event: String, payload: [String: Any]? = nil,
         seq: Int? = nil
     ) {
@@ -132,19 +135,19 @@ final class JSRuntime {
     /// state: connectivity, sensors, app lifecycle.
     /// Settles a JS fetch Promise. MUST be called on the main thread (the
     /// QuickJS context lives there); URLSession completions hop here.
-    func resolveFetch(id: Int, responseJson: String) {
+    public func resolveFetch(id: Int, responseJson: String) {
         evaluateReportingErrors(
             "globalThis.__resolveFetch(\(id), \(jsStringLiteral(responseJson)))",
             filename: "fetch.js")
     }
 
-    func rejectFetch(id: Int, message: String) {
+    public func rejectFetch(id: Int, message: String) {
         evaluateReportingErrors(
             "globalThis.__rejectFetch(\(id), \(jsStringLiteral(message)))",
             filename: "fetch.js")
     }
 
-    func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
+    public func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
         var payloadArg = "undefined"
         if let payload,
            let data = try? JSONSerialization.data(withJSONObject: payload),
@@ -543,12 +546,12 @@ extension JSRuntime {
 
     /// Settles a generateText Promise on the main thread (where the context
     /// lives).
-    func resolveGenerate(id: Int, text: String) {
+    public func resolveGenerate(id: Int, text: String) {
         evaluateReportingErrors(
             "globalThis.__resolveGenerate(\(id), \(jsStringLiteral(text)))",
             filename: "ai.js")
     }
-    func rejectGenerate(id: Int, message: String) {
+    public func rejectGenerate(id: Int, message: String) {
         evaluateReportingErrors(
             "globalThis.__rejectGenerate(\(id), \(jsStringLiteral(message)))",
             filename: "ai.js")

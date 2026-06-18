@@ -1,4 +1,5 @@
 import MapKit
+import ReactWatchCore
 import SwiftUI
 import UIKit
 
@@ -6,7 +7,7 @@ import UIKit
 /// primitive in js/src/components.ts.
 struct NodeView: View {
     let node: RNNode
-    @EnvironmentObject private var model: ReactAppModel
+    @EnvironmentObject private var model: ReactWatchModel
 
     var body: some View {
         rendered
@@ -358,7 +359,7 @@ struct NodeView: View {
 /// dispatches to React on commit, with a local copy while editing.
 private struct OptimisticTextField: View {
     let node: RNNode
-    @EnvironmentObject private var model: ReactAppModel
+    @EnvironmentObject private var model: ReactWatchModel
     @State private var text: String = ""
     @State private var seeded = false
 
@@ -408,7 +409,7 @@ private struct A11yModifier: ViewModifier {
 /// acks the change, like the other input controls.
 private struct CrownRotationView: View {
     let node: RNNode
-    @EnvironmentObject private var model: ReactAppModel
+    @EnvironmentObject private var model: ReactWatchModel
 
     var body: some View {
         VStack { ForEach(node.children) { NodeView(node: $0) } }
@@ -441,7 +442,7 @@ private struct CrownRotationView: View {
 /// nodes are untouched.
 private struct GestureModifier: ViewModifier {
     let node: RNNode
-    let model: ReactAppModel
+    let model: ReactWatchModel
     // Last quantized drag point dispatched, to throttle onDrag streaming.
     @State private var lastDrag: CGPoint?
 

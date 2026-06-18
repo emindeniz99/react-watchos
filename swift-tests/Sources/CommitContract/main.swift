@@ -1,4 +1,5 @@
 import Foundation
+import ReactWatchCore
 
 // Decodes a real commit tree (Fixtures/tree.json) with the watch app's
 // RNTree/RNNode decoder and asserts the wire contract, including the new

@@ -57,6 +57,13 @@ static JSValue host_clear_timer(JSContext *ctx, JSValueConst this_val, int argc,
     return JS_UNDEFINED;
 }
 
+/* No-op for host methods the smoke test doesn't assert on but the bundle
+ * calls at load (e.g. publishWidgets), mirroring JSRuntime.swift's install. */
+static JSValue host_noop(JSContext *ctx, JSValueConst this_val, int argc, JSValueConst *argv) {
+    (void)ctx; (void)this_val; (void)argc; (void)argv;
+    return JS_UNDEFINED;
+}
+
 static void drain_jobs(JSRuntime *rt) {
     JSContext *ctx;
     while (JS_ExecutePendingJob(rt, &ctx) > 0)
@@ -124,6 +131,7 @@ int main(int argc, char **argv) {
     JS_SetPropertyStr(ctx, host, "log", JS_NewCFunction(ctx, host_log, "log", 1));
     JS_SetPropertyStr(ctx, host, "setTimer", JS_NewCFunction(ctx, host_set_timer, "setTimer", 2));
     JS_SetPropertyStr(ctx, host, "clearTimer", JS_NewCFunction(ctx, host_clear_timer, "clearTimer", 1));
+    JS_SetPropertyStr(ctx, host, "publishWidgets", JS_NewCFunction(ctx, host_noop, "publishWidgets", 1));
     JS_SetPropertyStr(ctx, global, "__host", host);
     JS_SetPropertyStr(ctx, global, "__commits", JS_NewArray(ctx));
     JS_SetPropertyStr(ctx, global, "__timers", JS_NewArray(ctx));

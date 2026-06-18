@@ -35,26 +35,38 @@ pnpm --filter expo-watch-app prebuild      # expo prebuild -p ios --clean
 # open ios/, select the watch scheme, run on a watchOS simulator
 ```
 
-### The Swift host (one manual step — see note)
+### The Swift host (a SwiftPM package)
 
-`react-native-watchos` ships the **JS engine + UI**, not yet a reusable Swift
-host package. The watch target needs the native runtime that embeds QuickJS and
-interprets the tree. Until a SwiftPM host package exists, copy it from the
-reference app in this repo into `targets/watch/`:
+The native runtime — the QuickJS engine, the `NodeView` interpreter, the
+bridges — is the **`swift/` SwiftPM package** in this repo. Your watch target
+depends on it and writes ~10 lines:
 
-- `JSRuntime.swift`, `WatchApp.swift`, `NodeView.swift` (and the bridges you
-  use: `PhoneConnectivity.swift`, `BluetoothBridge.swift`, `SensorBridge.swift`)
-- `Vendor/quickjs/` (the vendored quickjs-ng C sources)
-- `Generated/WireModel.swift` (the codegen'd wire models)
-- the bridging-header config plugin (`plugins/with-quickjs-bridging.js`)
+```swift
+import ReactWatchHost
+import SwiftUI
 
-all from `projects/react-native-watchos/app/`. Then add the App Group /
-usage-description keys for whatever native capabilities your watch UI calls
-(see the renderer README and `docs/extending.md`).
+@main
+struct MyWatchApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ReactWatchRootView(appGroupId: "group.com.example.expowatch")
+        }
+    }
+}
+```
 
-> Packaging that Swift host as a SwiftPM dependency is the next packaging step
-> — it would turn this manual copy into one `Package.swift` line. Tracked in
-> the renderer roadmap.
+Add the package once in Xcode after `expo prebuild` (a local SPM package can't
+be wired into an apple-targets target reliably from the config plugin yet):
+
+> File ▸ Add Package Dependencies… ▸ Add Local… ▸ select
+> `projects/react-native-watchos/swift`, then add **ReactWatchHost** to the
+> watch target (and **ReactWatchCore** + **ReactWatchRuntime** to the widget
+> target if you ship complications).
+
+Then add the App Group / usage-description keys for whatever native
+capabilities your watch UI calls (see the renderer README and
+`docs/extending.md`). The Linux CI builds the package's engine/core/runtime;
+the SwiftUI host and this Xcode wiring are the macOS gate.
 
 See [`../minimal-watch-app`](../minimal-watch-app) for the smallest possible
 consumer (watch UI only, no iPhone app).

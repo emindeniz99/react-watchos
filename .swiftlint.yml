@@ -4,13 +4,13 @@
 
 included:
   - app/targets
+  - swift/Sources
   - swift-tests/Sources
 
 excluded:
-  - app/targets/watch/Vendor
-  - app/targets/widget/Vendor
-  - app/targets/watch/Generated
-  - app/targets/widget/Generated
+  - swift/Sources/CQuickJS # vendored quickjs-ng (C)
+  - swift/Sources/ReactWatchCore/WireModel.swift # codegen output
+  - swift/.build
   - swift-tests/.build
 
 # The wire models are generated; their decode-helpers are intentionally terse.

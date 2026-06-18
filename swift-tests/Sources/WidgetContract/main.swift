@@ -1,4 +1,5 @@
 import Foundation
+import ReactWatchCore
 
 // Decodes a real publishWidgets payload (Fixtures/widgets.json) with the
 // widget extension's PublishedWidgets decoder and asserts the timeline,

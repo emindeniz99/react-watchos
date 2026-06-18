@@ -4,10 +4,11 @@
 # validates the exact embedding sequence JSRuntime.swift uses.
 set -e
 cd "$(dirname "$0")"
-VENDOR=../../app/targets/watch/Vendor/quickjs
+# quickjs-ng now lives in the SwiftPM package's CQuickJS target.
+VENDOR=../../swift/Sources/CQuickJS
 BUNDLE=../../js/dist/bundle.js
-[ -f "$BUNDLE" ] || (cd ../../js && npm run build)
-cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR" -o embed-host \
+[ -f "$BUNDLE" ] || (cd ../.. && pnpm --filter react-native-watchos build)
+cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o embed-host \
   embed-host.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
   "$VENDOR"/libunicode.c "$VENDOR"/cutils.c "$VENDOR"/xsum.c -lm -lpthread
 ./embed-host "$BUNDLE"

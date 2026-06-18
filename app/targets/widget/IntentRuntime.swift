@@ -1,4 +1,6 @@
 import Foundation
+import CQuickJS
+import ReactWatchCore
 import WidgetKit
 
 /// Short-lived QuickJS instance for the widget extension. Evaluates the
@@ -92,10 +94,10 @@ final class IntentRuntime {
                 JS_ReadObject(context, raw.bindMemory(to: UInt8.self).baseAddress,
                               data.count, qjs_read_obj_bytecode())
             }
-            if JS_IsException(fn) == 0 {
+            if !JS_IsException(fn) {
                 let result = JS_EvalFunction(context, fn)
                 defer { JS_FreeValue(context, result) }
-                if JS_IsException(result) == 0 {
+                if !JS_IsException(result) {
                     drain()
                     return true
                 }
@@ -110,7 +112,7 @@ final class IntentRuntime {
             JS_Eval(context, ptr, strlen(ptr), "bundle.js", qjs_eval_type_global())
         }
         defer { JS_FreeValue(context, result) }
-        if JS_IsException(result) != 0 {
+        if JS_IsException(result) {
             logException()
             return false
         }
@@ -129,7 +131,7 @@ final class IntentRuntime {
         let result = eval(code)
         defer { JS_FreeValue(context, result) }
         drain()
-        guard JS_IsException(result) == 0,
+        guard !JS_IsException(result),
               let cString = JS_ToCString(context, result) else {
             logException()
             return nil

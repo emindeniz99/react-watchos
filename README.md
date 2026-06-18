@@ -145,10 +145,11 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 | Path | What |
 |---|---|
 | `js/` | The renderer + demo app. Pure TypeScript, fully tested on any OS. |
-| `app/` | Expo SDK 56 iOS shell; the watch app is a [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) target. |
-| `app/targets/watch/` | Swift: `JSRuntime.swift` (QuickJS embed), `NodeView.swift` (SwiftUI interpreter), vendored quickjs-ng v0.10.1. |
-| `app/targets/widget/` | WidgetKit extension: decodes React-rendered timelines from App Group storage (`ReactWidgets.swift`, `WidgetNodeView.swift`). |
-| `tools/embed-smoke/` | Reference C host: compiles the vendored engine and runs the real bundle through the exact API sequence Swift uses. |
+| `swift/` | The Swift host as a **SwiftPM package**: `CQuickJS` (quickjs-ng as a Clang module), `ReactWatchCore` (codegen'd wire models), `ReactWatchRuntime` (the QuickJS embedding) — all Linux-built — and `ReactWatchHost` (SwiftUI interpreter + bridges + `ReactWatchRootView`, macOS). |
+| `app/` | Expo SDK 56 iOS shell; the watch app is a [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) target that depends on the `swift/` package and is a thin `@main`. |
+| `app/targets/widget/` | WidgetKit extension: decodes React-rendered timelines from App Group storage (`ReactWidgets.swift`, `WidgetNodeView.swift`); imports `ReactWatchCore`. |
+| `examples/` | External-consumer templates (`minimal-watch-app`, `expo-watch-app`), each a workspace member. |
+| `tools/embed-smoke/` | Reference C host: compiles the package's quickjs-ng and runs the real bundle through the exact API sequence Swift uses. |
 | `swift-tests/` | Linux Swift contract tests: compile the real Foundation-only model files and decode real serializer fixtures (see its README). |
 | `docs/research.md` | Why RN-core-on-watchOS is impossible; engine and architecture comparison. |
 | `docs/prior-art.md` | Where this sits among production React renderers (RN, Raycast, r3f, Ink, …) and which techniques we adopt/skip/defer. |
@@ -248,13 +249,12 @@ updates via `publishWidgets()`.
 
 **Expected first-build friction (untested on a real Mac — Rule 12):**
 
-- The QuickJS bridging header is set by the
-  `plugins/with-quickjs-bridging.js` config plugin during prebuild. If Swift
-  still can't see the QuickJS API ("cannot find 'JS_NewRuntime' in scope"),
-  the target match or relative path may be off — set the watch/widget
-  targets' `SWIFT_OBJC_BRIDGING_HEADER` to
-  `Vendor/quickjs/quickjs-swift-shim.h` manually in Xcode and confirm the
-  vendored `.c` files are in Compile Sources.
+- The watch target depends on the local `swift/` SwiftPM package. A local
+  package can't be wired into an apple-targets target from the config plugin
+  yet, so after `expo prebuild` add it in Xcode (File ▸ Add Package
+  Dependencies ▸ Add Local ▸ `swift/`) and link **ReactWatchHost** to the
+  watch target, **ReactWatchCore** + **ReactWatchRuntime** to the widget. The
+  engine is now a Clang module (`import CQuickJS`) — no bridging header.
 - Confirm `assets/bundle.js` landed in the watch target's bundle resources.
 - If prebuild didn't apply `WKRunsIndependentlyOfCompanionApp`, add it to
   the watch target's Info.plist.

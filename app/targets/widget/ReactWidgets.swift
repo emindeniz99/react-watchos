@@ -1,3 +1,4 @@
+import ReactWatchCore
 import AppIntents
 import SwiftUI
 import WidgetKit

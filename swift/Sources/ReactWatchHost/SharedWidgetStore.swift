@@ -2,15 +2,17 @@ import Foundation
 
 /// App Group storage shared with the widget extension (targets/widget).
 /// The app writes React-rendered timelines here; the extension reads them
-/// in its TimelineProvider. The group id must match both targets'
-/// entitlements and the copy in targets/widget/ReactWidgets.swift.
+/// in its TimelineProvider. The group id comes from ReactWatchConfig
+/// (set by ReactWatchRootView); the widget target sets its own.
 enum SharedWidgetStore {
-    static let appGroupId = "group.com.emindeniz99.reactwatch"
     static let payloadKey = "react.widgets.payload"
     /// Namespace for the JS Storage API (js/src/storage.ts).
     static let storagePrefix = "react.storage."
 
-    static var defaults: UserDefaults? { UserDefaults(suiteName: appGroupId) }
+    static var defaults: UserDefaults? {
+        guard let group = ReactWatchConfig.appGroupId else { return nil }
+        return UserDefaults(suiteName: group)
+    }
 
     static func save(_ payloadJson: String) {
         defaults?.set(payloadJson, forKey: payloadKey)

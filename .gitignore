@@ -5,3 +5,6 @@ dist/
 # pnpm is the lockfile for this workspace; npm/yarn locks must not reappear.
 package-lock.json
 yarn.lock
+
+# SwiftPM build output.
+.build/

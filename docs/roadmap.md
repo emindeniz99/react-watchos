@@ -285,8 +285,24 @@ clothes"). Shipped:
   `examples/expo-watch-app` (Expo iPhone app + watch target). Both verified on
   Linux via `workspace:*`.
 
-**Next packaging step: a SwiftPM host package.** The JS is consumable, but the
-Swift host (QuickJS embed + `NodeView` interpreter + bridges) still has to be
-copied from `app/targets/watch/` into a consumer's target (see the expo example
-README). Publishing it as a SwiftPM dependency would make the native side a
-one-line `Package.swift` add — the analog of the JS `exports` work.
+**SwiftPM host package — shipped.** The Swift host is now the `swift/` SwiftPM
+package, so a consumer's watch target depends on it instead of copying ~2k
+lines + the vendored C. Targets:
+
+- `CQuickJS` — quickjs-ng as a Clang module (replaces the bridging header).
+- `ReactWatchCore` — the codegen'd wire models (one `public` module; the watch
+  + widget `WireModel`s are unified, no more duplicated `JSONValue`/`RNNode`).
+- `ReactWatchRuntime` — the QuickJS embedding (`JSRuntime`).
+- `ReactWatchHost` — the SwiftUI interpreter + bridges + `public
+  ReactWatchRootView(appGroupId:)`.
+
+The first three are **Foundation/C only and build on Linux** (CI `swift build`
++ the contract tests now decode through `ReactWatchCore`); making `JSRuntime`
+Linux-buildable even caught real latent bugs (`JS_IsException` returns `Bool`
+in quickjs-ng, so the never-compiled `!= 0` checks were wrong). `ReactWatchHost`
+(SwiftUI) and the Expo/apple-targets local-SPM wiring remain the macOS gate.
+
+**Remaining packaging polish:** auto-wire the local SPM package into the
+apple-targets watch/widget targets from the config plugin (currently a
+documented manual Xcode step), and publish the package (remote SPM) so it's a
+versioned dependency, not a path reference.

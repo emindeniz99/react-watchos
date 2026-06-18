@@ -3,7 +3,7 @@
 
 import Foundation
 
-enum JSONValue: Codable, Equatable {
+public enum JSONValue: Codable, Equatable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -11,7 +11,7 @@ enum JSONValue: Codable, Equatable {
     case object([String: JSONValue])
     case null
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
             self = .null
@@ -31,7 +31,7 @@ enum JSONValue: Codable, Equatable {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .string(let value): try container.encode(value)
@@ -44,28 +44,28 @@ enum JSONValue: Codable, Equatable {
     }
 }
 
-struct RNNode: Codable, Equatable, Identifiable {
-    let id: Int
-    let type: String
-    let props: [String: JSONValue]
-    let children: [RNNode]
+public struct RNNode: Codable, Equatable, Identifiable {
+    public let id: Int
+    public let type: String
+    public let props: [String: JSONValue]
+    public let children: [RNNode]
 
-    func string(_ key: String) -> String? {
+    public func string(_ key: String) -> String? {
         if case .string(let value)? = props[key] { return value }
         return nil
     }
 
-    func double(_ key: String) -> Double? {
+    public func double(_ key: String) -> Double? {
         if case .number(let value)? = props[key] { return value }
         return nil
     }
 
-    func bool(_ key: String) -> Bool? {
+    public func bool(_ key: String) -> Bool? {
         if case .bool(let value)? = props[key] { return value }
         return nil
     }
 
-    func stringArray(_ key: String) -> [String]? {
+    public func stringArray(_ key: String) -> [String]? {
         guard case .array(let values)? = props[key] else { return nil }
         return values.compactMap {
             if case .string(let value) = $0 { return value }
@@ -74,12 +74,56 @@ struct RNNode: Codable, Equatable, Identifiable {
     }
 }
 
-struct RNTree: Codable, Equatable {
-    let v: Int
-    let seq: Int
-    let root: RNNode?
+public struct RNTree: Codable, Equatable {
+    public let v: Int
+    public let seq: Int
+    public let root: RNNode?
 }
 
-enum RNWire {
-    static let version = 1
+public struct PublishedRelevance: Codable, Equatable {
+    public let score: Double
+    public let durationMs: Double?
+}
+
+public struct PublishedControl: Codable, Equatable {
+    public let intent: String
+    public let label: String
+    public let systemName: String?
+}
+
+public struct PublishedEntry: Codable, Equatable {
+    /// ms since epoch
+    public let date: Double
+    public let tree: RNNode?
+    public let relevance: PublishedRelevance?
+
+    public var entryDate: Date { Date(timeIntervalSince1970: date / 1000) }
+}
+
+public struct PublishedRelevantContext: Codable, Equatable {
+    public let date: Double?
+    public let latitude: Double?
+    public let longitude: Double?
+    public let radius: Double?
+}
+
+public struct PublishedFamilyTimeline: Codable, Equatable {
+    public let entries: [PublishedEntry]
+    public let reloadAfter: Double?
+    public let relevantContexts: [PublishedRelevantContext]?
+
+    public var reloadAfterDate: Date? {
+        reloadAfter.map { Date(timeIntervalSince1970: $0 / 1000) }
+    }
+}
+
+public struct PublishedWidgets: Codable, Equatable {
+    public let v: Int
+    public let publishedAt: Double
+    public let widgets: [String: [String: PublishedFamilyTimeline]]
+    public let controls: [String: PublishedControl]?
+}
+
+public enum RNWire {
+    public static let version = 1
 }

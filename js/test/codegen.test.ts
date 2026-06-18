@@ -6,6 +6,7 @@ import { hostMethods } from "../codegen/schema.mjs";
 
 const jsRoot = join(__dirname, "..");
 const appRoot = join(jsRoot, "..", "app");
+const swiftRoot = join(jsRoot, "..", "swift");
 
 describe("codegen", () => {
   it("committed generated files are up to date (no drift)", () => {
@@ -29,7 +30,11 @@ describe("codegen", () => {
       }
       return found;
     };
-    const watch = installed(join(appRoot, "targets/watch/JSRuntime.swift"));
+    // JSRuntime moved into the SwiftPM package (ReactWatchRuntime); the
+    // widget's IntentRuntime still lives in the app target.
+    const watch = installed(
+      join(swiftRoot, "Sources/ReactWatchRuntime/JSRuntime.swift"),
+    );
     const widget = installed(
       join(appRoot, "targets/widget/IntentRuntime.swift"),
     );

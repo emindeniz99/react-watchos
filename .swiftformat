@@ -11,5 +11,5 @@
 --commas inline
 --trimwhitespace always
 
-# Vendored quickjs is C; generated models are codegen output; .build is SwiftPM.
---exclude **/Vendor,**/Generated,**/.build,**/*.qbc
+# Vendored quickjs is C; the wire model is codegen output; .build is SwiftPM.
+--exclude **/CQuickJS,**/WireModel.swift,**/Generated,**/.build,**/*.qbc
