@@ -4,11 +4,33 @@
   "private": true,
   "type": "module",
   "description": "Custom React renderer: JSX to a serialized SwiftUI tree, runnable in QuickJS on Apple Watch",
+  "keywords": [
+    "react",
+    "react-native",
+    "watchos",
+    "apple-watch",
+    "swiftui",
+    "quickjs",
+    "react-reconciler",
+    "expo"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/emindeniz99/playground.git",
+    "directory": "projects/react-native-watchos/js"
+  },
+  "sideEffects": [
+    "./src/install-shims.ts",
+    "./src/shims.ts",
+    "./src/widgets.ts",
+    "./src/intents.ts"
+  ],
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
     ".": {
       "types": "./src/index.ts",
+      "react-native": "./src/index.ts",
       "default": "./src/index.ts"
     },
     "./build": {
@@ -17,8 +39,10 @@
     },
     "./testing": {
       "types": "./src/testing.ts",
+      "react-native": "./src/testing.ts",
       "default": "./src/testing.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "src",

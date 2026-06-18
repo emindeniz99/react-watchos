@@ -1,4 +1,4 @@
-const { withXcodeProject } = require("@expo/config-plugins");
+const { withXcodeProject, createRunOncePlugin } = require("@expo/config-plugins");
 
 // Wires the local SwiftPM package at projects/react-native-watchos/swift into
 // the @bacons/apple-targets–generated watch + widget targets:
@@ -126,7 +126,7 @@ function wireLocalPackage(project, { packagePath, targetProducts }) {
   return { packageRef, linked };
 }
 
-module.exports = function withReactWatchPackage(config) {
+const withReactWatchPackage = (config) => {
   return withXcodeProject(config, (cfg) => {
     try {
       const { linked } = wireLocalPackage(cfg.modResults, {
@@ -147,6 +147,16 @@ module.exports = function withReactWatchPackage(config) {
   });
 };
 
-module.exports.wireLocalPackage = wireLocalPackage;
-module.exports.TARGET_PRODUCTS = TARGET_PRODUCTS;
-module.exports.PACKAGE_RELATIVE_PATH = PACKAGE_RELATIVE_PATH;
+// createRunOncePlugin tags the plugin by name+version so repeated prebuilds /
+// duplicate plugin entries apply it once (the Expo library convention). The
+// pbxproj edit is also idempotent on its own.
+const plugin = createRunOncePlugin(
+  withReactWatchPackage,
+  "react-native-watchos-swiftpm",
+  "0.1.0",
+);
+
+plugin.wireLocalPackage = wireLocalPackage;
+plugin.TARGET_PRODUCTS = TARGET_PRODUCTS;
+plugin.PACKAGE_RELATIVE_PATH = PACKAGE_RELATIVE_PATH;
+module.exports = plugin;
