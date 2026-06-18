@@ -6,6 +6,32 @@ on this engine + a BLE link to a desktop companion. This doc is the friction and
 the wins from actually consuming the renderer, with concrete asks. Priorities:
 **P0** = blocks/penalizes every consumer, **P1** = real papercut, **P2** = nice.
 
+## Update — packaging shipped, ctrl-a-remote migrated onto it ✅
+
+The P0 packaging landed (`exports` with `.` / `./build` / `./testing`,
+`peerDependencies`, the pnpm workspace + examples). **ctrl-a-remote now consumes
+the package** as a real dependency (`file:../../react-native-watchos/js`),
+importing `react-native-watchos` + `react-native-watchos/testing` — all the
+old source-reach-in glue (renderer `alias`, tsconfig `paths`, hand-mapped react
+types) is gone. 20 tests + tsc + bundle green. Huge improvement, thank you.
+
+Two follow-ups this surfaced:
+
+1. **The `./build` export is broken.** `scripts/config.mjs` imports
+   `../build/preset.mjs` and `package.json` `exports["./build"]` +
+   `files` reference `build/preset.mjs` / `build/preset.d.mts`, but **those
+   files aren't in git** — `import("./scripts/config.mjs")` fails and so does
+   the renderer's own `npm run build`. Either commit the generated `build/`
+   or add a `prepare`/`prepack` step that emits it. I worked around it by not
+   using `/build` (inlined the esbuild config), but consumers shouldn't have to.
+2. **Document non-workspace consumption.** Workspace members get single-React
+   for free, but an external project (different folder, linked via
+   `file:`/`link:`) needs three settings the examples don't show, because the
+   linked package resolves via realpath: esbuild `nodePaths`, vitest
+   `resolve.dedupe`, and tsc **`preserveSymlinks: true`** (without the last,
+   tsc type-checks the renderer source and can't find its `react`). A short
+   "consuming from outside the workspace" note would save the next app this.
+
 ## One-line verdict
 
 **It's a framework wearing a source folder's clothes.** The hard, impressive
