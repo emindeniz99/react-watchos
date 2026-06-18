@@ -55,8 +55,11 @@ struct MyWatchApp: App {
 }
 ```
 
-Add the package once in Xcode after `expo prebuild` (a local SPM package can't
-be wired into an apple-targets target reliably from the config plugin yet):
+Linking the package happens in the config plugin
+(`app/plugins/with-react-watch-package.js` in the reference app — copy it
+here): during `expo prebuild` it writes the SwiftPM references into the
+generated watch + widget targets. If it didn't apply (it's wrapped so it can
+never fail prebuild), add it by hand in Xcode:
 
 > File ▸ Add Package Dependencies… ▸ Add Local… ▸ select
 > `projects/react-native-watchos/swift`, then add **ReactWatchHost** to the

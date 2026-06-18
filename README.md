@@ -249,12 +249,15 @@ updates via `publishWidgets()`.
 
 **Expected first-build friction (untested on a real Mac — Rule 12):**
 
-- The watch target depends on the local `swift/` SwiftPM package. A local
-  package can't be wired into an apple-targets target from the config plugin
-  yet, so after `expo prebuild` add it in Xcode (File ▸ Add Package
-  Dependencies ▸ Add Local ▸ `swift/`) and link **ReactWatchHost** to the
-  watch target, **ReactWatchCore** + **ReactWatchRuntime** to the widget. The
-  engine is now a Clang module (`import CQuickJS`) — no bridging header.
+- The watch target depends on the local `swift/` SwiftPM package. The
+  `with-react-watch-package.js` config plugin writes the SwiftPM references
+  into the generated watch/widget targets during `expo prebuild` (best-effort,
+  and wrapped so it can't fail prebuild — apple-targets/node-xcode have no
+  local-package API, so it edits the pbxproj directly). If it didn't apply, add
+  it in Xcode (File ▸ Add Package Dependencies ▸ Add Local ▸ `swift/`) and link
+  **ReactWatchHost** to the watch target, **ReactWatchCore** +
+  **ReactWatchRuntime** to the widget. The engine is a Clang module
+  (`import CQuickJS`) — no bridging header.
 - Confirm `assets/bundle.js` landed in the watch target's bundle resources.
 - If prebuild didn't apply `WKRunsIndependentlyOfCompanionApp`, add it to
   the watch target's Info.plist.

@@ -302,7 +302,14 @@ Linux-buildable even caught real latent bugs (`JS_IsException` returns `Bool`
 in quickjs-ng, so the never-compiled `!= 0` checks were wrong). `ReactWatchHost`
 (SwiftUI) and the Expo/apple-targets local-SPM wiring remain the macOS gate.
 
-**Remaining packaging polish:** auto-wire the local SPM package into the
-apple-targets watch/widget targets from the config plugin (currently a
-documented manual Xcode step), and publish the package (remote SPM) so it's a
-versioned dependency, not a path reference.
+**SPM auto-wiring — done (best-effort).** `with-react-watch-package.js` now
+writes the `XCLocalSwiftPackageReference` + `XCSwiftPackageProductDependency` +
+build-file objects into the apple-targets watch/widget targets during
+`expo prebuild` (apple-targets/node-xcode have no local-package API, so it
+edits the pbxproj directly). It's idempotent and wrapped so it can't fail
+prebuild; the manual Xcode step remains the documented fallback. The pbxproj
+logic is unit-smoke-tested on Linux, but Xcode acceptance is the macOS gate.
+
+**Remaining packaging polish:** publish the package to a registry (remote SPM)
+so consumers get a versioned dependency instead of a path reference — then the
+plugin's local-package wiring becomes a normal `dependencies` entry.
