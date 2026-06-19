@@ -201,6 +201,34 @@ Two worked examples (each its own workspace member, both verified on Linux):
 - [`examples/expo-watch-app`](./examples/expo-watch-app) — an Expo iPhone app
   that adds a watch target whose UI runs on this engine (the realistic shape).
 
+#### From outside the workspace
+
+The examples are workspace members, so `workspace:*` gives them one React copy
+for free. An **external** app — a different repo/folder linking the renderer
+via `file:`/`link:` — resolves the package through a symlink (realpath), so its
+tools must be told to dedupe React across that boundary. Three settings, and
+that's the whole integration:
+
+```js
+// esbuild build: resolve the renderer's `react` to YOUR copy
+watchBuildOptions({ entry, outfile, nodePaths: [join(root, "node_modules")] });
+```
+```ts
+// vitest.config.ts
+export default defineConfig({ resolve: { dedupe: ["react", "react-reconciler"] } });
+```
+```jsonc
+// tsconfig.json — the easy one to miss. Without it, tsc follows the symlink to
+// the renderer's source and can't find its react, so type-checking fails.
+{ "compilerOptions": { "preserveSymlinks": true } }
+```
+
+Without `preserveSymlinks`, `tsc` type-checks the renderer's `.ts` source at
+its real path (outside your `node_modules`) and can't resolve `react` there.
+The first two prevent a second React copy in the bundle/tests (which silently
+breaks hooks). Published to a registry (a normal `npm i`, no symlink) none of
+this is needed — it's specific to linked local packages.
+
 ### Type safety & linting
 
 - **TypeScript** runs at maximum strictness. `tsconfig.base.json` enables

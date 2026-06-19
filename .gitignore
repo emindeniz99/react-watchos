@@ -8,3 +8,8 @@ yarn.lock
 
 # SwiftPM build output.
 .build/
+
+# The renderer ships a hand-written esbuild preset here (NOT build output);
+# re-include it despite the repo-root `build/` ignore.
+!js/build/
+!js/build/**
