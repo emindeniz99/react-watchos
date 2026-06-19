@@ -10,13 +10,15 @@ depends on this package instead of copying the host into their app.
 | Product | Imports | Builds on Linux? |
 |---|---|---|
 | `CQuickJS` | quickjs-ng v0.10.1 as a Clang module (`import CQuickJS`) | ✅ |
-| `ReactWatchCore` | the codegen'd wire models (`RNNode`, `RNTree`, `RNWire`, `JSONValue`, `Published*`) — Foundation only | ✅ |
+| `ReactWatchCore` | the codegen'd wire models (`RNNode`, `RNTree`, `RNWire`, `JSONValue`, `Published*`) — Foundation only, `Sendable` | ✅ |
+| `ReactWatchSupport` | Foundation-only platform logic: `SharedWidgetStore`, `OptimisticStore`, `NotificationPlan` (extracted from the host so it's unit-tested) | ✅ |
 | `ReactWatchRuntime` | the QuickJS embedding (`JSRuntime`) — Foundation + `CQuickJS` | ✅ |
 | `ReactWatchHost` | the SwiftUI interpreter, native bridges, and `public ReactWatchRootView(appGroupId:)` | ❌ (Xcode) |
 
-The first three are Foundation/C only, so CI `swift build`s them on Linux and
-the wire-contract tests decode fixtures through `ReactWatchCore`. `ReactWatchHost`
-pulls in SwiftUI / WatchKit / CoreBluetooth / HealthKit, so it's the macOS gate.
+Everything except `ReactWatchHost` is Foundation/C only, so CI `swift build`s the
+package and `swift test` runs the wire-contract + support-logic tests on Linux.
+`ReactWatchHost` pulls in SwiftUI / WatchKit / CoreBluetooth / HealthKit, so it's
+the macOS gate (and the manifest drops it on a non-Apple build host).
 
 ## Use it
 

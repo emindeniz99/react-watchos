@@ -14,7 +14,7 @@ const banner = () =>
 
 // --- Swift -----------------------------------------------------------------
 
-const JSON_VALUE_SWIFT = `public enum JSONValue: Codable, Equatable {
+const JSON_VALUE_SWIFT = `public enum JSONValue: Codable, Equatable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -56,7 +56,7 @@ const JSON_VALUE_SWIFT = `public enum JSONValue: Codable, Equatable {
 }`;
 
 const nodeSwift =
-  () => `public struct ${node.swift}: Codable, Equatable, Identifiable {
+  () => `public struct ${node.swift}: Codable, Equatable, Identifiable, Sendable {
     public let id: Int
     public let type: String
     public let props: [String: JSONValue]
@@ -87,7 +87,7 @@ const nodeSwift =
 }`;
 
 function swiftStruct(def) {
-  const lines = [`public struct ${def.swift}: Codable, Equatable {`];
+  const lines = [`public struct ${def.swift}: Codable, Equatable, Sendable {`];
   for (const f of def.fields) {
     if (f.doc) lines.push(`    /// ${f.doc}`);
     lines.push(`    public let ${f.name}: ${f.swift}`);

@@ -3,7 +3,7 @@
 
 import Foundation
 
-public enum JSONValue: Codable, Equatable {
+public enum JSONValue: Codable, Equatable, Sendable {
     case string(String)
     case number(Double)
     case bool(Bool)
@@ -44,7 +44,7 @@ public enum JSONValue: Codable, Equatable {
     }
 }
 
-public struct RNNode: Codable, Equatable, Identifiable {
+public struct RNNode: Codable, Equatable, Identifiable, Sendable {
     public let id: Int
     public let type: String
     public let props: [String: JSONValue]
@@ -74,24 +74,24 @@ public struct RNNode: Codable, Equatable, Identifiable {
     }
 }
 
-public struct RNTree: Codable, Equatable {
+public struct RNTree: Codable, Equatable, Sendable {
     public let v: Int
     public let seq: Int
     public let root: RNNode?
 }
 
-public struct PublishedRelevance: Codable, Equatable {
+public struct PublishedRelevance: Codable, Equatable, Sendable {
     public let score: Double
     public let durationMs: Double?
 }
 
-public struct PublishedControl: Codable, Equatable {
+public struct PublishedControl: Codable, Equatable, Sendable {
     public let intent: String
     public let label: String
     public let systemName: String?
 }
 
-public struct PublishedEntry: Codable, Equatable {
+public struct PublishedEntry: Codable, Equatable, Sendable {
     /// ms since epoch
     public let date: Double
     public let tree: RNNode?
@@ -100,14 +100,14 @@ public struct PublishedEntry: Codable, Equatable {
     public var entryDate: Date { Date(timeIntervalSince1970: date / 1000) }
 }
 
-public struct PublishedRelevantContext: Codable, Equatable {
+public struct PublishedRelevantContext: Codable, Equatable, Sendable {
     public let date: Double?
     public let latitude: Double?
     public let longitude: Double?
     public let radius: Double?
 }
 
-public struct PublishedFamilyTimeline: Codable, Equatable {
+public struct PublishedFamilyTimeline: Codable, Equatable, Sendable {
     public let entries: [PublishedEntry]
     public let reloadAfter: Double?
     public let relevantContexts: [PublishedRelevantContext]?
@@ -117,7 +117,7 @@ public struct PublishedFamilyTimeline: Codable, Equatable {
     }
 }
 
-public struct PublishedWidgets: Codable, Equatable {
+public struct PublishedWidgets: Codable, Equatable, Sendable {
     public let v: Int
     public let publishedAt: Double
     public let widgets: [String: [String: PublishedFamilyTimeline]]

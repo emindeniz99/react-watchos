@@ -1,5 +1,6 @@
 import ReactWatchCore
 import ReactWatchRuntime
+import ReactWatchSupport
 import SwiftUI
 import UserNotifications
 import WatchKit
@@ -30,8 +31,9 @@ final class ReactWatchModel: ObservableObject {
     /// controls hold their local value until their dispatch is acked.
     @Published var ackedSeq = 0
     /// Optimistic values keyed by node id — lives on the model (not view
-    /// @State) so it survives SwiftUI view identity changes mid-flight.
-    @Published private var optimistic: [Int: (seq: Int, value: JSONValue)] = [:]
+    /// @State) so it survives SwiftUI view identity changes mid-flight. The
+    /// bookkeeping is ReactWatchSupport.OptimisticStore (unit-tested on Linux).
+    @Published private var optimistic = OptimisticStore()
 
     /// App Group storage, configured with the consumer's group id at init —
     /// no global mutable state. nil disables widget/Storage sharing.
@@ -83,7 +85,7 @@ final class ReactWatchModel: ObservableObject {
         startupError = nil
         ackedSeq = 0
         nextSeq = 1
-        optimistic = [:]
+        optimistic = OptimisticStore()
         do {
             let js = try makeRuntime()
             runtime = js
@@ -205,9 +207,7 @@ final class ReactWatchModel: ObservableObject {
                     self.root = tree.root
                     if tree.seq > self.ackedSeq {
                         self.ackedSeq = tree.seq
-                        self.optimistic = self.optimistic.filter {
-                            $0.value.seq > tree.seq
-                        }
+                        self.optimistic.ack(throughSeq: tree.seq)
                     }
                 }
             }
@@ -260,40 +260,26 @@ final class ReactWatchModel: ObservableObject {
         return js
     }
 
-    private struct NotificationPayload: Decodable {
-        let id: String
-        let title: String
-        let body: String
-        let at: Double?
-        let afterMs: Double?
-        let sound: Bool
-    }
-
     private func scheduleNotification(_ json: String) {
-        guard let payload = try? JSONDecoder().decode(
-            NotificationPayload.self, from: Data(json.utf8)) else {
+        // Decode + trigger-time math is ReactWatchSupport.NotificationPlan
+        // (unit-tested on Linux); the host just builds the request from it.
+        guard let plan = NotificationPlan(json: json) else {
             runtimeError = "bad notification payload"
             return
         }
-        let content = UNMutableNotificationContent()
-        content.title = payload.title
-        content.body = payload.body
-        if payload.sound { content.sound = .default }
-        let seconds: TimeInterval
-        if let at = payload.at {
-            seconds = at / 1000 - Date.now.timeIntervalSince1970
-        } else {
-            seconds = (payload.afterMs ?? 0) / 1000
-        }
-        if seconds < -1 {
+        if plan.scheduledInPast {
             runtimeError =
-                "notification '\(payload.id)' scheduled in the past; delivering now"
+                "notification '\(plan.id)' scheduled in the past; delivering now"
         }
+        let content = UNMutableNotificationContent()
+        content.title = plan.title
+        content.body = plan.body
+        if plan.sound { content.sound = .default }
         let request = UNNotificationRequest(
-            identifier: payload.id,
+            identifier: plan.id,
             content: content,
             trigger: UNTimeIntervalNotificationTrigger(
-                timeInterval: max(1, seconds), repeats: false))
+                timeInterval: plan.triggerSeconds, repeats: false))
         UNUserNotificationCenter.current().add(request) { [weak self] error in
             if let error {
                 DispatchQueue.main.async {
@@ -383,25 +369,12 @@ final class ReactWatchModel: ObservableObject {
     /// optimistic value until React acks this dispatch.
     func dispatchOptimistic(nodeId: Int, value: JSONValue, payload: [String: Any]) {
         let seq = dispatch(nodeId: nodeId, event: "change", payload: payload)
-        optimistic[nodeId] = (seq, value)
+        optimistic.set(nodeId: nodeId, seq: seq, value: value)
     }
 
-    func optimisticBool(_ nodeId: Int) -> Bool? {
-        if case .bool(let value)? = optimistic[nodeId]?.value { return value }
-        return nil
-    }
-
-    func optimisticInt(_ nodeId: Int) -> Int? {
-        if case .number(let value)? = optimistic[nodeId]?.value {
-            return Int(value)
-        }
-        return nil
-    }
-
-    func optimisticDouble(_ nodeId: Int) -> Double? {
-        if case .number(let value)? = optimistic[nodeId]?.value { return value }
-        return nil
-    }
+    func optimisticBool(_ nodeId: Int) -> Bool? { optimistic.bool(nodeId) }
+    func optimisticInt(_ nodeId: Int) -> Int? { optimistic.int(nodeId) }
+    func optimisticDouble(_ nodeId: Int) -> Double? { optimistic.double(nodeId) }
 
     #if DEBUG
     private static let devBundleURL = URL(string: "http://127.0.0.1:8788/bundle.js")!
