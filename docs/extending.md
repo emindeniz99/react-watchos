@@ -45,11 +45,11 @@ If you're adding the op to the renderer itself, declare it on
 `QuickJSHostGlobal` (in `src/host.ts`) instead of the inline cast, and add it to
 `codegen/schema.mjs`'s `hostMethods` so the Swift install is cross-checked.
 
-**2. Swift side** installs the op and pushes events. In your watch runtime,
-register a `torch` function on the `__host` object that does the native work,
-and call `__pushNativeEvent("torch", "{\"on\":true}")` when state changes. (See
-`app/targets/watch/JSRuntime.swift` + `SensorBridge.swift` for the pattern —
-the bridges push via the same `__pushNativeEvent` entry point.)
+**2. Swift side** installs the op and pushes events. In the SwiftPM package
+(`swift/`), `ReactWatchRuntime/JSRuntime.swift` installs the `__host` methods
+and `ReactWatchHost/SensorBridge.swift` (and the other bridges) push via
+`pushNativeEvent` — register your `torch` op the same way and call
+`__pushNativeEvent("torch", "{\"on\":true}")` when state changes.
 
 **3. Use it** like any hook-driven value:
 
