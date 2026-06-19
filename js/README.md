@@ -17,6 +17,11 @@ the single copy (two copies silently break hooks/context):
 npm i react-native-watchos react react-reconciler
 ```
 
+The package ships compiled `lib/` (ESM + `.d.ts`) for `types`/`import`/`default`
+so it works in any runtime; bundlers get raw `src` via the `source` /
+`react-native` exports conditions (the build preset prefers `source`, so the
+renderer is bundled as tree-shakeable source).
+
 ## Use
 
 ```tsx

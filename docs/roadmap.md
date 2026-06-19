@@ -328,6 +328,16 @@ decode queue → main thread) — a real concurrency-correctness fix the Linux
 build caught. Continue extracting the remaining pure host logic (fetch
 request/response assembly, the haptic map is WatchKit-bound and can't move).
 
-**Remaining packaging polish:** publish the package to a registry (remote SPM)
-so consumers get a versioned dependency instead of a path reference — then the
-plugin's local-package wiring becomes a normal `dependencies` entry.
+**Compiled library output — done.** The JS package now ships a real `lib/`
+build (esbuild → ESM JS with react/react-reconciler external; tsc → compiled
+`.d.ts`), built by `prepare`/`prepack` and validated by `npm pack`. `exports`
+serve compiled `lib/` for `types`/`import`/`default` (registry + Node) and raw
+`src` for the `source`/`react-native` conditions (bundlers tree-shake source;
+the build preset prefers `source`). So `npm i react-native-watchos` now works
+in any runtime, not just bundlers.
+
+**Remaining packaging polish:** actually `npm publish` the package (and publish
+the SwiftPM package to a registry / remote SPM) so consumers get a versioned
+dependency instead of a `file:`/`path:` reference — then the plugin's
+local-package wiring becomes a normal `dependencies` entry. The artifacts are
+publish-ready; this just needs registry access.

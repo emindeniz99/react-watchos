@@ -51,7 +51,10 @@ export function watchBuildOptions({
     target: "es2020",
     platform: "neutral",
     mainFields: ["module", "main"],
-    conditions: ["import", "default"],
+    // Prefer the package's `source` condition (raw .ts) over the compiled
+    // `lib/` build, so the renderer bundles as tree-shakeable source and its
+    // install-shims inject resolves.
+    conditions: ["source", "import", "default"],
     define: { "process.env.NODE_ENV": '"production"' },
     plugins,
     ...(nodePaths ? { nodePaths } : {}),
