@@ -1,6 +1,7 @@
 import Foundation
 import ReactWatchCore
 import ReactWatchRuntime
+import ReactWatchSupport
 import WidgetKit
 
 /// Short-lived QuickJS instance for the widget extension. Reuses the shared

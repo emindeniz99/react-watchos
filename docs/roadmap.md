@@ -315,7 +315,18 @@ the package (the separate `swift-tests/` package is gone); the widget's second
 QuickJS embedding was unified onto `ReactWatchRuntime.JSRuntime` (one engine
 embedding, ~200 fewer lines, no duplicated host); and `ReactWatchConfig`'s
 `nonisolated(unsafe)` global is replaced by an injected, `Sendable`
-`SharedWidgetStore` in `ReactWatchCore` (Linux-built, no global mutable state).
+`SharedWidgetStore` (no global mutable state).
+
+**Shrinking the macOS-unverified surface.** Pure logic that used to ride along
+inside the SwiftUI host (only compilable on a Mac) is being pulled into a
+Foundation-only `ReactWatchSupport` target that builds and `swift test`s on
+Linux: `OptimisticStore` (optimistic-control bookkeeping + seq-ack), and
+`NotificationPlan` (the `at`/`afterMs` trigger math + past-time clamp), each
+unit-tested. The host is now a thinner SwiftUI shell over tested logic. Doing
+this also forced the codegen'd wire models to be `Sendable` (they cross the
+decode queue → main thread) — a real concurrency-correctness fix the Linux
+build caught. Continue extracting the remaining pure host logic (fetch
+request/response assembly, the haptic map is WatchKit-bound and can't move).
 
 **Remaining packaging polish:** publish the package to a registry (remote SPM)
 so consumers get a versioned dependency instead of a path reference — then the

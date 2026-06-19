@@ -145,7 +145,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 | Path | What |
 |---|---|
 | `js/` | The renderer + demo app. Pure TypeScript, fully tested on any OS. |
-| `swift/` | The Swift host as a **SwiftPM package**: `CQuickJS` (quickjs-ng as a Clang module), `ReactWatchCore` (codegen'd wire models), `ReactWatchRuntime` (the QuickJS embedding) — all Linux-built — and `ReactWatchHost` (SwiftUI interpreter + bridges + `ReactWatchRootView`, macOS). |
+| `swift/` | The Swift host as a **SwiftPM package**: `CQuickJS` (quickjs-ng as a Clang module), `ReactWatchCore` (codegen'd wire models), `ReactWatchSupport` (Foundation platform logic — storage/optimistic/notifications), `ReactWatchRuntime` (the QuickJS embedding) — all Linux-built + `swift test`ed — and `ReactWatchHost` (SwiftUI interpreter + bridges + `ReactWatchRootView`, macOS). |
 | `app/` | Expo SDK 56 iOS shell; the watch app is a [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) target that depends on the `swift/` package and is a thin `@main`. |
 | `app/targets/widget/` | WidgetKit extension: decodes React-rendered timelines from App Group storage (`ReactWidgets.swift`, `WidgetNodeView.swift`); imports `ReactWatchCore`. |
 | `examples/` | External-consumer templates (`minimal-watch-app`, `expo-watch-app`), each a workspace member. |
@@ -284,7 +284,7 @@ updates via `publishWidgets()`.
   local-package API, so it edits the pbxproj directly). If it didn't apply, add
   it in Xcode (File ▸ Add Package Dependencies ▸ Add Local ▸ `swift/`) and link
   **ReactWatchHost** to the watch target, **ReactWatchCore** +
-  **ReactWatchRuntime** to the widget. The engine is a Clang module
+  **ReactWatchSupport** + **ReactWatchRuntime** to the widget. The engine is a Clang module
   (`import CQuickJS`) — no bridging header.
 - Confirm `assets/bundle.js` landed in the watch target's bundle resources.
 - If prebuild didn't apply `WKRunsIndependentlyOfCompanionApp`, add it to

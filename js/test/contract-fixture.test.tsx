@@ -19,10 +19,10 @@ import {
 // Writes the JSON the Swift ReactWatchCore decoders consume, straight from
 // the real serializer — so the cross-language wire contract is checked
 // against actual output, never a hand-authored copy. The SwiftPM package's
-// `swift test` (ReactWatchCoreTests) decodes these fixtures.
+// `swift test` (ReactWatchTests) decodes these fixtures.
 const fixturesDir = join(
   __dirname,
-  "../../swift/Tests/ReactWatchCoreTests/Fixtures",
+  "../../swift/Tests/ReactWatchTests/Fixtures",
 );
 
 afterEach(() => unregisterAllWidgets());

@@ -25,18 +25,23 @@ let includeAppleHost = false
 
 var products: [Product] = [
     .library(name: "ReactWatchCore", targets: ["ReactWatchCore"]),
+    .library(name: "ReactWatchSupport", targets: ["ReactWatchSupport"]),
     .library(name: "ReactWatchRuntime", targets: ["ReactWatchRuntime"]),
 ]
 
 var targets: [Target] = [
     .target(name: "CQuickJS"),
     .target(name: "ReactWatchCore"),
+    // Foundation-only platform-support logic (storage, optimistic controls,
+    // notification scheduling) extracted from the SwiftUI host so it's
+    // unit-tested on Linux instead of riding along in the macOS-only target.
+    .target(name: "ReactWatchSupport", dependencies: ["ReactWatchCore"]),
     .target(name: "ReactWatchRuntime", dependencies: ["CQuickJS"]),
-    // Wire-contract tests: decode real serializer fixtures with the codegen'd
-    // models. Runs on Linux via `swift test`.
+    // `swift test`: decode real serializer fixtures with the codegen'd models,
+    // and unit-test the support logic. Runs on Linux.
     .testTarget(
-        name: "ReactWatchCoreTests",
-        dependencies: ["ReactWatchCore"],
+        name: "ReactWatchTests",
+        dependencies: ["ReactWatchCore", "ReactWatchSupport"],
         resources: [.copy("Fixtures")]
     ),
 ]
@@ -46,7 +51,10 @@ if includeAppleHost {
     targets.append(
         .target(
             name: "ReactWatchHost",
-            dependencies: ["CQuickJS", "ReactWatchCore", "ReactWatchRuntime"]
+            dependencies: [
+                "CQuickJS", "ReactWatchCore", "ReactWatchSupport",
+                "ReactWatchRuntime",
+            ]
         )
     )
 }

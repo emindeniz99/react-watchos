@@ -20,7 +20,11 @@ const { withXcodeProject, createRunOncePlugin } = require("@expo/config-plugins"
 const PACKAGE_RELATIVE_PATH = "../swift";
 const TARGET_PRODUCTS = {
   "React Watch": ["ReactWatchHost"],
-  "React Watch Widgets": ["ReactWatchCore", "ReactWatchRuntime"],
+  "React Watch Widgets": [
+    "ReactWatchCore",
+    "ReactWatchSupport",
+    "ReactWatchRuntime",
+  ],
 };
 
 /** Ensures an ISA section exists in the pbxproj object graph. */
