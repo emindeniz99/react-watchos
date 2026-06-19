@@ -9,28 +9,33 @@ the wins from actually consuming the renderer, with concrete asks. Priorities:
 ## Update — packaging shipped, ctrl-a-remote migrated onto it ✅
 
 The P0 packaging landed (`exports` with `.` / `./build` / `./testing`,
-`peerDependencies`, the pnpm workspace + examples). **ctrl-a-remote now consumes
-the package** as a real dependency (`file:../../react-native-watchos/js`),
-importing `react-native-watchos` + `react-native-watchos/testing` — all the
-old source-reach-in glue (renderer `alias`, tsconfig `paths`, hand-mapped react
-types) is gone. 20 tests + tsc + bundle green. Huge improvement, thank you.
+`peerDependencies`, the compiled `lib/`, the pnpm workspace + examples).
+**ctrl-a-remote now consumes the package** via a small pnpm workspace
+(`workspace:*` to the sibling renderer), importing `react-native-watchos` +
+`react-native-watchos/testing` and building with the `react-native-watchos/build`
+preset — all the old source-reach-in glue (renderer `alias`, tsconfig `paths`,
+hand-mapped react types) is gone, and `resolve.dedupe` in vitest is the only
+extra setting. 20 tests + tsc + lint + bundle green. Big improvement — and the
+`./build` fix + committed `lib/` from the last round both landed, thank you.
 
-Two follow-ups this surfaced:
+One thing worth documenting, learned the hard way:
 
-1. **The `./build` export is broken.** `scripts/config.mjs` imports
-   `../build/preset.mjs` and `package.json` `exports["./build"]` +
-   `files` reference `build/preset.mjs` / `build/preset.d.mts`, but **those
-   files aren't in git** — `import("./scripts/config.mjs")` fails and so does
-   the renderer's own `npm run build`. Either commit the generated `build/`
-   or add a `prepare`/`prepack` step that emits it. I worked around it by not
-   using `/build` (inlined the esbuild config), but consumers shouldn't have to.
-2. **Document non-workspace consumption.** Workspace members get single-React
-   for free, but an external project (different folder, linked via
-   `file:`/`link:`) needs three settings the examples don't show, because the
-   linked package resolves via realpath: esbuild `nodePaths`, vitest
-   `resolve.dedupe`, and tsc **`preserveSymlinks: true`** (without the last,
-   tsc type-checks the renderer source and can't find its `react`). A short
-   "consuming from outside the workspace" note would save the next app this.
+- **Local consumption is pnpm-workspace-only; npm `file:`/`link:` does not
+  work.** I first tried `"react-native-watchos": "file:../../react-native-watchos/js"`
+  with npm. Two blockers: (a) the `.`/`default` export points at the compiled
+  `lib/`, which is built on `prepare` and isn't committed, so a non-workspace
+  consumer has no `lib/`; and (b) npm runs the linked package's `prepare`
+  (`build-lib`) during install **even with `ignore-scripts=true`**, and it fails
+  because the renderer's own dev deps (esbuild, tsc) aren't installed in a
+  bare `file:` link. Only a **workspace install** provides those dev deps and
+  builds `lib/`. So the supported story is "be a pnpm workspace member"; the
+  examples show it but don't say it's the *only* path. Either document that
+  explicitly, or (nicer) make the package consumable without a build step —
+  e.g. default the `.` export to `source` (raw `src`) so `file:`/registry
+  consumers work without `lib/`, or ship a prebuilt `lib/` in the published
+  tarball (fine for npm publish, but local `file:` links still hit the
+  `prepare` issue). A one-paragraph "consuming from another project" note in
+  the README would have saved a couple of hours.
 
 ## One-line verdict
 
