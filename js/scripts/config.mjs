@@ -1,6 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { watchBuildOptions } from "../build/preset.mjs";
+import { watchBuildOptions } from "../esbuild/preset.mjs";
 import { reactCompilerPlugin } from "./react-compiler-plugin.mjs";
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), "..");

@@ -34,8 +34,8 @@
       "default": "./src/index.ts"
     },
     "./build": {
-      "types": "./build/preset.d.mts",
-      "default": "./build/preset.mjs"
+      "types": "./esbuild/preset.d.mts",
+      "default": "./esbuild/preset.mjs"
     },
     "./testing": {
       "types": "./src/testing.ts",
@@ -46,7 +46,7 @@
   },
   "files": [
     "src",
-    "build",
+    "esbuild",
     "README.md"
   ],
   "scripts": {
