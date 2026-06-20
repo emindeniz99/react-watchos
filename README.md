@@ -203,11 +203,14 @@ Two worked examples (each its own workspace member, both verified on Linux):
 
 #### From outside the workspace
 
-The examples are workspace members, so `workspace:*` gives them one React copy
-for free. An **external** app — a different repo/folder linking the renderer
-via `file:`/`link:` — resolves the package through a symlink (realpath), so its
-tools must be told to dedupe React across that boundary. Three settings, and
-that's the whole integration:
+The package ships **source** (no build step, no `prepare` hook), so consuming
+it from outside the workspace — a different repo/folder linking it via
+`file:`/`link:`, or a registry `npm i` — works without building anything: your
+bundler compiles the `.ts` directly.
+
+A linked package resolves through a symlink (realpath), so for `file:`/`link:`
+your tools also need to dedupe React across that boundary. Three settings, and
+that's the whole integration (none needed for a registry install):
 
 ```js
 // esbuild build: resolve the renderer's `react` to YOUR copy

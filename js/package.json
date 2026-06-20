@@ -25,15 +25,14 @@
     "./src/widgets.ts",
     "./src/intents.ts"
   ],
-  "main": "./lib/index.js",
-  "types": "./lib/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
       "source": "./src/index.ts",
-      "types": "./lib/index.d.ts",
+      "types": "./src/index.ts",
       "react-native": "./src/index.ts",
-      "import": "./lib/index.js",
-      "default": "./lib/index.js"
+      "default": "./src/index.ts"
     },
     "./build": {
       "types": "./esbuild/preset.d.mts",
@@ -41,23 +40,20 @@
     },
     "./testing": {
       "source": "./src/testing.ts",
-      "types": "./lib/testing.d.ts",
+      "types": "./src/testing.ts",
       "react-native": "./src/testing.ts",
-      "import": "./lib/testing.js",
-      "default": "./lib/testing.js"
+      "default": "./src/testing.ts"
     },
     "./package.json": "./package.json"
   },
   "files": [
     "src",
-    "lib",
     "esbuild",
     "README.md"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
     "build:min": "node scripts/build.mjs --minify",
-    "build:lib": "node scripts/build-lib.mjs",
     "dev": "node scripts/dev.mjs",
     "inspector": "node scripts/inspector.mjs",
     "build:bytecode": "sh ../tools/qjs-compile/run.sh",
@@ -67,8 +63,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "format": "biome format --write",
-    "prepare": "node scripts/build-lib.mjs"
+    "format": "biome format --write"
   },
   "peerDependencies": {
     "react": "^19.2.0",
