@@ -16,15 +16,21 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     private var peripheral: CBPeripheral?
     private var serviceUUID: CBUUID?
     private var characteristics: [String: CBCharacteristic] = [:]
-    /// Commands issued before discovery completes, replayed once ready.
-    private var pendingWrites: [(String, String)] = []
-    private var pendingSubscribes: [String] = []
+    /// Characteristics the consumer asked to be notified on; re-applied on
+    /// every (re)connect so notifications resume after a drop.
+    private var desiredSubscriptions: Set<String> = []
+    /// Writes issued before discovery completes, replayed once ready.
+    private var pendingWrites: [(characteristic: String, value: String, confirm: Bool?)] = []
+    /// True only for a user-initiated disconnect, so an unexpected drop can
+    /// auto-reconnect while bleDisconnect() stays disconnected.
+    private var userInitiatedDisconnect = false
 
     private struct Op: Decodable {
         let op: String
         let service: String?
         let characteristic: String?
         let value: String?
+        let confirm: Bool?
     }
 
     /// Entry point for JS BLE ops ({ op, ... } from js/src/bluetooth.ts).
@@ -37,7 +43,9 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         case "disconnect":
             disconnect()
         case "write":
-            if let c = op.characteristic, let v = op.value { write(c, v) }
+            if let c = op.characteristic, let v = op.value {
+                write(c, v, confirm: op.confirm)
+            }
         case "subscribe":
             if let c = op.characteristic { subscribe(c) }
         default:
@@ -48,40 +56,59 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     // MARK: - Central
 
     private func connect(serviceUUID: String) {
+        userInitiatedDisconnect = false
         self.serviceUUID = CBUUID(string: serviceUUID)
-        central = CBCentralManager(delegate: self, queue: nil)
+        if central == nil {
+            // Delegate fires centralManagerDidUpdateState -> scan on power-on.
+            central = CBCentralManager(delegate: self, queue: nil)
+        } else {
+            startScan()
+        }
+    }
+
+    private func startScan() {
+        guard let central, central.state == .poweredOn, let serviceUUID
+        else { return }
+        onState?("scanning")
+        central.scanForPeripherals(withServices: [serviceUUID])
     }
 
     private func disconnect() {
+        userInitiatedDisconnect = true
         if let peripheral { central?.cancelPeripheralConnection(peripheral) }
         peripheral = nil
         characteristics = [:]
+        desiredSubscriptions = []
         onState?("disconnected")
     }
 
-    private func write(_ characteristic: String, _ value: String) {
+    private func write(_ characteristic: String, _ value: String, confirm: Bool?) {
         guard let peripheral, let ch = characteristics[characteristic] else {
-            pendingWrites.append((characteristic, value))
+            pendingWrites.append((characteristic, value, confirm))
             return
         }
-        peripheral.writeValue(Data(value.utf8), for: ch, type: .withoutResponse)
+        let type: CBCharacteristicWriteType
+        if let confirm {
+            type = confirm ? .withResponse : .withoutResponse
+        } else {
+            // Default: reliable (acknowledged) when the characteristic supports
+            // it, so a command isn't silently dropped under buffer pressure.
+            type = ch.properties.contains(.write) ? .withResponse : .withoutResponse
+        }
+        peripheral.writeValue(Data(value.utf8), for: ch, type: type)
     }
 
     private func subscribe(_ characteristic: String) {
-        guard let peripheral, let ch = characteristics[characteristic] else {
-            pendingSubscribes.append(characteristic)
-            return
+        desiredSubscriptions.insert(characteristic)
+        if let peripheral, let ch = characteristics[characteristic] {
+            peripheral.setNotifyValue(true, for: ch)
         }
-        peripheral.setNotifyValue(true, for: ch)
     }
 
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            onState?("scanning")
-            if let serviceUUID {
-                central.scanForPeripherals(withServices: [serviceUUID])
-            }
+            startScan()
         case .unauthorized:
             onState?("unauthorized")
         case .poweredOff:
@@ -112,7 +139,21 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         _ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral,
         error: Error?
     ) {
+        self.peripheral = nil
+        characteristics = [:]
         onState?("disconnected")
+        // Auto-reconnect on an unexpected drop (range/power); stay down if the
+        // consumer called bleDisconnect().
+        if !userInitiatedDisconnect { startScan() }
+    }
+
+    func centralManager(
+        _ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral,
+        error: Error?
+    ) {
+        self.peripheral = nil
+        onState?("disconnected")
+        if !userInitiatedDisconnect { startScan() }
     }
 
     // MARK: - Peripheral
@@ -130,10 +171,13 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             // CoreBluetooth uppercases short UUIDs; index both forms.
             characteristics[ch.uuid.uuidString.lowercased()] = ch
         }
-        pendingWrites.forEach { write($0.0, $0.1) }
+        // (Re)apply desired subscriptions so notifications resume after a
+        // reconnect, then flush any writes queued before discovery.
+        for c in desiredSubscriptions {
+            if let ch = characteristics[c] { peripheral.setNotifyValue(true, for: ch) }
+        }
+        pendingWrites.forEach { write($0.characteristic, $0.value, confirm: $0.confirm) }
         pendingWrites = []
-        pendingSubscribes.forEach { subscribe($0) }
-        pendingSubscribes = []
     }
 
     func peripheral(

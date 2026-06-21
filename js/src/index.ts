@@ -5,7 +5,7 @@ import { WatchRoot } from "./renderer";
 
 export type { GenerateOptions } from "./ai";
 export { generateText } from "./ai";
-export type { BleState } from "./bluetooth";
+export type { BleState, BleWriteOptions } from "./bluetooth";
 export {
   BLE_NOTIFY_EVENT,
   BLE_STATE_EVENT,

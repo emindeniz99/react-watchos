@@ -11,6 +11,11 @@ import {
  * through __host.ble (an op channel); connection state and characteristic
  * notifications arrive on the native-event push channel (commit instantly
  * via runSync). All values are strings (UTF-8 or base64, per your service).
+ *
+ * The bridge auto-reconnects: an unexpected drop (range/power) re-scans and,
+ * once reconnected, re-subscribes to the same characteristics — you'll see
+ * `disconnected` -> `scanning` -> `connected` on `onBleState`. Calling
+ * `bleDisconnect()` stays disconnected (no auto-reconnect).
  */
 export const BLE_STATE_EVENT = "ble.state";
 export const BLE_NOTIFY_EVENT = "ble.notify";
@@ -31,9 +36,33 @@ export function bleDisconnect(): void {
   ble("disconnect");
 }
 
-/** Write a value to a characteristic (a command like play/pause/seek). */
-export function bleWrite(characteristicUUID: string, value: string): void {
-  ble("write", { characteristic: characteristicUUID, value });
+/** Options for {@link bleWrite}. */
+export interface BleWriteOptions {
+  /**
+   * Reliable write (CoreBluetooth `.withResponse`): the peripheral acks
+   * delivery, so the command can't be silently dropped under buffer pressure —
+   * at a small latency cost. Omit to let the bridge default to reliable when
+   * the characteristic supports it, else a fast unacknowledged write.
+   */
+  confirm?: boolean;
+}
+
+/**
+ * Write a value to a characteristic (a command like play/pause/seek). By
+ * default the bridge writes reliably (`.withResponse`) when the characteristic
+ * supports it; pass `{ confirm: false }` for a fast fire-and-forget write, or
+ * `{ confirm: true }` to force an acknowledged one.
+ */
+export function bleWrite(
+  characteristicUUID: string,
+  value: string,
+  options?: BleWriteOptions,
+): void {
+  ble("write", {
+    characteristic: characteristicUUID,
+    value,
+    ...(options?.confirm !== undefined ? { confirm: options.confirm } : {}),
+  });
 }
 
 /** Subscribe to notifications from a characteristic (position, title, …). */
