@@ -17,10 +17,10 @@ the single copy (two copies silently break hooks/context):
 npm i react-native-watchos react react-reconciler
 ```
 
-The package ships compiled `lib/` (ESM + `.d.ts`) for `types`/`import`/`default`
-so it works in any runtime; bundlers get raw `src` via the `source` /
-`react-native` exports conditions (the build preset prefers `source`, so the
-renderer is bundled as tree-shakeable source).
+The package ships **source** (`exports` point at `src/*.ts`): it's bundle-only —
+you always compile it into a QuickJS watch bundle with the
+[`/build` preset](#subpath-exports), so there's no build step to run on install.
+Any bundler (esbuild/Metro/vite) transpiles the TypeScript directly.
 
 ## Use
 
