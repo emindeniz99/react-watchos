@@ -192,9 +192,13 @@ const reconciler = Reconciler(hostConfig as never) as unknown as {
 
 // Register with React DevTools if a backend hook is present (e.g.
 // react-devtools-core connected over the dev server). Inert otherwise.
+// QuickJS has no `process`; the build preset defines process.env.NODE_ENV, but
+// guard so a consumer who bundles without it still works (defaults production).
+const __devBuild =
+  typeof process !== "undefined" && process.env.NODE_ENV !== "production";
 try {
   reconciler.injectIntoDevTools({
-    bundleType: process.env.NODE_ENV === "production" ? 0 : 1,
+    bundleType: __devBuild ? 1 : 0,
     version: "19.2.0",
     rendererPackageName: "react-native-watchos",
     findFiberByHostInstance: () => null,

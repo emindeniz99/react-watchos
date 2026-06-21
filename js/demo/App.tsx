@@ -3,6 +3,7 @@ import {
   applyUpdate,
   Button,
   bleConnect,
+  bleDisconnect,
   bleSubscribe,
   bleWrite,
   CrownRotation,
@@ -57,11 +58,13 @@ function StopwatchScreen() {
   const [phase, setPhase] = useState("active");
   const running = startedAt !== null;
 
-  useEffect(() => {
-    registerNativeListener("scenePhase", (p) =>
-      setPhase(String(p?.phase ?? "active")),
-    );
-  }, []);
+  useEffect(
+    () =>
+      registerNativeListener("scenePhase", (p) =>
+        setPhase(String(p?.phase ?? "active")),
+      ),
+    [],
+  );
 
   return (
     <VStack spacing={6}>
@@ -259,12 +262,17 @@ function MovieRemoteScreen() {
   const [title, setTitle] = useState("—");
   const [volume, setVolume] = useState(50);
   useEffect(() => {
-    onBleState((p) => setState(String(p?.state ?? "")));
-    onBleNotify((p) => {
+    const offState = onBleState((p) => setState(String(p?.state ?? "")));
+    const offNotify = onBleNotify((p) => {
       if (p?.characteristic === "title") setTitle(String(p.value));
     });
     bleConnect("4D4F-5649-4500"); // the laptop remote's service UUID
     bleSubscribe("title");
+    return () => {
+      offState();
+      offNotify();
+      bleDisconnect();
+    };
   }, []);
   return (
     <VStack spacing={4}>
@@ -339,9 +347,7 @@ function UpdatesScreen() {
 /** Phone <-> watch: shows the last phone message, pings the phone. */
 function ConnectivityScreen() {
   const [last, setLast] = useState("none yet");
-  useEffect(() => {
-    onPhoneMessage((p) => setLast(JSON.stringify(p)));
-  }, []);
+  useEffect(() => onPhoneMessage((p) => setLast(JSON.stringify(p))), []);
   return (
     <VStack spacing={6}>
       <Text bold>From phone:</Text>

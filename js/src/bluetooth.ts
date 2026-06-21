@@ -2,6 +2,7 @@ import { getHost } from "./host";
 import {
   type NativeEventHandler,
   registerNativeListener,
+  type Unsubscribe,
 } from "./nativeEvents";
 
 /**
@@ -70,12 +71,15 @@ export function bleSubscribe(characteristicUUID: string): void {
   ble("subscribe", { characteristic: characteristicUUID });
 }
 
-/** Connection-state changes: handler gets `{ state }`. */
-export function onBleState(handler: NativeEventHandler): void {
-  registerNativeListener(BLE_STATE_EVENT, handler);
+/** Connection-state changes: handler gets `{ state }`. Returns an unsubscribe. */
+export function onBleState(handler: NativeEventHandler): Unsubscribe {
+  return registerNativeListener(BLE_STATE_EVENT, handler);
 }
 
-/** Characteristic notifications: handler gets `{ characteristic, value }`. */
-export function onBleNotify(handler: NativeEventHandler): void {
-  registerNativeListener(BLE_NOTIFY_EVENT, handler);
+/**
+ * Characteristic notifications: handler gets `{ characteristic, value }`.
+ * Returns an unsubscribe.
+ */
+export function onBleNotify(handler: NativeEventHandler): Unsubscribe {
+  return registerNativeListener(BLE_NOTIFY_EVENT, handler);
 }

@@ -2,6 +2,7 @@ import { getHost } from "./host";
 import {
   type NativeEventHandler,
   registerNativeListener,
+  type Unsubscribe,
 } from "./nativeEvents";
 
 /**
@@ -17,7 +18,7 @@ export function sendToPhone(message: Record<string, unknown>): void {
   getHost()?.sendToPhone?.(JSON.stringify(message));
 }
 
-/** Registers a handler for messages pushed from the iPhone. */
-export function onPhoneMessage(handler: NativeEventHandler): void {
-  registerNativeListener(PHONE_MESSAGE_EVENT, handler);
+/** Registers a handler for messages pushed from the iPhone. Returns an unsubscribe. */
+export function onPhoneMessage(handler: NativeEventHandler): Unsubscribe {
+  return registerNativeListener(PHONE_MESSAGE_EVENT, handler);
 }

@@ -12,9 +12,7 @@ import {
 // phone sends arrive via onPhoneMessage; the button replies with sendToPhone.
 export function App() {
   const [fromPhone, setFromPhone] = useState("waiting for phone…");
-  useEffect(() => {
-    onPhoneMessage((m) => setFromPhone(JSON.stringify(m)));
-  }, []);
+  useEffect(() => onPhoneMessage((m) => setFromPhone(JSON.stringify(m))), []);
   return (
     <VStack spacing={6}>
       <Text bold size={16}>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  dispatchNativeEvent,
   MemoryHost,
   registerNativeListener,
   runApp,
@@ -49,5 +50,36 @@ describe("native event push (runSync)", () => {
     const push = (globalThis as { __pushNativeEvent?: PushFn })
       .__pushNativeEvent!;
     expect(push("unknown")).toBe(false);
+  });
+});
+
+describe("native event listeners", () => {
+  it("fans out to every handler on the same event", () => {
+    const a = vi.fn();
+    const b = vi.fn();
+    registerNativeListener("x", a);
+    registerNativeListener("x", b);
+
+    expect(dispatchNativeEvent("x", { v: 1 })).toBe(true);
+    expect(a).toHaveBeenCalledWith({ v: 1 });
+    expect(b).toHaveBeenCalledWith({ v: 1 });
+  });
+
+  it("unsubscribe removes only its own handler", () => {
+    const a = vi.fn();
+    const b = vi.fn();
+    const offA = registerNativeListener("x", a);
+    registerNativeListener("x", b);
+
+    offA();
+    expect(dispatchNativeEvent("x")).toBe(true); // b still listening
+    expect(a).not.toHaveBeenCalled();
+    expect(b).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns false once the last handler unsubscribes", () => {
+    const off = registerNativeListener("x", vi.fn());
+    off();
+    expect(dispatchNativeEvent("x")).toBe(false);
   });
 });

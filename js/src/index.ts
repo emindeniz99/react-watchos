@@ -95,7 +95,7 @@ export {
   registerIntent,
   unregisterAllIntents,
 } from "./intents";
-export type { NativeEventHandler } from "./nativeEvents";
+export type { NativeEventHandler, Unsubscribe } from "./nativeEvents";
 export {
   dispatchNativeEvent,
   registerNativeListener,
