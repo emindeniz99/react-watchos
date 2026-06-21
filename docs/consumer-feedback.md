@@ -18,24 +18,21 @@ hand-mapped react types) is gone, and `resolve.dedupe` in vitest is the only
 extra setting. 20 tests + tsc + lint + bundle green. Big improvement — and the
 `./build` fix + committed `lib/` from the last round both landed, thank you.
 
-One thing worth documenting, learned the hard way:
+One thing worth documenting, learned the hard way — **now resolved ✅**:
 
-- **Local consumption is pnpm-workspace-only; npm `file:`/`link:` does not
-  work.** I first tried `"react-native-watchos": "file:../../react-native-watchos/js"`
-  with npm. Two blockers: (a) the `.`/`default` export points at the compiled
-  `lib/`, which is built on `prepare` and isn't committed, so a non-workspace
-  consumer has no `lib/`; and (b) npm runs the linked package's `prepare`
-  (`build-lib`) during install **even with `ignore-scripts=true`**, and it fails
-  because the renderer's own dev deps (esbuild, tsc) aren't installed in a
-  bare `file:` link. Only a **workspace install** provides those dev deps and
-  builds `lib/`. So the supported story is "be a pnpm workspace member"; the
-  examples show it but don't say it's the *only* path. Either document that
-  explicitly, or (nicer) make the package consumable without a build step —
-  e.g. default the `.` export to `source` (raw `src`) so `file:`/registry
-  consumers work without `lib/`, or ship a prebuilt `lib/` in the published
-  tarball (fine for npm publish, but local `file:` links still hit the
-  `prepare` issue). A one-paragraph "consuming from another project" note in
-  the README would have saved a couple of hours.
+- **Local consumption used to be pnpm-workspace-only.** Originally the `.`
+  export pointed at a compiled `lib/` built on `prepare` (uncommitted), and npm
+  ran the linked package's `prepare` on install (failing without the renderer's
+  dev deps) — so an npm `file:`/`link:` consumer couldn't work, only a workspace
+  member. **The renderer now ships source (build-free): `.` resolves to
+  `src/index.ts` for every condition, and the `prepare`/`build-lib`/`lib/` are
+  gone.** So external consumers no longer hit the prepare-or-missing-`lib/`
+  trap. Thank you — that was the last real gap.
+
+  (ctrl-a-remote consumes via a small pnpm workspace, which stays clean: zero
+  per-tool glue. A plain npm `file:` consumer now also works build-free, needing
+  only the usual single-React settings — esbuild `nodePaths`, vitest
+  `resolve.dedupe`, tsc `preserveSymlinks` — for an out-of-workspace link.)
 
 ## One-line verdict
 
