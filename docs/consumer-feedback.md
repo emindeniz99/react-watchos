@@ -6,6 +6,31 @@ on this engine + a BLE link to a desktop companion. This doc is the friction and
 the wins from actually consuming the renderer, with concrete asks. Priorities:
 **P0** = blocks/penalizes every consumer, **P1** = real papercut, **P2** = nice.
 
+## New findings — the BLE bridge (from a deeper read of `BluetoothBridge.swift`)
+
+Two reliability gaps in the otherwise-great BLE central, worth a look:
+
+1. **Writes are `.withoutResponse` only.** `write(...)` always uses
+   `type: .withoutResponse` (an ATT Write Command): no flow control and no
+   delivery guarantee, so under buffer pressure a write can be dropped silently.
+   For a *remote* that's user-visible — a missed "Next" means a stuck slide. For
+   low-frequency taps it'll usually be fine, but consider either using
+   `.withResponse` (reliable, and unambiguously delivered to the peripheral's
+   `didReceiveWrite`) or exposing the write type as a `bleWrite` option so the
+   consumer can choose reliability vs. latency. (We picked one-byte opcodes so a
+   resend is cheap, but the JS API can't request a confirmed write today.)
+
+2. **No auto-reconnect after a drop.** `didDisconnectPeripheral` pushes
+   `ble.state = "disconnected"` but doesn't re-`scanForPeripherals` — scanning
+   only starts in `centralManagerDidUpdateState` (power-on). So once the watch
+   and Mac drift out of range and back, the link stays down until Bluetooth
+   cycles or the app restarts. A re-scan on disconnect (and on connect failure)
+   would make the remote "just reconnect," which is what users expect.
+
+Neither blocks us (Ctrl-A works on a fresh connect), but both will bite any
+real-world remote/sensor app. Also: thanks for adding `A11yProps` — Ctrl-A now
+labels its icon-only Prev/Next buttons with `accessibilityLabel`.
+
 ## Update — packaging shipped, ctrl-a-remote migrated onto it ✅
 
 The P0 packaging landed (`exports` with `.` / `./build` / `./testing`,
