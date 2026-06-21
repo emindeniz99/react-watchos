@@ -320,13 +320,16 @@ embedding, ~200 fewer lines, no duplicated host); and `ReactWatchConfig`'s
 **Shrinking the macOS-unverified surface.** Pure logic that used to ride along
 inside the SwiftUI host (only compilable on a Mac) is being pulled into a
 Foundation-only `ReactWatchSupport` target that builds and `swift test`s on
-Linux: `OptimisticStore` (optimistic-control bookkeeping + seq-ack), and
-`NotificationPlan` (the `at`/`afterMs` trigger math + past-time clamp), each
-unit-tested. The host is now a thinner SwiftUI shell over tested logic. Doing
-this also forced the codegen'd wire models to be `Sendable` (they cross the
-decode queue → main thread) — a real concurrency-correctness fix the Linux
-build caught. Continue extracting the remaining pure host logic (fetch
-request/response assembly, the haptic map is WatchKit-bound and can't move).
+Linux: `OptimisticStore` (optimistic-control bookkeeping + seq-ack),
+`NotificationPlan` (the `at`/`afterMs` trigger math + past-time clamp), and
+`FetchPlan`/`FetchResponse` (request → `URLRequest` parsing + the
+status/statusText/headers response shape), each unit-tested. The host is now a
+thin SwiftUI shell over tested logic — fetch is just URLSession orchestration,
+the haptic map is WatchKit-bound and can't move. Making this logic
+Linux-buildable keeps catching real bugs: the wire models needed `Sendable`
+(they cross the decode queue → main thread), and `URL(string:"")` is non-nil on
+Linux (nil on Apple), so `FetchPlan` now requires an absolute URL with a scheme
+instead of trusting `URL(string:)`.
 
 **Distribution: source, not a compiled build (deliberate).** A compiled `lib/`
 + `prepare` step was tried and reverted: it broke non-workspace local consumers

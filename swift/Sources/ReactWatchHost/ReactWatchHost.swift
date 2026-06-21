@@ -306,27 +306,15 @@ final class ReactWatchModel: ObservableObject {
         runtime?.pushNativeEvent(name, payload: payload)
     }
 
-    private struct FetchRequest: Decodable {
-        let url: String
-        let method: String
-        let headers: [String: String]?
-        let body: String?
-    }
-
     /// Runs a JS fetch over URLSession; settles the Promise back on main.
+    /// Request parsing + response assembly are ReactWatchSupport (FetchPlan /
+    /// FetchResponse), tested on Linux; the host only orchestrates URLSession.
     private func performFetch(id: Int, requestJson: String) {
-        guard let req = try? JSONDecoder().decode(
-            FetchRequest.self, from: Data(requestJson.utf8)),
-            let url = URL(string: req.url) else {
+        guard let plan = FetchPlan(json: requestJson) else {
             runtime?.rejectFetch(id: id, message: "invalid fetch request")
             return
         }
-        var request = URLRequest(url: url)
-        request.httpMethod = req.method
-        req.headers?.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
-        if let body = req.body { request.httpBody = Data(body.utf8) }
-
-        let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+        let task = URLSession.shared.dataTask(with: plan.request) { [weak self] data, response, error in
             DispatchQueue.main.async {
                 guard let self else { return }
                 self.fetchTasks[id] = nil
@@ -338,21 +326,15 @@ final class ReactWatchModel: ObservableObject {
                     return
                 }
                 let http = response as? HTTPURLResponse
-                let status = http?.statusCode ?? 0
-                let bodyStr = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
                 var headers: [String: String] = [:]
                 http?.allHeaderFields.forEach { key, value in
                     headers["\(key)".lowercased()] = "\(value)"
                 }
-                let payload: [String: Any] = [
-                    "status": status,
-                    "statusText": HTTPURLResponse.localizedString(forStatusCode: status),
-                    "url": http?.url?.absoluteString ?? req.url,
-                    "body": bodyStr,
-                    "headers": headers,
-                ]
-                let json = (try? JSONSerialization.data(withJSONObject: payload))
-                    .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+                let json = FetchResponse.json(
+                    status: http?.statusCode ?? 0,
+                    url: http?.url?.absoluteString ?? plan.url,
+                    body: data.flatMap { String(data: $0, encoding: .utf8) } ?? "",
+                    headers: headers)
                 self.runtime?.resolveFetch(id: id, responseJson: json)
             }
         }
