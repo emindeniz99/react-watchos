@@ -284,7 +284,8 @@ complications, add the Hydration complication to a watch face (or the
 widget to the Smart Stack), then tap "Add glass" in the app — the gauge
 updates via `publishWidgets()`.
 
-**Expected first-build friction (untested on a real Mac — Rule 12):**
+**First-build friction (verified on the watchOS simulator; physical-device
+signing still untested — Rule 12):**
 
 - The watch target depends on the local `swift/` SwiftPM package. The
   `with-react-watch-package.js` config plugin writes the SwiftPM references
@@ -315,10 +316,12 @@ updates via `publishWidgets()`.
   highest one processed (`tree.seq`, with a guaranteed ack commit even
   when React doesn't re-render), so rapid interactions can't snap back
   to stale values.
-- **The Swift side has never been compiled** — this repo was built in a
-  Linux environment without Xcode. The JS↔engine contract is pinned by
-  tests (vitest + real `qjs` + the C reference host), but expect minor
-  Xcode-side fixes.
+- **Physical-device path unverified.** The Swift side compiles and runs on
+  the **watchOS simulator** (Xcode build succeeds, the app renders, and the
+  package tests pass on the watch arch via `xcodebuild test`), and the
+  JS↔engine contract is pinned by tests (vitest + real `qjs` + the C
+  reference host). What's still unexercised is a real watch + code signing
+  (App Groups, `WKRunsIndependentlyOfCompanionApp` on hardware).
 - Interpreter speed (no JIT — Apple forbids it anyway). Fine for UI-sized
   work; don't mine bitcoin in `useEffect`.
 - Full-tree commits: ideal for watch-sized screens; large lists would want
