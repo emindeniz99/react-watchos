@@ -5,10 +5,12 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "prebuild": "expo prebuild -p ios --clean"
+    "prebuild": "expo prebuild -p ios --clean && node scripts/link-swift-package.cjs",
+    "link-swift-package": "node scripts/link-swift-package.cjs"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
+    "@expo/config-plugins": "~56.0.9",
     "expo": "~56.0.11",
     "react": "19.2.3",
     "react-native": "0.85.3",
