@@ -31,7 +31,11 @@ final class IntentRuntime {
         self.js = js
         // The intent entrypoint must not mount UI; ignore any commit.
         js.onCommit = { _ in }
-        js.onPublishWidgets = { [store] json in store.save(json) }
+        js.onPublishWidgets = { [store] json in
+            store.save(json)
+            IntentRuntime.invalidateCache()
+            WidgetCenter.shared.reloadAllTimelines()
+        }
         js.onGetItem = { [store] key in store.getItem(key) }
         js.onSetItem = { [store] key, value in store.setItem(key, value) }
         do {

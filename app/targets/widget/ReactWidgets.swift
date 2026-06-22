@@ -31,7 +31,9 @@ struct ReactTimelineProvider: TimelineProvider {
         // Prefer a fresh React render (runs in this process via QuickJS,
         // ~6MB measured, well under the widget budget); fall back to the
         // payload the app last published.
-        let payload = IntentRuntime.renderFreshTimelines() ?? WidgetStore.load()
+        let stored = WidgetStore.load()
+        let fresh = IntentRuntime.renderFreshTimelines()
+        let payload = newestPayload(stored, fresh)
         guard let timeline = payload?.widgets[kind]?[familyKey(context.family)],
               !timeline.entries.isEmpty else {
             completion(Timeline(entries: [placeholder(in: context)], policy: .atEnd))
@@ -68,6 +70,15 @@ struct ReactTimelineProvider: TimelineProvider {
     private func latestEntry(for context: Context) -> ReactEntry? {
         WidgetStore.load()?.widgets[kind]?[familyKey(context.family)]?
             .entries.last.map { entry(from: $0) }
+    }
+
+    private func newestPayload(
+        _ first: PublishedWidgets?,
+        _ second: PublishedWidgets?
+    ) -> PublishedWidgets? {
+        guard let first else { return second }
+        guard let second else { return first }
+        return second.publishedAt >= first.publishedAt ? second : first
     }
 
     private func familyKey(_ family: WidgetFamily) -> String {
