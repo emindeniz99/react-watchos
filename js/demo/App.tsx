@@ -266,7 +266,10 @@ function MovieRemoteScreen() {
     const offNotify = onBleNotify((p) => {
       if (p?.characteristic === "title") setTitle(String(p.value));
     });
-    bleConnect("4D4F-5649-4500"); // the laptop remote's service UUID
+    // The laptop remote's service UUID — must be a valid 128-bit UUID that
+    // matches the peripheral's advertised service (the bridge ignores
+    // malformed UUIDs). "4D4F5649-4500" spells MOVIE; the tail spells "remote".
+    bleConnect("4D4F5649-4500-4000-8000-72656D6F7465");
     bleSubscribe("title");
     return () => {
       offState();
