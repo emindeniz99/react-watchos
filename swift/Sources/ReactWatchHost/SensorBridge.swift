@@ -135,7 +135,10 @@ extension SensorBridge: HKLiveWorkoutBuilderDelegate {
               let bpm = stats.mostRecentQuantity()?
                   .doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
         else { return }
-        DispatchQueue.main.async { self.onReading?("heartRate", ["bpm": bpm]) }
+        // Workout-builder callbacks arrive off the main queue; hop to main
+        // without sending `self` (Swift 6 strict concurrency).
+        nonisolated(unsafe) let handler = onReading
+        DispatchQueue.main.async { handler?("heartRate", ["bpm": bpm]) }
     }
 
     func workoutBuilderDidCollectEvent(_ builder: HKLiveWorkoutBuilder) {}

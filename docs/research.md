@@ -173,9 +173,10 @@ the door open to re-adding a phone link later for data sync.
 
 - watchOS app memory budget (~80MB foreground) comfortably fits QuickJS
   (~1–2MB) plus a React bundle (~100–300KB minified).
-- This repo's development environment is Linux without Xcode: the JS side
-  is fully tested here (vitest + real `qjs`); the Swift side is
-  best-effort until built on a Mac with Xcode 16+.
+- This repo was developed on Linux without Xcode (JS fully tested here via
+  vitest + real `qjs`); the Swift side has since been compiled and run on
+  the watchOS simulator on a Mac (Xcode build + `xcodebuild test` pass),
+  with a real watch + code signing the remaining unverified step.
 
 ## Update model: latency vs frequency
 

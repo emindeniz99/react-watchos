@@ -36,8 +36,12 @@ export function setTorch(on: boolean): void {
   );
 }
 
-export function onTorchState(cb: (on: boolean) => void): void {
-  registerNativeListener("torch", (p) => cb(Boolean((p as { on?: boolean })?.on)));
+// registerNativeListener returns an unsubscribe — pass it through so callers
+// can clean up in a React effect (`useEffect(() => onTorchState(setOn), [])`).
+export function onTorchState(cb: (on: boolean) => void) {
+  return registerNativeListener("torch", (p) =>
+    cb(Boolean((p as { on?: boolean })?.on)),
+  );
 }
 ```
 

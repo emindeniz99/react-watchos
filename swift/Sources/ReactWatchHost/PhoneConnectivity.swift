@@ -32,7 +32,14 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
     }
 
     private func deliver(_ message: [String: Any]) {
-        DispatchQueue.main.async { self.onMessage?(message) }
+        // WCSession delegate callbacks arrive off the main queue; hop to main
+        // for onMessage. The payload is plain JSON and the handler runs only on
+        // main, so transferring them is safe — under Swift 6 strict concurrency
+        // nonisolated(unsafe) is needed to capture these non-Sendable values
+        // into the @Sendable closure without sending `self`.
+        nonisolated(unsafe) let handler = onMessage
+        nonisolated(unsafe) let payload = message
+        DispatchQueue.main.async { handler?(payload) }
     }
 
     func session(

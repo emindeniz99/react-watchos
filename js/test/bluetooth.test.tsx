@@ -62,6 +62,20 @@ describe("BLE bridge", () => {
     ]);
   });
 
+  it("forwards the reliable-write option only when set", () => {
+    const host = installMockHost();
+    bleWrite("next", "1"); // default: bridge decides
+    bleWrite("next", "1", { confirm: true }); // reliable (.withResponse)
+    bleWrite("next", "1", { confirm: false }); // fast (.withoutResponse)
+
+    const ops = host.ble.mock.calls.map((c) => JSON.parse(c[0]));
+    expect(ops).toEqual([
+      { op: "write", characteristic: "next", value: "1" },
+      { op: "write", characteristic: "next", value: "1", confirm: true },
+      { op: "write", characteristic: "next", value: "1", confirm: false },
+    ]);
+  });
+
   it("is a no-op without a BLE-capable host", () => {
     expect(() => bleConnect("X")).not.toThrow();
   });

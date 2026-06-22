@@ -11,14 +11,24 @@ depends on this package instead of copying the host into their app.
 |---|---|---|
 | `CQuickJS` | quickjs-ng v0.10.1 as a Clang module (`import CQuickJS`) | ✅ |
 | `ReactWatchCore` | the codegen'd wire models (`RNNode`, `RNTree`, `RNWire`, `JSONValue`, `Published*`) — Foundation only, `Sendable` | ✅ |
-| `ReactWatchSupport` | Foundation-only platform logic: `SharedWidgetStore`, `OptimisticStore`, `NotificationPlan` (extracted from the host so it's unit-tested) | ✅ |
+| `ReactWatchSupport` | Foundation-only platform logic: `SharedWidgetStore`, `OptimisticStore`, `NotificationPlan`, `FetchPlan`/`FetchResponse` (extracted from the host so it's unit-tested) | ✅ |
 | `ReactWatchRuntime` | the QuickJS embedding (`JSRuntime`) — Foundation + `CQuickJS` | ✅ |
 | `ReactWatchHost` | the SwiftUI interpreter, native bridges, and `public ReactWatchRootView(appGroupId:)` | ❌ (Xcode) |
 
 Everything except `ReactWatchHost` is Foundation/C only, so CI `swift build`s the
-package and `swift test` runs the wire-contract + support-logic tests on Linux.
-`ReactWatchHost` pulls in SwiftUI / WatchKit / CoreBluetooth / HealthKit, so it's
-the macOS gate (and the manifest drops it on a non-Apple build host).
+package and `swift test` runs the wire-contract + support-logic + QuickJS-engine
+tests on Linux. `ReactWatchHost` pulls in SwiftUI / WatchKit / CoreBluetooth /
+HealthKit, so it's the macOS gate (and the manifest drops it on a non-Apple build
+host).
+
+`swift test` only runs on the host; to run the same tests **inside the watchOS
+simulator** (proving the engine + wire models on the real watch architecture),
+use xcodebuild — this is what the on-demand macOS workflow does:
+
+```bash
+xcodebuild test -scheme ReactWatchHost-Package \
+  -destination 'platform=watchOS Simulator,name=Apple Watch Series 11 (46mm)'
+```
 
 ## Use it
 

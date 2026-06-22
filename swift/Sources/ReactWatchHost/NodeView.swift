@@ -8,6 +8,9 @@ import UIKit
 struct NodeView: View {
     let node: RNNode
     @EnvironmentObject private var model: ReactWatchModel
+    /// Min height for the wheel Picker, scaled with the user's text size so a
+    /// large Dynamic Type setting doesn't re-clip the selected row.
+    @ScaledMetric private var pickerMinHeight: CGFloat = 90
 
     var body: some View {
         rendered
@@ -72,6 +75,10 @@ struct NodeView: View {
                     Text(options[index]).tag(index)
                 }
             }
+            // watchOS renders a default Picker as a wheel; inside a VStack it
+            // collapses to a single clipped row. Give it room so the selected
+            // value (and its neighbors) read fully.
+            .frame(minHeight: pickerMinHeight)
         case "TabView":
             TabView { childViews }
         case "CrownRotation":

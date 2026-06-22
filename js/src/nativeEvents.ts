@@ -8,26 +8,51 @@
 
 export type NativeEventHandler = (payload?: Record<string, unknown>) => void;
 
-const listeners = new Map<string, NativeEventHandler>();
+/** A function that removes the listener it was returned for. */
+export type Unsubscribe = () => void;
 
+const listeners = new Map<string, Set<NativeEventHandler>>();
+
+/**
+ * Subscribes `handler` to native event `name`. Multiple handlers per event are
+ * supported — each fires. Returns an unsubscribe function; use it as a React
+ * effect's cleanup so unmounting a screen drops its listener (and doesn't
+ * accumulate stale ones on remount):
+ *
+ * ```ts
+ * useEffect(() => registerNativeListener("ble.state", onState), []);
+ * ```
+ */
 export function registerNativeListener(
   name: string,
   handler: NativeEventHandler,
-): void {
-  listeners.set(name, handler);
+): Unsubscribe {
+  let set = listeners.get(name);
+  if (!set) {
+    set = new Set();
+    listeners.set(name, set);
+  }
+  set.add(handler);
+  return () => {
+    const current = listeners.get(name);
+    current?.delete(handler);
+    if (current && current.size === 0) listeners.delete(name);
+  };
 }
 
 export function unregisterAllNativeListeners(): void {
   listeners.clear();
 }
 
-/** Invokes the listener for `name`; returns false if none is registered. */
+/** Invokes every listener for `name`; returns false if none is registered. */
 export function dispatchNativeEvent(
   name: string,
   payload?: Record<string, unknown>,
 ): boolean {
-  const handler = listeners.get(name);
-  if (!handler) return false;
-  handler(payload);
+  const set = listeners.get(name);
+  if (!set || set.size === 0) return false;
+  // Snapshot: a handler that (un)subscribes during dispatch mustn't disturb
+  // this iteration.
+  for (const handler of [...set]) handler(payload);
   return true;
 }

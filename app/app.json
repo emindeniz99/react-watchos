@@ -13,7 +13,7 @@
       [
         "@bacons/apple-targets",
         {
-          "appleTeamId": "REPLACE_WITH_YOUR_TEAM_ID"
+          "appleTeamId": "D68Q862K33"
         }
       ],
       "./plugins/with-react-watch-package.js"
