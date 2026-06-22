@@ -57,13 +57,33 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
 
     private func connect(serviceUUID: String) {
         userInitiatedDisconnect = false
-        self.serviceUUID = CBUUID(string: serviceUUID)
+        // CBUUID(string:) raises an uncaught NSException on a malformed UUID,
+        // which would crash the whole app from untrusted JS input — validate
+        // the format first and ignore a bad value instead.
+        guard let uuid = Self.makeCBUUID(serviceUUID) else { return }
+        self.serviceUUID = uuid
         if central == nil {
             // Delegate fires centralManagerDidUpdateState -> scan on power-on.
             central = CBCentralManager(delegate: self, queue: nil)
         } else {
             startScan()
         }
+    }
+
+    /// A CBUUID for `string` if it's a form CBUUID accepts — a 16-bit (4 hex)
+    /// or 32-bit (8 hex) short UUID, or a full 128-bit UUID in canonical
+    /// 8-4-4-4-12 dashed form. Returns nil for anything else so CBUUID's
+    /// exception-raising initializer is never handed an invalid string.
+    private static func makeCBUUID(_ string: String) -> CBUUID? {
+        let hex = string.replacingOccurrences(of: "-", with: "")
+        guard !hex.isEmpty, hex.allSatisfy(\.isHexDigit) else { return nil }
+        if string == hex, hex.count == 4 || hex.count == 8 {
+            return CBUUID(string: string)
+        }
+        if hex.count == 32, string.count == 36 {
+            return CBUUID(string: string)
+        }
+        return nil
     }
 
     private func startScan() {
