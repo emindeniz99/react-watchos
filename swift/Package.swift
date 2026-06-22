@@ -38,10 +38,11 @@ var targets: [Target] = [
     .target(name: "ReactWatchSupport", dependencies: ["ReactWatchCore"]),
     .target(name: "ReactWatchRuntime", dependencies: ["CQuickJS"]),
     // `swift test`: decode real serializer fixtures with the codegen'd models,
-    // and unit-test the support logic. Runs on Linux.
+    // unit-test the support logic, and smoke the QuickJS embedding. Runs on
+    // Linux (swift test) and on the watchOS simulator (xcodebuild test).
     .testTarget(
         name: "ReactWatchTests",
-        dependencies: ["ReactWatchCore", "ReactWatchSupport"],
+        dependencies: ["ReactWatchCore", "ReactWatchSupport", "ReactWatchRuntime"],
         resources: [.copy("Fixtures")]
     ),
 ]
