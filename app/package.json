@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "prebuild": "expo prebuild -p ios --clean && node scripts/link-swift-package.cjs",
+    "prebuild": "pnpm --filter react-native-watchos build && expo prebuild -p ios --clean && node scripts/link-swift-package.cjs",
     "link-swift-package": "node scripts/link-swift-package.cjs"
   },
   "dependencies": {

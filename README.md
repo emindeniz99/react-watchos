@@ -173,6 +173,12 @@ pnpm --filter react-native-watchos build:bytecode  # precompile bundle.qbc
 pnpm --filter react-native-watchos dev        # live reload on 127.0.0.1:8788
 ```
 
+> The generated `app/targets/*/assets/bundle.js` is **not** committed (it's
+> gitignored). `pnpm --filter ... build` regenerates it, and `app`'s `prebuild`
+> script runs that build first, so `pnpm prebuild` (and CI) always produce a
+> fresh bundle before the Xcode build. Run `build` once before opening the
+> Xcode project directly.
+
 ### Consuming it in your own app
 
 The renderer is a real package: `exports` (main, `/build`, `/testing`),
