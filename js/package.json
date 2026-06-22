@@ -1,7 +1,6 @@
 {
   "name": "react-native-watchos",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Custom React renderer: JSX to a serialized SwiftUI tree, runnable in QuickJS on Apple Watch",
   "keywords": [

@@ -1,6 +1,6 @@
 # pnpm workspace for the react-native-watchos project (NOT the whole repo —
 # the other projects/ are unrelated). Members:
-#   js            the renderer (the published package `react-native-watchos`)
+#   js            the renderer package (`react-native-watchos`)
 #   examples/*    consumer apps that depend on it via `workspace:*`
 #   app           the reference Expo iPhone app + watch target (native host)
 #
