@@ -81,7 +81,7 @@ export interface ToggleProps extends A11yProps {
   label?: string;
 }
 
-export type SpacerProps = Record<string, never>;
+export interface SpacerProps extends A11yProps {}
 
 export interface ImageProps extends A11yProps {
   /** SF Symbol name — vector icons (tiny, themeable). */
@@ -94,19 +94,19 @@ export interface ImageProps extends A11yProps {
   size?: number;
 }
 
-export interface ZStackProps {
+export interface ZStackProps extends A11yProps {
   children?: ReactNode;
 }
 
-export interface ScrollViewProps {
+export interface ScrollViewProps extends A11yProps {
   children?: ReactNode;
 }
 
-export interface ListProps {
+export interface ListProps extends A11yProps {
   children?: ReactNode;
 }
 
-export type DividerProps = Record<string, never>;
+export interface DividerProps extends A11yProps {}
 
 export interface GaugeProps extends A11yProps {
   value: number;
@@ -125,12 +125,12 @@ export interface ProgressViewProps extends A11yProps {
   label?: string;
 }
 
-export interface NavigationStackProps {
+export interface NavigationStackProps extends A11yProps {
   title?: string;
   children?: ReactNode;
 }
 
-export interface NavigationLinkProps {
+export interface NavigationLinkProps extends A11yProps {
   /** Link label; children are the destination screen. */
   title: string;
   children?: ReactNode;
@@ -151,7 +151,7 @@ export interface PickerProps extends A11yProps {
   onChange?: (index: number) => void;
 }
 
-export interface TabViewProps {
+export interface TabViewProps extends A11yProps {
   /** Each child is one page. */
   children?: ReactNode;
 }

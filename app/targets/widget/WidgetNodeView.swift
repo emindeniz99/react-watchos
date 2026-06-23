@@ -20,8 +20,13 @@ struct WidgetNodeView: View {
     @ViewBuilder private func applyA11y(
         _ content: some View, _ node: RNNode
     ) -> some View {
-        if let label = node.string("accessibilityLabel") {
+        if let label = node.string("accessibilityLabel"),
+           let hint = node.string("accessibilityHint") {
+            content.accessibilityLabel(label).accessibilityHint(hint)
+        } else if let label = node.string("accessibilityLabel") {
             content.accessibilityLabel(label)
+        } else if let hint = node.string("accessibilityHint") {
+            content.accessibilityHint(hint)
         } else {
             content
         }
