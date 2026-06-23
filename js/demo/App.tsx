@@ -1,4 +1,4 @@
-import { useEffect, useState, version } from "react";
+import { useEffect, useReducer, useState, version } from "react";
 import {
   applyUpdate,
   Button,
@@ -37,10 +37,12 @@ import {
   TimerText,
   Toggle,
   useNavigation,
+  useParams,
   VStack,
   ZStack,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
+import { findShoppingList, shoppingLists, toggleDone } from "./shoppingStore";
 
 const OTA_UPDATE_URL = process.env.REACT_WATCH_OTA_URL;
 
@@ -465,6 +467,84 @@ function AIScreen() {
   );
 }
 
+/** A list of shopping lists; tapping one pushes the dynamic /list/[id]. */
+function ListsScreen() {
+  return (
+    <List>
+      {shoppingLists.map((list) => {
+        const remaining = list.items.filter((item) => !item.done).length;
+        return (
+          <NavigationLink
+            key={list.id}
+            to={`/list/${list.id}`}
+            accessibilityLabel={`${list.name}, ${remaining} left`}
+          >
+            <HStack spacing={6}>
+              <Image systemName="checklist" color="cyan" />
+              <Text>{list.name}</Text>
+              <Spacer />
+              <Text size={12} color="secondary">
+                {String(remaining)}
+              </Text>
+            </HStack>
+          </NavigationLink>
+        );
+      })}
+    </List>
+  );
+}
+
+/**
+ * A dynamic /list/[id] route: useParams() selects the list, and each row
+ * toggles done on tap or on a left/right swipe. Mutating the shared store
+ * keeps ticks across navigation; useReducer forces the re-render.
+ */
+function ListDetailScreen() {
+  const { id } = useParams<{ id: string }>();
+  const [, refresh] = useReducer((n: number) => n + 1, 0);
+  const list = findShoppingList(id ?? "");
+  if (!list) {
+    return (
+      <Text size={12} color="secondary">
+        List not found
+      </Text>
+    );
+  }
+  const toggle = (itemId: string) => {
+    list.items = toggleDone(list.items, itemId);
+    if (list.items.find((item) => item.id === itemId)?.done) {
+      playHaptic("success");
+    }
+    refresh();
+  };
+  const remaining = list.items.filter((item) => !item.done).length;
+  return (
+    <VStack spacing={4}>
+      {list.items.map((item) => (
+        <Button
+          key={item.id}
+          onPress={() => toggle(item.id)}
+          onSwipe={() => toggle(item.id)}
+          accessibilityLabel={`${item.text}${item.done ? ", done" : ""}`}
+        >
+          <HStack spacing={6}>
+            <Image
+              systemName={item.done ? "checkmark.circle.fill" : "circle"}
+              color={item.done ? "green" : "secondary"}
+            />
+            <Text {...(item.done ? { color: "secondary" } : {})}>
+              {item.text}
+            </Text>
+          </HStack>
+        </Button>
+      ))}
+      <Text size={11} color="secondary">
+        {`${remaining} left · tap or swipe a row`}
+      </Text>
+    </VStack>
+  );
+}
+
 export function App() {
   return (
     <ErrorBoundary
@@ -502,6 +582,12 @@ function DemoNavigation() {
       </NavigationRoute>
       <NavigationRoute path="/counter" title="Counter">
         <CounterScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/lists" title="Shopping">
+        <ListsScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/list/[id]" title="List">
+        <ListDetailScreen />
       </NavigationRoute>
       <NavigationRoute path="/hydration" title="Hydration">
         <HydrationScreen />
@@ -541,6 +627,7 @@ function HomeScreen() {
   return (
     <List>
       <NavigationLink to="/counter" label="Counter" />
+      <NavigationLink to="/lists" label="Shopping" />
       <NavigationLink to="/hydration" accessibilityLabel="Hydration">
         <HStack spacing={4}>
           <Image systemName="drop.fill" color="cyan" />
