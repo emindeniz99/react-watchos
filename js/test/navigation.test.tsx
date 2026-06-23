@@ -10,6 +10,7 @@ import {
   runApp,
   type SerializedNode,
   Text,
+  Toggle,
   unregisterAllNativeListeners,
   useNavigate,
   useNavigation,
@@ -165,5 +166,40 @@ describe("useParams", () => {
       host,
     );
     expect(findByText(host.lastCommit!.root!, "id=42")).toHaveLength(1);
+  });
+});
+
+describe("NavigationRoute eager mounting", () => {
+  // Pins the contract that every route serializes its screen even while
+  // inactive. It is tempting to mount lazily (so a screen's launch effects
+  // wait for first open), but the native push is controlled and optimistic:
+  // RoutedNavigationStack pushes on `pendingPath` and runs its
+  // navigationDestination closure — reading the route's children out of the
+  // *current* tree — a bridge hop before JS commits the new active route. An
+  // inactive route therefore must already carry its subtree, or the push
+  // would render blank until the JS ack. If this test ever flips to lazy
+  // mounting, that's a native-visible behavior change and needs on-device
+  // validation, not a silent JS edit (see navigation.tsx NavigationRoute).
+  it("serializes inactive route children, not just the active route", () => {
+    const host = new MemoryHost();
+    runApp(
+      <NavigationStack path={[]}>
+        <NavigationRoute path="/">
+          <VStack>
+            <Text>home</Text>
+          </VStack>
+        </NavigationRoute>
+        <NavigationRoute path="/details">
+          <Toggle label="detail-toggle" />
+        </NavigationRoute>
+      </NavigationStack>,
+      host,
+    );
+    const root = host.lastCommit!.root!;
+    // Root is active; its screen renders.
+    expect(findByText(root, "home")).toHaveLength(1);
+    // /details is inactive, yet its host node is present in the tree so the
+    // native push has a destination to render the instant the path changes.
+    expect(findByType(root, "Toggle")).toHaveLength(1);
   });
 });
