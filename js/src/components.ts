@@ -35,16 +35,23 @@ export interface GestureProps {
 }
 
 /**
- * A trailing swipe action (SwiftUI `.swipeActions`), the watchOS-idiomatic
- * way to act on a row. Only meaningful on a row inside a `<List>`; unlike a
- * raw `onSwipe` gesture it doesn't fight the scroll view. `swipeActionLabel`
- * presence enables it; `onSwipeAction` fires when tapped or full-swiped.
+ * Swipe actions (SwiftUI `.swipeActions`), the watchOS-idiomatic way to act on
+ * a row. Only meaningful on a row inside a `<List>`; unlike a raw `onSwipe`
+ * gesture they don't fight the scroll view, and a full ("long") swipe triggers
+ * the action without tapping its button. The `*Label` presence enables each
+ * edge independently:
+ *  - trailing (right-to-left): `swipeActionLabel` / `onSwipeAction`
+ *  - leading (left-to-right): `leadingSwipeActionLabel` / `onLeadingSwipeAction`
  */
 export interface SwipeActionProps {
   swipeActionLabel?: string;
   swipeActionSystemImage?: string;
   swipeActionTint?: string;
   onSwipeAction?: () => void;
+  leadingSwipeActionLabel?: string;
+  leadingSwipeActionSystemImage?: string;
+  leadingSwipeActionTint?: string;
+  onLeadingSwipeAction?: () => void;
 }
 
 export interface VStackProps extends A11yProps, GestureProps {

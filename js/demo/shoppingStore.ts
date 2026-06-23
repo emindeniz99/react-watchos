@@ -10,11 +10,7 @@ export interface ShoppingList {
   items: ShoppingItem[];
 }
 
-/**
- * Seed data for the shopping-lists demo. In-memory and mutable: ticking an
- * item persists for the session so it survives leaving and re-entering a list.
- */
-export const shoppingLists: ShoppingList[] = [
+const seed: ShoppingList[] = [
   {
     id: "groceries",
     name: "Groceries",
@@ -35,8 +31,32 @@ export const shoppingLists: ShoppingList[] = [
   },
 ];
 
+/**
+ * Current snapshot of the shopping lists. In-memory and persists for the
+ * session (ticks survive leaving and re-entering a list). Every mutation swaps
+ * this reference — and the touched list + items arrays — for fresh identities,
+ * so useSyncExternalStore and the React Compiler's auto-memoization observe the
+ * change. Mutating in place is invisible to the compiler and renders stale rows.
+ */
+let lists: ShoppingList[] = seed;
+
+const listeners = new Set<() => void>();
+
+/** Subscribe to store changes (the getSnapshot half is the getter below). */
+export function subscribeShopping(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/** Current snapshot — a stable reference until the next mutation. */
+export function getShoppingLists(): ShoppingList[] {
+  return lists;
+}
+
 export function findShoppingList(id: string): ShoppingList | undefined {
-  return shoppingLists.find((list) => list.id === id);
+  return lists.find((list) => list.id === id);
 }
 
 /** Pure done/undone toggle, so the logic is unit-tested without a host. */
@@ -46,27 +66,31 @@ export function toggleDone(items: ShoppingItem[], id: string): ShoppingItem[] {
   );
 }
 
-const listeners = new Set<() => void>();
-
-/** Subscribe to store changes (for useSyncExternalStore). */
-export function subscribeShopping(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
+/** Immutable update of one list's items, then notify subscribers. */
+function updateItems(
+  listId: string,
+  update: (items: ShoppingItem[]) => ShoppingItem[],
+): void {
+  const index = lists.findIndex((list) => list.id === listId);
+  const list = lists[index];
+  if (!list) return;
+  const updated: ShoppingList = { ...list, items: update(list.items) };
+  lists = lists.map((current, i) => (i === index ? updated : current));
+  for (const listener of listeners) listener();
 }
 
-/**
- * Toggle an item with an immutable update: it replaces the item, its list's
- * items array, AND the list object's identity in `shoppingLists`, then
- * notifies subscribers. The fresh identities are what let useSyncExternalStore
- * (and the React Compiler's auto-memoization) observe the change — mutating in
- * place is invisible to the compiler and renders stale rows.
- */
+/** Flip an item's done flag (used by tapping a row). */
 export function toggleShoppingItem(listId: string, itemId: string): void {
-  const index = shoppingLists.findIndex((list) => list.id === listId);
-  const list = shoppingLists[index];
-  if (!list) return;
-  shoppingLists[index] = { ...list, items: toggleDone(list.items, itemId) };
-  for (const listener of listeners) listener();
+  updateItems(listId, (items) => toggleDone(items, itemId));
+}
+
+/** Set an item's done flag explicitly (used by the directional swipe edges). */
+export function setShoppingItemDone(
+  listId: string,
+  itemId: string,
+  done: boolean,
+): void {
+  updateItems(listId, (items) =>
+    items.map((item) => (item.id === itemId ? { ...item, done } : item)),
+  );
 }

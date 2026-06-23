@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   findShoppingList,
+  getShoppingLists,
   type ShoppingItem,
-  shoppingLists,
+  setShoppingItemDone,
   subscribeShopping,
   toggleDone,
   toggleShoppingItem,
@@ -60,8 +61,30 @@ describe("toggleShoppingItem store update", () => {
     expect(calls).toBe(1);
   });
 
+  it("swaps the top-level snapshot identity so list-of-lists refreshes", () => {
+    const before = getShoppingLists();
+    toggleShoppingItem("groceries", "coffee");
+    expect(getShoppingLists()).not.toBe(before);
+  });
+
+  it("sets an explicit done flag (directional swipe edges)", () => {
+    setShoppingItemDone("hardware", "screws", true);
+    expect(
+      findShoppingList("hardware")?.items.find((i) => i.id === "screws")?.done,
+    ).toBe(true);
+    // Idempotent: setting the same value again keeps it.
+    setShoppingItemDone("hardware", "screws", true);
+    expect(
+      findShoppingList("hardware")?.items.find((i) => i.id === "screws")?.done,
+    ).toBe(true);
+    setShoppingItemDone("hardware", "screws", false);
+    expect(
+      findShoppingList("hardware")?.items.find((i) => i.id === "screws")?.done,
+    ).toBe(false);
+  });
+
   it("ignores an unknown list id without notifying", () => {
-    const snapshot = shoppingLists.slice();
+    const snapshot = getShoppingLists();
     let calls = 0;
     const unsubscribe = subscribeShopping(() => {
       calls += 1;
@@ -69,6 +92,6 @@ describe("toggleShoppingItem store update", () => {
     toggleShoppingItem("does-not-exist", "milk");
     unsubscribe();
     expect(calls).toBe(0);
-    expect(shoppingLists).toEqual(snapshot);
+    expect(getShoppingLists()).toBe(snapshot);
   });
 });

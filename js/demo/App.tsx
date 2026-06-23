@@ -44,7 +44,8 @@ import {
 import { hydrationStore } from "./hydrationStore";
 import {
   findShoppingList,
-  shoppingLists,
+  getShoppingLists,
+  setShoppingItemDone,
   subscribeShopping,
   toggleShoppingItem,
 } from "./shoppingStore";
@@ -474,9 +475,12 @@ function AIScreen() {
 
 /** A list of shopping lists; tapping one pushes the dynamic /list/[id]. */
 function ListsScreen() {
+  // Subscribe so the "N left" counts refresh after a toggle on the detail
+  // screen (the snapshot's identity changes, so the compiler recomputes).
+  const lists = useSyncExternalStore(subscribeShopping, getShoppingLists);
   return (
     <List>
-      {shoppingLists.map((list) => {
+      {lists.map((list) => {
         const remaining = list.items.filter((item) => !item.done).length;
         return (
           <NavigationLink
@@ -500,11 +504,13 @@ function ListsScreen() {
 }
 
 /**
- * A dynamic /list/[id] route: useParams() selects the list. Each row is a
- * plain List cell — tap toggles done, and a trailing swipe action does the
- * same the watchOS-idiomatic way. An immutable store update keeps ticks
- * across navigation; useSyncExternalStore drives the re-render so it survives
- * the React Compiler's auto-memoization (an in-place mutation would not).
+ * A dynamic /list/[id] route: useParams() selects the list. Each row taps to
+ * toggle, and offers directional swipe actions (the common iOS row pattern):
+ * swipe left-to-right (leading) to mark Done, right-to-left (trailing) to mark
+ * Undone — a full "long" swipe triggers it without tapping the button. An
+ * immutable store update keeps ticks across navigation; useSyncExternalStore
+ * drives the re-render so it survives the React Compiler's auto-memoization
+ * (an in-place mutation would not).
  */
 function ListDetailScreen() {
   const { id } = useParams<{ id: string }>();
@@ -525,6 +531,12 @@ function ListDetailScreen() {
       playHaptic("success");
     }
   };
+  const setDone = (itemId: string, done: boolean) => {
+    setShoppingItemDone(list.id, itemId, done);
+    if (done) {
+      playHaptic("success");
+    }
+  };
   const done = list.items.filter((item) => item.done).length;
   return (
     <List>
@@ -541,12 +553,14 @@ function ListDetailScreen() {
         <Button
           key={item.id}
           onPress={() => toggle(item.id)}
-          onSwipeAction={() => toggle(item.id)}
-          swipeActionLabel={item.done ? "Undo" : "Done"}
-          swipeActionSystemImage={
-            item.done ? "arrow.uturn.backward" : "checkmark"
-          }
-          swipeActionTint={item.done ? "gray" : "green"}
+          leadingSwipeActionLabel="Done"
+          leadingSwipeActionSystemImage="checkmark"
+          leadingSwipeActionTint="green"
+          onLeadingSwipeAction={() => setDone(item.id, true)}
+          swipeActionLabel="Undone"
+          swipeActionSystemImage="arrow.uturn.backward"
+          swipeActionTint="gray"
+          onSwipeAction={() => setDone(item.id, false)}
           accessibilityLabel={`${item.text}, ${item.done ? "done" : "not done"}`}
         >
           <HStack spacing={12}>

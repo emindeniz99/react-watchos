@@ -22,7 +22,8 @@ struct NodeView: View {
             .modifier(GestureModifier(node: node, model: model))
             .modifier(SwipeActionsModifier(
                 node: node, model: model,
-                tint: color(node.string("swipeActionTint"))))
+                trailingTint: color(node.string("swipeActionTint")),
+                leadingTint: color(node.string("leadingSwipeActionTint"))))
     }
 
     @ViewBuilder private var rendered: some View {
@@ -703,21 +704,49 @@ private struct GestureModifier: ViewModifier {
     }
 }
 
-/// Adds a trailing `.swipeActions` button when the node opts in via
-/// `swipeActionLabel` — the watchOS-idiomatic row action (no-op unless the
-/// view is a List row). Unlike the raw drag gesture it doesn't fight scroll.
+/// Adds trailing (right-to-left) and/or leading (left-to-right) `.swipeActions`
+/// buttons when the node opts in via `swipeActionLabel` /
+/// `leadingSwipeActionLabel` — the watchOS-idiomatic row action (no-op unless
+/// the view is a List row). Unlike the raw drag gesture it doesn't fight
+/// scroll, and a full swipe triggers the action without tapping its button.
 private struct SwipeActionsModifier: ViewModifier {
     let node: RNNode
     let model: ReactWatchModel
+    let trailingTint: Color?
+    let leadingTint: Color?
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(EdgeSwipeActionModifier(
+                node: node, model: model, edge: .trailing,
+                labelKey: "swipeActionLabel",
+                imageKey: "swipeActionSystemImage",
+                event: "swipeAction", tint: trailingTint))
+            .modifier(EdgeSwipeActionModifier(
+                node: node, model: model, edge: .leading,
+                labelKey: "leadingSwipeActionLabel",
+                imageKey: "leadingSwipeActionSystemImage",
+                event: "leadingSwipeAction", tint: leadingTint))
+    }
+}
+
+/// One `.swipeActions` edge; a no-op when its label prop is absent.
+private struct EdgeSwipeActionModifier: ViewModifier {
+    let node: RNNode
+    let model: ReactWatchModel
+    let edge: HorizontalEdge
+    let labelKey: String
+    let imageKey: String
+    let event: String
     let tint: Color?
 
     @ViewBuilder func body(content: Content) -> some View {
-        if let label = node.string("swipeActionLabel") {
-            content.swipeActions(edge: .trailing, allowsFullSwipe: true) {
+        if let label = node.string(labelKey) {
+            content.swipeActions(edge: edge, allowsFullSwipe: true) {
                 Button {
-                    model.dispatch(nodeId: node.id, event: "swipeAction")
+                    model.dispatch(nodeId: node.id, event: event)
                 } label: {
-                    if let image = node.string("swipeActionSystemImage") {
+                    if let image = node.string(imageKey) {
                         Label(label, systemImage: image)
                     } else {
                         Text(label)

@@ -8,6 +8,7 @@ const eventToProp: Record<string, string> = {
   pathChange: "onPathChange",
   swipe: "onSwipe",
   swipeAction: "onSwipeAction",
+  leadingSwipeAction: "onLeadingSwipeAction",
   drag: "onDrag",
 };
 
