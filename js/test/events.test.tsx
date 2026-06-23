@@ -2,6 +2,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
   Button,
+  HStack,
   MemoryHost,
   NavigationStack,
   Text,
@@ -203,6 +204,43 @@ describe("events", () => {
     const commitsBefore = host.commits.length;
     expect(root.dispatchEvent({ nodeId: 9999, event: "press" })).toBe(false);
     expect(host.commits.length).toBe(commitsBefore);
+  });
+
+  it("stops dispatching to a node after its subtree is removed", () => {
+    // detachDeletedInstance must clear the event-target map for every node in
+    // a removed subtree, not just its root — otherwise a stale id would still
+    // resolve to a live handler (a leak). The Button is a deep descendant of
+    // the conditionally-rendered subtree.
+    const onPress = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    function Tree({ show }: { show: boolean }) {
+      return (
+        <VStack>
+          {show ? (
+            <VStack>
+              <HStack>
+                <Button onPress={onPress}>
+                  <Text>deep</Text>
+                </Button>
+              </HStack>
+            </VStack>
+          ) : null}
+        </VStack>
+      );
+    }
+    root.render(<Tree show={true} />);
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    expect(root.dispatchEvent({ nodeId: button.id, event: "press" })).toBe(
+      true,
+    );
+    expect(onPress).toHaveBeenCalledTimes(1);
+
+    root.render(<Tree show={false} />);
+    expect(root.dispatchEvent({ nodeId: button.id, event: "press" })).toBe(
+      false,
+    );
+    expect(onPress).toHaveBeenCalledTimes(1);
   });
 
   it("ignores events a node has no handler for", () => {
