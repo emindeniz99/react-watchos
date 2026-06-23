@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   Button,
@@ -12,6 +13,7 @@ import {
   Text,
   Toggle,
   unregisterAllNativeListeners,
+  useFocusEffect,
   useNavigate,
   useNavigation,
   useParams,
@@ -201,5 +203,42 @@ describe("NavigationRoute eager mounting", () => {
     // /details is inactive, yet its host node is present in the tree so the
     // native push has a destination to render the instant the path changes.
     expect(findByType(root, "Toggle")).toHaveLength(1);
+  });
+});
+
+describe("useFocusEffect", () => {
+  it("runs on focus and cleans up on blur and re-focus", () => {
+    const log: string[] = [];
+    function FxProbe() {
+      useFocusEffect(
+        useCallback(() => {
+          log.push("focus");
+          return () => {
+            log.push("blur");
+          };
+        }, []),
+      );
+      return <Text>fx</Text>;
+    }
+    const tree = (path: string[]) => (
+      <NavigationStack path={path} onPathChange={() => {}}>
+        <NavigationRoute path="/fx">
+          <FxProbe />
+        </NavigationRoute>
+        <NavigationRoute path="/other">
+          <Text>other</Text>
+        </NavigationRoute>
+      </NavigationStack>
+    );
+    const host = new MemoryHost();
+    const root = runApp(tree(["/fx"]), host);
+    // Mounted AND focused → the effect runs once.
+    expect(log).toEqual(["focus"]);
+    // Navigate away: still mounted, now blurred → cleanup runs, effect doesn't.
+    root.render(tree(["/other"]));
+    expect(log).toEqual(["focus", "blur"]);
+    // Returning re-focuses and runs the effect again.
+    root.render(tree(["/fx"]));
+    expect(log).toEqual(["focus", "blur", "focus"]);
   });
 });

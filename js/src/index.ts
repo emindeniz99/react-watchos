@@ -120,6 +120,8 @@ export {
   OPEN_URL_EVENT,
   routeFromURL,
   useCanGoBack,
+  useFocusEffect,
+  useIsFocused,
   useNavigate,
   useNavigation,
   useParams,

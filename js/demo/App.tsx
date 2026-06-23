@@ -1,4 +1,10 @@
-import { useEffect, useState, useSyncExternalStore, version } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  version,
+} from "react";
 import {
   applyUpdate,
   Button,
@@ -36,6 +42,7 @@ import {
   TextField,
   TimerText,
   Toggle,
+  useFocusEffect,
   useNavigation,
   useParams,
   VStack,
@@ -299,22 +306,27 @@ function MovieRemoteScreen() {
   const [state, setState] = useState("connecting…");
   const [title, setTitle] = useState("—");
   const [volume, setVolume] = useState(50);
-  useEffect(() => {
-    const offState = onBleState((p) => setState(String(p?.state ?? "")));
-    const offNotify = onBleNotify((p) => {
-      if (p?.characteristic === "title") setTitle(String(p.value));
-    });
-    // The laptop remote's service UUID — must be a valid 128-bit UUID that
-    // matches the peripheral's advertised service (the bridge ignores
-    // malformed UUIDs). "4D4F5649-4500" spells MOVIE; the tail spells "remote".
-    bleConnect("4D4F5649-4500-4000-8000-72656D6F7465");
-    bleSubscribe("title");
-    return () => {
-      offState();
-      offNotify();
-      bleDisconnect();
-    };
-  }, []);
+  // Focus-gated, not a bare useEffect: screens stay mounted across navigation,
+  // so connect only while this screen is open and disconnect on leave — never
+  // at app launch. See useFocusEffect in navigation.tsx.
+  useFocusEffect(
+    useCallback(() => {
+      const offState = onBleState((p) => setState(String(p?.state ?? "")));
+      const offNotify = onBleNotify((p) => {
+        if (p?.characteristic === "title") setTitle(String(p.value));
+      });
+      // The laptop remote's service UUID — must be a valid 128-bit UUID that
+      // matches the peripheral's advertised service (the bridge ignores
+      // malformed UUIDs). "4D4F5649-4500" spells MOVIE; the tail spells "remote".
+      bleConnect("4D4F5649-4500-4000-8000-72656D6F7465");
+      bleSubscribe("title");
+      return () => {
+        offState();
+        offNotify();
+        bleDisconnect();
+      };
+    }, []),
+  );
   return (
     <VStack spacing={4}>
       <Text size={11} color="secondary">

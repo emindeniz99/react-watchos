@@ -1,5 +1,6 @@
 import {
   createContext,
+  type EffectCallback,
   type FC,
   type ReactNode,
   useCallback,
@@ -130,10 +131,31 @@ export function matchRoute(pattern: string, route: string): RouteMatch | null {
 const EMPTY_PARAMS: RouteParams = {};
 const ActiveRouteContext = createContext<string>("/");
 const RouteParamsContext = createContext<RouteParams>(EMPTY_PARAMS);
+const FocusContext = createContext<boolean>(false);
 
 /** Dynamic-segment params of the active route, e.g. `{ id: "42" }`. */
 export function useParams<T extends RouteParams = RouteParams>(): T {
   return useContext(RouteParamsContext) as T;
+}
+
+/** True while the nearest enclosing <NavigationRoute> is the active route. */
+export function useIsFocused(): boolean {
+  return useContext(FocusContext);
+}
+
+/**
+ * Runs `effect` when the enclosing screen gains focus and cleans up when it
+ * blurs or unmounts — the watchOS analog of React Navigation's useFocusEffect.
+ * Screens stay mounted across navigation (as in React Navigation), so a bare
+ * useEffect with `[]` runs once at launch; route focus-scoped side effects
+ * (BLE, sensor/listener subscriptions, polling) through this instead. Wrap
+ * `effect` in useCallback so it only re-runs when focus actually changes.
+ */
+export function useFocusEffect(effect: EffectCallback): void {
+  const focused = useIsFocused();
+  useEffect(() => {
+    if (focused) return effect();
+  }, [focused, effect]);
 }
 
 const NavigationStackHost =
@@ -179,14 +201,14 @@ export function NavigationStack(props: NavigationStackProps) {
 export function NavigationRoute(props: NavigationRouteProps) {
   const { path } = props;
   const active = useContext(ActiveRouteContext);
-  const params = useMemo(() => {
-    const match = matchRoute(path, active);
-    return match ? match.params : EMPTY_PARAMS;
-  }, [path, active]);
+  const match = useMemo(() => matchRoute(path, active), [path, active]);
+  const params = match?.params ?? EMPTY_PARAMS;
   return (
-    <RouteParamsContext.Provider value={params}>
-      <NavigationRouteHost {...props} />
-    </RouteParamsContext.Provider>
+    <FocusContext.Provider value={match !== null}>
+      <RouteParamsContext.Provider value={params}>
+        <NavigationRouteHost {...props} />
+      </RouteParamsContext.Provider>
+    </FocusContext.Provider>
   );
 }
 
