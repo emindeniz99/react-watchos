@@ -21,8 +21,18 @@ if (entrypoint === "app") {
   // Seed the complications so they show data before any interaction.
   publishWidgets();
   // Keep the shopping complication in sync with in-app edits (add/toggle/
-  // feature). publishWidgets re-renders all timelines and persists them.
-  subscribeShopping(() => publishWidgets());
+  // feature). publishWidgets re-renders all timelines and triggers a native
+  // WidgetCenter reload, so trailing-debounce it: a burst of rapid edits
+  // (e.g. checking off several items) republishes once after it settles
+  // rather than on every mutation.
+  let republishTimer: ReturnType<typeof setTimeout> | undefined;
+  subscribeShopping(() => {
+    if (republishTimer !== undefined) clearTimeout(republishTimer);
+    republishTimer = setTimeout(() => {
+      republishTimer = undefined;
+      publishWidgets();
+    }, 200);
+  });
   // DEBUG-only: WatchApp sets __inspectorUrl so the tree + logs stream to
   // the `npm run inspector` viewer.
   const inspectorUrl = (globalThis as { __inspectorUrl?: string })
