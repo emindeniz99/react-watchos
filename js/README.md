@@ -43,6 +43,34 @@ function App() {
 runApp(<App />);
 ```
 
+### Navigation
+
+Screens are declared with stable paths and links point to those paths:
+
+```tsx
+function Routes() {
+  const { path, setPath } = useNavigation();
+  return (
+    <NavigationStack path={path} onPathChange={setPath}>
+      <NavigationRoute path="/" title="Home">
+        <NavigationLink to="/hydration" label="Hydration" />
+      </NavigationRoute>
+      <NavigationRoute path="/hydration" title="Hydration">
+        <HydrationScreen />
+      </NavigationRoute>
+    </NavigationStack>
+  );
+}
+
+<NavigationProvider>
+  <Routes />
+</NavigationProvider>;
+```
+
+Use `children` on `NavigationLink` for a custom tappable label. Use
+`useNavigate()` for imperative navigation. Widget/deep-link URLs such as
+`reactwatch://hydration` are handled by `NavigationProvider`.
+
 ### Subpath exports
 
 - `react-native-watchos/build` — `watchBuildOptions({ entry, outfile })`, the

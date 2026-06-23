@@ -58,14 +58,11 @@ struct NodeView: View {
                 ProgressView()
             }
         case "NavigationStack":
-            NavigationStack {
-                Group { childViews }
-                    .navigationTitle(node.string("title") ?? "")
-            }
+            RoutedNavigationStack(node: node)
         case "NavigationLink":
-            NavigationLink(node.string("title") ?? "") {
-                destinationView
-            }
+            navigationLink
+        case "NavigationRoute":
+            NavigationRouteDestination(node: node)
         case "TextField":
             OptimisticTextField(node: node)
         case "Picker":
@@ -150,15 +147,23 @@ struct NodeView: View {
         }
     }
 
-    /// Destinations get a ScrollView unless they already scroll themselves
-    /// (nesting scroll containers breaks watchOS scrolling).
-    @ViewBuilder private var destinationView: some View {
-        if node.children.count == 1,
-           ["ScrollView", "List", "TabView", "NavigationStack"]
-               .contains(node.children[0].type) {
-            NodeView(node: node.children[0])
+    @ViewBuilder private var navigationLink: some View {
+        if let to = node.string("to") {
+            NavigationLink(value: to) {
+                navigationLinkLabel
+            }
         } else {
-            ScrollView { childViews }
+            navigationLinkLabel
+        }
+    }
+
+    @ViewBuilder private var navigationLinkLabel: some View {
+        if let label = node.string("label") {
+            Text(label)
+        } else if node.children.isEmpty {
+            Text(node.string("to") ?? "")
+        } else {
+            childViews
         }
     }
 
@@ -412,6 +417,124 @@ struct NodeView: View {
         case "secondary": .secondary
         default: nil
         }
+    }
+}
+
+private let navigationDestinationRootTypes: Set<String> = [
+    "ScrollView", "List", "TabView", "NavigationStack",
+]
+
+private struct RoutedNavigationStack: View {
+    let node: RNNode
+    @EnvironmentObject private var model: ReactWatchModel
+    @State private var localPath: [String] = []
+    @State private var pendingPath: [String]?
+
+    var body: some View {
+        NavigationStack(path: pathBinding) {
+            Group {
+                ForEach(rootChildren) { child in
+                    NodeView(node: child)
+                }
+            }
+            .navigationTitle(rootTitle)
+            .navigationDestination(for: String.self) { route in
+                if let destination = routeNode(route) {
+                    NavigationRouteDestination(node: destination)
+                } else {
+                    MissingNavigationRoute(route: route)
+                }
+            }
+        }
+        .onChange(of: controlledPath ?? []) { _, _ in
+            pendingPath = nil
+        }
+    }
+
+    private var controlledPath: [String]? {
+        guard node.props["path"] != nil else { return nil }
+        return normalized(node.stringArray("path") ?? [])
+    }
+
+    private var pathBinding: Binding<[String]> {
+        Binding(
+            get: { pendingPath ?? controlledPath ?? localPath },
+            set: { newPath in
+                let path = normalized(newPath)
+                if controlledPath != nil {
+                    pendingPath = path
+                    model.dispatch(
+                        nodeId: node.id, event: "pathChange",
+                        payload: ["path": path])
+                } else {
+                    localPath = path
+                }
+            })
+    }
+
+    private var routeNodes: [RNNode] {
+        node.children.filter { $0.type == "NavigationRoute" }
+    }
+
+    private var rootRoute: RNNode? {
+        routeNodes.first { normalized($0.string("path") ?? "/") == "/" }
+    }
+
+    private var rootChildren: [RNNode] {
+        if let rootRoute { return rootRoute.children }
+        return node.children.filter { $0.type != "NavigationRoute" }
+    }
+
+    private var rootTitle: String {
+        rootRoute?.string("title") ?? node.string("title") ?? ""
+    }
+
+    private func routeNode(_ route: String) -> RNNode? {
+        let path = normalized(route)
+        return routeNodes.first {
+            normalized($0.string("path") ?? "") == path && path != "/"
+        }
+    }
+
+    private func normalized(_ path: [String]) -> [String] {
+        path.map(normalized).filter { $0 != "/" }
+    }
+
+    private func normalized(_ route: String) -> String {
+        if route.isEmpty || route == "/" { return "/" }
+        return route.hasPrefix("/") ? route : "/\(route)"
+    }
+}
+
+private struct NavigationRouteDestination: View {
+    let node: RNNode
+
+    var body: some View {
+        content.navigationTitle(node.string("title") ?? "")
+    }
+
+    @ViewBuilder private var content: some View {
+        if let only = node.children.first,
+           node.children.count == 1,
+           navigationDestinationRootTypes.contains(only.type) {
+            NodeView(node: only)
+        } else {
+            ScrollView {
+                ForEach(node.children) { child in
+                    NodeView(node: child)
+                }
+            }
+        }
+    }
+}
+
+private struct MissingNavigationRoute: View {
+    let route: String
+
+    var body: some View {
+        Text("Missing route: \(route)")
+            .font(.footnote)
+            .foregroundStyle(.red)
     }
 }
 

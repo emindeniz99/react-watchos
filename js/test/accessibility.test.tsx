@@ -6,6 +6,7 @@ import {
   List,
   MemoryHost,
   NavigationLink,
+  NavigationRoute,
   NavigationStack,
   ScrollView,
   Spacer,
@@ -55,12 +56,13 @@ describe("accessibility props", () => {
           <ScrollView accessibilityHint="Scroll demos">
             <List accessibilityLabel="Demo list">
               <NavigationStack accessibilityLabel="Navigation root">
-                <NavigationLink
-                  title="Details"
-                  accessibilityHint="Opens details"
-                >
-                  <Text>details</Text>
-                </NavigationLink>
+                <NavigationRoute path="/" accessibilityLabel="Home route">
+                  <NavigationLink
+                    to="/details"
+                    label="Details"
+                    accessibilityHint="Opens details"
+                  />
+                </NavigationRoute>
               </NavigationStack>
             </List>
           </ScrollView>
@@ -83,7 +85,10 @@ describe("accessibility props", () => {
     expect(list.props.accessibilityLabel).toBe("Demo list");
     const nav = list.children[0];
     expect(nav.props.accessibilityLabel).toBe("Navigation root");
-    expect(nav.children[0].props.accessibilityHint).toBe("Opens details");
+    expect(nav.children[0].props.accessibilityLabel).toBe("Home route");
+    expect(nav.children[0].children[0].props.accessibilityHint).toBe(
+      "Opens details",
+    );
     expect(root.children[1].props.accessibilityLabel).toBe("Pages");
     expect(root.children[2].props.accessibilityLabel).toBe("Separator");
     expect(root.children[3].props.accessibilityLabel).toBe("Flexible space");

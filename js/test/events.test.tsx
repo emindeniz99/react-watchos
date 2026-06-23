@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   Button,
   MemoryHost,
+  NavigationStack,
   Text,
   Toggle,
   VStack,
@@ -45,6 +46,27 @@ describe("events", () => {
 
     const updated = findByType(host.lastCommit!.root!, "Toggle")[0];
     expect(updated.props.value).toBe(true);
+  });
+
+  it("dispatches native navigation path changes to onPathChange", () => {
+    const onPathChange = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <NavigationStack path={[]} onPathChange={onPathChange}>
+        <Text>home</Text>
+      </NavigationStack>,
+    );
+    const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
+
+    expect(
+      root.dispatchEvent({
+        nodeId: stack.id,
+        event: "pathChange",
+        payload: { path: ["/hydration"] },
+      }),
+    ).toBe(true);
+    expect(onPathChange).toHaveBeenCalledWith(["/hydration"]);
   });
 
   it("serializes the primaryAction (double-tap) flag", () => {

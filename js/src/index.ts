@@ -28,6 +28,7 @@ export type {
   MapAnnotation,
   MapProps,
   NavigationLinkProps,
+  NavigationRouteProps,
   NavigationStackProps,
   PickerProps,
   ProgressViewProps,
@@ -54,6 +55,7 @@ export {
   List,
   MapView,
   NavigationLink,
+  NavigationRoute,
   NavigationStack,
   Picker,
   ProgressView,
@@ -101,6 +103,22 @@ export {
   registerNativeListener,
   unregisterAllNativeListeners,
 } from "./nativeEvents";
+export type {
+  NavigateOptions,
+  NavigationAction,
+  NavigationContextValue,
+  NavigationProviderProps,
+} from "./navigation";
+export {
+  NavigationProvider,
+  normalizeRoute,
+  OPEN_URL_EVENT,
+  routeFromURL,
+  useCanGoBack,
+  useNavigate,
+  useNavigation,
+  useRoute,
+} from "./navigation";
 export type { NotificationRequest } from "./notifications";
 export {
   cancelNotification,

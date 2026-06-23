@@ -56,6 +56,12 @@ export const structs = [
       { name: "date", swift: "Double", ts: "number", doc: "ms since epoch" },
       { name: "tree", swift: `${node.swift}?`, ts: `${node.ts} | null` },
       {
+        name: "url",
+        swift: "String?",
+        ts: "string",
+        optional: true,
+      },
+      {
         name: "relevance",
         swift: "PublishedRelevance?",
         ts: "PublishedRelevance",

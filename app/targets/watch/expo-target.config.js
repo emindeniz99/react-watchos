@@ -18,6 +18,12 @@ module.exports = (config) => ({
   // target's Info.plist in Xcode.
   infoPlist: {
     WKRunsIndependentlyOfCompanionApp: true,
+    CFBundleURLTypes: [
+      {
+        CFBundleURLName: "com.emindeniz99.reactwatch.routes",
+        CFBundleURLSchemes: ["reactwatch"],
+      },
+    ],
     // Required for the CoreBluetooth central (BluetoothBridge / movie remote).
     NSBluetoothAlwaysUsageDescription:
       "Connect to a nearby device (e.g. your laptop) to control playback.",

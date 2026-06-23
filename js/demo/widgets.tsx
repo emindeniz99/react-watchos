@@ -100,7 +100,7 @@ export function registerDemoWidgets(): void {
         }
       })();
       return {
-        entries: [{ date: now, view }],
+        entries: [{ date: now, view, url: "reactwatch://hydration" }],
         reloadAfter: now + 24 * 3_600_000,
       };
     },

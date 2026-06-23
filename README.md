@@ -36,7 +36,7 @@ widgets, events bridged back to JS. It shares no code with RN core — RN
 ecosystem libraries won't run here — and the component vocabulary is
 SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `TimerText`, `Button`,
 `Toggle`, `Spacer`, `Image`, `ScrollView`, `List`, `Divider`, `Gauge`,
-`ProgressView`, `NavigationStack`, `NavigationLink`, `TextField`,
+`ProgressView`, `NavigationStack`, `NavigationRoute`, `NavigationLink`, `TextField`,
 `Picker`, `TabView`), with SwiftUI layout rather than flexbox. Beyond
 views there's `Storage` (App Group UserDefaults), `playHaptic`,
 `scheduleNotification` (local notifications with permission request and
@@ -96,6 +96,62 @@ live instances. Same producer/consumer pattern as
 (whose extension architecture is reviewed in
 [docs/research.md](./docs/research.md)).
 
+## Navigation & deep links
+
+Navigation is route-first. Every navigable screen gets a stable path, and
+links point to those paths. The Swift host still renders a native
+`NavigationStack(path:)`, so pushes, back navigation, and watchOS-native
+transitions stay native while React owns the route state.
+
+```tsx
+function App() {
+  return (
+    <NavigationProvider>
+      <Routes />
+    </NavigationProvider>
+  );
+}
+
+function Routes() {
+  const { path, setPath } = useNavigation();
+  return (
+    <NavigationStack path={path} onPathChange={setPath}>
+      <NavigationRoute path="/" title="React Watch">
+        <List>
+          <NavigationLink to="/hydration" accessibilityLabel="Hydration">
+            <HStack spacing={4}>
+              <Image systemName="drop.fill" color="cyan" />
+              <Text>Hydration</Text>
+            </HStack>
+          </NavigationLink>
+          <NavigationLink to="/stopwatch" label="Stopwatch" />
+        </List>
+      </NavigationRoute>
+
+      <NavigationRoute path="/hydration" title="Hydration">
+        <HydrationScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/stopwatch" title="Stopwatch">
+        <StopwatchScreen />
+      </NavigationRoute>
+    </NavigationStack>
+  );
+}
+```
+
+`NavigationLink` requires `to`; `label` is the simple text form, and
+children are the custom tappable label/content. Destination screens live in
+`NavigationRoute`, never as `NavigationLink` children. For imperative flows
+use `const navigate = useNavigate(); navigate("/hydration")`; use
+`navigate("/", { action: "reset" })` to return to root.
+
+The same route table handles external entry points. A widget timeline entry
+can publish `url: "reactwatch://hydration"`; WidgetKit installs it as
+`.widgetURL`, the watch host forwards `.onOpenURL` to JS as `openURL`, and
+`NavigationProvider` maps it back to `["/hydration"]`. Consumers using a
+custom scheme must register it in the watch target's `CFBundleURLTypes`
+(the reference app's target config registers `reactwatch`).
+
 ## Complications & widgets (React-authored)
 
 Watch complications and Smart Stack widgets are WidgetKit accessory
@@ -108,7 +164,11 @@ registerWidget({
   kind: "hydration",
   families: ["accessoryCircular", "accessoryRectangular", "accessoryInline"],
   render: ({ family, now }) => ({
-    entries: [{ date: now, view: <Gauge value={glasses} max={8} label="Water" /> }],
+    entries: [{
+      date: now,
+      url: "reactwatch://hydration",
+      view: <Gauge value={glasses} max={8} label="Water" />,
+    }],
     reloadAfter: now + 24 * 3_600_000,
   }),
 });

@@ -65,6 +65,7 @@ describe("swift contract fixtures", () => {
         entries: [
           {
             date: now,
+            url: "reactwatch://stopwatch",
             relevance: { score: 50, durationMs: 3_600_000 },
             view: <Gauge value={0.5} label="Go" style="circular" />,
           },

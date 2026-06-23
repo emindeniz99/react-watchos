@@ -34,6 +34,7 @@ export interface PublishedControl {
 export interface PublishedEntry {
   date: number; // ms since epoch
   tree: SerializedNode | null;
+  url?: string;
   relevance?: PublishedRelevance;
 }
 

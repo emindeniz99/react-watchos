@@ -12,6 +12,7 @@ import WidgetKit
 struct ReactEntry: TimelineEntry {
     let date: Date
     let node: RNNode?
+    let url: URL?
     let relevance: TimelineEntryRelevance?
 }
 
@@ -20,7 +21,7 @@ struct ReactTimelineProvider: TimelineProvider {
     let kind: String
 
     func placeholder(in context: Context) -> ReactEntry {
-        ReactEntry(date: .now, node: nil, relevance: nil)
+        ReactEntry(date: .now, node: nil, url: nil, relevance: nil)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (ReactEntry) -> Void) {
@@ -60,6 +61,7 @@ struct ReactTimelineProvider: TimelineProvider {
         ReactEntry(
             date: published.entryDate,
             node: published.tree,
+            url: published.url.flatMap(URL.init(string:)),
             relevance: published.relevance.map {
                 TimelineEntryRelevance(
                     score: Float($0.score),
@@ -92,9 +94,14 @@ struct ReactTimelineProvider: TimelineProvider {
     }
 }
 
-private func reactWidgetView(_ entry: ReactEntry) -> some View {
-    WidgetNodeView(node: entry.node)
+@ViewBuilder private func reactWidgetView(_ entry: ReactEntry) -> some View {
+    let view = WidgetNodeView(node: entry.node)
         .containerBackground(.clear, for: .widget)
+    if let url = entry.url {
+        view.widgetURL(url)
+    } else {
+        view
+    }
 }
 
 struct HydrationWidget: Widget {

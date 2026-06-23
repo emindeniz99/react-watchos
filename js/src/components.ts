@@ -127,12 +127,39 @@ export interface ProgressViewProps extends A11yProps {
 
 export interface NavigationStackProps extends A11yProps {
   title?: string;
+  /**
+   * Controlled native stack path. Root is represented by [] and pushed
+   * routes are stable path strings such as ["/hydration"].
+   */
+  path?: string[];
+  /** Fired when native back/link gestures mutate the NavigationStack path. */
+  onPathChange?: (path: string[]) => void;
   children?: ReactNode;
 }
 
-export interface NavigationLinkProps extends A11yProps {
-  /** Link label; children are the destination screen. */
-  title: string;
+export type NavigationLinkProps = A11yProps &
+  (
+    | {
+        /** Stable route target declared by a matching NavigationRoute. */
+        to: string;
+        /** Simple text label. Use children for a custom row/chip layout. */
+        label: string;
+        children?: never;
+      }
+    | {
+        /** Stable route target declared by a matching NavigationRoute. */
+        to: string;
+        /** Simple text label. Use children for a custom row/chip layout. */
+        label?: string;
+        children: ReactNode;
+      }
+  );
+
+export interface NavigationRouteProps extends A11yProps {
+  /** Stable path for links, deep links, notifications, and tests. */
+  path: string;
+  /** Native navigation title when this route is displayed. */
+  title?: string;
   children?: ReactNode;
 }
 
@@ -261,6 +288,8 @@ export const NavigationStack =
   "NavigationStack" as unknown as FC<NavigationStackProps>;
 export const NavigationLink =
   "NavigationLink" as unknown as FC<NavigationLinkProps>;
+export const NavigationRoute =
+  "NavigationRoute" as unknown as FC<NavigationRouteProps>;
 export const TextField = "TextField" as unknown as FC<TextFieldProps>;
 export const Picker = "Picker" as unknown as FC<PickerProps>;
 export const TabView = "TabView" as unknown as FC<TabViewProps>;

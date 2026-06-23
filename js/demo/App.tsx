@@ -15,6 +15,8 @@ import {
   Image,
   List,
   NavigationLink,
+  NavigationProvider,
+  NavigationRoute,
   NavigationStack,
   onBleNotify,
   onBleState,
@@ -34,6 +36,7 @@ import {
   TextField,
   TimerText,
   Toggle,
+  useNavigation,
   VStack,
   ZStack,
 } from "../src/index";
@@ -483,42 +486,76 @@ export function App() {
 
 function AppScreens() {
   return (
-    <NavigationStack title="React Watch">
-      <List>
-        <NavigationLink title="Counter">
-          <CounterScreen />
-        </NavigationLink>
-        <NavigationLink title="Hydration">
-          <HydrationScreen />
-        </NavigationLink>
-        <NavigationLink title="Gallery">
-          <GalleryScreen />
-        </NavigationLink>
-        <NavigationLink title="Inputs">
-          <InputsScreen />
-        </NavigationLink>
-        <NavigationLink title="Tabs">
-          <TabsScreen />
-        </NavigationLink>
-        <NavigationLink title="Stopwatch">
-          <StopwatchScreen />
-        </NavigationLink>
-        <NavigationLink title="Crown">
-          <CrownScreen />
-        </NavigationLink>
-        <NavigationLink title="Phone">
-          <ConnectivityScreen />
-        </NavigationLink>
-        <NavigationLink title="Movie Remote">
-          <MovieRemoteScreen />
-        </NavigationLink>
-        <NavigationLink title="AI">
-          <AIScreen />
-        </NavigationLink>
-        <NavigationLink title="Updates">
-          <UpdatesScreen />
-        </NavigationLink>
-      </List>
+    <NavigationProvider>
+      <DemoNavigation />
+    </NavigationProvider>
+  );
+}
+
+function DemoNavigation() {
+  const { path, setPath } = useNavigation();
+
+  return (
+    <NavigationStack path={path} onPathChange={setPath}>
+      <NavigationRoute path="/" title="React Watch">
+        <HomeScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/counter" title="Counter">
+        <CounterScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/hydration" title="Hydration">
+        <HydrationScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/gallery" title="Gallery">
+        <GalleryScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/inputs" title="Inputs">
+        <InputsScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/tabs" title="Tabs">
+        <TabsScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/stopwatch" title="Stopwatch">
+        <StopwatchScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/crown" title="Crown">
+        <CrownScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/phone" title="Phone">
+        <ConnectivityScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/movie-remote" title="Movie Remote">
+        <MovieRemoteScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/ai" title="AI">
+        <AIScreen />
+      </NavigationRoute>
+      <NavigationRoute path="/updates" title="Updates">
+        <UpdatesScreen />
+      </NavigationRoute>
     </NavigationStack>
+  );
+}
+
+function HomeScreen() {
+  return (
+    <List>
+      <NavigationLink to="/counter" label="Counter" />
+      <NavigationLink to="/hydration" accessibilityLabel="Hydration">
+        <HStack spacing={4}>
+          <Image systemName="drop.fill" color="cyan" />
+          <Text>Hydration</Text>
+        </HStack>
+      </NavigationLink>
+      <NavigationLink to="/gallery" label="Gallery" />
+      <NavigationLink to="/inputs" label="Inputs" />
+      <NavigationLink to="/tabs" label="Tabs" />
+      <NavigationLink to="/stopwatch" label="Stopwatch" />
+      <NavigationLink to="/crown" label="Crown" />
+      <NavigationLink to="/phone" label="Phone" />
+      <NavigationLink to="/movie-remote" label="Movie Remote" />
+      <NavigationLink to="/ai" label="AI" />
+      <NavigationLink to="/updates" label="Updates" />
+    </List>
   );
 }

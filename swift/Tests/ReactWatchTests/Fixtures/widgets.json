@@ -17,6 +17,7 @@
               },
               "children": []
             },
+            "url": "reactwatch://stopwatch",
             "relevance": {
               "score": 50,
               "durationMs": 3600000
@@ -39,6 +40,7 @@
               },
               "children": []
             },
+            "url": "reactwatch://stopwatch",
             "relevance": {
               "score": 50,
               "durationMs": 3600000

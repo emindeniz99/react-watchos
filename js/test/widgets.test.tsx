@@ -47,6 +47,7 @@ describe("widget timelines", () => {
         entries: [
           {
             date: now,
+            url: "reactwatch://hydration",
             view:
               family === "accessoryCircular" ? (
                 <Gauge value={glasses} min={0} max={8} label="Water" />
@@ -78,6 +79,9 @@ describe("widget timelines", () => {
       type: "Text",
       props: { text: "3/8 glasses" },
     });
+    expect(families.accessoryInline.entries[0].url).toBe(
+      "reactwatch://hydration",
+    );
   });
 
   it("normalizes Date entries and reloadAfter to epoch milliseconds", () => {

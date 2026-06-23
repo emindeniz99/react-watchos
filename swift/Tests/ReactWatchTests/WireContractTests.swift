@@ -61,6 +61,7 @@ final class WireContractTests: XCTestCase {
         let circular = try XCTUnwrap(stopwatch["accessoryCircular"])
         let entry = try XCTUnwrap(circular.entries.first)
         XCTAssertEqual(entry.tree?.type, "Gauge")
+        XCTAssertEqual(entry.url, "reactwatch://stopwatch")
         XCTAssertEqual(entry.relevance?.score, 50)
 
         let control = try XCTUnwrap(payload.controls?["sw.start"])

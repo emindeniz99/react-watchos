@@ -70,8 +70,8 @@ struct WidgetNodeView: View {
                 ProgressView()
             }
         // Interactive/navigation nodes degrade to their content.
-        case "Button", "NavigationStack", "NavigationLink", "ScrollView",
-             "List", "TabView", "CrownRotation":
+        case "Button", "NavigationStack", "NavigationLink", "NavigationRoute",
+             "ScrollView", "List", "TabView", "CrownRotation":
             children(node)
         case "Toggle":
             Text(node.string("label") ?? "")

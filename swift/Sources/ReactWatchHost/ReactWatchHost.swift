@@ -431,5 +431,8 @@ public struct ReactWatchRootView: View {
         .onChange(of: scenePhase) { _, phase in
             model.pushNativeEvent("scenePhase", payload: ["phase": "\(phase)"])
         }
+        .onOpenURL { url in
+            model.pushNativeEvent("openURL", payload: ["url": url.absoluteString])
+        }
     }
 }

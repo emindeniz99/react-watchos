@@ -45,6 +45,8 @@ export interface EntryRelevance {
 export interface WidgetTimelineEntry {
   date: number | Date;
   view: ReactNode;
+  /** Optional deep link opened when the complication/widget is tapped. */
+  url?: string;
   relevance?: EntryRelevance;
 }
 
@@ -141,6 +143,7 @@ function renderWidgetsInner(now: number): PublishedWidgets {
         entries: timeline.entries.map((entry) => ({
           date: toMs(entry.date),
           tree: renderToTree(entry.view),
+          ...(entry.url ? { url: entry.url } : {}),
           ...(entry.relevance ? { relevance: entry.relevance } : {}),
         })),
         ...(timeline.reloadAfter !== undefined

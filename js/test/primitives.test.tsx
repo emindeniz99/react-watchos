@@ -4,10 +4,12 @@ import {
   DatePicker,
   Divider,
   Gauge,
+  HStack,
   Image,
   List,
   MemoryHost,
   NavigationLink,
+  NavigationRoute,
   NavigationStack,
   Picker,
   ProgressView,
@@ -352,25 +354,41 @@ describe("haptics", () => {
 });
 
 describe("navigation primitives", () => {
-  it("serializes NavigationLink with its destination as children", () => {
+  it("serializes route-first NavigationLink and NavigationRoute nodes", () => {
     const root = render(
-      <NavigationStack title="Demos">
-        <List>
-          <NavigationLink title="Details">
-            <VStack>
-              <Text>detail screen</Text>
-            </VStack>
-          </NavigationLink>
-        </List>
+      <NavigationStack title="Demos" path={["/details"]}>
+        <NavigationRoute path="/" title="Demos">
+          <List>
+            <NavigationLink to="/details" label="Details" />
+            <NavigationLink to="/settings" accessibilityLabel="Settings">
+              <HStack>
+                <Text>Settings</Text>
+              </HStack>
+            </NavigationLink>
+          </List>
+        </NavigationRoute>
+        <NavigationRoute path="/details" title="Details">
+          <VStack>
+            <Text>detail screen</Text>
+          </VStack>
+        </NavigationRoute>
       </NavigationStack>,
     );
     expect(root.type).toBe("NavigationStack");
     expect(root.props.title).toBe("Demos");
-    const link = root.children[0].children[0];
+    expect(root.props.path).toEqual(["/details"]);
+    const home = root.children[0];
+    expect(home.type).toBe("NavigationRoute");
+    expect(home.props.path).toBe("/");
+    const link = home.children[0].children[0];
     expect(link.type).toBe("NavigationLink");
-    expect(link.props.title).toBe("Details");
-    // The destination is part of the committed tree, so taps inside it
-    // can be dispatched by node id like everything else.
-    expect(link.children[0].children[0].props.text).toBe("detail screen");
+    expect(link.props.to).toBe("/details");
+    expect(link.props.label).toBe("Details");
+    const customLink = home.children[0].children[1];
+    expect(customLink.props.to).toBe("/settings");
+    expect(customLink.children[0].children[0].props.text).toBe("Settings");
+    const details = root.children[1];
+    expect(details.props.path).toBe("/details");
+    expect(details.children[0].children[0].props.text).toBe("detail screen");
   });
 });

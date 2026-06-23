@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toggleStopwatch, type StopwatchState } from "../demo/App";
+import { type StopwatchState, toggleStopwatch } from "../demo/App";
 
 describe("demo stopwatch", () => {
   it("does not double-count elapsed time across start/stop cycles", () => {

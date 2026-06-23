@@ -95,6 +95,7 @@ public struct PublishedEntry: Codable, Equatable, Sendable {
     /// ms since epoch
     public let date: Double
     public let tree: RNNode?
+    public let url: String?
     public let relevance: PublishedRelevance?
 
     public var entryDate: Date { Date(timeIntervalSince1970: date / 1000) }

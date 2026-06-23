@@ -5,6 +5,7 @@ const eventToProp: Record<string, string> = {
   press: "onPress",
   longPress: "onLongPress",
   change: "onChange",
+  pathChange: "onPathChange",
   swipe: "onSwipe",
   drag: "onDrag",
 };
@@ -20,6 +21,8 @@ export function dispatchToInstance(
   if (typeof handler !== "function") return false;
   if (event.event === "change") {
     handler(event.payload?.value);
+  } else if (event.event === "pathChange") {
+    handler(event.payload?.path);
   } else if (event.event === "swipe") {
     handler(event.payload?.direction);
   } else {

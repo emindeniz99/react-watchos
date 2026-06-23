@@ -73,7 +73,7 @@ globalThis.__dispatchEvent(buttonWithLabel(latestTree(), "Add glass").id, "press
 const hydrationPublished = latestPublished();
 
 // Native push entrypoint: the Stopwatch screen (eagerly mounted as a
-// NavigationLink destination) registers a "scenePhase" listener, so a
+// NavigationRoute destination) registers a "scenePhase" listener, so a
 // native push routes through runSync and commits a new tree synchronously.
 const pushExists = typeof globalThis.__pushNativeEvent === "function";
 const pushHandled = globalThis.__pushNativeEvent("scenePhase",
