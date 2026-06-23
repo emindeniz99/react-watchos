@@ -259,9 +259,11 @@ public final class JSRuntime {
             }
             return qjs_new_float64(context, Double(integer))
         case let floating as any BinaryFloatingPoint:
-            // Covers Double, Float, and CGFloat. CGFloat is Float on watchOS's
-            // 32-bit ABI, so a plain `as Double` would miss it and drop the
-            // value (e.g. a drag gesture's x/y).
+            // Covers Double, Float, and CGFloat uniformly. CGFloat is Float on
+            // watchOS's arm64_32 slice (Series 8 / SE 2 and older; Series 9/10
+            // and Ultra 2/3 moved to 64-bit arm64 in watchOS 26, where it is
+            // Double) — apps ship both slices, so `as Double` alone would drop
+            // e.g. a drag gesture's x/y on the 32-bit devices.
             return qjs_new_float64(context, Double(floating))
         case is NSNull:
             return qjs_null()
