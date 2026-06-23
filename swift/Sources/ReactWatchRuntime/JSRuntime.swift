@@ -231,19 +231,38 @@ public final class JSRuntime {
         switch any {
         case let string as String:
             return JS_NewString(context, string)
-        // Native Swift scalars cover every payload this app builds (gesture
-        // dispatch + sensor samples). A Foundation NSNumber is only reachable
-        // through a WatchConnectivity message — which this app sends as
-        // strings — and still bridges through these `as` casts. Exact
-        // int-vs-bool fidelity for a raw 0/1 NSNumber would need CFBoolean
-        // detection; it is omitted on purpose to keep this Linux-buildable
-        // without relying on CoreFoundation toll-free bridging.
+        #if canImport(Darwin)
+        // On Apple, numbers and bools reach here as NSNumber — both native
+        // Swift scalars (bridged) and WatchConnectivity values. CoreFoundation
+        // distinguishes a true bool from a numeric (Apple-only, hence the
+        // `#if`), restoring the JSONSerialization fidelity the eval-string path
+        // had. On Linux the `BinaryInteger`/`BinaryFloatingPoint` cases below
+        // cover the native scalars that tests use.
+        case let number as NSNumber:
+            if CFGetTypeID(number) == CFBooleanGetTypeID() {
+                return qjs_new_bool(context, number.boolValue)
+            }
+            let objCType = number.objCType.pointee
+            if objCType == Int8(UInt8(ascii: "f"))
+                || objCType == Int8(UInt8(ascii: "d")) {
+                return qjs_new_float64(context, number.doubleValue)
+            }
+            return qjs_new_int64(context, number.int64Value)
+        #endif
         case let bool as Bool:
             return qjs_new_bool(context, bool)
-        case let int as Int:
-            return qjs_new_int64(context, Int64(int))
-        case let double as Double:
-            return qjs_new_float64(context, double)
+        case let integer as any BinaryInteger:
+            // Covers Int / Int8…Int64 / UInt… uniformly; a value outside Int64
+            // degrades to a double, as JSON number parsing would.
+            if let exact = Int64(exactly: integer) {
+                return qjs_new_int64(context, exact)
+            }
+            return qjs_new_float64(context, Double(integer))
+        case let floating as any BinaryFloatingPoint:
+            // Covers Double, Float, and CGFloat. CGFloat is Float on watchOS's
+            // 32-bit ABI, so a plain `as Double` would miss it and drop the
+            // value (e.g. a drag gesture's x/y).
+            return qjs_new_float64(context, Double(floating))
         case is NSNull:
             return qjs_null()
         case let dictionary as [String: Any]:

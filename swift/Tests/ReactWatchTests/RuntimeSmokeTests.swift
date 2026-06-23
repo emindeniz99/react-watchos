@@ -112,4 +112,34 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertEqual(
             runtime.evaluateString("String(globalThis.__payloadUndefined)"), "true")
     }
+
+    func testPushNativeEventEncodesEveryNumericPayloadType() throws {
+        let runtime = try JSRuntime()
+        try runtime.evaluate(#"""
+        globalThis.__pushNativeEvent = (name, p) => {
+          globalThis.__p = p;
+          return true;
+        };
+        """#)
+
+        // Mixed integer widths, Float, Double, and Bool each reach JS as the
+        // right primitive. The BinaryInteger/BinaryFloatingPoint cases also
+        // cover Float/CGFloat, which a plain `as Double` would have dropped.
+        runtime.pushNativeEvent("nums", payload: [
+            "i": 42,
+            "big": Int64(1_700_000_000_000),
+            "f": Float(1.5),
+            "d": 3.25,
+            "flag": true,
+        ])
+
+        XCTAssertEqual(runtime.evaluateString("typeof globalThis.__p"), "object")
+        XCTAssertEqual(runtime.evaluateString("String(globalThis.__p.i)"), "42")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__p.big)"), "1700000000000")
+        XCTAssertEqual(runtime.evaluateString("String(globalThis.__p.f)"), "1.5")
+        XCTAssertEqual(runtime.evaluateString("String(globalThis.__p.d)"), "3.25")
+        XCTAssertEqual(
+            runtime.evaluateString("typeof globalThis.__p.flag"), "boolean")
+    }
 }
