@@ -1,3 +1,5 @@
+import { Storage } from "../src/index";
+
 export interface ShoppingItem {
   id: string;
   text: string;
@@ -31,18 +33,31 @@ const seed: ShoppingList[] = [
   },
 ];
 
+// App Group storage so the widget extension's fresh timeline render (a
+// separate QuickJS process) reads the same lists the app last edited — and
+// so edits survive relaunch. See hydrationStore for the same pattern.
+const LISTS_KEY = "shopping.lists";
+const FEATURED_KEY = "shopping.featuredListId";
+
 /**
- * Current snapshot of the shopping lists. In-memory and persists for the
- * session (ticks survive leaving and re-entering a list). Every mutation swaps
- * this reference — and the touched list + items arrays — for fresh identities,
- * so useSyncExternalStore and the React Compiler's auto-memoization observe the
- * change. Mutating in place is invisible to the compiler and renders stale rows.
+ * Cached snapshot. Hydrated from storage once at module load; every mutation
+ * swaps this reference (and the touched list + items arrays) for fresh
+ * identities AND writes through to storage. The cache is what getSnapshot
+ * returns: a stable reference until the next mutation, as useSyncExternalStore
+ * requires (re-reading storage would deserialize a new object each call and
+ * loop forever). Mutating in place is invisible to the React Compiler.
  */
-let lists: ShoppingList[] = seed;
+let lists: ShoppingList[] = Storage.get<ShoppingList[]>(LISTS_KEY) ?? seed;
+let featuredListId: string | null = Storage.get<string>(FEATURED_KEY) ?? null;
 
 const listeners = new Set<() => void>();
+let nextId = 1;
 
-/** Subscribe to store changes (the getSnapshot half is the getter below). */
+function notify(): void {
+  for (const listener of listeners) listener();
+}
+
+/** Subscribe to store changes (the getSnapshot half is the getters below). */
 export function subscribeShopping(listener: () => void): () => void {
   listeners.add(listener);
   return () => {
@@ -59,6 +74,11 @@ export function findShoppingList(id: string): ShoppingList | undefined {
   return lists.find((list) => list.id === id);
 }
 
+/** The list chosen to appear as the watch-face complication, if any. */
+export function getFeaturedListId(): string | null {
+  return featuredListId;
+}
+
 /** Pure done/undone toggle, so the logic is unit-tested without a host. */
 export function toggleDone(items: ShoppingItem[], id: string): ShoppingItem[] {
   return items.map((item) =>
@@ -66,7 +86,14 @@ export function toggleDone(items: ShoppingItem[], id: string): ShoppingItem[] {
   );
 }
 
-/** Immutable update of one list's items, then notify subscribers. */
+/** Replace the cached lists with a fresh identity, persist, and notify. */
+function setLists(next: ShoppingList[]): void {
+  lists = next;
+  Storage.set(LISTS_KEY, lists);
+  notify();
+}
+
+/** Immutable update of one list's items. */
 function updateItems(
   listId: string,
   update: (items: ShoppingItem[]) => ShoppingItem[],
@@ -75,8 +102,7 @@ function updateItems(
   const list = lists[index];
   if (!list) return;
   const updated: ShoppingList = { ...list, items: update(list.items) };
-  lists = lists.map((current, i) => (i === index ? updated : current));
-  for (const listener of listeners) listener();
+  setLists(lists.map((current, i) => (i === index ? updated : current)));
 }
 
 /** Flip an item's done flag (used by tapping a row). */
@@ -93,4 +119,33 @@ export function setShoppingItemDone(
   updateItems(listId, (items) =>
     items.map((item) => (item.id === itemId ? { ...item, done } : item)),
   );
+}
+
+/** Append a new list with the given name. No-op for a blank name. */
+export function addList(name: string): void {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const list: ShoppingList = {
+    id: `list-${Date.now()}-${nextId++}`,
+    name: trimmed,
+    items: [],
+  };
+  setLists([...lists, list]);
+}
+
+/** Append a new (not-done) item to a list. No-op for a blank text. */
+export function addItem(listId: string, text: string): void {
+  const trimmed = text.trim();
+  if (!trimmed) return;
+  updateItems(listId, (items) => [
+    ...items,
+    { id: `item-${Date.now()}-${nextId++}`, text: trimmed, done: false },
+  ]);
+}
+
+/** Choose (or clear, with null) the list shown as the complication. */
+export function setFeaturedList(id: string | null): void {
+  featuredListId = id;
+  Storage.set(FEATURED_KEY, id);
+  notify();
 }

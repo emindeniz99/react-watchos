@@ -4,6 +4,7 @@
 import { publishWidgets, runApp, startInspector } from "../src/index";
 import { App } from "./App";
 import { registerDemoIntents } from "./intents";
+import { subscribeShopping } from "./shoppingStore";
 import { registerDemoWidgets } from "./widgets";
 
 registerDemoWidgets();
@@ -19,6 +20,9 @@ if (entrypoint === "app") {
   runApp(<App />);
   // Seed the complications so they show data before any interaction.
   publishWidgets();
+  // Keep the shopping complication in sync with in-app edits (add/toggle/
+  // feature). publishWidgets re-renders all timelines and persists them.
+  subscribeShopping(() => publishWidgets());
   // DEBUG-only: WatchApp sets __inspectorUrl so the tree + logs stream to
   // the `npm run inspector` viewer.
   const inspectorUrl = (globalThis as { __inspectorUrl?: string })

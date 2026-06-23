@@ -123,6 +123,27 @@ struct HydrationWidget: Widget {
     }
 }
 
+/// Shopping list progress. React renders the featured list (chosen in-app)
+/// from App Group storage, so the complication tracks live edits.
+struct ShoppingWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(
+            kind: "shopping",
+            provider: ReactTimelineProvider(kind: "shopping")
+        ) { entry in
+            reactWidgetView(entry)
+        }
+        .configurationDisplayName("Shopping")
+        .description("A shopping list's progress — rendered by React.")
+        .supportedFamilies([
+            .accessoryCircular,
+            .accessoryCorner,
+            .accessoryRectangular,
+            .accessoryInline,
+        ])
+    }
+}
+
 /// Multi-entry timeline demo: WidgetKit swaps between pre-rendered,
 /// future-dated entries with no process running; relevance scores hint
 /// the Smart Stack.
@@ -179,6 +200,7 @@ struct AddGlassControl: ControlWidget {
 struct ReactWidgetBundle: WidgetBundle {
     var body: some Widget {
         HydrationWidget()
+        ShoppingWidget()
         DaypartWidget()
         if #available(watchOS 26.0, *) {
             AddGlassControl()

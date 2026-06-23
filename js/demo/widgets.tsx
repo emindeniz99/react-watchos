@@ -9,6 +9,11 @@ import {
   VStack,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
+import {
+  findShoppingList,
+  getFeaturedListId,
+  getShoppingLists,
+} from "./shoppingStore";
 
 interface Daypart {
   name: string;
@@ -102,6 +107,67 @@ export function registerDemoWidgets(): void {
       return {
         entries: [{ date: now, view, url: "reactwatch://hydration" }],
         reloadAfter: now + 24 * 3_600_000,
+      };
+    },
+  });
+
+  // Shopping complication. The list shown is chosen in-app (setFeaturedList);
+  // both the app and the extension's fresh render read the selection + lists
+  // from App Group storage, so the face reflects live edits. Falls back to the
+  // first list when none is featured.
+  registerWidget({
+    kind: "shopping",
+    families: [
+      "accessoryCircular",
+      "accessoryCorner",
+      "accessoryRectangular",
+      "accessoryInline",
+    ],
+    render: ({ family, now }) => {
+      const featuredId = getFeaturedListId();
+      const list =
+        (featuredId ? findShoppingList(featuredId) : undefined) ??
+        getShoppingLists()[0];
+      const done = list ? list.items.filter((item) => item.done).length : 0;
+      const total = list ? list.items.length : 0;
+      const name = list?.name ?? "Shopping";
+      const view = (() => {
+        switch (family) {
+          case "accessoryCircular":
+          case "accessoryCorner":
+            return (
+              <Gauge
+                value={done}
+                min={0}
+                max={Math.max(total, 1)}
+                label="List"
+                style="circular"
+              />
+            );
+          case "accessoryRectangular":
+            return (
+              <VStack spacing={2}>
+                <HStack spacing={4}>
+                  <Image systemName="checklist" color="cyan" />
+                  <Text bold>{name}</Text>
+                </HStack>
+                <Text size={12}>{`${done} of ${total} done`}</Text>
+                <ProgressView value={done} total={Math.max(total, 1)} />
+              </VStack>
+            );
+          case "accessoryInline":
+            return <Text>{`${name} ${done}/${total}`}</Text>;
+        }
+      })();
+      return {
+        entries: [
+          {
+            date: now,
+            view,
+            url: list ? `reactwatch://list/${list.id}` : "reactwatch://",
+          },
+        ],
+        reloadAfter: now + 6 * 3_600_000,
       };
     },
   });

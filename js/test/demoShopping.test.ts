@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  addItem,
+  addList,
   findShoppingList,
+  getFeaturedListId,
   getShoppingLists,
   type ShoppingItem,
+  setFeaturedList,
   setShoppingItemDone,
   subscribeShopping,
   toggleDone,
@@ -93,5 +97,61 @@ describe("toggleShoppingItem store update", () => {
     unsubscribe();
     expect(calls).toBe(0);
     expect(getShoppingLists()).toBe(snapshot);
+  });
+});
+
+describe("adding lists and items", () => {
+  it("appends a new list with a fresh top-level identity", () => {
+    const before = getShoppingLists();
+    const beforeCount = before.length;
+    addList("  Pharmacy  ");
+    const after = getShoppingLists();
+    expect(after).not.toBe(before);
+    expect(after.length).toBe(beforeCount + 1);
+    // Name is trimmed and the list starts empty.
+    const added = after[after.length - 1];
+    expect(added?.name).toBe("Pharmacy");
+    expect(added?.items).toEqual([]);
+  });
+
+  it("ignores a blank list name", () => {
+    const before = getShoppingLists();
+    addList("   ");
+    expect(getShoppingLists()).toBe(before);
+  });
+
+  it("appends a not-done item to a list", () => {
+    addItem("hardware", "Nails");
+    const items = findShoppingList("hardware")?.items ?? [];
+    const added = items[items.length - 1];
+    expect(added?.text).toBe("Nails");
+    expect(added?.done).toBe(false);
+  });
+
+  it("ignores a blank item text without notifying", () => {
+    const before = getShoppingLists();
+    let calls = 0;
+    const unsubscribe = subscribeShopping(() => {
+      calls += 1;
+    });
+    addItem("hardware", "  ");
+    unsubscribe();
+    expect(calls).toBe(0);
+    expect(getShoppingLists()).toBe(before);
+  });
+});
+
+describe("featured list (watch-face complication source)", () => {
+  it("sets and clears the featured list id and notifies", () => {
+    let calls = 0;
+    const unsubscribe = subscribeShopping(() => {
+      calls += 1;
+    });
+    setFeaturedList("groceries");
+    expect(getFeaturedListId()).toBe("groceries");
+    setFeaturedList(null);
+    expect(getFeaturedListId()).toBe(null);
+    unsubscribe();
+    expect(calls).toBe(2);
   });
 });

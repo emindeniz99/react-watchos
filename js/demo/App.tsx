@@ -43,8 +43,12 @@ import {
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 import {
+  addItem,
+  addList,
   findShoppingList,
+  getFeaturedListId,
   getShoppingLists,
+  setFeaturedList,
   setShoppingItemDone,
   subscribeShopping,
   toggleShoppingItem,
@@ -478,20 +482,32 @@ function ListsScreen() {
   // Subscribe so the "N left" counts refresh after a toggle on the detail
   // screen (the snapshot's identity changes, so the compiler recomputes).
   const lists = useSyncExternalStore(subscribeShopping, getShoppingLists);
+  const featuredId = useSyncExternalStore(subscribeShopping, getFeaturedListId);
+  const [draft, setDraft] = useState("");
+  const create = () => {
+    addList(draft);
+    setDraft("");
+  };
   return (
     <List>
       {lists.map((list) => {
         const remaining = list.items.filter((item) => !item.done).length;
+        const featured = list.id === featuredId;
         return (
           <NavigationLink
             key={list.id}
             to={`/list/${list.id}`}
-            accessibilityLabel={`${list.name}, ${remaining} left`}
+            accessibilityLabel={`${list.name}, ${remaining} left${
+              featured ? ", on watch face" : ""
+            }`}
           >
             <HStack spacing={6}>
               <Image systemName="checklist" color="cyan" />
               <Text>{list.name}</Text>
               <Spacer />
+              {featured ? (
+                <Image systemName="star.fill" color="yellow" size={14} />
+              ) : null}
               <Text size={12} color="secondary">
                 {String(remaining)}
               </Text>
@@ -499,6 +515,15 @@ function ListsScreen() {
           </NavigationLink>
         );
       })}
+      <HStack spacing={6}>
+        <Image systemName="plus.circle.fill" color="green" />
+        <TextField value={draft} placeholder="New list" onChange={setDraft} />
+      </HStack>
+      <Button onPress={create} accessibilityLabel="Add list">
+        <Text color="green" size={14}>
+          Add list
+        </Text>
+      </Button>
     </List>
   );
 }
@@ -517,6 +542,8 @@ function ListDetailScreen() {
   const list = useSyncExternalStore(subscribeShopping, () =>
     findShoppingList(id ?? ""),
   );
+  const featuredId = useSyncExternalStore(subscribeShopping, getFeaturedListId);
+  const [itemDraft, setItemDraft] = useState("");
   if (!list) {
     return (
       <Text size={12} color="secondary">
@@ -524,6 +551,7 @@ function ListDetailScreen() {
       </Text>
     );
   }
+  const featured = list.id === featuredId;
   const toggle = (itemId: string) => {
     const wasDone = list.items.find((item) => item.id === itemId)?.done;
     toggleShoppingItem(list.id, itemId);
@@ -537,6 +565,10 @@ function ListDetailScreen() {
       playHaptic("success");
     }
   };
+  const create = () => {
+    addItem(list.id, itemDraft);
+    setItemDraft("");
+  };
   const done = list.items.filter((item) => item.done).length;
   return (
     <List>
@@ -549,6 +581,24 @@ function ListDetailScreen() {
           {`${done}/${list.items.length}`}
         </Text>
       </HStack>
+      <Button
+        onPress={() => setFeaturedList(featured ? null : list.id)}
+        accessibilityLabel={
+          featured ? "Remove from watch face" : "Show on watch face"
+        }
+      >
+        <HStack spacing={6}>
+          <Image
+            systemName={featured ? "star.fill" : "star"}
+            color={featured ? "yellow" : "secondary"}
+            size={16}
+          />
+          <Text size={13} color={featured ? "yellow" : "secondary"}>
+            {featured ? "On watch face" : "Show on watch face"}
+          </Text>
+          <Spacer />
+        </HStack>
+      </Button>
       {list.items.map((item) => (
         <Button
           key={item.id}
@@ -576,6 +626,19 @@ function ListDetailScreen() {
           </HStack>
         </Button>
       ))}
+      <HStack spacing={12}>
+        <Image systemName="plus.circle.fill" color="green" size={22} />
+        <TextField
+          value={itemDraft}
+          placeholder="New item"
+          onChange={setItemDraft}
+        />
+      </HStack>
+      <Button onPress={create} accessibilityLabel="Add item">
+        <Text color="green" size={14}>
+          Add item
+        </Text>
+      </Button>
     </List>
   );
 }
