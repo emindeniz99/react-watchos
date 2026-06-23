@@ -10,84 +10,9 @@ import WidgetKit
 /// Group storage (written by demo/shoppingStore.ts), and React renders one
 /// timeline per list under the key "shopping/<id>". This Swift layer only reads
 /// the JS-owned data and selects the configured key; it authors no UI or data.
+/// The configuration intent + entity/query live in ShoppingIntent.swift (shared
+/// with the watch app target so WidgetKit can resolve the intent).
 /// NOTE: untested until built with Xcode on macOS (WidgetKit + AppIntents).
-
-// MARK: - Reading the JS-owned shopping lists from App Group storage
-
-/// Mirrors the JS ShoppingList shape (demo/shoppingStore.ts).
-private struct StoredShoppingList: Codable {
-    let id: String
-    let name: String
-}
-
-private enum ShoppingData {
-    /// The JS Storage API persists JSON under "<storagePrefix><key>".
-    private static func string(forKey key: String) -> String? {
-        UserDefaults(suiteName: WidgetStore.appGroupId)?
-            .string(forKey: WidgetStore.storagePrefix + key)
-    }
-
-    static func lists() -> [StoredShoppingList] {
-        guard let json = string(forKey: "shopping.lists"),
-              let lists = try? JSONDecoder().decode(
-                  [StoredShoppingList].self, from: Data(json.utf8))
-        else { return [] }
-        return lists
-    }
-
-    /// The list chosen in-app (setFeaturedList); JS stores it as a JSON string
-    /// or null.
-    static func featuredId() -> String? {
-        guard let json = string(forKey: "shopping.featuredListId"),
-              let id = try? JSONDecoder().decode(String?.self, from: Data(json.utf8))
-        else { return nil }
-        return id
-    }
-
-    /// The list a complication shows when the user hasn't picked one: the
-    /// in-app featured list, else the first list.
-    static func defaultId() -> String? {
-        featuredId() ?? lists().first?.id
-    }
-}
-
-// MARK: - The list the user picks while editing the watch face
-
-struct ShoppingListEntity: AppEntity {
-    let id: String
-    let name: String
-
-    static var typeDisplayRepresentation: TypeDisplayRepresentation {
-        "Shopping List"
-    }
-    var displayRepresentation: DisplayRepresentation {
-        DisplayRepresentation(title: "\(name)")
-    }
-    static var defaultQuery = ShoppingListQuery()
-}
-
-/// Resolves entities from the JS-owned lists in App Group storage.
-struct ShoppingListQuery: EntityQuery {
-    func entities(for identifiers: [String]) async throws -> [ShoppingListEntity] {
-        ShoppingData.lists()
-            .filter { identifiers.contains($0.id) }
-            .map { ShoppingListEntity(id: $0.id, name: $0.name) }
-    }
-
-    func suggestedEntities() async throws -> [ShoppingListEntity] {
-        ShoppingData.lists().map { ShoppingListEntity(id: $0.id, name: $0.name) }
-    }
-}
-
-struct SelectShoppingListIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource { "Shopping List" }
-    static var description: IntentDescription {
-        IntentDescription("Choose which shopping list this complication shows.")
-    }
-
-    @Parameter(title: "List")
-    var list: ShoppingListEntity?
-}
 
 // MARK: - Timeline provider (renders the configured list's React timeline)
 
