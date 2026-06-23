@@ -4,7 +4,7 @@
 // are derived from options instead of hand-authored per app. Parameterizing
 // these is the whole point of Phase 1: every value that was hardcoded in the
 // demo's two expo-target.config.js files (target names, App Group, deployment
-// target, bundle-id suffixes, HealthKit, widget families, infoPlist usage
+// target, bundle-id suffixes, HealthKit, infoPlist usage
 // strings) is now an option with the demo's value as the default.
 //
 // Kept dependency-free so the generated config files (and these builders) can

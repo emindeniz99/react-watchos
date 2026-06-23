@@ -45,7 +45,6 @@ const pkg = require("../package.json");
  *   appGroup?: string,
  *   widget?: boolean,
  *   healthKit?: boolean,
- *   families?: string[],
  *   deploymentTarget?: string,
  *   appleTeamId?: string,
  *   scheme?: string,
@@ -73,7 +72,6 @@ function resolveOptions(config, options) {
     appGroup: o.appGroup ?? `group.${bundleIdentifier}`,
     widget: o.widget ?? true,
     healthKit: o.healthKit ?? true,
-    families: o.families,
     deploymentTarget: o.deploymentTarget ?? "10.0",
     appleTeamId: o.appleTeamId ?? config.ios?.appleTeamId,
     scheme: o.scheme ?? "reactwatch",
@@ -120,6 +118,52 @@ function targetProductsFor(opts) {
   return map;
 }
 
+/**
+ * Declare the watch app + widget extension to EAS so cloud builds generate and
+ * validate their provisioning profiles BEFORE the Xcode project exists, via
+ * extra.eas.build.experimental.ios.appExtensions — the documented mechanism; a
+ * config plugin that adds extension targets is expected to add this. Idempotent
+ * (upsert by targetName). NOTE: not verifiable without an actual EAS build;
+ * local Xcode signing is unaffected by it.
+ */
+function withEasAppExtensions(config, opts) {
+  const extra = config.extra ?? {};
+  extra.eas = extra.eas ?? {};
+  extra.eas.build = extra.eas.build ?? {};
+  extra.eas.build.experimental = extra.eas.build.experimental ?? {};
+  extra.eas.build.experimental.ios = extra.eas.build.experimental.ios ?? {};
+  const ios = extra.eas.build.experimental.ios;
+  ios.appExtensions = ios.appExtensions ?? [];
+  config.extra = extra;
+
+  const upsert = (entry) => {
+    const i = ios.appExtensions.findIndex(
+      (e) => e.targetName === entry.targetName,
+    );
+    if (i >= 0) ios.appExtensions[i] = entry;
+    else ios.appExtensions.push(entry);
+  };
+
+  upsert({
+    targetName: opts.name,
+    bundleIdentifier: `${opts.bundleIdentifier}${opts.watchBundleSuffix}`,
+    entitlements: {
+      "com.apple.security.application-groups": [opts.appGroup],
+      ...(opts.healthKit ? { "com.apple.developer.healthkit": true } : {}),
+    },
+  });
+  if (opts.widget) {
+    upsert({
+      targetName: opts.widgetName,
+      bundleIdentifier: `${opts.bundleIdentifier}${opts.widgetBundleSuffix}`,
+      entitlements: {
+        "com.apple.security.application-groups": [opts.appGroup],
+      },
+    });
+  }
+  return config;
+}
+
 const withReactWatch = (config, options) => {
   const opts = resolveOptions(config, options);
   const projectRoot = config._internal?.projectRoot ?? process.cwd();
@@ -132,6 +176,10 @@ const withReactWatch = (config, options) => {
   // The on-disk writes and the pbxproj edit are also individually idempotent.
   const inner = createRunOncePlugin(
     (cfg) => {
+      // 0. Declare the watch app + widget extension to EAS so cloud builds
+      //    provision/sign them before the Xcode project is generated.
+      cfg = withEasAppExtensions(cfg, opts);
+
       // 1. Generate the apple-targets config file(s) on disk BEFORE
       //    apple-targets globs them (synchronously, at evaluation time).
       ensureTargetConfigFile(projectRoot, WATCH_DIR, watchTargetConfig(opts));
@@ -190,6 +238,7 @@ const withReactWatch = (config, options) => {
 // package's logic instead of duplicating it.
 withReactWatch.resolveOptions = resolveOptions;
 withReactWatch.targetProductsFor = targetProductsFor;
+withReactWatch.withEasAppExtensions = withEasAppExtensions;
 withReactWatch.WATCH_DIR = WATCH_DIR;
 withReactWatch.WIDGET_DIR = WIDGET_DIR;
 

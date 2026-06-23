@@ -363,3 +363,81 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
     ).toEqual({ "React Watch": HOST_PRODUCTS });
   });
 });
+
+describe("withEasAppExtensions (EAS extra-target signing)", () => {
+  const { resolveOptions, withEasAppExtensions } = withReactWatch;
+  const config = { ios: { bundleIdentifier: "com.emindeniz99.reactwatch" } };
+  type EasExtra = {
+    extra?: {
+      eas?: {
+        build?: { experimental?: { ios?: { appExtensions?: unknown[] } } };
+      };
+    };
+  };
+  const extensionsOf = (cfg: unknown) =>
+    (cfg as EasExtra).extra?.eas?.build?.experimental?.ios?.appExtensions;
+
+  it("declares the watch app + widget with bundle ids and entitlements", () => {
+    const cfg = withEasAppExtensions({ ...config }, resolveOptions(config, {}));
+    expect(extensionsOf(cfg)).toEqual([
+      {
+        targetName: "React Watch",
+        bundleIdentifier: "com.emindeniz99.reactwatch.watch",
+        entitlements: {
+          "com.apple.security.application-groups": [
+            "group.com.emindeniz99.reactwatch",
+          ],
+          "com.apple.developer.healthkit": true,
+        },
+      },
+      {
+        targetName: "React Watch Widgets",
+        bundleIdentifier: "com.emindeniz99.reactwatch.watch.widgets",
+        entitlements: {
+          "com.apple.security.application-groups": [
+            "group.com.emindeniz99.reactwatch",
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("drops the widget entry and HealthKit when those options are off", () => {
+    const opts = resolveOptions(config, { widget: false, healthKit: false });
+    const list = extensionsOf(
+      withEasAppExtensions({ ...config }, opts),
+    ) as Array<{
+      targetName: string;
+      entitlements: Record<string, unknown>;
+    }>;
+    expect(list).toHaveLength(1);
+    expect(list[0].targetName).toBe("React Watch");
+    expect(
+      list[0].entitlements["com.apple.developer.healthkit"],
+    ).toBeUndefined();
+  });
+
+  it("is idempotent — upserts by targetName instead of duplicating", () => {
+    const opts = resolveOptions(config, {});
+    const cfg = { ...config };
+    withEasAppExtensions(cfg, opts);
+    withEasAppExtensions(cfg, opts);
+    expect(extensionsOf(cfg)).toHaveLength(2);
+  });
+
+  it("preserves a pre-existing unrelated app extension", () => {
+    const existing = { targetName: "notifications", bundleIdentifier: "x" };
+    const cfg = {
+      ...config,
+      extra: {
+        eas: {
+          build: { experimental: { ios: { appExtensions: [existing] } } },
+        },
+      },
+    };
+    withEasAppExtensions(cfg, resolveOptions(config, {}));
+    const list = extensionsOf(cfg) as unknown[];
+    expect(list).toContainEqual(existing);
+    expect(list).toHaveLength(3);
+  });
+});
