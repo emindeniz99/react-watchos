@@ -8,4 +8,6 @@ yarn.lock
 
 # SwiftPM build output.
 .build/
+# Xcode's local SwiftPM state (per-user schemes); never shared.
+.swiftpm/
 .history/
