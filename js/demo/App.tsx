@@ -75,7 +75,7 @@ function StopwatchScreen() {
       {running ? (
         <TimerText since={startedAt} milliseconds bold size={30} />
       ) : (
-        <Text bold size={30}>
+        <Text bold size={30} monospacedDigit>
           {formatElapsedPrecise(frozen)}
         </Text>
       )}

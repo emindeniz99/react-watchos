@@ -169,6 +169,7 @@ struct NodeView: View {
     private func styled(_ base: Text) -> some View {
         var text = base
         if node.bool("bold") == true { text = text.bold() }
+        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
         // Semantic textStyle scales with Dynamic Type; fixed size doesn't.
         if let style = node.string("textStyle") {
             text = text.font(semanticFont(style))
@@ -187,17 +188,21 @@ struct NodeView: View {
             TimelineView(.periodic(from: .now, by: 0.05)) { context in
                 let interval = timerInterval(
                     at: context.date, sinceMs: sinceMs, untilMs: untilMs)
-                styled(Text(formatTimer(interval)))
+                styledTimer(Text(formatTimer(interval)))
             }
         } else if let until = node.double("until") {
             let end = Date(timeIntervalSince1970: until / 1000)
-            styled(Text(timerInterval: Date()...Swift.max(Date(), end),
-                        countsDown: true))
+            styledTimer(Text(timerInterval: Date()...Swift.max(Date(), end),
+                             countsDown: true))
         } else {
             let start = Date(timeIntervalSince1970: (node.double("since") ?? 0) / 1000)
-            styled(Text(timerInterval: start...Date.distantFuture,
-                        countsDown: false))
+            styledTimer(Text(timerInterval: start...Date.distantFuture,
+                             countsDown: false))
         }
+    }
+
+    private func styledTimer(_ base: Text) -> some View {
+        styled(base.monospacedDigit())
     }
 
     private func timerInterval(

@@ -64,6 +64,8 @@ export interface TextProps extends A11yProps {
     | "caption";
   /** SwiftUI system color name, e.g. "green", "secondary". */
   color?: string;
+  /** Use fixed-width digits for counters/timers to avoid layout jitter. */
+  monospacedDigit?: boolean;
 }
 
 export interface ButtonProps extends A11yProps, GestureProps {

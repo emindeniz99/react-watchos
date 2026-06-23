@@ -71,6 +71,14 @@ describe("container primitives", () => {
 });
 
 describe("data display primitives", () => {
+  it("serializes Text with monospaced digits", () => {
+    const root = render(<Text monospacedDigit>00:01.234</Text>);
+    expect(root).toMatchObject({
+      type: "Text",
+      props: { text: "00:01.234", monospacedDigit: true },
+    });
+  });
+
   it("serializes Gauge with value range, label and style", () => {
     const root = render(
       <Gauge value={3} min={0} max={8} label="Water" style="circular" />,
