@@ -82,11 +82,12 @@ function StopwatchScreen() {
       <HStack spacing={8}>
         <Button
           onPress={() => {
+            const now = Date.now();
             if (running) {
-              setFrozen(frozen + (Date.now() - startedAt));
+              setFrozen(Math.max(0, now - startedAt));
               setStartedAt(null);
             } else {
-              setStartedAt(Date.now() - frozen);
+              setStartedAt(now - frozen);
             }
           }}
         >
