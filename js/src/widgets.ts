@@ -33,6 +33,12 @@ export interface WidgetRenderContext {
   family: WidgetFamily;
   /** Timeline render time, ms since epoch. */
   now: number;
+  /**
+   * For a widget with `instances`, the id of the instance being rendered.
+   * The published key is `kind/instanceId`, which a configurable widget's
+   * native provider looks up from the user's per-complication selection.
+   */
+  instanceId?: string;
 }
 
 export interface EntryRelevance {
@@ -72,6 +78,14 @@ export interface WidgetDefinition {
   kind: string;
   families: WidgetFamily[];
   render: (context: WidgetRenderContext) => WidgetTimeline;
+  /**
+   * Optional: expand this widget into one timeline per instance id, published
+   * under the key `kind/id` (instead of just `kind`). Use for a configurable
+   * widget whose native AppIntentConfiguration picks an instance per
+   * complication — e.g. one shopping list per id. `render` then receives the
+   * id as `context.instanceId`.
+   */
+  instances?: () => string[];
 }
 
 /**
@@ -136,34 +150,47 @@ export function renderWidgets(now: number = Date.now()): PublishedWidgets {
 function renderWidgetsInner(now: number): PublishedWidgets {
   const widgets: PublishedWidgets["widgets"] = {};
   for (const definition of registry.values()) {
-    const byFamily: Record<string, PublishedFamilyTimeline> = {};
-    for (const family of definition.families) {
-      const timeline = definition.render({ family, now });
-      byFamily[family] = {
-        entries: timeline.entries.map((entry) => ({
-          date: toMs(entry.date),
-          tree: renderToTree(entry.view),
-          ...(entry.url ? { url: entry.url } : {}),
-          ...(entry.relevance ? { relevance: entry.relevance } : {}),
-        })),
-        ...(timeline.reloadAfter !== undefined
-          ? { reloadAfter: toMs(timeline.reloadAfter) }
-          : {}),
-        ...(timeline.relevantContexts
-          ? {
-              relevantContexts: timeline.relevantContexts.map((c) => ({
-                ...(c.date !== undefined ? { date: toMs(c.date) } : {}),
-                ...(c.latitude !== undefined ? { latitude: c.latitude } : {}),
-                ...(c.longitude !== undefined
-                  ? { longitude: c.longitude }
-                  : {}),
-                ...(c.radius !== undefined ? { radius: c.radius } : {}),
-              })),
-            }
-          : {}),
-      };
+    // A plain widget renders one timeline under `kind`; an `instances` widget
+    // renders one per id under `kind/id` (undefined → the plain `kind` key).
+    const instanceIds = definition.instances?.() ?? [undefined];
+    for (const instanceId of instanceIds) {
+      const byFamily: Record<string, PublishedFamilyTimeline> = {};
+      for (const family of definition.families) {
+        const timeline = definition.render({
+          family,
+          now,
+          ...(instanceId !== undefined ? { instanceId } : {}),
+        });
+        byFamily[family] = {
+          entries: timeline.entries.map((entry) => ({
+            date: toMs(entry.date),
+            tree: renderToTree(entry.view),
+            ...(entry.url ? { url: entry.url } : {}),
+            ...(entry.relevance ? { relevance: entry.relevance } : {}),
+          })),
+          ...(timeline.reloadAfter !== undefined
+            ? { reloadAfter: toMs(timeline.reloadAfter) }
+            : {}),
+          ...(timeline.relevantContexts
+            ? {
+                relevantContexts: timeline.relevantContexts.map((c) => ({
+                  ...(c.date !== undefined ? { date: toMs(c.date) } : {}),
+                  ...(c.latitude !== undefined ? { latitude: c.latitude } : {}),
+                  ...(c.longitude !== undefined
+                    ? { longitude: c.longitude }
+                    : {}),
+                  ...(c.radius !== undefined ? { radius: c.radius } : {}),
+                })),
+              }
+            : {}),
+        };
+      }
+      const key =
+        instanceId === undefined
+          ? definition.kind
+          : `${definition.kind}/${instanceId}`;
+      widgets[key] = byFamily;
     }
-    widgets[definition.kind] = byFamily;
   }
   const controls: PublishedWidgets["controls"] = {};
   for (const { kind, ...metadata } of controlRegistry.values()) {

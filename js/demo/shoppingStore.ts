@@ -47,7 +47,12 @@ const FEATURED_KEY = "shopping.featuredListId";
  * requires (re-reading storage would deserialize a new object each call and
  * loop forever). Mutating in place is invisible to the React Compiler.
  */
-let lists: ShoppingList[] = Storage.get<ShoppingList[]>(LISTS_KEY) ?? seed;
+const persisted = Storage.get<ShoppingList[]>(LISTS_KEY);
+let lists: ShoppingList[] = persisted ?? seed;
+// Persist the seed on first run so the widget extension and the native
+// complication's list picker (EntityQuery) can read the lists before any
+// in-app edit writes them.
+if (!persisted) Storage.set(LISTS_KEY, lists);
 let featuredListId: string | null = Storage.get<string>(FEATURED_KEY) ?? null;
 
 const listeners = new Set<() => void>();

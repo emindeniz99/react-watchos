@@ -94,7 +94,7 @@ struct ReactTimelineProvider: TimelineProvider {
     }
 }
 
-@ViewBuilder private func reactWidgetView(_ entry: ReactEntry) -> some View {
+@ViewBuilder func reactWidgetView(_ entry: ReactEntry) -> some View {
     let view = WidgetNodeView(node: entry.node)
         .containerBackground(.clear, for: .widget)
     if let url = entry.url {
@@ -123,26 +123,8 @@ struct HydrationWidget: Widget {
     }
 }
 
-/// Shopping list progress. React renders the featured list (chosen in-app)
-/// from App Group storage, so the complication tracks live edits.
-struct ShoppingWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(
-            kind: "shopping",
-            provider: ReactTimelineProvider(kind: "shopping")
-        ) { entry in
-            reactWidgetView(entry)
-        }
-        .configurationDisplayName("Shopping")
-        .description("A shopping list's progress — rendered by React.")
-        .supportedFamilies([
-            .accessoryCircular,
-            .accessoryCorner,
-            .accessoryRectangular,
-            .accessoryInline,
-        ])
-    }
-}
+// ShoppingWidget (configurable: pick the list while editing the watch face)
+// lives in ShoppingConfiguration.swift.
 
 /// Multi-entry timeline demo: WidgetKit swaps between pre-rendered,
 /// future-dated entries with no process running; relevance scores hint
