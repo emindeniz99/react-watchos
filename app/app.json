@@ -7,16 +7,25 @@
     "newArchEnabled": true,
     "ios": {
       "bundleIdentifier": "com.emindeniz99.reactwatch",
+      "appleTeamId": "D68Q862K33",
       "supportsTablet": false
     },
     "plugins": [
       [
-        "@bacons/apple-targets",
+        "react-native-watchos",
         {
-          "appleTeamId": "D68Q862K33"
+          "name": "React Watch",
+          "appGroup": "group.com.emindeniz99.reactwatch",
+          "widget": true,
+          "healthKit": true,
+          "deploymentTarget": "10.0",
+          "appleTeamId": "D68Q862K33",
+          "infoPlist": {
+            "NSBluetoothAlwaysUsageDescription": "Connect to a nearby device (e.g. your laptop) to control playback.",
+            "NSLocationWhenInUseUsageDescription": "Show your location and route while the app is open."
+          }
         }
-      ],
-      "./plugins/with-react-watch-package.js"
+      ]
     ]
   }
 }
