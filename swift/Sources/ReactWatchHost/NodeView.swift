@@ -117,10 +117,31 @@ struct NodeView: View {
             action: { model.dispatch(nodeId: node.id, event: "press") }
         ) { childViews }
         if node.bool("primaryAction") == true, #available(watchOS 11.0, *) {
-            button.handGestureShortcut(.primaryAction)
+            accessibleButton(button).handGestureShortcut(.primaryAction)
+        } else {
+            accessibleButton(button)
+        }
+    }
+
+    private var buttonAccessibilityLabel: String? {
+        if node.string("accessibilityLabel") != nil { return nil }
+        let text = textContent(in: node)
+        return text.isEmpty ? nil : text
+    }
+
+    @ViewBuilder private func accessibleButton(_ button: some View) -> some View {
+        if let label = buttonAccessibilityLabel {
+            button.accessibilityLabel(label)
         } else {
             button
         }
+    }
+
+    private func textContent(in node: RNNode) -> String {
+        let own = node.type == "Text" ? node.string("text") ?? "" : ""
+        let childText = node.children.map(textContent).filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return [own, childText].filter { !$0.isEmpty }.joined(separator: " ")
     }
 
     @ViewBuilder private var childViews: some View {
