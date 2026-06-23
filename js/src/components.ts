@@ -235,6 +235,8 @@ export interface TimerTextProps extends A11yProps {
   since?: number;
   /** Count down to this epoch-ms deadline. Takes precedence over `since`. */
   until?: number;
+  /** Show mm:ss.SSS using native SwiftUI ticking instead of JS intervals. */
+  milliseconds?: boolean;
   bold?: boolean;
   size?: number;
   color?: string;

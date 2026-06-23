@@ -48,11 +48,13 @@ function formatElapsed(ms: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+function formatElapsedPrecise(ms: number): string {
+  return `${formatElapsed(ms)}.${String(Math.floor(ms % 1000)).padStart(3, "0")}`;
+}
+
 /**
  * Stopwatch driven by <TimerText>: React commits once on start/stop;
- * SwiftUI ticks the digits natively (zero per-frame JS). When stopped, a
- * plain <Text> shows the frozen elapsed time. The footer reflects app
- * lifecycle pushed from native via runSync (instant, no polling).
+ * SwiftUI ticks the digits natively, including milliseconds when requested.
  */
 function StopwatchScreen() {
   const [startedAt, setStartedAt] = useState<number | null>(null);
@@ -71,10 +73,10 @@ function StopwatchScreen() {
   return (
     <VStack spacing={6}>
       {running ? (
-        <TimerText since={startedAt} bold size={30} />
+        <TimerText since={startedAt} milliseconds bold size={30} />
       ) : (
         <Text bold size={30}>
-          {formatElapsed(frozen)}
+          {formatElapsedPrecise(frozen)}
         </Text>
       )}
       <HStack spacing={8}>

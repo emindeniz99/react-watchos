@@ -182,6 +182,14 @@ describe("input primitives", () => {
     expect(root).toMatchObject({ type: "TimerText", props: { until: 5000 } });
   });
 
+  it("serializes TimerText milliseconds mode", () => {
+    const root = render(<TimerText since={1000} milliseconds />);
+    expect(root).toMatchObject({
+      type: "TimerText",
+      props: { since: 1000, milliseconds: true },
+    });
+  });
+
   it("serializes CrownRotation with range/step and folds onChange to a flag", () => {
     const root = render(
       <CrownRotation

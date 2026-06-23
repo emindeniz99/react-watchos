@@ -181,7 +181,15 @@ struct NodeView: View {
     // Self-ticking label: SwiftUI updates the digits natively (no per-frame
     // JS). `until` counts down to a deadline; otherwise count up from `since`.
     @ViewBuilder private var timerText: some View {
-        if let until = node.double("until") {
+        if node.bool("milliseconds") == true {
+            let untilMs = node.double("until")
+            let sinceMs = node.double("since") ?? 0
+            TimelineView(.periodic(from: .now, by: 0.05)) { context in
+                let interval = timerInterval(
+                    at: context.date, sinceMs: sinceMs, untilMs: untilMs)
+                styled(Text(formatTimer(interval)))
+            }
+        } else if let until = node.double("until") {
             let end = Date(timeIntervalSince1970: until / 1000)
             styled(Text(timerInterval: Date()...Swift.max(Date(), end),
                         countsDown: true))
@@ -190,6 +198,25 @@ struct NodeView: View {
             styled(Text(timerInterval: start...Date.distantFuture,
                         countsDown: false))
         }
+    }
+
+    private func timerInterval(
+        at now: Date, sinceMs: Double, untilMs: Double?
+    ) -> TimeInterval {
+        if let untilMs {
+            let end = Date(timeIntervalSince1970: untilMs / 1000)
+            return Swift.max(0, end.timeIntervalSince(now))
+        }
+        let start = Date(timeIntervalSince1970: sinceMs / 1000)
+        return Swift.max(0, now.timeIntervalSince(start))
+    }
+
+    private func formatTimer(_ interval: TimeInterval) -> String {
+        let totalMs = Int((interval * 1000).rounded(.down))
+        let minutes = totalMs / 60_000
+        let seconds = (totalMs / 1000) % 60
+        let millis = totalMs % 1000
+        return String(format: "%02d:%02d.%03d", minutes, seconds, millis)
     }
 
     @ViewBuilder private var gauge: some View {
