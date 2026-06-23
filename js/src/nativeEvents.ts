@@ -1,7 +1,7 @@
 /**
  * Named listeners for state pushed from native code (connection state,
  * sensors, incoming messages) — anything that isn't a user interaction.
- * Native calls `__pushNativeEvent(name, payloadJson)`, which runApp routes
+ * Native calls `__pushNativeEvent(name, payload)`, which runApp routes
  * through WatchRoot.runSync so the resulting React update commits
  * instantly, exactly like a tap, instead of on the scheduler's next turn.
  */

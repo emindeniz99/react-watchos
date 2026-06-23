@@ -35,7 +35,7 @@ export class MemoryHost implements HostBridge {
 
 /**
  * Raw globals installed by JSRuntime.swift before the bundle is evaluated.
- * Strings cross the C boundary, so commit/event payloads are JSON strings.
+ * Strings cross the C boundary, so these host-call payloads are JSON strings.
  */
 export interface QuickJSHostGlobal {
   commit(treeJson: string): void;
