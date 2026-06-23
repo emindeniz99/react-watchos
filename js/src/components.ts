@@ -34,6 +34,19 @@ export interface GestureProps {
   glass?: boolean;
 }
 
+/**
+ * A trailing swipe action (SwiftUI `.swipeActions`), the watchOS-idiomatic
+ * way to act on a row. Only meaningful on a row inside a `<List>`; unlike a
+ * raw `onSwipe` gesture it doesn't fight the scroll view. `swipeActionLabel`
+ * presence enables it; `onSwipeAction` fires when tapped or full-swiped.
+ */
+export interface SwipeActionProps {
+  swipeActionLabel?: string;
+  swipeActionSystemImage?: string;
+  swipeActionTint?: string;
+  onSwipeAction?: () => void;
+}
+
 export interface VStackProps extends A11yProps, GestureProps {
   spacing?: number;
   children?: ReactNode;
@@ -68,7 +81,7 @@ export interface TextProps extends A11yProps {
   monospacedDigit?: boolean;
 }
 
-export interface ButtonProps extends A11yProps, GestureProps {
+export interface ButtonProps extends A11yProps, GestureProps, SwipeActionProps {
   onPress?: () => void;
   /** Bind this button to the Apple Watch double-tap gesture (watchOS 11+). */
   primaryAction?: boolean;

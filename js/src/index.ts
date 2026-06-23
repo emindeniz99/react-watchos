@@ -36,6 +36,7 @@ export type {
   SliderProps,
   SpacerProps,
   StepperProps,
+  SwipeActionProps,
   TabViewProps,
   TextFieldProps,
   TextProps,

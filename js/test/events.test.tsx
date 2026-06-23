@@ -146,6 +146,22 @@ describe("events", () => {
     expect(onSwipe).toHaveBeenCalledWith("left");
   });
 
+  it("dispatches a swipe action to onSwipeAction", () => {
+    const onSwipeAction = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <Button onSwipeAction={onSwipeAction} swipeActionLabel="Done">
+        <Text>row</Text>
+      </Button>,
+    );
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    expect(
+      root.dispatchEvent({ nodeId: button.id, event: "swipeAction" }),
+    ).toBe(true);
+    expect(onSwipeAction).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores events for stale or unknown node ids", () => {
     const host = new MemoryHost();
     const root = new WatchRoot(host);

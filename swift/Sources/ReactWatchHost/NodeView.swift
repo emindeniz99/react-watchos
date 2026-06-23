@@ -20,6 +20,9 @@ struct NodeView: View {
                 label: node.string("accessibilityLabel"),
                 hint: node.string("accessibilityHint")))
             .modifier(GestureModifier(node: node, model: model))
+            .modifier(SwipeActionsModifier(
+                node: node, model: model,
+                tint: color(node.string("swipeActionTint"))))
     }
 
     @ViewBuilder private var rendered: some View {
@@ -697,6 +700,34 @@ private struct GestureModifier: ViewModifier {
                     nodeId: node.id, event: "swipe",
                     payload: ["direction": direction])
             }
+    }
+}
+
+/// Adds a trailing `.swipeActions` button when the node opts in via
+/// `swipeActionLabel` — the watchOS-idiomatic row action (no-op unless the
+/// view is a List row). Unlike the raw drag gesture it doesn't fight scroll.
+private struct SwipeActionsModifier: ViewModifier {
+    let node: RNNode
+    let model: ReactWatchModel
+    let tint: Color?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let label = node.string("swipeActionLabel") {
+            content.swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                Button {
+                    model.dispatch(nodeId: node.id, event: "swipeAction")
+                } label: {
+                    if let image = node.string("swipeActionSystemImage") {
+                        Label(label, systemImage: image)
+                    } else {
+                        Text(label)
+                    }
+                }
+                .tint(tint)
+            }
+        } else {
+            content
+        }
     }
 }
 
