@@ -495,9 +495,10 @@ function ListsScreen() {
 }
 
 /**
- * A dynamic /list/[id] route: useParams() selects the list, and each row
- * toggles done on tap or on a left/right swipe. Mutating the shared store
- * keeps ticks across navigation; useReducer forces the re-render.
+ * A dynamic /list/[id] route: useParams() selects the list. Each row is a
+ * plain List cell — tap toggles done, and a trailing swipe action does the
+ * same the watchOS-idiomatic way. Mutating the shared store keeps ticks
+ * across navigation; useReducer forces the re-render.
  */
 function ListDetailScreen() {
   const { id } = useParams<{ id: string }>();
@@ -517,31 +518,44 @@ function ListDetailScreen() {
     }
     refresh();
   };
-  const remaining = list.items.filter((item) => !item.done).length;
+  const done = list.items.filter((item) => item.done).length;
   return (
-    <VStack spacing={4}>
+    <List>
+      <HStack spacing={6}>
+        <Text bold size={17}>
+          {list.name}
+        </Text>
+        <Spacer />
+        <Text size={13} color="secondary">
+          {`${done}/${list.items.length}`}
+        </Text>
+      </HStack>
       {list.items.map((item) => (
         <Button
           key={item.id}
           onPress={() => toggle(item.id)}
-          onSwipe={() => toggle(item.id)}
-          accessibilityLabel={`${item.text}${item.done ? ", done" : ""}`}
+          onSwipeAction={() => toggle(item.id)}
+          swipeActionLabel={item.done ? "Undo" : "Done"}
+          swipeActionSystemImage={
+            item.done ? "arrow.uturn.backward" : "checkmark"
+          }
+          swipeActionTint={item.done ? "gray" : "green"}
+          accessibilityLabel={`${item.text}, ${item.done ? "done" : "not done"}`}
         >
-          <HStack spacing={6}>
+          <HStack spacing={12}>
             <Image
               systemName={item.done ? "checkmark.circle.fill" : "circle"}
               color={item.done ? "green" : "secondary"}
+              size={22}
             />
             <Text {...(item.done ? { color: "secondary" } : {})}>
               {item.text}
             </Text>
+            <Spacer />
           </HStack>
         </Button>
       ))}
-      <Text size={11} color="secondary">
-        {`${remaining} left · tap or swipe a row`}
-      </Text>
-    </VStack>
+    </List>
   );
 }
 
@@ -586,7 +600,7 @@ function DemoNavigation() {
       <NavigationRoute path="/lists" title="Shopping">
         <ListsScreen />
       </NavigationRoute>
-      <NavigationRoute path="/list/[id]" title="List">
+      <NavigationRoute path="/list/[id]">
         <ListDetailScreen />
       </NavigationRoute>
       <NavigationRoute path="/hydration" title="Hydration">
