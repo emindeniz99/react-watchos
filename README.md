@@ -362,11 +362,13 @@ updates via `publishWidgets()`.
 **First-build friction (verified on the watchOS simulator; physical-device
 signing still untested — Rule 12):**
 
-- The watch target depends on the local `swift/` SwiftPM package. The
-  `with-react-watch-package.js` config plugin writes the SwiftPM references
-  into the generated watch/widget targets during `expo prebuild` (best-effort,
-  and wrapped so it can't fail prebuild — apple-targets/node-xcode have no
-  local-package API, so it edits the pbxproj directly). If it didn't apply, add
+- The watch target depends on the `swift/` SwiftPM package. The unified
+  `react-native-watchos` config plugin (its `app.plugin.js` entry) writes the
+  SwiftPM references into the generated watch/widget targets during
+  `expo prebuild` (best-effort, wrapped so it can't fail prebuild —
+  apple-targets/node-xcode have no local-package API, so it edits the pbxproj
+  directly), and a post-prebuild step re-applies the links authoritatively once
+  apple-targets has created the targets. If it didn't apply, add
   it in Xcode (File ▸ Add Package Dependencies ▸ Add Local ▸ `swift/`) and link
   **ReactWatchHost** to the watch target, **ReactWatchCore** +
   **ReactWatchSupport** + **ReactWatchRuntime** to the widget. The engine is a Clang module

@@ -5,9 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "prebuild": "pnpm --filter react-native-watchos build && expo prebuild -p ios --clean && node scripts/link-swift-package.cjs && node scripts/merge-target-infoplist.cjs",
-    "link-swift-package": "node scripts/link-swift-package.cjs",
-    "merge-target-infoplist": "node scripts/merge-target-infoplist.cjs"
+    "prebuild": "pnpm --filter react-native-watchos build && expo prebuild -p ios --clean && pnpm postprebuild",
+    "postprebuild": "node -e \"require('react-native-watchos/link-swift-package')\" && node -e \"require('react-native-watchos/merge-target-infoplist')\""
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
@@ -15,7 +14,8 @@
     "expo": "~56.0.11",
     "react": "19.2.3",
     "react-native": "0.85.3",
-    "react-native-watch-connectivity": "^2.0.0"
+    "react-native-watch-connectivity": "^2.0.0",
+    "react-native-watchos": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "~19.2.0",

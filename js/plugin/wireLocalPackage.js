@@ -1,31 +1,25 @@
-// Pure pbxproj-editing logic for wiring the local SwiftPM package at
-// projects/react-native-watchos/swift into the @bacons/apple-targets–generated
-// watch + widget targets:
-//   • "React Watch"         -> ReactWatchHost
-//   • "React Watch Widgets" -> ReactWatchCore, ReactWatchSupport, ReactWatchRuntime
+// Pure pbxproj-editing logic for wiring a local SwiftPM package (the
+// react-native-watchos Swift host) into the @bacons/apple-targets–generated
+// watch + widget targets. The default product map is:
+//   • <watch app>        -> ReactWatchHost
+//   • <widget extension> -> ReactWatchCore, ReactWatchSupport, ReactWatchRuntime
 //
 // The engine is a Clang module (CQuickJS) vended by the package, imported as
 // `import CQuickJS` — no bridging header.
 //
-// Kept free of any `@expo/config-plugins` import so it can be required both from
-// the config plugin (during prebuild) AND from a standalone post-prebuild node
-// script (scripts/link-swift-package.cjs), which runs outside Expo's module
+// Kept free of any `@expo/config-plugins` import so it can be required both
+// from the config plugin (during prebuild) AND from a standalone post-prebuild
+// node script (link-swift-package.cjs), which runs outside Expo's module
 // resolution. Neither apple-targets 4.x nor node-xcode 3.x has a local-Swift-
 // package API, so we write the pbxproj objects directly
 // (XCLocalSwiftPackageReference + XCSwiftPackageProductDependency + PBXBuildFile
 // in the Frameworks phase).
 
-// Relative to the .xcodeproj's directory (app/ios), so ../../swift reaches
-// projects/react-native-watchos/swift.
-const PACKAGE_RELATIVE_PATH = "../../swift";
-const TARGET_PRODUCTS = {
-  "React Watch": ["ReactWatchHost"],
-  "React Watch Widgets": [
-    "ReactWatchCore",
-    "ReactWatchSupport",
-    "ReactWatchRuntime",
-  ],
-};
+// Product targets for the package host, keyed by apple-targets target name.
+// Exported as the defaults the plugin derives from its `name` option; callers
+// pass the resolved map (with the consumer's watch/widget names) explicitly.
+const HOST_PRODUCTS = ["ReactWatchHost"];
+const WIDGET_PRODUCTS = ["ReactWatchCore", "ReactWatchSupport", "ReactWatchRuntime"];
 
 /** Ensures an ISA section exists in the pbxproj object graph. */
 function section(objects, isa) {
@@ -51,6 +45,8 @@ function unquote(value) {
  * can be unit-smoke-tested without Xcode. Idempotent by package path /
  * (target, product).
  *
+ * @param {object} project node-xcode XcodeProject
+ * @param {{ packagePath: string, targetProducts: Record<string, string[]> }} opts
  * @returns {{ packageRef: string, linked: string[] }}
  */
 function wireLocalPackage(project, { packagePath, targetProducts }) {
@@ -168,4 +164,4 @@ function wireLocalPackage(project, { packagePath, targetProducts }) {
   return { packageRef, linked };
 }
 
-module.exports = { wireLocalPackage, TARGET_PRODUCTS, PACKAGE_RELATIVE_PATH };
+module.exports = { wireLocalPackage, HOST_PRODUCTS, WIDGET_PRODUCTS };
