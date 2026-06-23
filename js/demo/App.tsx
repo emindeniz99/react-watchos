@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useState, version } from "react";
+import { useEffect, useState, useSyncExternalStore, version } from "react";
 import {
   applyUpdate,
   Button,
@@ -42,7 +42,12 @@ import {
   ZStack,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
-import { findShoppingList, shoppingLists, toggleDone } from "./shoppingStore";
+import {
+  findShoppingList,
+  shoppingLists,
+  subscribeShopping,
+  toggleShoppingItem,
+} from "./shoppingStore";
 
 const OTA_UPDATE_URL = process.env.REACT_WATCH_OTA_URL;
 
@@ -497,13 +502,15 @@ function ListsScreen() {
 /**
  * A dynamic /list/[id] route: useParams() selects the list. Each row is a
  * plain List cell — tap toggles done, and a trailing swipe action does the
- * same the watchOS-idiomatic way. Mutating the shared store keeps ticks
- * across navigation; useReducer forces the re-render.
+ * same the watchOS-idiomatic way. An immutable store update keeps ticks
+ * across navigation; useSyncExternalStore drives the re-render so it survives
+ * the React Compiler's auto-memoization (an in-place mutation would not).
  */
 function ListDetailScreen() {
   const { id } = useParams<{ id: string }>();
-  const [, refresh] = useReducer((n: number) => n + 1, 0);
-  const list = findShoppingList(id ?? "");
+  const list = useSyncExternalStore(subscribeShopping, () =>
+    findShoppingList(id ?? ""),
+  );
   if (!list) {
     return (
       <Text size={12} color="secondary">
@@ -512,11 +519,11 @@ function ListDetailScreen() {
     );
   }
   const toggle = (itemId: string) => {
-    list.items = toggleDone(list.items, itemId);
-    if (list.items.find((item) => item.id === itemId)?.done) {
+    const wasDone = list.items.find((item) => item.id === itemId)?.done;
+    toggleShoppingItem(list.id, itemId);
+    if (!wasDone) {
       playHaptic("success");
     }
-    refresh();
   };
   const done = list.items.filter((item) => item.done).length;
   return (
