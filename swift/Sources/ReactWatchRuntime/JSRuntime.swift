@@ -265,6 +265,14 @@ public final class JSRuntime {
             // Double) — apps ship both slices, so `as Double` alone would drop
             // e.g. a drag gesture's x/y on the 32-bit devices.
             return qjs_new_float64(context, Double(floating))
+        case let date as Date:
+            // No JSON date type; use epoch milliseconds — the convention the
+            // app's own date controls already cross the bridge with (NodeView
+            // dateBinding). JSONSerialization rejected Date outright.
+            return qjs_new_float64(context, date.timeIntervalSince1970 * 1000)
+        case let data as Data:
+            // Binary has no JSON form; base64 keeps it lossless as a string.
+            return JS_NewString(context, data.base64EncodedString())
         case is NSNull:
             return qjs_null()
         case let dictionary as [String: Any]:

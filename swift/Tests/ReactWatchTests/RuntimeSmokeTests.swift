@@ -9,6 +9,11 @@ import XCTest
 // `xcodebuild test`, proving the vendored quickjs-ng + Swift host run on the
 // real watch architecture. The C-embed and qjs-CLI smokes cover the engine,
 // but neither runs the Swift JSRuntime class itself.
+
+/// A type with no JSON / property-list representation, used to exercise the
+/// `makeValueOrNil` fallback (genuinely unmappable values → `undefined`).
+private struct Unmappable {}
+
 final class RuntimeSmokeTests: XCTestCase {
     func testEvaluatesExpressions() throws {
         let runtime = try JSRuntime()
@@ -92,7 +97,7 @@ final class RuntimeSmokeTests: XCTestCase {
             runtime.evaluateString("String(globalThis.__d.seqType)"), "number")
     }
 
-    func testDispatchEventOmitsAbsentSeqAndDropsUnserializablePayload() throws {
+    func testDispatchEventOmitsAbsentSeqAndDropsUnmappablePayload() throws {
         let runtime = try JSRuntime()
         try runtime.evaluate(#"""
         globalThis.__dispatchEvent = (nodeId, event, payload, seq) => {
@@ -103,9 +108,10 @@ final class RuntimeSmokeTests: XCTestCase {
         """#)
 
         // No seq → JS must still see `seq === undefined` (the ack branch). A
-        // Date is not serializable, so the whole payload collapses to
+        // value with no JSON/property-list form collapses the whole payload to
         // undefined — exactly what the old JSONSerialization-failure path did.
-        runtime.dispatchEvent(nodeId: 1, event: "press", payload: ["at": Date()])
+        runtime.dispatchEvent(
+            nodeId: 1, event: "press", payload: ["bad": Unmappable()])
 
         XCTAssertEqual(
             runtime.evaluateString("String(globalThis.__seqUndefined)"), "true")
@@ -178,5 +184,27 @@ final class RuntimeSmokeTests: XCTestCase {
             runtime.evaluateString("globalThis.__p.meta.label"), "list")
         XCTAssertEqual(
             runtime.evaluateString("globalThis.__p.tags.join(',')"), "a,b,c")
+    }
+
+    func testPushNativeEventEncodesDateAndData() throws {
+        let runtime = try JSRuntime()
+        try runtime.evaluate(#"""
+        globalThis.__pushNativeEvent = (name, p) => {
+          globalThis.__p = p;
+          return true;
+        };
+        """#)
+
+        // The last two property-list types: Date → epoch ms (the app's date
+        // convention), Data → lossless base64. Reachable only from a
+        // WatchConnectivity message, but now mapped rather than dropped.
+        runtime.pushNativeEvent("io", payload: [
+            "ts": Date(timeIntervalSince1970: 1_700_000_000),
+            "blob": Data([1, 2, 3]),
+        ])
+
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__p.ts)"), "1700000000000")
+        XCTAssertEqual(runtime.evaluateString("globalThis.__p.blob"), "AQID")
     }
 }
