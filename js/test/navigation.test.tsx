@@ -1,12 +1,14 @@
 import { useCallback } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
 import {
   Button,
+  href,
   MemoryHost,
   matchRoute,
   NavigationProvider,
   NavigationRoute,
   NavigationStack,
+  type ParamsOf,
   routeFromURL,
   runApp,
   type SerializedNode,
@@ -240,5 +242,39 @@ describe("useFocusEffect", () => {
     // Returning re-focuses and runs the effect again.
     root.render(tree(["/fx"]));
     expect(log).toEqual(["focus", "blur", "focus"]);
+  });
+});
+
+describe("typed routes", () => {
+  it("infers params from a route template, matching the matcher grammar", () => {
+    expectTypeOf<ParamsOf<"/list/[id]">>().toEqualTypeOf<{ id: string }>();
+    expectTypeOf<ParamsOf<"/shop/[name]/[...rest]">>().toEqualTypeOf<{
+      name: string;
+      rest: string[];
+    }>();
+    // Optional catch-all is ALWAYS an array ([] when absent), never undefined —
+    // matching our matchRoute, not Next.js's optional semantics.
+    expectTypeOf<ParamsOf<"/docs/[[...page_id]]">>().toEqualTypeOf<{
+      page_id: string[];
+    }>();
+    // A literal-only route has no params.
+    expectTypeOf<keyof ParamsOf<"/about">>().toEqualTypeOf<never>();
+  });
+
+  it("href builds a concrete path from a template and checked params", () => {
+    expect(href("/list/[id]", { id: "42" })).toBe("/list/42");
+    expect(
+      href("/shop/[name]/[...rest]", { name: "nike", rest: ["a", "b"] }),
+    ).toBe("/shop/nike/a/b");
+    // Optional catch-all with no segments collapses to the base path.
+    expect(href("/docs/[[...page_id]]", { page_id: [] })).toBe("/docs");
+    expect(href("/docs/[[...page_id]]", { page_id: ["intro"] })).toBe(
+      "/docs/intro",
+    );
+  });
+
+  it("href round-trips through matchRoute", () => {
+    const path = href("/list/[id]", { id: "42" });
+    expect(matchRoute("/list/[id]", path)?.params).toEqual({ id: "42" });
   });
 });

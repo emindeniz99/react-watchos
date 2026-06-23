@@ -133,9 +133,68 @@ const ActiveRouteContext = createContext<string>("/");
 const RouteParamsContext = createContext<RouteParams>(EMPTY_PARAMS);
 const FocusContext = createContext<boolean>(false);
 
-/** Dynamic-segment params of the active route, e.g. `{ id: "42" }`. */
-export function useParams<T extends RouteParams = RouteParams>(): T {
-  return useContext(RouteParamsContext) as T;
+/**
+ * Param object inferred from a route template, matching parsePattern's bracket
+ * grammar: `[id]` -> string, `[...rest]` -> string[], `[[...rest]]` -> string[]
+ * (empty `[]` when the optional segment is absent — matchRoute always yields an
+ * array here, never undefined). Branch order mirrors parsePattern: optional
+ * catch-all, then required catch-all, then param.
+ */
+type SegParam<Seg extends string> = Seg extends `[[...${infer Name}]]`
+  ? { [K in Name]: string[] }
+  : Seg extends `[...${infer Name}]`
+    ? { [K in Name]: string[] }
+    : Seg extends `[${infer Name}]`
+      ? { [K in Name]: string }
+      : Record<never, never>;
+
+type SegsParams<S extends string> = S extends `${infer Head}/${infer Tail}`
+  ? SegParam<Head> & SegsParams<Tail>
+  : SegParam<S>;
+
+/** Params inferred from a route template: `ParamsOf<"/list/[id]">` = `{ id: string }`. */
+export type ParamsOf<S extends string> = {
+  [K in keyof SegsParams<S>]: SegsParams<S>[K];
+};
+
+/**
+ * Dynamic-segment params of the active route. Pass the route TEMPLATE to infer
+ * the shape (`useParams<"/list/[id]">()` -> `{ id: string }`), or an explicit
+ * shape, or nothing for the open default.
+ */
+export function useParams<
+  T extends string | RouteParams = RouteParams,
+>(): T extends string ? ParamsOf<T> : T {
+  const params = useContext(RouteParamsContext);
+  return params as unknown as T extends string ? ParamsOf<T> : T;
+}
+
+/**
+ * Build a concrete path from a route template and type-checked params:
+ * `href("/list/[id]", { id: "42" })` -> `"/list/42"`. The params type is
+ * inferred from the template, so a missing or misnamed key is a compile error.
+ */
+export function href<S extends string>(
+  template: S,
+  params: ParamsOf<S>,
+): string {
+  const values = params as RouteParams;
+  const segments = template.split("/").flatMap((seg) => {
+    const optional = /^\[\[\.\.\.(.+)\]\]$/.exec(seg)?.[1];
+    if (optional) {
+      const value = values[optional];
+      return Array.isArray(value) ? value : [];
+    }
+    const rest = /^\[\.\.\.(.+)\]$/.exec(seg)?.[1];
+    if (rest) {
+      const value = values[rest];
+      return Array.isArray(value) ? value : [String(value)];
+    }
+    const param = /^\[(.+)\]$/.exec(seg)?.[1];
+    if (param) return [String(values[param])];
+    return [seg];
+  });
+  return segments.join("/") || "/";
 }
 
 /** True while the nearest enclosing <NavigationRoute> is the active route. */

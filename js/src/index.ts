@@ -107,11 +107,13 @@ export type {
   NavigationAction,
   NavigationContextValue,
   NavigationProviderProps,
+  ParamsOf,
   RouteMatch,
   RouteParams,
   RouteParamValue,
 } from "./navigation";
 export {
+  href,
   matchRoute,
   NavigationProvider,
   NavigationRoute,

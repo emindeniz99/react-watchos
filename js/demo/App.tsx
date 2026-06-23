@@ -18,6 +18,7 @@ import {
   Gauge,
   generateText,
   HStack,
+  href,
   Image,
   List,
   NavigationLink,
@@ -508,7 +509,7 @@ function ListsScreen() {
         return (
           <NavigationLink
             key={list.id}
-            to={`/list/${list.id}`}
+            to={href("/list/[id]", { id: list.id })}
             accessibilityLabel={`${list.name}, ${remaining} left${
               featured ? ", on watch face" : ""
             }`}
@@ -550,7 +551,7 @@ function ListsScreen() {
  * (an in-place mutation would not).
  */
 function ListDetailScreen() {
-  const { id } = useParams<{ id: string }>();
+  const { id } = useParams<"/list/[id]">();
   const list = useSyncExternalStore(subscribeShopping, () =>
     findShoppingList(id ?? ""),
   );
