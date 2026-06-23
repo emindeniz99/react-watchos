@@ -126,4 +126,22 @@ describe("render", () => {
       /wrapped in a <Text>/,
     );
   });
+
+  it("throws on multiple root nodes instead of dropping siblings", () => {
+    // The watch host renders exactly one root view, so a fragment with two
+    // top-level children has no single root. The old serializer kept
+    // children[0] and silently dropped the rest; this must fail loud so the
+    // missing UI is a build-time error, not an invisible bug on the wrist.
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    expect(() =>
+      root.render(
+        <>
+          <Text>one</Text>
+          <Text>two</Text>
+        </>,
+      ),
+    ).toThrow(/single root element \(got 2\)/i);
+    expect(host.commits).toHaveLength(0);
+  });
 });

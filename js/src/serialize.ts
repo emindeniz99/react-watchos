@@ -28,6 +28,15 @@ export function serializeInstance(instance: Instance): SerializedNode {
 }
 
 export function serializeTree(container: Container): SerializedTree {
+  // The watch host renders exactly one root view, so more than one
+  // top-level node has nowhere to go. Without this guard children[1..]
+  // are silently dropped; fail loud instead.
+  if (container.children.length > 1) {
+    throw new Error(
+      `A watch app must render a single root element (got ${container.children.length}); ` +
+        "wrap siblings in a <VStack>/<ZStack> or a single parent.",
+    );
+  }
   const root = container.children[0];
   return {
     v: WIRE_VERSION,
