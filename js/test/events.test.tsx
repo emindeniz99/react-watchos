@@ -162,6 +162,36 @@ describe("events", () => {
     expect(onSwipeAction).toHaveBeenCalledTimes(1);
   });
 
+  it("dispatches a leading swipe action to onLeadingSwipeAction", () => {
+    // The leading edge is a second, independent action (swipe right = Done)
+    // alongside the trailing one (swipe left = Undone). Its props must
+    // serialize separately so the native row can render both edges.
+    const onLeadingSwipeAction = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <Button
+        onLeadingSwipeAction={onLeadingSwipeAction}
+        leadingSwipeActionLabel="Done"
+        leadingSwipeActionSystemImage="checkmark"
+        leadingSwipeActionTint="green"
+      >
+        <Text>row</Text>
+      </Button>,
+    );
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    expect(button.props).toMatchObject({
+      leadingSwipeActionLabel: "Done",
+      leadingSwipeActionSystemImage: "checkmark",
+      leadingSwipeActionTint: "green",
+      onLeadingSwipeAction: true,
+    });
+    expect(
+      root.dispatchEvent({ nodeId: button.id, event: "leadingSwipeAction" }),
+    ).toBe(true);
+    expect(onLeadingSwipeAction).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores events for stale or unknown node ids", () => {
     const host = new MemoryHost();
     const root = new WatchRoot(host);
