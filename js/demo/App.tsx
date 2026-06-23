@@ -52,6 +52,27 @@ function formatElapsedPrecise(ms: number): string {
   return `${formatElapsed(ms)}.${String(Math.floor(ms % 1000)).padStart(3, "0")}`;
 }
 
+export interface StopwatchState {
+  startedAt: number | null;
+  frozen: number;
+}
+
+export function toggleStopwatch(
+  state: StopwatchState,
+  now: number,
+): StopwatchState {
+  if (state.startedAt !== null) {
+    return {
+      startedAt: null,
+      frozen: Math.max(0, now - state.startedAt),
+    };
+  }
+  return {
+    startedAt: now - state.frozen,
+    frozen: state.frozen,
+  };
+}
+
 /**
  * Stopwatch driven by <TimerText>: React commits once on start/stop;
  * SwiftUI ticks the digits natively, including milliseconds when requested.
@@ -83,12 +104,9 @@ function StopwatchScreen() {
         <Button
           onPress={() => {
             const now = Date.now();
-            if (running) {
-              setFrozen(Math.max(0, now - startedAt));
-              setStartedAt(null);
-            } else {
-              setStartedAt(now - frozen);
-            }
+            const next = toggleStopwatch({ startedAt, frozen }, now);
+            setStartedAt(next.startedAt);
+            setFrozen(next.frozen);
           }}
         >
           <Text>{running ? "Stop" : "Start"}</Text>
