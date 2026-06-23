@@ -203,6 +203,30 @@ describe("widget timelines", () => {
     ]);
   });
 
+  it("expands an instances widget into one timeline per id keyed kind/id", () => {
+    registerWidget({
+      kind: "shopping",
+      families: ["accessoryInline"],
+      instances: () => ["groceries", "hardware"],
+      render: ({ now, instanceId }) => ({
+        entries: [{ date: now, view: <Text>{instanceId ?? "?"}</Text> }],
+      }),
+    });
+    const { widgets } = renderWidgets(NOW);
+    expect(Object.keys(widgets).sort()).toEqual([
+      "shopping/groceries",
+      "shopping/hardware",
+    ]);
+    expect(
+      widgets["shopping/groceries"].accessoryInline.entries[0].tree?.props.text,
+    ).toBe("groceries");
+    expect(
+      widgets["shopping/hardware"].accessoryInline.entries[0].tree?.props.text,
+    ).toBe("hardware");
+    // No bare "shopping" key when instances are used.
+    expect(widgets.shopping).toBeUndefined();
+  });
+
   it("publishes registered control metadata for the widget extension", () => {
     registerControl({
       kind: "hydration.addGlass",

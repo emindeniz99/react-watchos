@@ -9,11 +9,7 @@ import {
   VStack,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
-import {
-  findShoppingList,
-  getFeaturedListId,
-  getShoppingLists,
-} from "./shoppingStore";
+import { findShoppingList, getShoppingLists } from "./shoppingStore";
 
 interface Daypart {
   name: string;
@@ -111,10 +107,10 @@ export function registerDemoWidgets(): void {
     },
   });
 
-  // Shopping complication. The list shown is chosen in-app (setFeaturedList);
-  // both the app and the extension's fresh render read the selection + lists
-  // from App Group storage, so the face reflects live edits. Falls back to the
-  // first list when none is featured.
+  // Shopping complication. One timeline per list (key "shopping/<id>"), so the
+  // native AppIntentConfiguration can show whichever list the user picks while
+  // editing the watch face. Both the app and the extension's fresh render read
+  // the lists from App Group storage, so the face reflects live edits.
   registerWidget({
     kind: "shopping",
     families: [
@@ -123,10 +119,10 @@ export function registerDemoWidgets(): void {
       "accessoryRectangular",
       "accessoryInline",
     ],
-    render: ({ family, now }) => {
-      const featuredId = getFeaturedListId();
+    instances: () => getShoppingLists().map((list) => list.id),
+    render: ({ family, now, instanceId }) => {
       const list =
-        (featuredId ? findShoppingList(featuredId) : undefined) ??
+        (instanceId ? findShoppingList(instanceId) : undefined) ??
         getShoppingLists()[0];
       const done = list ? list.items.filter((item) => item.done).length : 0;
       const total = list ? list.items.length : 0;
