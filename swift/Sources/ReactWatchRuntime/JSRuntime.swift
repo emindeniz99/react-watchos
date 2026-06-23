@@ -62,9 +62,9 @@ public final class JSRuntime {
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
-    /// JS callback functions resolved once after the bundle installs them.
-    /// Each is an owned reference (freed in deinit); see `callback(_:)`.
-    private var callbackCache: [String: JSValue] = [:]
+    /// Move-only owner of the cached native→JS callbacks (freed in deinit,
+    /// before the context — see `OwnedCallbacks`).
+    private var callbacks = OwnedCallbacks()
 
     /// - Parameter memoryLimitBytes: caps the QuickJS heap (the widget
     ///   extension runs in a tight ~30MB budget; nil = unlimited).
@@ -83,7 +83,7 @@ public final class JSRuntime {
 
     deinit {
         pendingTimers.values.forEach { $0.cancel() }
-        for fn in callbackCache.values { JS_FreeValue(context, fn) }
+        callbacks.freeAll(in: context)
         JS_FreeContext(context)
         JS_FreeRuntime(runtime)
     }
@@ -205,7 +205,7 @@ public final class JSRuntime {
     /// `onError`. Takes ownership of every value in `args` and frees them; the
     /// cached function reference is borrowed (freed in deinit), not here.
     private func invoke(_ name: String, _ args: [JSValue]) {
-        guard let fn = callback(name) else {
+        guard let fn = callbacks.resolve(name, in: context) else {
             for arg in args { JS_FreeValue(context, arg) }
             onError?("runtime callback \(name) is not installed")
             return
@@ -219,22 +219,6 @@ public final class JSRuntime {
         if JS_IsException(result) { onError?(takeExceptionMessage()) }
         JS_FreeValue(context, result)
         drainJobs()
-    }
-
-    /// Resolves a JS global function once and caches the owned reference.
-    /// `JS_GetPropertyStr` already returns an owned value, so no extra dup.
-    /// Returns nil until the bundle has installed the global.
-    private func callback(_ name: String) -> JSValue? {
-        if let cached = callbackCache[name] { return cached }
-        let global = JS_GetGlobalObject(context)
-        defer { JS_FreeValue(context, global) }
-        let fn = JS_GetPropertyStr(context, global, name)
-        guard JS_IsFunction(context, fn) else {
-            JS_FreeValue(context, fn)
-            return nil
-        }
-        callbackCache[name] = fn
-        return fn
     }
 
     /// Builds a QuickJS value directly from a Swift value (no JSON round-trip).
@@ -675,4 +659,39 @@ extension JSRuntime {
         scheduleTimer(id: id, milliseconds: milliseconds)
     }
     fileprivate func cancelTimerFromC(id: Int32) { cancelTimer(id: id) }
+}
+
+/// Move-only owner of the cached native→JS callback functions. Marked
+/// `~Copyable` so the compiler rejects an accidental copy that would later
+/// double-free the QuickJS references it holds — the watch analog of Expo's
+/// move-only JSI values, applied to QuickJS refcounts. A JSValue cannot
+/// outlive its context, so the owner frees this table via `freeAll(in:)`
+/// before tearing the context down, rather than from a deinit a class would
+/// run only after it had already freed the context.
+private struct OwnedCallbacks: ~Copyable {
+    private var functions: [String: JSValue] = [:]
+
+    init() {}
+
+    /// Borrows the cached function for `name`, resolving and caching it on
+    /// first use. `JS_GetPropertyStr` returns an already-owned reference, so no
+    /// extra dup. Returns nil until the bundle has installed the global.
+    mutating func resolve(_ name: String, in context: OpaquePointer) -> JSValue? {
+        if let cached = functions[name] { return cached }
+        let global = JS_GetGlobalObject(context)
+        defer { JS_FreeValue(context, global) }
+        let fn = JS_GetPropertyStr(context, global, name)
+        guard JS_IsFunction(context, fn) else {
+            JS_FreeValue(context, fn)
+            return nil
+        }
+        functions[name] = fn
+        return fn
+    }
+
+    /// Frees every cached reference. Must run while `context` is still alive.
+    mutating func freeAll(in context: OpaquePointer) {
+        for fn in functions.values { JS_FreeValue(context, fn) }
+        functions.removeAll()
+    }
 }
