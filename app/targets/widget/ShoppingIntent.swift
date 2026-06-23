@@ -18,6 +18,12 @@ private struct StoredShoppingList: Codable {
 /// Reads the JS-owned shopping lists from App Group storage (written by the
 /// JS Storage API as JSON under "<storagePrefix><key>").
 enum ShoppingData {
+    // These MUST match SharedWidgetStore (swift/Sources/ReactWatchSupport),
+    // which is the canonical source: it owns `storagePrefix` and takes the
+    // group id via init. They are hardcoded (and duplicated across the two
+    // ShoppingIntent.swift copies) only because this file is synced into two
+    // app targets and kept dependency-free — it can't import that package.
+    // Keep them in sync if either value ever changes there.
     private static let appGroupId = "group.com.emindeniz99.reactwatch"
     private static let storagePrefix = "react.storage."
 
