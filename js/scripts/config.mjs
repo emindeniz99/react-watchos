@@ -16,13 +16,19 @@ export const assets = [
 
 /** @returns {import("esbuild").BuildOptions} */
 export function buildOptions({ minify = false } = {}) {
+  const otaUrl = process.env.REACT_WATCH_OTA_URL ?? "";
   // The demo build is the shared QuickJS preset (shim inject, es2020,
   // neutral IIFE) plus the React Compiler plugin, which auto-memoizes our
   // components (fewer re-renders -> fewer commits). Runs before bundling.
-  return watchBuildOptions({
+  const options = watchBuildOptions({
     entry: join(root, "demo/entry.tsx"),
     outfile,
     minify,
     plugins: [reactCompilerPlugin()],
   });
+  options.define = {
+    ...options.define,
+    "process.env.REACT_WATCH_OTA_URL": JSON.stringify(otaUrl),
+  };
+  return options;
 }

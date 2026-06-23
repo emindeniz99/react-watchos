@@ -29,5 +29,12 @@ module.exports = (config) => ({
     NSMotionUsageDescription: "Use device motion for interactive features.",
     NSLocationWhenInUseUsageDescription:
       "Show your location and route while the app is open.",
+    // Development OTA: allow fetching a bundle from a MacBook on the LAN
+    // (e.g. http://192.168.x.y:8788/bundle.js).
+    NSAppTransportSecurity: {
+      NSAllowsLocalNetworking: true,
+    },
+    NSLocalNetworkUsageDescription:
+      "Fetch development OTA bundles from your Mac on the local network.",
   },
 });

@@ -173,6 +173,21 @@ pnpm --filter react-native-watchos build:bytecode  # precompile bundle.qbc
 pnpm --filter react-native-watchos dev        # live reload on 127.0.0.1:8788
 ```
 
+The demo's **Updates** screen reads `REACT_WATCH_OTA_URL` at build time. For a
+local OTA test, serve `dist/bundle.js` from your Mac and rebuild the demo with
+the URL you want the watch to fetch:
+
+```bash
+# Simulator: localhost works.
+REACT_WATCH_OTA_URL=http://127.0.0.1:8788/bundle.js \
+  pnpm --filter react-native-watchos build
+
+# Physical watch: bind the dev server to LAN and use your Mac's Wi-Fi IP.
+DEV_HOST=0.0.0.0 pnpm --filter react-native-watchos dev
+REACT_WATCH_OTA_URL=http://192.168.x.y:8788/bundle.js \
+  pnpm --filter react-native-watchos build
+```
+
 > The generated `app/targets/*/assets/bundle.js` is **not** committed (it's
 > gitignored). `pnpm --filter ... build` regenerates it, and `app`'s `prebuild`
 > script runs that build first, so `pnpm prebuild` (and CI) always produce a

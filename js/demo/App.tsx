@@ -39,6 +39,8 @@ import {
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 
+const OTA_UPDATE_URL = process.env.REACT_WATCH_OTA_URL;
+
 function formatElapsed(ms: number): string {
   const total = Math.floor(ms / 1000);
   const m = Math.floor(total / 60);
@@ -319,11 +321,17 @@ function MovieRemoteScreen() {
  * one. Within App Store 2.5.2 (UI fixes to reviewed features only).
  */
 function UpdatesScreen() {
-  const [status, setStatus] = useState("up to date");
+  const [status, setStatus] = useState(
+    OTA_UPDATE_URL ? "up to date" : "set REACT_WATCH_OTA_URL",
+  );
   const check = async () => {
+    if (!OTA_UPDATE_URL) {
+      setStatus("set REACT_WATCH_OTA_URL");
+      return;
+    }
     setStatus("checking…");
     try {
-      const res = await fetch("https://example.com/react-watch/bundle.js");
+      const res = await fetch(OTA_UPDATE_URL);
       if (!res.ok) {
         setStatus(`server returned ${res.status}`);
         return;
@@ -340,6 +348,11 @@ function UpdatesScreen() {
       <Text size={11} color="secondary">
         {status}
       </Text>
+      {OTA_UPDATE_URL ? (
+        <Text size={9} color="secondary">
+          {OTA_UPDATE_URL}
+        </Text>
+      ) : null}
       <Button onPress={check}>
         <Text>Check for update</Text>
       </Button>
