@@ -10,5 +10,5 @@ BUNDLE=../../js/dist/bundle.js
 [ -f "$BUNDLE" ] || (cd ../.. && pnpm --filter react-native-watchos build)
 cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o embed-host \
   embed-host.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
-  "$VENDOR"/libunicode.c "$VENDOR"/cutils.c "$VENDOR"/xsum.c -lm -lpthread
+  "$VENDOR"/libunicode.c "$VENDOR"/dtoa.c -lm -lpthread
 ./embed-host "$BUNDLE"
