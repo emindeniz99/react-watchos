@@ -142,4 +142,41 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertEqual(
             runtime.evaluateString("typeof globalThis.__p.flag"), "boolean")
     }
+
+    func testPushNativeEventEncodesNestedContainers() throws {
+        let runtime = try JSRuntime()
+        try runtime.evaluate(#"""
+        globalThis.__pushNativeEvent = (name, p) => {
+          globalThis.__p = p;
+          return true;
+        };
+        """#)
+
+        // Dictionaries and arrays nest recursively, and the primitives inside
+        // them survive — the manual mapping mirrors what JSON.parse would build.
+        runtime.pushNativeEvent("nested", payload: [
+            "items": [
+                ["id": 1, "on": true],
+                ["id": 2, "on": false],
+            ],
+            "meta": ["count": 2, "label": "list"],
+            "tags": ["a", "b", "c"],
+        ])
+
+        XCTAssertEqual(
+            runtime.evaluateString("String(Array.isArray(globalThis.__p.items))"),
+            "true")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__p.items.length)"), "2")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__p.items[0].id)"), "1")
+        XCTAssertEqual(
+            runtime.evaluateString("typeof globalThis.__p.items[1].on"), "boolean")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__p.meta.count)"), "2")
+        XCTAssertEqual(
+            runtime.evaluateString("globalThis.__p.meta.label"), "list")
+        XCTAssertEqual(
+            runtime.evaluateString("globalThis.__p.tags.join(',')"), "a,b,c")
+    }
 }
