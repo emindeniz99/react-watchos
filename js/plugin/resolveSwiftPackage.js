@@ -8,9 +8,9 @@ const path = require("node:path");
 //
 // This is what replaces the monorepo-only hardcoded `../../swift`: the package
 // finds its OWN install dir via `require.resolve`, so it works for an external
-// `npm i` consumer too. Two layouts are supported:
-//   • published package — Package.swift ships INSIDE the package: <pkg>/swift
-//   • this monorepo      — js/ is the package; swift/ is a SIBLING: js/../swift
+// `npm i` consumer too. The Swift host ships INSIDE the package at
+// `<pkg>/swift` — the package root is js/, so it lives at js/swift, and that's
+// the SAME layout in this monorepo and when installed from npm.
 //
 // `require.resolve("react-native-watchos/package.json")` is resolved from the
 // project root (the consumer's app dir) so it picks the consumer's installed
@@ -22,16 +22,11 @@ function resolveSwiftPackageDir(projectRoot) {
     paths: [projectRoot],
   });
   const pkgDir = path.dirname(pkgJson);
-  const candidates = [
-    path.join(pkgDir, "swift"), // published: swift/ inside the package
-    path.join(pkgDir, "..", "swift"), // monorepo: swift/ next to js/
-  ];
-  for (const dir of candidates) {
-    if (fs.existsSync(path.join(dir, "Package.swift"))) return dir;
-  }
+  const dir = path.join(pkgDir, "swift"); // swift/ ships inside the package
+  if (fs.existsSync(path.join(dir, "Package.swift"))) return dir;
   throw new Error(
     `[react-native-watchos] could not locate the Swift host (Package.swift) ` +
-      `near ${pkgDir}. Looked in: ${candidates.join(", ")}`,
+      `at ${dir}.`,
   );
 }
 

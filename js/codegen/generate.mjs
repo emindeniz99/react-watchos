@@ -171,7 +171,7 @@ function tsModel() {
 // --- Outputs ---------------------------------------------------------------
 
 const outputs = [
-  ["../swift/Sources/ReactWatchCore/WireModel.swift", swiftModel()],
+  ["swift/Sources/ReactWatchCore/WireModel.swift", swiftModel()],
   ["src/generated/wire.ts", tsModel()],
 ];
 
