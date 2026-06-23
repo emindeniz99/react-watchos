@@ -37,4 +37,79 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertEqual(root.type, "Text")
         XCTAssertEqual(root.string("text"), "hi from JS")
     }
+
+    // The native->JS bridge now hands callbacks a structured object (built by
+    // JSRuntime.makeValueOrNil + JS_Call), not a JSON string. These pin that
+    // contract: the JS side dropped its JSON.parse, so a regression to the old
+    // eval-string path would surface here.
+
+    func testPushNativeEventDeliversStructuredObject() throws {
+        let runtime = try JSRuntime()
+        // Stand in for the bundle's global: record what JS actually receives.
+        try runtime.evaluate(#"""
+        globalThis.__pushNativeEvent = (name, payload) => {
+          globalThis.__name = name;
+          globalThis.__payload = payload;
+          return true;
+        };
+        """#)
+
+        runtime.pushNativeEvent("sensor.heartRate", payload: ["bpm": 72])
+
+        XCTAssertEqual(
+            runtime.evaluateString("globalThis.__name"), "sensor.heartRate")
+        // An object, not the old JSON string.
+        XCTAssertEqual(
+            runtime.evaluateString("typeof globalThis.__payload"), "object")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__payload.bpm)"), "72")
+    }
+
+    func testDispatchEventPassesObjectPayloadAndNumericSeq() throws {
+        let runtime = try JSRuntime()
+        try runtime.evaluate(#"""
+        globalThis.__dispatchEvent = (nodeId, event, payload, seq) => {
+          globalThis.__d = {
+            nodeId, event,
+            payloadType: typeof payload,
+            value: payload ? payload.value : null,
+            seqType: typeof seq,
+          };
+          return true;
+        };
+        """#)
+
+        runtime.dispatchEvent(
+            nodeId: 7, event: "change", payload: ["value": true], seq: 3)
+
+        XCTAssertEqual(runtime.evaluateString("String(globalThis.__d.nodeId)"), "7")
+        XCTAssertEqual(runtime.evaluateString("globalThis.__d.event"), "change")
+        XCTAssertEqual(
+            runtime.evaluateString("globalThis.__d.payloadType"), "object")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__d.value)"), "true")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__d.seqType)"), "number")
+    }
+
+    func testDispatchEventOmitsAbsentSeqAndDropsUnserializablePayload() throws {
+        let runtime = try JSRuntime()
+        try runtime.evaluate(#"""
+        globalThis.__dispatchEvent = (nodeId, event, payload, seq) => {
+          globalThis.__seqUndefined = seq === undefined;
+          globalThis.__payloadUndefined = payload === undefined;
+          return true;
+        };
+        """#)
+
+        // No seq → JS must still see `seq === undefined` (the ack branch). A
+        // Date is not serializable, so the whole payload collapses to
+        // undefined — exactly what the old JSONSerialization-failure path did.
+        runtime.dispatchEvent(nodeId: 1, event: "press", payload: ["at": Date()])
+
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__seqUndefined)"), "true")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__payloadUndefined)"), "true")
+    }
 }

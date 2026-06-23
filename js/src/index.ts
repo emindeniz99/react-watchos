@@ -193,25 +193,21 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
   g.__dispatchEvent = (
     nodeId: number,
     event: string,
-    payloadJson?: string,
+    payload?: Record<string, unknown>,
     seq?: number,
-  ): boolean => {
-    const payload = payloadJson ? JSON.parse(payloadJson) : undefined;
-    return root.dispatchEvent(
-      seq === undefined
-        ? { nodeId, event, payload }
-        : { nodeId, event, payload, seq },
-    );
-  };
+  ): boolean =>
+    root.dispatchEvent({
+      nodeId,
+      event,
+      ...(payload === undefined ? {} : { payload }),
+      ...(seq === undefined ? {} : { seq }),
+    });
   // Native state pushes: run the listener at urgent priority + flush so it
   // commits instantly (like a tap), not on the scheduler's next turn.
-  g.__pushNativeEvent = (name: string, payloadJson?: string): boolean =>
-    root.runSync(() =>
-      dispatchNativeEvent(
-        name,
-        payloadJson ? JSON.parse(payloadJson) : undefined,
-      ),
-    );
+  g.__pushNativeEvent = (
+    name: string,
+    payload?: Record<string, unknown>,
+  ): boolean => root.runSync(() => dispatchNativeEvent(name, payload));
   // Debug inspector: returns the current serialized tree + commit count.
   g.__inspect = () => root.inspect();
   root.render(element);

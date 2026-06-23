@@ -25,7 +25,7 @@ function Connection() {
   return <Text>{status}</Text>;
 }
 
-type PushFn = (name: string, payloadJson?: string) => boolean;
+type PushFn = (name: string, payload?: Record<string, unknown>) => boolean;
 
 describe("native event push (runSync)", () => {
   it("commits a native-pushed state change synchronously", () => {
@@ -36,7 +36,7 @@ describe("native event push (runSync)", () => {
 
     const push = (globalThis as { __pushNativeEvent?: PushFn })
       .__pushNativeEvent!;
-    const handled = push("connection", JSON.stringify({ status: "online" }));
+    const handled = push("connection", { status: "online" });
 
     // No awaiting/microtask flush: the new tree is already committed.
     expect(handled).toBe(true);

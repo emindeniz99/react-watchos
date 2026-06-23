@@ -62,6 +62,9 @@ public final class JSRuntime {
     private let runtime: OpaquePointer
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
+    /// JS callback functions resolved once after the bundle installs them.
+    /// Each is an owned reference (freed in deinit); see `callback(_:)`.
+    private var callbackCache: [String: JSValue] = [:]
 
     /// - Parameter memoryLimitBytes: caps the QuickJS heap (the widget
     ///   extension runs in a tight ~30MB budget; nil = unlimited).
@@ -80,6 +83,7 @@ public final class JSRuntime {
 
     deinit {
         pendingTimers.values.forEach { $0.cancel() }
+        for fn in callbackCache.values { JS_FreeValue(context, fn) }
         JS_FreeContext(context)
         JS_FreeRuntime(runtime)
     }
@@ -122,46 +126,46 @@ public final class JSRuntime {
         nodeId: Int, event: String, payload: [String: Any]? = nil,
         seq: Int? = nil
     ) {
-        var payloadArg = "undefined"
-        if let payload,
-           let data = try? JSONSerialization.data(withJSONObject: payload),
-           let json = String(data: data, encoding: .utf8) {
-            payloadArg = jsStringLiteral(json)
-        }
-        var call = "globalThis.__dispatchEvent(\(nodeId), "
-            + "\(jsStringLiteral(event)), \(payloadArg)"
-        if let seq { call += ", \(seq)" }
-        call += ")"
-        evaluateReportingErrors(call, filename: "dispatch.js")
+        // Pass undefined when the payload holds a type we don't serialize,
+        // matching the old JSONSerialization-failure → undefined behavior.
+        let payloadValue = payload.flatMap(makeValueOrNil) ?? qjs_undefined()
+        let seqValue = seq.map {
+            qjs_new_int32(context, Int32(truncatingIfNeeded: $0))
+        } ?? qjs_undefined()   // JS branches on `seq === undefined`
+        invoke("__dispatchEvent", [
+            qjs_new_int32(context, Int32(truncatingIfNeeded: nodeId)),
+            JS_NewString(context, event),
+            payloadValue,
+            seqValue,
+        ])
+    }
+
+    /// Settles a JS fetch Promise. MUST be called on the main thread (the
+    /// QuickJS context lives there); URLSession completions hop here. The
+    /// response stays a JSON string — `__resolveFetch` JSON.parses it; we only
+    /// drop the per-call `JS_Eval` compilation by invoking through `JS_Call`.
+    public func resolveFetch(id: Int, responseJson: String) {
+        invoke("__resolveFetch", [
+            qjs_new_int32(context, Int32(truncatingIfNeeded: id)),
+            JS_NewString(context, responseJson),
+        ])
+    }
+
+    public func rejectFetch(id: Int, message: String) {
+        invoke("__rejectFetch", [
+            qjs_new_int32(context, Int32(truncatingIfNeeded: id)),
+            JS_NewString(context, message),
+        ])
     }
 
     /// Pushes a named native event into JS at urgent priority (runSync), so
     /// the resulting UI update commits immediately. Use for non-interaction
     /// state: connectivity, sensors, app lifecycle.
-    /// Settles a JS fetch Promise. MUST be called on the main thread (the
-    /// QuickJS context lives there); URLSession completions hop here.
-    public func resolveFetch(id: Int, responseJson: String) {
-        evaluateReportingErrors(
-            "globalThis.__resolveFetch(\(id), \(jsStringLiteral(responseJson)))",
-            filename: "fetch.js")
-    }
-
-    public func rejectFetch(id: Int, message: String) {
-        evaluateReportingErrors(
-            "globalThis.__rejectFetch(\(id), \(jsStringLiteral(message)))",
-            filename: "fetch.js")
-    }
-
     public func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
-        var payloadArg = "undefined"
-        if let payload,
-           let data = try? JSONSerialization.data(withJSONObject: payload),
-           let json = String(data: data, encoding: .utf8) {
-            payloadArg = jsStringLiteral(json)
-        }
-        let call = "globalThis.__pushNativeEvent("
-            + "\(jsStringLiteral(name)), \(payloadArg))"
-        evaluateReportingErrors(call, filename: "push.js")
+        let payloadValue = payload.flatMap(makeValueOrNil) ?? qjs_undefined()
+        invoke("__pushNativeEvent", [
+            JS_NewString(context, name), payloadValue,
+        ])
     }
 
     /// Evaluates `code` and returns its result as a Bool (false on exception).
@@ -196,13 +200,90 @@ public final class JSRuntime {
         return String(cString: cString)
     }
 
-    private func evaluateReportingErrors(_ code: String, filename: String) {
-        do {
-            try evaluate(code, filename: filename)
-        } catch JSError.exception(let message) {
-            onError?(message)
-        } catch {
-            onError?(String(describing: error))
+    /// Calls a cached JS global function with owned argument values. Mirrors
+    /// `evaluate`: drains microtasks afterward and routes exceptions to
+    /// `onError`. Takes ownership of every value in `args` and frees them; the
+    /// cached function reference is borrowed (freed in deinit), not here.
+    private func invoke(_ name: String, _ args: [JSValue]) {
+        guard let fn = callback(name) else {
+            for arg in args { JS_FreeValue(context, arg) }
+            onError?("runtime callback \(name) is not installed")
+            return
+        }
+        var argv = args
+        let result = argv.withUnsafeMutableBufferPointer { buffer in
+            JS_Call(context, fn, qjs_undefined(),
+                    Int32(buffer.count), buffer.baseAddress)
+        }
+        for arg in args { JS_FreeValue(context, arg) }
+        if JS_IsException(result) { onError?(takeExceptionMessage()) }
+        JS_FreeValue(context, result)
+        drainJobs()
+    }
+
+    /// Resolves a JS global function once and caches the owned reference.
+    /// `JS_GetPropertyStr` already returns an owned value, so no extra dup.
+    /// Returns nil until the bundle has installed the global.
+    private func callback(_ name: String) -> JSValue? {
+        if let cached = callbackCache[name] { return cached }
+        let global = JS_GetGlobalObject(context)
+        defer { JS_FreeValue(context, global) }
+        let fn = JS_GetPropertyStr(context, global, name)
+        guard JS_IsFunction(context, fn) else {
+            JS_FreeValue(context, fn)
+            return nil
+        }
+        callbackCache[name] = fn
+        return fn
+    }
+
+    /// Builds a QuickJS value directly from a Swift value (no JSON round-trip).
+    /// Returns nil if any nested leaf is a type we don't serialize, so the
+    /// caller can substitute `undefined` — matching the old behavior where
+    /// `JSONSerialization` failed and the whole payload became `undefined`.
+    /// `JS_SetProperty*` takes ownership of each child, so children added on
+    /// success are not freed here; on failure the partial container is freed.
+    private func makeValueOrNil(_ any: Any) -> JSValue? {
+        switch any {
+        case let string as String:
+            return JS_NewString(context, string)
+        // Native Swift scalars cover every payload this app builds (gesture
+        // dispatch + sensor samples). A Foundation NSNumber is only reachable
+        // through a WatchConnectivity message — which this app sends as
+        // strings — and still bridges through these `as` casts. Exact
+        // int-vs-bool fidelity for a raw 0/1 NSNumber would need CFBoolean
+        // detection; it is omitted on purpose to keep this Linux-buildable
+        // without relying on CoreFoundation toll-free bridging.
+        case let bool as Bool:
+            return qjs_new_bool(context, bool)
+        case let int as Int:
+            return qjs_new_int64(context, Int64(int))
+        case let double as Double:
+            return qjs_new_float64(context, double)
+        case is NSNull:
+            return qjs_null()
+        case let dictionary as [String: Any]:
+            let object = JS_NewObject(context)
+            for (key, value) in dictionary {
+                guard let child = makeValueOrNil(value) else {
+                    JS_FreeValue(context, object)
+                    return nil
+                }
+                JS_SetPropertyStr(context, object, key, child)
+            }
+            return object
+        case let array as [Any]:
+            let jsArray = JS_NewArray(context)
+            for (index, value) in array.enumerated() {
+                guard let child = makeValueOrNil(value) else {
+                    JS_FreeValue(context, jsArray)
+                    return nil
+                }
+                JS_SetPropertyUint32(context, jsArray, UInt32(index), child)
+            }
+            return jsArray
+        default:
+            return nil
         }
     }
 
@@ -267,8 +348,7 @@ public final class JSRuntime {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.pendingTimers[id] = nil
-            self.evaluateReportingErrors(
-                "globalThis.__fireTimer(\(id))", filename: "timer.js")
+            self.invoke("__fireTimer", [qjs_new_int32(self.context, id)])
         }
         pendingTimers[id] = work
         DispatchQueue.main.asyncAfter(
@@ -304,13 +384,6 @@ public final class JSRuntime {
         }
         JS_FreeValue(context, stackVal)
         return message
-    }
-
-    private func jsStringLiteral(_ value: String) -> String {
-        let data = (try? JSONSerialization.data(
-            withJSONObject: [value])) ?? Data("[\"\"]".utf8)
-        let array = String(data: data, encoding: .utf8) ?? "[\"\"]"
-        return String(array.dropFirst().dropLast())
     }
 
     fileprivate static func from(context: OpaquePointer?) -> JSRuntime? {
@@ -584,14 +657,16 @@ extension JSRuntime {
     /// Settles a generateText Promise on the main thread (where the context
     /// lives).
     public func resolveGenerate(id: Int, text: String) {
-        evaluateReportingErrors(
-            "globalThis.__resolveGenerate(\(id), \(jsStringLiteral(text)))",
-            filename: "ai.js")
+        invoke("__resolveGenerate", [
+            qjs_new_int32(context, Int32(truncatingIfNeeded: id)),
+            JS_NewString(context, text),
+        ])
     }
     public func rejectGenerate(id: Int, message: String) {
-        evaluateReportingErrors(
-            "globalThis.__rejectGenerate(\(id), \(jsStringLiteral(message)))",
-            filename: "ai.js")
+        invoke("__rejectGenerate", [
+            qjs_new_int32(context, Int32(truncatingIfNeeded: id)),
+            JS_NewString(context, message),
+        ])
     }
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)

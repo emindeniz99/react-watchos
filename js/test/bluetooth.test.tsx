@@ -29,7 +29,7 @@ function NowPlaying() {
   return <Text>{title}</Text>;
 }
 
-type PushFn = (name: string, payloadJson?: string) => boolean;
+type PushFn = (name: string, payload?: Record<string, unknown>) => boolean;
 
 describe("BLE bridge", () => {
   it("updates the UI live from a characteristic notification", () => {
@@ -39,10 +39,10 @@ describe("BLE bridge", () => {
 
     const push = (globalThis as { __pushNativeEvent?: PushFn })
       .__pushNativeEvent!;
-    const handled = push(
-      "ble.notify",
-      JSON.stringify({ characteristic: "title", value: "Blade Runner" }),
-    );
+    const handled = push("ble.notify", {
+      characteristic: "title",
+      value: "Blade Runner",
+    });
 
     expect(handled).toBe(true);
     expect(host.lastCommit!.root!.props.text).toBe("Blade Runner");

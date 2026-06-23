@@ -55,7 +55,7 @@ function buttonByText(root: SerializedNode, text: string): SerializedNode {
   return match;
 }
 
-type PushFn = (name: string, payloadJson?: string) => boolean;
+type PushFn = (name: string, payload?: Record<string, unknown>) => boolean;
 
 describe("navigation helpers", () => {
   it("maps widget/deep-link URLs to route paths", () => {
@@ -90,9 +90,7 @@ describe("navigation helpers", () => {
 
     const push = (globalThis as { __pushNativeEvent?: PushFn })
       .__pushNativeEvent!;
-    expect(
-      push("openURL", JSON.stringify({ url: "reactwatch://stopwatch" })),
-    ).toBe(true);
+    expect(push("openURL", { url: "reactwatch://stopwatch" })).toBe(true);
     expect(findByText(host.lastCommit!.root!, "/stopwatch")).toHaveLength(1);
   });
 

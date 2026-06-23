@@ -25,7 +25,7 @@ function PhoneStatus() {
   return <Text>{status}</Text>;
 }
 
-type PushFn = (name: string, payloadJson?: string) => boolean;
+type PushFn = (name: string, payload?: Record<string, unknown>) => boolean;
 
 describe("WatchConnectivity bridge", () => {
   it("updates the UI live when a phone message is pushed", () => {
@@ -37,10 +37,7 @@ describe("WatchConnectivity bridge", () => {
     // __pushNativeEvent("watchConnectivity", ...)).
     const push = (globalThis as { __pushNativeEvent?: PushFn })
       .__pushNativeEvent!;
-    const handled = push(
-      "watchConnectivity",
-      JSON.stringify({ status: "synced" }),
-    );
+    const handled = push("watchConnectivity", { status: "synced" });
 
     expect(handled).toBe(true);
     expect(host.lastCommit!.root!.props.text).toBe("synced");

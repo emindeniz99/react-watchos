@@ -28,7 +28,7 @@ function HeartRate() {
   return <Text>{String(bpm)}</Text>;
 }
 
-type PushFn = (name: string, payloadJson?: string) => boolean;
+type PushFn = (name: string, payload?: Record<string, unknown>) => boolean;
 
 describe("sensor streams", () => {
   it("routes a sensor reading to the UI live", () => {
@@ -38,7 +38,7 @@ describe("sensor streams", () => {
 
     const push = (globalThis as { __pushNativeEvent?: PushFn })
       .__pushNativeEvent!;
-    push("sensor.heartRate", JSON.stringify({ bpm: 72 }));
+    push("sensor.heartRate", { bpm: 72 });
     expect(host.lastCommit!.root!.props.text).toBe("72");
   });
 

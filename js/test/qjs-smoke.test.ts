@@ -65,7 +65,7 @@ const countAfterPress = textStartingWith(latestTree(), "Count: ").props.text;
 
 const toggle = findAll(latestTree(), "Toggle")[0];
 const changeHandled = globalThis.__dispatchEvent(
-  toggle.id, "change", JSON.stringify({ value: true }));
+  toggle.id, "change", { value: true });
 const toggleAfterChange = findAll(latestTree(), "Toggle")[0].props.value;
 
 const publishedBefore = __published.length;
@@ -77,7 +77,7 @@ const hydrationPublished = latestPublished();
 // native push routes through runSync and commits a new tree synchronously.
 const pushExists = typeof globalThis.__pushNativeEvent === "function";
 const pushHandled = globalThis.__pushNativeEvent("scenePhase",
-  JSON.stringify({ phase: "background" }));
+  { phase: "background" });
 const phaseText = findAll(latestTree(), "Text")
   .map((t) => String(t.props.text))
   .find((t) => t.indexOf("phase:") >= 0);
