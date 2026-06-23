@@ -26,6 +26,7 @@
   ],
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "app.plugin.js": "./app.plugin.js",
   "exports": {
     ".": {
       "source": "./src/index.ts",
@@ -43,11 +44,16 @@
       "react-native": "./src/testing.ts",
       "default": "./src/testing.ts"
     },
+    "./app.plugin": "./app.plugin.js",
+    "./link-swift-package": "./plugin/link-swift-package.cjs",
+    "./merge-target-infoplist": "./plugin/merge-target-infoplist.cjs",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
     "esbuild",
+    "app.plugin.js",
+    "plugin",
     "README.md"
   ],
   "scripts": {
@@ -65,8 +71,16 @@
     "format": "biome format --write"
   },
   "peerDependencies": {
+    "@bacons/apple-targets": ">=4.0.0",
+    "@expo/config-plugins": ">=56.0.0",
+    "expo": ">=56.0.0",
     "react": "^19.2.0",
     "react-reconciler": "0.33.0"
+  },
+  "peerDependenciesMeta": {
+    "@bacons/apple-targets": { "optional": true },
+    "@expo/config-plugins": { "optional": true },
+    "expo": { "optional": true }
   },
   "devDependencies": {
     "@babel/core": "^8.0.0",
