@@ -1,5 +1,6 @@
 import {
   createContext,
+  type FC,
   type ReactNode,
   useCallback,
   useContext,
@@ -7,6 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import type { NavigationRouteProps, NavigationStackProps } from "./components";
 import { registerNativeListener } from "./nativeEvents";
 
 export const OPEN_URL_EVENT = "openURL";
@@ -54,6 +56,123 @@ export function routeFromURL(
   const rest = url.slice(prefix.length).split(/[?#]/, 1)[0] ?? "";
   const route = normalizeRoute(decodeURIComponent(rest.replace(/^\/+/, "")));
   return route === "/" ? null : route;
+}
+
+/** A matched route param: `[id]` yields a string, `[...rest]` an array. */
+export type RouteParamValue = string | string[];
+export type RouteParams = Record<string, RouteParamValue>;
+
+export interface RouteMatch {
+  params: RouteParams;
+  /** Higher = more specific. Literal +2, param +1, catch-all -1, so a
+   * concrete route beats a catch-all that also happens to match it. */
+  score: number;
+}
+
+type PatternSegment =
+  | { kind: "literal"; value: string }
+  | { kind: "param"; name: string }
+  | { kind: "catchAll"; name: string; optional: boolean };
+
+function splitSegments(route: string): string[] {
+  return route.split("/").filter((part) => part.length > 0);
+}
+
+function parsePattern(pattern: string): PatternSegment[] {
+  return splitSegments(pattern).map((raw): PatternSegment => {
+    const optional = /^\[\[\.\.\.(.+)\]\]$/.exec(raw);
+    if (optional?.[1])
+      return { kind: "catchAll", name: optional[1], optional: true };
+    const catchAll = /^\[\.\.\.(.+)\]$/.exec(raw);
+    if (catchAll?.[1])
+      return { kind: "catchAll", name: catchAll[1], optional: false };
+    const param = /^\[(.+)\]$/.exec(raw);
+    if (param?.[1]) return { kind: "param", name: param[1] };
+    return { kind: "literal", value: raw };
+  });
+}
+
+/**
+ * Matches a `<NavigationRoute path>` pattern against a concrete pushed route,
+ * Next.js/Expo style: `[id]`, `[...rest]` (>= 1 segment), `[[...rest]]`
+ * (optional). Returns the extracted params and a specificity score, or null.
+ * Mirrored in Swift's RouteMatcher so the host renders the same destination
+ * useParams() resolves.
+ */
+export function matchRoute(pattern: string, route: string): RouteMatch | null {
+  const segments = parsePattern(pattern);
+  const parts = splitSegments(route);
+  const params: RouteParams = {};
+  let score = 0;
+  let i = 0;
+  for (const segment of segments) {
+    if (segment.kind === "catchAll") {
+      const rest = parts.slice(i);
+      if (!segment.optional && rest.length === 0) return null;
+      params[segment.name] = rest;
+      return { params, score: score - 1 };
+    }
+    const part = parts[i];
+    if (part === undefined) return null;
+    if (segment.kind === "literal") {
+      if (part !== segment.value) return null;
+      score += 2;
+    } else {
+      params[segment.name] = part;
+      score += 1;
+    }
+    i++;
+  }
+  if (parts.length !== segments.length) return null;
+  return { params, score };
+}
+
+const EMPTY_PARAMS: RouteParams = {};
+const ActiveRouteContext = createContext<string>("/");
+const RouteParamsContext = createContext<RouteParams>(EMPTY_PARAMS);
+
+/** Dynamic-segment params of the active route, e.g. `{ id: "42" }`. */
+export function useParams<T extends RouteParams = RouteParams>(): T {
+  return useContext(RouteParamsContext) as T;
+}
+
+const NavigationStackHost =
+  "NavigationStack" as unknown as FC<NavigationStackProps>;
+const NavigationRouteHost =
+  "NavigationRoute" as unknown as FC<NavigationRouteProps>;
+
+/**
+ * Native push stack. Publishes the active route (top of `path`) so the
+ * matching <NavigationRoute> can expose its params via useParams().
+ */
+export function NavigationStack(props: NavigationStackProps) {
+  const { path } = props;
+  const top = path && path.length > 0 ? path[path.length - 1] : undefined;
+  const active = top ? normalizeRoute(top) : "/";
+  return (
+    <ActiveRouteContext.Provider value={active}>
+      <NavigationStackHost {...props} />
+    </ActiveRouteContext.Provider>
+  );
+}
+
+/**
+ * A route in a NavigationStack. `path` may carry dynamic segments
+ * (`/list/[id]`, `/shop/[name]/[[...rest]]`); when this route is active its
+ * params are available to descendants through useParams().
+ */
+export function NavigationRoute(props: NavigationRouteProps) {
+  const { path } = props;
+  const active = useContext(ActiveRouteContext);
+  const params = useMemo(() => {
+    const match = matchRoute(path, active);
+    return match ? match.params : EMPTY_PARAMS;
+  }, [path, active]);
+  return (
+    <RouteParamsContext.Provider value={params}>
+      <NavigationRouteHost {...props} />
+    </RouteParamsContext.Provider>
+  );
 }
 
 export function NavigationProvider({

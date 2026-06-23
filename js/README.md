@@ -71,6 +71,27 @@ Use `children` on `NavigationLink` for a custom tappable label. Use
 `useNavigate()` for imperative navigation. Widget/deep-link URLs such as
 `reactwatch://hydration` are handled by `NavigationProvider`.
 
+Paths may carry dynamic segments, Next.js/Expo style — `[id]` (one segment),
+`[...rest]` (a catch-all of one or more), and `[[...rest]]` (optional). One
+route handles every concrete path under it; `useParams()` reads the matched
+segments, and a concrete route always wins over a catch-all that also matches:
+
+```tsx
+<NavigationStack path={path} onPathChange={setPath}>
+  <NavigationRoute path="/lists" title="Shopping">
+    <NavigationLink to="/list/groceries" label="Groceries" />
+  </NavigationRoute>
+  <NavigationRoute path="/list/[id]" title="List">
+    <ListScreen />
+  </NavigationRoute>
+</NavigationStack>;
+
+function ListScreen() {
+  const { id } = useParams<{ id: string }>(); // "/list/groceries" -> "groceries"
+  // ...
+}
+```
+
 ### Subpath exports
 
 - `react-native-watchos/build` — `watchBuildOptions({ entry, outfile })`, the

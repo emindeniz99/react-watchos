@@ -55,8 +55,6 @@ export {
   List,
   MapView,
   NavigationLink,
-  NavigationRoute,
-  NavigationStack,
   Picker,
   ProgressView,
   ScrollView,
@@ -108,15 +106,22 @@ export type {
   NavigationAction,
   NavigationContextValue,
   NavigationProviderProps,
+  RouteMatch,
+  RouteParams,
+  RouteParamValue,
 } from "./navigation";
 export {
+  matchRoute,
   NavigationProvider,
+  NavigationRoute,
+  NavigationStack,
   normalizeRoute,
   OPEN_URL_EVENT,
   routeFromURL,
   useCanGoBack,
   useNavigate,
   useNavigation,
+  useParams,
   useRoute,
 } from "./navigation";
 export type { NotificationRequest } from "./notifications";

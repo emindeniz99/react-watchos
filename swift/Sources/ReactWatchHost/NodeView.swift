@@ -1,5 +1,6 @@
 import MapKit
 import ReactWatchCore
+import ReactWatchSupport
 import SwiftUI
 import UIKit
 
@@ -491,9 +492,20 @@ private struct RoutedNavigationStack: View {
 
     private func routeNode(_ route: String) -> RNNode? {
         let path = normalized(route)
-        return routeNodes.first {
-            normalized($0.string("path") ?? "") == path && path != "/"
+        if path == "/" { return nil }
+        // Match Next.js/Expo-style patterns ([id], [...rest], [[...rest]]) and
+        // render the most specific one — mirrors js/src/navigation matchRoute.
+        var best: (node: RNNode, score: Int)?
+        for candidate in routeNodes {
+            let pattern = normalized(candidate.string("path") ?? "")
+            if pattern == "/" { continue }
+            guard let match = RouteMatcher.match(pattern: pattern, route: path)
+            else { continue }
+            if best == nil || match.score > best!.score {
+                best = (candidate, match.score)
+            }
         }
+        return best?.node
     }
 
     private func normalized(_ path: [String]) -> [String] {

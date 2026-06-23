@@ -284,12 +284,10 @@ export const List = "List" as unknown as FC<ListProps>;
 export const Divider = "Divider" as unknown as FC<DividerProps>;
 export const Gauge = "Gauge" as unknown as FC<GaugeProps>;
 export const ProgressView = "ProgressView" as unknown as FC<ProgressViewProps>;
-export const NavigationStack =
-  "NavigationStack" as unknown as FC<NavigationStackProps>;
 export const NavigationLink =
   "NavigationLink" as unknown as FC<NavigationLinkProps>;
-export const NavigationRoute =
-  "NavigationRoute" as unknown as FC<NavigationRouteProps>;
+// NavigationStack and NavigationRoute are function components (they expose
+// route params via useParams); see ./navigation.
 export const TextField = "TextField" as unknown as FC<TextFieldProps>;
 export const Picker = "Picker" as unknown as FC<PickerProps>;
 export const TabView = "TabView" as unknown as FC<TabViewProps>;

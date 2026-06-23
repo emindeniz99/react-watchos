@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   Button,
   MemoryHost,
+  matchRoute,
   NavigationProvider,
+  NavigationRoute,
+  NavigationStack,
   routeFromURL,
   runApp,
   type SerializedNode,
@@ -10,6 +13,7 @@ import {
   unregisterAllNativeListeners,
   useNavigate,
   useNavigation,
+  useParams,
   useRoute,
   VStack,
 } from "../src/index";
@@ -96,5 +100,70 @@ describe("navigation helpers", () => {
       host,
     );
     expect(findByText(host.lastCommit!.root!, "/hydration")).toHaveLength(1);
+  });
+});
+
+describe("matchRoute", () => {
+  it("matches a literal route exactly", () => {
+    expect(matchRoute("/lists", "/lists")?.params).toEqual({});
+    expect(matchRoute("/lists", "/list")).toBeNull();
+    expect(matchRoute("/lists", "/lists/1")).toBeNull();
+  });
+
+  it("captures a single [id] segment", () => {
+    expect(matchRoute("/list/[id]", "/list/42")?.params).toEqual({ id: "42" });
+    // [id] is one segment, not a catch-all.
+    expect(matchRoute("/list/[id]", "/list/42/items")).toBeNull();
+    expect(matchRoute("/list/[id]", "/list")).toBeNull();
+  });
+
+  it("captures a required [...rest] catch-all as an array", () => {
+    expect(
+      matchRoute("/shop/[name]/[...rest]", "/shop/nike/a/b")?.params,
+    ).toEqual({ name: "nike", rest: ["a", "b"] });
+    // Required catch-all needs at least one trailing segment.
+    expect(matchRoute("/shop/[name]/[...rest]", "/shop/nike")).toBeNull();
+  });
+
+  it("treats [[...rest]] as an optional catch-all", () => {
+    expect(
+      matchRoute("/shop/[name]/[[...rest]]", "/shop/nike")?.params,
+    ).toEqual({
+      name: "nike",
+      rest: [],
+    });
+    expect(
+      matchRoute("/shop/[name]/[[...rest]]", "/shop/nike/shoes/running")
+        ?.params,
+    ).toEqual({ name: "nike", rest: ["shoes", "running"] });
+  });
+
+  it("scores a concrete route above a catch-all that also matches", () => {
+    const concrete = matchRoute("/shop/[name]", "/shop/nike");
+    const optional = matchRoute("/shop/[name]/[[...rest]]", "/shop/nike");
+    expect(concrete?.score).toBeGreaterThan(optional!.score);
+  });
+});
+
+function ParamProbe() {
+  const { id } = useParams<{ id: string }>();
+  return <Text>{`id=${id ?? "none"}`}</Text>;
+}
+
+describe("useParams", () => {
+  it("exposes the active route's dynamic params to descendants", () => {
+    const host = new MemoryHost();
+    runApp(
+      <NavigationStack path={["/list/42"]}>
+        <NavigationRoute path="/">
+          <Text>home</Text>
+        </NavigationRoute>
+        <NavigationRoute path="/list/[id]">
+          <ParamProbe />
+        </NavigationRoute>
+      </NavigationStack>,
+      host,
+    );
+    expect(findByText(host.lastCommit!.root!, "id=42")).toHaveLength(1);
   });
 });

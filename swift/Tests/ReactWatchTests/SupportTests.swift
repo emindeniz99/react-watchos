@@ -71,3 +71,49 @@ final class NotificationPlanTests: XCTestCase {
         XCTAssertNil(NotificationPlan(json: #"{"id":"x"}"#, now: now)) // missing fields
     }
 }
+
+final class RouteMatcherTests: XCTestCase {
+    func testLiteralRouteMatchesExactly() {
+        XCTAssertEqual(RouteMatcher.match(pattern: "/lists", route: "/lists")?.params, [:])
+        XCTAssertNil(RouteMatcher.match(pattern: "/lists", route: "/list"))
+        XCTAssertNil(RouteMatcher.match(pattern: "/lists", route: "/lists/1"))
+    }
+
+    func testCapturesSingleParam() {
+        XCTAssertEqual(
+            RouteMatcher.match(pattern: "/list/[id]", route: "/list/42")?.params,
+            ["id": ["42"]])
+        // [id] is one segment, not a catch-all.
+        XCTAssertNil(RouteMatcher.match(pattern: "/list/[id]", route: "/list/42/items"))
+        XCTAssertNil(RouteMatcher.match(pattern: "/list/[id]", route: "/list"))
+    }
+
+    func testRequiredCatchAllNeedsAtLeastOneSegment() {
+        XCTAssertEqual(
+            RouteMatcher.match(pattern: "/shop/[name]/[...rest]", route: "/shop/nike/a/b")?
+                .params,
+            ["name": ["nike"], "rest": ["a", "b"]])
+        XCTAssertNil(RouteMatcher.match(pattern: "/shop/[name]/[...rest]", route: "/shop/nike"))
+    }
+
+    func testOptionalCatchAllMatchesZeroSegments() {
+        XCTAssertEqual(
+            RouteMatcher.match(pattern: "/shop/[name]/[[...rest]]", route: "/shop/nike")?
+                .params,
+            ["name": ["nike"], "rest": []])
+        XCTAssertEqual(
+            RouteMatcher.match(
+                pattern: "/shop/[name]/[[...rest]]", route: "/shop/nike/shoes/running")?
+                .params,
+            ["name": ["nike"], "rest": ["shoes", "running"]])
+    }
+
+    func testBestPicksMostSpecificMatch() {
+        // Both patterns match /shop/nike; the concrete one must win.
+        let winner = RouteMatcher.best(
+            patterns: ["/shop/[name]/[[...rest]]", "/shop/[name]"],
+            route: "/shop/nike")
+        XCTAssertEqual(winner?.pattern, "/shop/[name]")
+        XCTAssertNil(RouteMatcher.best(patterns: ["/list/[id]"], route: "/other"))
+    }
+}
