@@ -48,8 +48,11 @@ enum ShoppingData {
         return id
     }
 
-    /// The list a complication shows when the user hasn't picked one: the
-    /// in-app featured list, else the first list.
+    /// The fallback list a complication shows when the user hasn't picked one
+    /// via the native per-complication picker (SelectShoppingListIntent): the
+    /// in-app featured list, else the first list. ShoppingConfiguration uses
+    /// `configuration.list?.id ?? defaultId()`, so an explicit picker choice
+    /// overrides this; the in-app featured list is only the unconfigured default.
     static func defaultId() -> String? {
         featuredId() ?? lists().first?.id
     }

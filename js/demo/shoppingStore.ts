@@ -79,7 +79,14 @@ export function findShoppingList(id: string): ShoppingList | undefined {
   return lists.find((list) => list.id === id);
 }
 
-/** The list chosen to appear as the watch-face complication, if any. */
+// The "featured list" and the watchOS-26 on-face picker are complementary,
+// not rivals. Swift's ShoppingData.defaultId() is `featuredId() ?? first
+// list`, and ShoppingConfiguration reads `configuration.list?.id ??
+// defaultId()`. So this in-app choice is only the DEFAULT shown by an
+// UNCONFIGURED complication; once the user picks a list via the native
+// per-complication picker (SelectShoppingListIntent), that selection wins.
+
+/** The list chosen in-app to appear as the watch-face complication, if any. */
 export function getFeaturedListId(): string | null {
   return featuredListId;
 }
