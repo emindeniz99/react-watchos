@@ -11,7 +11,12 @@ import type { SerializedTree } from "./generated/wire";
 
 /** Where committed trees go. Swift provides this via the `__host` global. */
 export interface HostBridge {
-  commit(tree: SerializedTree): void;
+  /**
+   * `json` is the caller's already-serialized `tree` (the reconciler computes
+   * it for no-op deduplication). The native bridge forwards that string
+   * instead of re-stringifying; object hosts (tests) ignore it and use `tree`.
+   */
+  commit(tree: SerializedTree, json?: string): void;
   log?(message: string): void;
 }
 

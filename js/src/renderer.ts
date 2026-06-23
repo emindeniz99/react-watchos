@@ -231,7 +231,9 @@ export class WatchRoot {
         if (json === this.lastCommitJson) return;
         this.lastCommitJson = json;
         this.commitCount += 1;
-        host.commit(tree);
+        // Hand the native bridge the JSON we already computed for dedup so it
+        // need not stringify the same tree again (object hosts ignore it).
+        host.commit(tree, json);
       },
     };
     this.container = container;

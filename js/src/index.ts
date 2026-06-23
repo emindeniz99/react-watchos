@@ -180,7 +180,8 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
       throw new Error("runApp: no host given and no __host global installed");
     }
     bridge = {
-      commit: (tree: SerializedTree) => native.commit(JSON.stringify(tree)),
+      commit: (tree: SerializedTree, json?: string) =>
+        native.commit(json ?? JSON.stringify(tree)),
       log: (message: string) => native.log(message),
     };
   }
