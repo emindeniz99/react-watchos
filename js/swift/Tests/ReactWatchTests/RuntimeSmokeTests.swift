@@ -291,6 +291,14 @@ final class RuntimeSmokeTests: XCTestCase {
             "inf", payload: ["ok": 1, "bad": Double.infinity])
         XCTAssertEqual(
             runtime.evaluateString("String(globalThis.__pUndefined)"), "true")
+
+        // A Date with a non-finite interval (constructible, reachable via a
+        // WatchConnectivity NSDate) maps through the Date branch's epoch-ms
+        // multiply and must collapse the payload too, not leak a live NaN.
+        runtime.pushNativeEvent(
+            "nanDate", payload: ["ts": Date(timeIntervalSince1970: .nan)])
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__pUndefined)"), "true")
     }
 
     func testThrowingMicrotaskIsReportedAndDoesNotPoisonNextCall() throws {

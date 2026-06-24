@@ -316,7 +316,12 @@ public final class JSRuntime {
             // No JSON date type; use epoch milliseconds — the convention the
             // app's own date controls already cross the bridge with (NodeView
             // dateBinding). JSONSerialization rejected Date outright.
-            return qjs_new_float64(context, date.timeIntervalSince1970 * 1000)
+            let epochMillis = date.timeIntervalSince1970 * 1000
+            // A Date can hold a non-finite interval (e.g. a NaN NSDate from a
+            // WatchConnectivity message); collapse to undefined like every
+            // other non-finite float rather than leak a live NaN/Infinity.
+            guard epochMillis.isFinite else { return nil }
+            return qjs_new_float64(context, epochMillis)
         case let data as Data:
             // Binary has no JSON form; base64 keeps it lossless as a string.
             return newString(data.base64EncodedString())
