@@ -6,7 +6,7 @@
 # JSRuntime.swift made. Works on Linux/macOS; reports ns/call + the speedup.
 set -e
 cd "$(dirname "$0")"
-VENDOR=../../swift/Sources/CQuickJS
+VENDOR=../../js/swift/Sources/CQuickJS
 cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o bench \
   bench.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
   "$VENDOR"/libunicode.c "$VENDOR"/dtoa.c -lm -lpthread
