@@ -247,6 +247,17 @@ public final class JSRuntime {
                 || objCType == Int8(UInt8(ascii: "d")) {
                 return qjs_new_float64(context, number.doubleValue)
             }
+            // 64-bit unsigned ("Q"/"L"): int64Value wraps a value above
+            // Int64.max (e.g. a UInt64 id; UInt64.max → -1). Use the unsigned
+            // value, degrading to a double beyond Int64 as JSON would.
+            if objCType == Int8(UInt8(ascii: "Q"))
+                || objCType == Int8(UInt8(ascii: "L")) {
+                let unsigned = number.uint64Value
+                if let exact = Int64(exactly: unsigned) {
+                    return qjs_new_int64(context, exact)
+                }
+                return qjs_new_float64(context, Double(unsigned))
+            }
             return qjs_new_int64(context, number.int64Value)
         #endif
         case let bool as Bool:
@@ -277,6 +288,14 @@ public final class JSRuntime {
             return qjs_null()
         case let dictionary as [String: Any]:
             let object = JS_NewObject(context)
+            // A failed allocation (OOM under the heap cap) returns an exception
+            // and leaves it pending; bail to undefined and clear it rather than
+            // build on a poisoned value — matching the old serialization‑failure
+            // path, which never touched the runtime's exception state.
+            guard !JS_IsException(object) else {
+                JS_FreeValue(context, JS_GetException(context))
+                return nil
+            }
             for (key, value) in dictionary {
                 guard let child = makeValueOrNil(value) else {
                     JS_FreeValue(context, object)
@@ -287,6 +306,10 @@ public final class JSRuntime {
             return object
         case let array as [Any]:
             let jsArray = JS_NewArray(context)
+            guard !JS_IsException(jsArray) else {
+                JS_FreeValue(context, JS_GetException(context))
+                return nil
+            }
             for (index, value) in array.enumerated() {
                 guard let child = makeValueOrNil(value) else {
                     JS_FreeValue(context, jsArray)
@@ -711,6 +734,11 @@ private struct OwnedCallbacks: ~Copyable {
         defer { JS_FreeValue(context, global) }
         let fn = JS_GetPropertyStr(context, global, name)
         guard JS_IsFunction(context, fn) else {
+            // A throwing getter or OOM makes the lookup raise; clear the
+            // pending exception so it can't poison a later JS_Call.
+            if JS_IsException(fn) {
+                JS_FreeValue(context, JS_GetException(context))
+            }
             JS_FreeValue(context, fn)
             return nil
         }

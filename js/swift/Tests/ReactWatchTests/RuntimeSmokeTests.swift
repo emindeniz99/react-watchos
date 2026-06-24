@@ -207,4 +207,26 @@ final class RuntimeSmokeTests: XCTestCase {
             runtime.evaluateString("String(globalThis.__p.ts)"), "1700000000000")
         XCTAssertEqual(runtime.evaluateString("globalThis.__p.blob"), "AQID")
     }
+
+    func testPushNativeEventKeepsLargeUnsignedPositive() throws {
+        let runtime = try JSRuntime()
+        try runtime.evaluate(#"""
+        globalThis.__pushNativeEvent = (name, p) => {
+          globalThis.__p = p;
+          return true;
+        };
+        """#)
+
+        // A UInt64 above Int64.max must stay positive — a naive int64 cast
+        // would wrap it negative. It degrades to a double beyond 2^53, as JSON
+        // number parsing would. (On Apple the NSNumber "Q"/"L" branch mirrors
+        // this; here the BinaryInteger path exercises the same intent.)
+        runtime.pushNativeEvent("ids", payload: ["id": UInt64.max])
+
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__p.id > 0)"), "true")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__p.id)"),
+            "18446744073709552000")
+    }
 }
