@@ -244,9 +244,10 @@ public final class JSRuntime {
     }
 
     /// Builds a QuickJS value directly from a Swift value (no JSON round-trip).
-    /// Returns nil if any nested leaf is a type we don't serialize, so the
-    /// caller can substitute `undefined` — matching the old behavior where
-    /// `JSONSerialization` failed and the whole payload became `undefined`.
+    /// Returns nil if any nested leaf is one `JSONSerialization` would have
+    /// rejected — an unmappable type or a non-finite float — so the caller can
+    /// substitute `undefined`, matching the old behavior where serialization
+    /// failed and the whole payload became `undefined`.
     /// `JS_SetProperty*` takes ownership of each child, so children added on
     /// success are not freed here; on failure the partial container is freed.
     private func makeValueOrNil(_ any: Any) -> JSValue? {
@@ -267,7 +268,13 @@ public final class JSRuntime {
             let objCType = number.objCType.pointee
             if objCType == Int8(UInt8(ascii: "f"))
                 || objCType == Int8(UInt8(ascii: "d")) {
-                return qjs_new_float64(context, number.doubleValue)
+                // JSONSerialization rejects non-finite numbers, so the old path
+                // dropped the whole payload to undefined. Match that instead of
+                // leaking a live JS NaN/Infinity (a WatchConnectivity sender can
+                // put a raw NSNumber(.infinity) in a plist dictionary).
+                let double = number.doubleValue
+                guard double.isFinite else { return nil }
+                return qjs_new_float64(context, double)
             }
             // 64-bit unsigned ("Q"/"L"): int64Value wraps a value above
             // Int64.max (e.g. a UInt64 id; UInt64.max → -1). Use the unsigned
@@ -296,8 +303,15 @@ public final class JSRuntime {
             // watchOS's arm64_32 slice (Series 8 / SE 2 and older; Series 9/10
             // and Ultra 2/3 moved to 64-bit arm64 in watchOS 26, where it is
             // Double) — apps ship both slices, so `as Double` alone would drop
-            // e.g. a drag gesture's x/y on the 32-bit devices.
-            return qjs_new_float64(context, Double(floating))
+            // e.g. a drag gesture's x/y on the 32-bit devices. (A non-integer
+            // 32-bit Float widens to a longer decimal here than JSON would have
+            // printed; the only reachable CGFloat payload — drag x/y — is
+            // quantized to multiples of 4, so it widens exactly.)
+            let double = Double(floating)
+            // Non-finite floats have no JSON form: collapse to undefined like
+            // JSONSerialization rather than leak a live NaN/Infinity into JS.
+            guard double.isFinite else { return nil }
+            return qjs_new_float64(context, double)
         case let date as Date:
             // No JSON date type; use epoch milliseconds — the convention the
             // app's own date controls already cross the bridge with (NodeView
@@ -323,7 +337,15 @@ public final class JSRuntime {
                     JS_FreeValue(context, object)
                     return nil
                 }
-                JS_SetPropertyStr(context, object, key, child)
+                // JS_SetPropertyStr consumes `child` even on failure and, when
+                // it fails (e.g. OOM under the heap cap), leaves a pending
+                // exception. Free the partial object and clear that exception so
+                // we collapse to undefined without poisoning the next JS_Call.
+                if JS_SetPropertyStr(context, object, key, child) < 0 {
+                    JS_FreeValue(context, JS_GetException(context))
+                    JS_FreeValue(context, object)
+                    return nil
+                }
             }
             return object
         case let array as [Any]:
@@ -337,7 +359,15 @@ public final class JSRuntime {
                     JS_FreeValue(context, jsArray)
                     return nil
                 }
-                JS_SetPropertyUint32(context, jsArray, UInt32(index), child)
+                // As with the object case: JS_SetPropertyUint32 consumes `child`
+                // and leaves a pending exception on failure; bail to undefined
+                // cleanly rather than build a partial array and poison the next
+                // call.
+                if JS_SetPropertyUint32(context, jsArray, UInt32(index), child) < 0 {
+                    JS_FreeValue(context, JS_GetException(context))
+                    JS_FreeValue(context, jsArray)
+                    return nil
+                }
             }
             return jsArray
         default:
@@ -421,7 +451,17 @@ public final class JSRuntime {
 
     private func drainJobs() {
         var ctx: OpaquePointer?
-        while JS_ExecutePendingJob(runtime, &ctx) > 0 {}
+        // JS_ExecutePendingJob returns >0 once per job run, 0 when the queue is
+        // empty, and <0 when a job threw — leaving that exception pending. The
+        // old `> 0` loop stopped on the first throw, abandoning the remaining
+        // microtasks and leaving the exception to poison the next JS_Call. Route
+        // each thrown job to onError (which clears the exception via
+        // JS_GetException) and keep draining, the way a JS event loop would.
+        while true {
+            let rc = JS_ExecutePendingJob(runtime, &ctx)
+            if rc == 0 { break }
+            if rc < 0 { onError?(takeExceptionMessage()) }
+        }
     }
 
     private func takeExceptionMessage() -> String {

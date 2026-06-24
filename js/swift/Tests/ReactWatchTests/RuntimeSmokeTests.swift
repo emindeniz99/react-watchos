@@ -268,4 +268,61 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertEqual(
             runtime.evaluateString("String(globalThis.__seq)"), "1099511627777")
     }
+
+    func testPushNativeEventDropsNonFinitePayload() throws {
+        let runtime = try JSRuntime()
+        try runtime.evaluate(#"""
+        globalThis.__pushNativeEvent = (name, p) => {
+          globalThis.__pUndefined = p === undefined;
+          return true;
+        };
+        """#)
+
+        // A non-finite float has no JSON form — JSONSerialization rejected it,
+        // so the old path dropped the whole payload to undefined. The direct
+        // mapping must do the same, not leak a live JS NaN/Infinity (which
+        // JSON.stringify would silently mask as null). One bad leaf collapses
+        // the whole payload, exactly like the unmappable-type case.
+        runtime.pushNativeEvent("nan", payload: ["x": Double.nan])
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__pUndefined)"), "true")
+
+        runtime.pushNativeEvent(
+            "inf", payload: ["ok": 1, "bad": Double.infinity])
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__pUndefined)"), "true")
+    }
+
+    func testThrowingMicrotaskIsReportedAndDoesNotPoisonNextCall() throws {
+        let runtime = try JSRuntime()
+        var errors: [String] = []
+        runtime.onError = { errors.append($0) }
+
+        // A native->JS callback that schedules a microtask which throws. A raw
+        // queueMicrotask job (unlike a `.then`, whose throw is captured into a
+        // rejected promise) surfaces the throw through JS_ExecutePendingJob as a
+        // job error. The old drain loop stopped on that, left the exception
+        // pending, swallowed the error, and poisoned the *next* JS_Call.
+        // Draining must report it (so it isn't silent) and recover.
+        try runtime.evaluate(#"""
+        globalThis.__pushNativeEvent = (name) => {
+          if (name === "boom") {
+            queueMicrotask(() => { throw new Error("microtask boom"); });
+          } else {
+            globalThis.__ran = name;
+          }
+          return true;
+        };
+        """#)
+
+        runtime.pushNativeEvent("boom")
+        runtime.pushNativeEvent("after")
+
+        XCTAssertTrue(
+            errors.contains { $0.contains("microtask boom") },
+            "the throwing microtask must be routed to onError, not swallowed")
+        XCTAssertEqual(
+            runtime.evaluateString("globalThis.__ran"), "after",
+            "the call after a throwing microtask must run on a clean slot")
+    }
 }
