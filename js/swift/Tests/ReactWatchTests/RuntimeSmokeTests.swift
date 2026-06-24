@@ -229,4 +229,43 @@ final class RuntimeSmokeTests: XCTestCase {
             runtime.evaluateString("String(globalThis.__p.id)"),
             "18446744073709552000")
     }
+
+    func testPushNativeEventPreservesEmbeddedNulInStrings() throws {
+        let runtime = try JSRuntime()
+        try runtime.evaluate(#"""
+        globalThis.__pushNativeEvent = (name, p) => {
+          globalThis.__s = p.s;
+          return true;
+        };
+        """#)
+
+        // A string with an embedded NUL must survive whole — a Swift String →
+        // C string cast truncates at the NUL, which the old JSON path did not.
+        runtime.pushNativeEvent("nul", payload: ["s": "a\u{0}b"])
+
+        XCTAssertEqual(runtime.evaluateString("String(globalThis.__s.length)"), "3")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__s.charCodeAt(1))"), "0")
+    }
+
+    func testDispatchEventDoesNotTruncateLargeNodeIdOrSeq() throws {
+        let runtime = try JSRuntime()
+        try runtime.evaluate(#"""
+        globalThis.__dispatchEvent = (nodeId, event, payload, seq) => {
+          globalThis.__nid = nodeId;
+          globalThis.__seq = seq;
+          return true;
+        };
+        """#)
+
+        // A nodeId/seq above Int32 must not silently wrap — the old string-built
+        // call emitted the full value; an int32 cast would corrupt it.
+        let big = 1 << 40  // 1,099,511,627,776 — exceeds Int32, fits float64
+        runtime.dispatchEvent(nodeId: big, event: "x", seq: big + 1)
+
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__nid)"), "1099511627776")
+        XCTAssertEqual(
+            runtime.evaluateString("String(globalThis.__seq)"), "1099511627777")
+    }
 }

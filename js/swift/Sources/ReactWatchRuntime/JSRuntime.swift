@@ -129,12 +129,11 @@ public final class JSRuntime {
         // Pass undefined when the payload holds a type we don't serialize,
         // matching the old JSONSerialization-failure → undefined behavior.
         let payloadValue = payload.flatMap(makeValueOrNil) ?? qjs_undefined()
-        let seqValue = seq.map {
-            qjs_new_int32(context, Int32(truncatingIfNeeded: $0))
-        } ?? qjs_undefined()   // JS branches on `seq === undefined`
+        let seqValue = seq.map { qjs_new_int64(context, Int64($0)) }
+            ?? qjs_undefined()   // JS branches on `seq === undefined`
         invoke("__dispatchEvent", [
-            qjs_new_int32(context, Int32(truncatingIfNeeded: nodeId)),
-            JS_NewString(context, event),
+            qjs_new_int64(context, Int64(nodeId)),
+            newString(event),
             payloadValue,
             seqValue,
         ])
@@ -146,15 +145,15 @@ public final class JSRuntime {
     /// drop the per-call `JS_Eval` compilation by invoking through `JS_Call`.
     public func resolveFetch(id: Int, responseJson: String) {
         invoke("__resolveFetch", [
-            qjs_new_int32(context, Int32(truncatingIfNeeded: id)),
-            JS_NewString(context, responseJson),
+            qjs_new_int64(context, Int64(id)),
+            newString(responseJson),
         ])
     }
 
     public func rejectFetch(id: Int, message: String) {
         invoke("__rejectFetch", [
-            qjs_new_int32(context, Int32(truncatingIfNeeded: id)),
-            JS_NewString(context, message),
+            qjs_new_int64(context, Int64(id)),
+            newString(message),
         ])
     }
 
@@ -164,7 +163,7 @@ public final class JSRuntime {
     public func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
         let payloadValue = payload.flatMap(makeValueOrNil) ?? qjs_undefined()
         invoke("__pushNativeEvent", [
-            JS_NewString(context, name), payloadValue,
+            newString(name), payloadValue,
         ])
     }
 
@@ -210,6 +209,15 @@ public final class JSRuntime {
             onError?("runtime callback \(name) is not installed")
             return
         }
+        // An argument built under OOM is the exception sentinel with a pending
+        // exception set; don't call with it (and don't leave that exception to
+        // poison the next call) — clear it and bail, as the old path did.
+        if args.contains(where: { JS_IsException($0) }) {
+            JS_FreeValue(context, JS_GetException(context))
+            for arg in args { JS_FreeValue(context, arg) }
+            onError?("runtime callback \(name): argument construction failed")
+            return
+        }
         var argv = args
         let result = argv.withUnsafeMutableBufferPointer { buffer in
             JS_Call(context, fn, qjs_undefined(),
@@ -221,6 +229,20 @@ public final class JSRuntime {
         drainJobs()
     }
 
+    /// Creates a JS string from the full UTF‑8 bytes, including any embedded
+    /// NUL. A Swift `String` bridged to a C string truncates at the first NUL,
+    /// which the old JSON path (which JSON-escaped it) did not.
+    private func newString(_ value: String) -> JSValue {
+        if value.isEmpty { return JS_NewStringLen(context, "", 0) }
+        let utf8 = Array(value.utf8)
+        return utf8.withUnsafeBytes { raw in
+            JS_NewStringLen(
+                context,
+                raw.baseAddress!.assumingMemoryBound(to: CChar.self),
+                raw.count)
+        }
+    }
+
     /// Builds a QuickJS value directly from a Swift value (no JSON round-trip).
     /// Returns nil if any nested leaf is a type we don't serialize, so the
     /// caller can substitute `undefined` — matching the old behavior where
@@ -230,7 +252,7 @@ public final class JSRuntime {
     private func makeValueOrNil(_ any: Any) -> JSValue? {
         switch any {
         case let string as String:
-            return JS_NewString(context, string)
+            return newString(string)
         #if canImport(Darwin)
         // On Apple, numbers and bools reach here as NSNumber — both native
         // Swift scalars (bridged) and WatchConnectivity values. CoreFoundation
@@ -283,7 +305,7 @@ public final class JSRuntime {
             return qjs_new_float64(context, date.timeIntervalSince1970 * 1000)
         case let data as Data:
             // Binary has no JSON form; base64 keeps it lossless as a string.
-            return JS_NewString(context, data.base64EncodedString())
+            return newString(data.base64EncodedString())
         case is NSNull:
             return qjs_null()
         case let dictionary as [String: Any]:
@@ -694,14 +716,14 @@ extension JSRuntime {
     /// lives).
     public func resolveGenerate(id: Int, text: String) {
         invoke("__resolveGenerate", [
-            qjs_new_int32(context, Int32(truncatingIfNeeded: id)),
-            JS_NewString(context, text),
+            qjs_new_int64(context, Int64(id)),
+            newString(text),
         ])
     }
     public func rejectGenerate(id: Int, message: String) {
         invoke("__rejectGenerate", [
-            qjs_new_int32(context, Int32(truncatingIfNeeded: id)),
-            JS_NewString(context, message),
+            qjs_new_int64(context, Int64(id)),
+            newString(message),
         ])
     }
     fileprivate func setItemFromC(_ key: String, _ value: String) {
