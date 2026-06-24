@@ -54,6 +54,7 @@
     "esbuild",
     "app.plugin.js",
     "plugin",
+    "swift",
     "README.md"
   ],
   "scripts": {

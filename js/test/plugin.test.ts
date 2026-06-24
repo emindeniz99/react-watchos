@@ -80,7 +80,7 @@ function countBy(
 }
 
 describe("wireLocalPackage (pbxproj wiring)", () => {
-  const packagePath = "../../swift";
+  const packagePath = "../../js/swift";
 
   it("links the host product into the watch target and reports it", () => {
     const project = fakeProject();

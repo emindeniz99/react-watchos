@@ -49,9 +49,10 @@ What blocks "installable by a stranger":
 `react-native-watchos` ships: the JS reconciler (source/bundle), the config
 plugin (`app.plugin.js` → `plugin/`), the **thin per-target Swift glue**
 (`WatchApp.swift`, `ReactWidgets.swift`, intents — the small files currently in
-`app/targets/*`), and the **SwiftPM host** (the big `swift/` package). The
-plugin resolves its own install dir with `require.resolve('react-native-watchos/package.json')`,
-so the `../../swift` monorepo assumption goes away.
+`app/targets/*`), and the **SwiftPM host** (the `swift/` package, which now
+lives INSIDE the npm package at `js/swift`). The plugin resolves its own
+install dir with `require.resolve('react-native-watchos/package.json')`, so the
+old `../../swift` monorepo sibling assumption is gone.
 
 ## Decision 2 — native host: **source SPM now, XCFramework later**
 

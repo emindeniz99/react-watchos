@@ -20,10 +20,7 @@ import {
 // the real serializer — so the cross-language wire contract is checked
 // against actual output, never a hand-authored copy. The SwiftPM package's
 // `swift test` (ReactWatchTests) decodes these fixtures.
-const fixturesDir = join(
-  __dirname,
-  "../../swift/Tests/ReactWatchTests/Fixtures",
-);
+const fixturesDir = join(__dirname, "../swift/Tests/ReactWatchTests/Fixtures");
 
 afterEach(() => unregisterAllWidgets());
 

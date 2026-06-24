@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { hostMethods } from "../codegen/schema.mjs";
 
 const jsRoot = join(__dirname, "..");
-const swiftRoot = join(jsRoot, "..", "swift");
+const swiftRoot = join(jsRoot, "swift");
 
 describe("codegen", () => {
   it("committed generated files are up to date (no drift)", () => {

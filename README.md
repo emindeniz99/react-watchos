@@ -204,13 +204,14 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 
 | Path | What |
 |---|---|
-| `js/` | The renderer + demo app. Pure TypeScript, fully tested on any OS. |
-| `swift/` | The Swift host as a **SwiftPM package**: `CQuickJS` (quickjs-ng as a Clang module), `ReactWatchCore` (codegen'd wire models), `ReactWatchSupport` (Foundation platform logic — storage/optimistic/notifications), `ReactWatchRuntime` (the QuickJS embedding) — all Linux-built + `swift test`ed — and `ReactWatchHost` (SwiftUI interpreter + bridges + `ReactWatchRootView`, macOS). |
-| `app/` | Expo SDK 56 iOS shell; the watch app is a [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) target that depends on the `swift/` package and is a thin `@main`. |
+| `js/` | The renderer + demo app (pure TypeScript, tested on any OS) **and** the SwiftPM host under `js/swift/` — both ship in one npm package. |
+| `js/swift/` | The Swift host as a **SwiftPM package**: `CQuickJS` (quickjs-ng as a Clang module), `ReactWatchCore` (codegen'd wire models), `ReactWatchSupport` (Foundation platform logic — storage/optimistic/notifications), `ReactWatchRuntime` (the QuickJS embedding) — all Linux-built + `swift test`ed — and `ReactWatchHost` (SwiftUI interpreter + bridges + `ReactWatchRootView`, macOS). |
+| `app/` | Expo SDK 56 iOS shell; the watch app is a [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) target that depends on the `js/swift/` package and is a thin `@main`. |
 | `app/targets/widget/` | WidgetKit extension: decodes React-rendered timelines from App Group storage (`ReactWidgets.swift`, `WidgetNodeView.swift`); imports `ReactWatchCore`. |
 | `examples/` | External-consumer templates (`minimal-watch-app`, `expo-watch-app`), each a workspace member. |
 | `tools/embed-smoke/` | Reference C host: compiles the package's quickjs-ng and runs the real bundle through the exact API sequence Swift uses. |
-| `swift/Tests/` | The package's `swift test` wire-contract tests: decode real serializer fixtures with the codegen'd `ReactWatchCore` models on Linux. |
+| `tools/qjs-compile/` | Compiles the bundle to QuickJS bytecode (`bundle.qbc`) with the *vendored* engine, so the shipped bytecode version always matches the runtime; the watch app + widget prefer it over the source (`pnpm build:bytecode`, wired into `prebuild`). |
+| `js/swift/Tests/` | The package's `swift test` wire-contract tests: decode real serializer fixtures with the codegen'd `ReactWatchCore` models on Linux. |
 | `docs/research.md` | Why RN-core-on-watchOS is impossible; engine and architecture comparison. |
 | `docs/prior-art.md` | Where this sits among production React renderers (RN, Raycast, r3f, Ink, …) and which techniques we adopt/skip/defer. |
 | `docs/roadmap.md` | Forward plan in three parallel tracks (input, runtime, platform) with priorities, dependencies, and the Mac-build gate. |
@@ -362,14 +363,14 @@ updates via `publishWidgets()`.
 **First-build friction (verified on the watchOS simulator; physical-device
 signing still untested — Rule 12):**
 
-- The watch target depends on the `swift/` SwiftPM package. The unified
+- The watch target depends on the `js/swift/` SwiftPM package. The unified
   `react-native-watchos` config plugin (its `app.plugin.js` entry) writes the
   SwiftPM references into the generated watch/widget targets during
   `expo prebuild` (best-effort, wrapped so it can't fail prebuild —
   apple-targets/node-xcode have no local-package API, so it edits the pbxproj
   directly), and a post-prebuild step re-applies the links authoritatively once
   apple-targets has created the targets. If it didn't apply, add
-  it in Xcode (File ▸ Add Package Dependencies ▸ Add Local ▸ `swift/`) and link
+  it in Xcode (File ▸ Add Package Dependencies ▸ Add Local ▸ `js/swift/`) and link
   **ReactWatchHost** to the watch target, **ReactWatchCore** +
   **ReactWatchSupport** + **ReactWatchRuntime** to the widget. The engine is a Clang module
   (`import CQuickJS`) — no bridging header.

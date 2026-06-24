@@ -62,7 +62,7 @@ generated watch + widget targets. If it didn't apply (it's wrapped so it can
 never fail prebuild), add it by hand in Xcode:
 
 > File ▸ Add Package Dependencies… ▸ Add Local… ▸ select
-> `projects/react-native-watchos/swift`, then add **ReactWatchHost** to the
+> `projects/react-native-watchos/js/swift`, then add **ReactWatchHost** to the
 > watch target (and **ReactWatchCore** + **ReactWatchRuntime** to the widget
 > target if you ship complications).
 
