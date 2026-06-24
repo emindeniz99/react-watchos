@@ -1,2 +1,3 @@
-qjs-compile
-embed-host
+# Compiled C host binaries (path-anchored so the source dirs stay tracked).
+embed-smoke/embed-host
+qjs-compile/qjs-compile

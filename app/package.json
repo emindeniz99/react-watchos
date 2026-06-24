@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "prebuild": "pnpm --filter react-native-watchos build && expo prebuild -p ios --clean && pnpm postprebuild",
+    "prebuild": "pnpm --filter react-native-watchos build && pnpm --filter react-native-watchos build:bytecode && expo prebuild -p ios --clean && pnpm postprebuild",
     "postprebuild": "node -e \"require('react-native-watchos/link-swift-package')\" && node -e \"require('react-native-watchos/merge-target-infoplist')\""
   },
   "dependencies": {
