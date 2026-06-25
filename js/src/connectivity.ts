@@ -1,4 +1,4 @@
-import { getHost } from "./host";
+import { invoke } from "./invoke";
 import {
   type NativeEventHandler,
   registerNativeListener,
@@ -13,9 +13,17 @@ import {
  */
 export const PHONE_MESSAGE_EVENT = "watchConnectivity";
 
-/** Sends a message to the paired iPhone (no-op if WatchConnectivity is absent). */
-export function sendToPhone(message: Record<string, unknown>): void {
-  getHost()?.sendToPhone?.(JSON.stringify(message));
+/**
+ * Sends a message to the paired iPhone and resolves its reply (CX-022). Rejects
+ * (with an InvokeError `code`) when the phone isn't reachable, the message
+ * couldn't be delivered, or there's no connectivity-capable host — so a failed
+ * send no longer vanishes. Uses WCSession.sendMessage under the hood, which
+ * needs the counterpart reachable.
+ */
+export function sendToPhone(
+  message: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  return invoke("sendToPhone", message);
 }
 
 /** Registers a handler for messages pushed from the iPhone. Returns an unsubscribe. */

@@ -199,6 +199,8 @@ final class ReactWatchModel: ObservableObject {
             handleSaveUpdate(id: id, payload: payload)
         case "requestNotificationPermission":
             requestNotificationPermission(id: id)
+        case "sendToPhone":
+            sendToPhone(id: id, payload: payload)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -248,6 +250,28 @@ final class ReactWatchModel: ObservableObject {
                     guard let self, gen == self.generation else { return }
                     self.runtime?.resolveInvoke(
                         id: id, resultJson: Self.jsonString(status))
+                }
+            }
+        }
+    }
+
+    /// Sends a message to the paired iPhone and resolves the invoke with its
+    /// reply, or rejects when unreachable / on a WCError (CX-022). The WCSession
+    /// handlers fire on a background queue, so hop to main + generation-guard
+    /// (CX-008) before settling.
+    private func sendToPhone(id: Int, payload: String) {
+        let gen = generation
+        connectivity.send(payload) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, gen == self.generation else { return }
+                switch result {
+                case .success(let replyJson):
+                    self.runtime?.resolveInvoke(id: id, resultJson: replyJson)
+                case .failure(let error):
+                    self.runtime?.rejectInvoke(
+                        id: id,
+                        errorJson: Self.errorJSON(
+                            code: error.code, message: error.message))
                 }
             }
         }
@@ -668,7 +692,6 @@ final class ReactWatchModel: ObservableObject {
         }
         js.onGetItem = { [store] in store.getItem($0) }
         js.onSetItem = { [store] in store.setItem($0, $1) }
-        js.onSendToPhone = { [weak self] json in self?.connectivity.send(json) }
         js.onFetch = { [weak self] id, reqJson in
             self?.performFetch(id: id, requestJson: reqJson)
         }

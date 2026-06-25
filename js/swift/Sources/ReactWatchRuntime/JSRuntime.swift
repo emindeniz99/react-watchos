@@ -44,9 +44,6 @@ public final class JSRuntime {
     public var onScheduleNotification: ((String) -> Void)?
     public var onCancelNotification: ((String) -> Void)?
 
-    /// WatchConnectivity send (js/src/connectivity.ts).
-    public var onSendToPhone: ((String) -> Void)?
-
     /// Async HTTP request (js/src/fetch.ts). Settle with
     /// resolveFetch/rejectFetch on the main thread.
     public var onFetch: ((Int, String) -> Void)?
@@ -432,9 +429,6 @@ public final class JSRuntime {
                 "cancelNotification", 1)
         )
         JS_SetPropertyStr(
-            context, host, "sendToPhone",
-            JS_NewCFunction(context, hostSendToPhone, "sendToPhone", 1))
-        JS_SetPropertyStr(
             context, host, "fetch",
             JS_NewCFunction(context, hostFetch, "fetch", 2))
         JS_SetPropertyStr(
@@ -654,19 +648,6 @@ private func hostCancelNotification(
     return qjs_undefined()
 }
 
-private func hostSendToPhone(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let cString = JS_ToCString(ctx, argv[0])
-    {
-        runtime.sendToPhoneFromC(String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
 private func hostFetch(
     ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -816,10 +797,6 @@ extension JSRuntime {
 
     fileprivate func cancelNotificationFromC(_ id: String) {
         onCancelNotification?(id)
-    }
-
-    fileprivate func sendToPhoneFromC(_ json: String) {
-        onSendToPhone?(json)
     }
 
     fileprivate func fetchFromC(_ id: Int, _ json: String) {

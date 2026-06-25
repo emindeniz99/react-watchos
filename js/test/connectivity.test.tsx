@@ -46,17 +46,20 @@ describe("WatchConnectivity bridge", () => {
     expect(host.lastCommit!.root!.props.text).toBe("synced");
   });
 
-  it("sendToPhone forwards a JSON message to the host bridge", () => {
+  it("sendToPhone forwards a JSON message through invoke and resolves the reply", async () => {
     const host = installMockHost();
-    sendToPhone({ kind: "ping", n: 1 });
-    expect(host.sendToPhone).toHaveBeenCalledTimes(1);
-    expect(JSON.parse(host.sendToPhone.mock.calls[0][0])).toEqual({
-      kind: "ping",
-      n: 1,
-    });
+    const reply = await sendToPhone({ kind: "ping", n: 1 });
+    expect(host.invoke).toHaveBeenCalledWith(
+      expect.any(Number),
+      "sendToPhone",
+      JSON.stringify({ kind: "ping", n: 1 }),
+    );
+    expect(reply).toEqual({ ok: true });
   });
 
-  it("sendToPhone is a no-op without a connectivity-capable host", () => {
-    expect(() => sendToPhone({ x: 1 })).not.toThrow();
+  it("sendToPhone rejects (UNAVAILABLE) without a connectivity-capable host", async () => {
+    await expect(sendToPhone({ x: 1 })).rejects.toMatchObject({
+      code: "UNAVAILABLE",
+    });
   });
 });

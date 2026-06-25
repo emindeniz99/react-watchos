@@ -221,6 +221,7 @@ export const hostMethods = [
     targets: ["watch"],
     feature: "connectivity",
     since: 1,
+    via: "invoke",
   },
   { name: "fetch", targets: ["watch"], feature: "network", since: 1 },
   { name: "abortFetch", targets: ["watch"], feature: "network", since: 1 },
