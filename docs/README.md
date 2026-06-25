@@ -70,6 +70,8 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   [extending.md](./extending.md), [ota-signing.md](./ota-signing.md),
   [prior-art.md](./prior-art.md), [research.md](./research.md),
   [consumer-feedback.md](./consumer-feedback.md), [updates.md](./updates.md).
+- [expo-widgets-comparison.md](./expo-widgets-comparison.md) — why we're not a
+  duplicate of Expo's iOS Widgets SDK, + concrete DX nudges worth borrowing.
 
 > Note: the dated review/design files are a decision log — they are **not**
 > rewritten as decisions evolve; later files supersede earlier ones and the
