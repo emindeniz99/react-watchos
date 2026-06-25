@@ -82,7 +82,7 @@ export interface TextProps extends A11yProps {
     | "subheadline"
     | "footnote"
     | "caption";
-  /** SwiftUI system color name, e.g. "green", "secondary". */
+  /** SwiftUI system color name ("green", "secondary") or "#RRGGBB"/"#RRGGBBAA". */
   color?: string;
   /** Use fixed-width digits for counters/timers to avoid layout jitter. */
   monospacedDigit?: boolean;

@@ -197,10 +197,13 @@ Plan:
 
 ## API / DX
 
-- [ ] **CR-11 — Color is a fixed allowlist; no hex/RGB.** `P3`
+- [x] **CR-11 — Color is a fixed allowlist; no hex/RGB.** `P3`
   [`NodeView.swift:404`](../js/swift/Sources/ReactWatchHost/NodeView.swift#L404)
   — 17 named SwiftUI colors. A `#rrggbb` fallback in `color(_:)` (~5
   lines) would unblock brand colors.
+  **Done (2026-06-25):** `color(_:)`'s default now parses `#RRGGBB` /
+  `#RRGGBBAA` (`hexColor`), so brand colors work beyond the named set; an
+  unknown name still resolves to nil. Documented in `components.ts`.
 
 - [ ] **CR-12 — `DatePicker` mode is loosely matched.** `P3`
   [`NodeView.swift:353`](../js/swift/Sources/ReactWatchHost/NodeView.swift#L353)

@@ -423,7 +423,27 @@ struct NodeView: View {
         case "black": .black
         case "primary": .primary
         case "secondary": .secondary
-        default: nil
+        default: name.flatMap(Self.hexColor)
+        }
+    }
+
+    /// A SwiftUI Color from "#RRGGBB" or "#RRGGBBAA" so brand colors work
+    /// beyond the named set; nil for anything else (an unknown name stays nil).
+    private static func hexColor(_ string: String) -> Color? {
+        guard string.hasPrefix("#") else { return nil }
+        let hex = string.dropFirst()
+        guard hex.allSatisfy(\.isHexDigit), let bits = UInt32(hex, radix: 16)
+        else { return nil }
+        func channel(_ shift: UInt32) -> Double { Double((bits >> shift) & 0xFF) / 255 }
+        switch hex.count {
+        case 6:
+            return Color(red: channel(16), green: channel(8), blue: channel(0))
+        case 8:
+            return Color(
+                red: channel(24), green: channel(16), blue: channel(8),
+                opacity: channel(0))
+        default:
+            return nil
         }
     }
 }
