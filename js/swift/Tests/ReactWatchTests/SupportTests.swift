@@ -156,6 +156,32 @@ final class BluetoothUUIDTests: XCTestCase {
     }
 }
 
+// CR-4: the saveUpdate payload parsing — the bundle text and its optional
+// base64 Ed25519 signature — is pure, so it's tested here; the host does the
+// CryptoKit verify with the configured key.
+final class UpdatePlanTests: XCTestCase {
+    func testParsesSignedPayload() {
+        let sig = Data([1, 2, 3, 4])
+        let payload = #"{"js":"globalThis.x=1","signature":"\#(sig.base64EncodedString())"}"#
+        let plan = UpdatePlan(payload: payload)
+        XCTAssertEqual(plan.js, "globalThis.x=1")
+        XCTAssertEqual(plan.signature, sig)
+    }
+
+    func testUnsignedObjectHasNoSignature() {
+        let plan = UpdatePlan(payload: #"{"js":"globalThis.x=1"}"#)
+        XCTAssertEqual(plan.js, "globalThis.x=1")
+        XCTAssertNil(plan.signature)
+    }
+
+    func testBarePayloadIsTreatedAsUnsignedBundle() {
+        // A non-JSON payload (legacy/direct caller) is the bundle itself.
+        let plan = UpdatePlan(payload: "globalThis.x=1")
+        XCTAssertEqual(plan.js, "globalThis.x=1")
+        XCTAssertNil(plan.signature)
+    }
+}
+
 // CR-15: the BLE bridge's connection bookkeeping (the write-replay queue, the
 // re-applied subscriptions, the deliberate-vs-dropped disconnect latch) is the
 // state that rots silently. Pulled into BleSession so it's tested off-device.

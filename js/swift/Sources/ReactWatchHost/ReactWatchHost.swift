@@ -1,6 +1,7 @@
 // watchOS-only host (WatchKit/UIKit/HealthKit/SwiftUI). The #if compiles this
 // file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
 #if os(watchOS)
+import CryptoKit
 import ReactWatchCore
 import ReactWatchRuntime
 import ReactWatchSupport
@@ -52,8 +53,15 @@ final class ReactWatchModel: ObservableObject {
     private let sensors = SensorBridge()
     private var fetchTasks: [Int: URLSessionDataTask] = [:]
 
-    init(appGroupId: String?) {
+    /// Ed25519 public key for verifying OTA bundles (CR-4). nil = fail-open:
+    /// bundles load unsigned with a loud warning. Set it to enforce signatures.
+    private let updatePublicKey: Curve25519.Signing.PublicKey?
+
+    init(appGroupId: String?, updatePublicKeyBase64: String? = nil) {
         store = SharedWidgetStore(appGroupId: appGroupId)
+        updatePublicKey = updatePublicKeyBase64
+            .flatMap { Data(base64Encoded: $0) }
+            .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
     }
 
     func start() {
@@ -106,17 +114,59 @@ final class ReactWatchModel: ObservableObject {
         }
     }
 
-    /// App Group file holding an OTA bundle (js/src/update.ts), if any.
-    private var otaBundleURL: URL? {
+    /// App Group files holding an OTA bundle (js/src/update.ts) + its detached
+    /// Ed25519 signature, if any.
+    private var otaBundleURL: URL? { appGroupFile("ota-bundle.js") }
+    private var otaSignatureURL: URL? { appGroupFile("ota-bundle.sig") }
+    private func appGroupFile(_ name: String) -> URL? {
         guard let group = store.appGroupId else { return nil }
         return FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: group)?
-            .appendingPathComponent("ota-bundle.js")
+            .appendingPathComponent(name)
     }
 
-    private func saveUpdate(_ js: String) {
-        guard let url = otaBundleURL else { return }
-        try? js.write(to: url, atomically: true, encoding: .utf8)
+    /// Persists an OTA bundle (CR-4). An OTA bundle is arbitrary JS with the
+    /// full host surface, so with a key configured the signature is verified
+    /// over the bundle bytes *before* it's written — an unsigned or bad bundle
+    /// is refused and never evaluated. With no key it's fail-open: persisted
+    /// with a loud warning so an un-updated consumer keeps working.
+    private func saveUpdate(_ payload: String) {
+        guard let url = otaBundleURL, let sigURL = otaSignatureURL else { return }
+        let plan = UpdatePlan(payload: payload)
+        if let key = updatePublicKey {
+            guard let signature = plan.signature,
+                  key.isValidSignature(signature, for: Data(plan.js.utf8)) else {
+                runtimeError = "OTA update rejected: signature missing or invalid"
+                return
+            }
+            try? plan.js.write(to: url, atomically: true, encoding: .utf8)
+            try? signature.write(to: sigURL, options: .atomic)
+        } else {
+            print("[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
+                + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
+            try? plan.js.write(to: url, atomically: true, encoding: .utf8)
+            try? FileManager.default.removeItem(at: sigURL) // drop any stale sig
+        }
+    }
+
+    /// Re-checks the persisted OTA bundle's signature before evaluation (CR-4) —
+    /// defense in depth against App-Group tampering between save and launch.
+    /// With a key set, a missing/invalid signature drops the bundle and falls
+    /// back to the shipped one; with no key it's fail-open and warns.
+    private func otaPassesVerification(_ code: String) -> Bool {
+        guard let key = updatePublicKey else {
+            print("[ReactWatch] WARNING: loading OTA bundle WITHOUT signature "
+                + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
+            return true
+        }
+        guard let sigURL = otaSignatureURL,
+              let signature = try? Data(contentsOf: sigURL),
+              key.isValidSignature(signature, for: Data(code.utf8)) else {
+            if let ota = otaBundleURL { try? FileManager.default.removeItem(at: ota) }
+            runtimeError = "OTA bundle signature invalid; using shipped bundle"
+            return false
+        }
+        return true
     }
 
     private struct GenerateRequest: Decodable {
@@ -161,7 +211,7 @@ final class ReactWatchModel: ObservableObject {
     private func load(into js: JSRuntime) throws {
         if let ota = otaBundleURL,
            let code = try? String(contentsOf: ota, encoding: .utf8),
-           !code.isEmpty {
+           !code.isEmpty, otaPassesVerification(code) {
             do {
                 try js.evaluate(code)
                 return
@@ -420,12 +470,16 @@ final class ReactWatchModel: ObservableObject {
 
 /// The watch UI. Embed this in your @main App's scene; ship bundle.js as a
 /// resource. `appGroupId` enables shared widget/Storage state (optional).
+/// `updatePublicKeyBase64` is your base64 Ed25519 public key for verifying OTA
+/// bundles (CR-4): set it to enforce signed updates; omit it to keep loading
+/// unsigned bundles (with a loud warning).
 public struct ReactWatchRootView: View {
     @StateObject private var model: ReactWatchModel
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(appGroupId: String? = nil) {
-        _model = StateObject(wrappedValue: ReactWatchModel(appGroupId: appGroupId))
+    public init(appGroupId: String? = nil, updatePublicKeyBase64: String? = nil) {
+        _model = StateObject(wrappedValue: ReactWatchModel(
+            appGroupId: appGroupId, updatePublicKeyBase64: updatePublicKeyBase64))
     }
 
     public var body: some View {

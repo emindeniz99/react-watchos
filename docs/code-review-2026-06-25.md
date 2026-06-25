@@ -103,7 +103,7 @@ Plan:
 
 ## Security
 
-- [ ] **CR-4 — OTA updates load unsigned remote JS.** `P1`
+- [x] **CR-4 — OTA updates load unsigned remote JS.** `P1`
   [`update.ts`](../js/src/update.ts) +
   [`ReactWatchHost.swift:114`](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift#L114)
   (`saveUpdate`) /
@@ -118,6 +118,19 @@ Plan:
   **Fix:** sign the bundle (e.g. Ed25519 over the bytes, public key in the
   native binary) and verify in `saveUpdate`/`load` before persisting;
   refuse non-HTTPS. Standard CodePush-style mitigation.
+  **Done (2026-06-25): Ed25519 verification, fail-open + warn.** `applyUpdate`
+  now carries an optional base64 signature; the host parses it via a pure
+  `UpdatePlan` (Linux-tested) and, when `ReactWatchRootView(updatePublicKeyBase64:)`
+  is configured, verifies the signature over the bundle bytes with CryptoKit
+  **before persisting** (`saveUpdate`) and **again before evaluating**
+  (`load`, defense-in-depth vs App-Group tampering) — an unsigned or bad bundle
+  is refused and the shipped bundle is used. Per the chosen posture, with **no
+  key** configured it stays **fail-open**: the bundle loads but the native side
+  logs a loud unverified-bundle warning, so a consumer must opt in to enforce.
+  HTTPS is consumer-controlled (the consumer does the fetch) and documented in
+  `update.ts`; the signature is the actual integrity/authenticity defense,
+  strictly stronger than transport. Tested: `UpdatePlanTests` (Swift) +
+  `update.ota.test.ts` (JS); host builds for the watchOS simulator.
 
 - [ ] **CR-5 — eval-string bridge is an injection-shaped pattern.** `P1`
   [`JSRuntime.swift:121-165`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L121)
