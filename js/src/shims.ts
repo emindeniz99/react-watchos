@@ -101,6 +101,12 @@ export function installShims(): void {
   }
 
   if (typeof g.performance === "undefined") {
+    // quickjs-ng (JS_AddPerformance) and Node both ship a monotonic
+    // performance.now(), so on our targets this branch is never taken and the
+    // engine's monotonic clock is used. It's only a last-resort fallback for a
+    // bare engine without `performance`; Date.now() is wall-clock (a clock
+    // adjustment can make a delta go backwards), but React's scheduler
+    // tolerates that and we have no monotonic source without performance.now().
     g.performance = { now: () => Date.now() };
   }
 

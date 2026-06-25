@@ -171,11 +171,18 @@ Plan:
   falsy, structural/measurement methods (groupEnd/count/time…) no-op.
   Regression test in `shims.test.ts` (driven with `console` deleted).
 
-- [ ] **CR-9 — `performance.now()` is `Date.now()`.** `P3`
+- [x] **CR-9 — `performance.now()` is `Date.now()`.** `P3`
   [`shims.ts:79`](../js/src/shims.ts#L79) — wall-clock, ms resolution, not
   monotonic; a clock adjustment can yield a negative delta. React's
   scheduler tolerates it. If quickjs-ng exposes a monotonic clock to the
   host, prefer it.
+  **Done (2026-06-25): already preferred — clarified.** quickjs-ng ships a
+  monotonic `performance.now()` (`JS_AddPerformance` → `js__hrtime_ns()` over
+  `CLOCK_MONOTONIC`), and the shim only assigns when `performance` is
+  *undefined* — so on the watch (and Node) the engine's monotonic clock is
+  already used and the `Date.now()` branch is never taken. Documented that
+  it's a last-resort fallback for a bare engine, the only case with no
+  monotonic source.
 
 - [x] **CR-10 — BLE characteristic lookup by raw JS string.** `P2`
   [`BluetoothBridge.swift:190-198`](../js/swift/Sources/ReactWatchHost/BluetoothBridge.swift#L190)
