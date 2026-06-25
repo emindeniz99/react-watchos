@@ -203,4 +203,22 @@ describe("fetch shim (QuickJS environment)", () => {
       "HTTPS://api.test/x",
     );
   });
+
+  // CX-021: a body is consumed once (WHATWG). The first read locks it; a
+  // second read rejects with a TypeError, and bodyUsed reflects the state.
+  it("consumes the body once (bodyUsed) and rejects a second read", async () => {
+    const fetch = g.fetch as (url: string) => Promise<any>;
+    const promise = fetch("https://api.test/once");
+    const [id] = hostFetch.mock.calls[0];
+    (g.__resolveFetch as (i: number, j: string) => void)(
+      id,
+      JSON.stringify({ status: 200, body: '{"n":1}' }),
+    );
+    const res = await promise;
+    expect(res.bodyUsed).toBe(false);
+    expect(await res.json()).toEqual({ n: 1 });
+    expect(res.bodyUsed).toBe(true);
+    await expect(res.text()).rejects.toBeInstanceOf(TypeError);
+    await expect(res.arrayBuffer()).rejects.toBeInstanceOf(TypeError);
+  });
 });

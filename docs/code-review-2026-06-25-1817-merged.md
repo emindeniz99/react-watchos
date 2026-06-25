@@ -54,7 +54,8 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
   - [ ] remaining — **signing `keyId`/rotation** (CX-007 audit field; the record already carries `signature`). Previous-known-good rollback intentionally deferred: crash-loop falls back to the always-valid *shipped* bundle, so keeping a prior OTA generation is marginal pre-release.
 - [~] **CX-021** (tighten `fetch` toward WHATWG — your decision):
   - [x] slice A — **scheme allowlist + URL validation**: `fetch` now rejects any non-`http(s)` URL (and empty/non-string/relative) with a `TypeError` *before* it reaches the host, so a bundle can't reach `file://` (a local-file read via URLSession) through fetch. Scheme check is case-insensitive; the original URL string passes through unchanged. +6 cases, JS suite 205 green, typecheck + biome clean.
-  - [ ] remaining — single-use body (`bodyUsed`), `Request` input + `clone`, `credentials`/`cache`/`redirect` passthrough; then correct the "WHATWG-aligned" header claim.
+  - [x] slice B — **single-use body**: `Response` now consumes its body once (WHATWG) — `bodyUsed` getter; the first `text()`/`json()`/`arrayBuffer()` locks it, a second read rejects with a `TypeError`. (The binary guard stays first, so text/json on a binary body still give the more useful "use arrayBuffer" error.) +1 test, JS suite 206 green, typecheck + biome clean.
+  - [ ] remaining — `Request` input + `clone`, `credentials`/`cache`/`redirect` passthrough; then correct the "WHATWG-aligned" header claim.
 - [ ] Remaining host: CX-017 (relevantContexts → WidgetKit relevance), **ARCH-03** (app/widget bundle split).
 
 ### Verdict legend

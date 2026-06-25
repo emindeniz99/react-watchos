@@ -233,6 +233,17 @@ export function installFetch(g: Global): void {
     // json() and steer the caller to arrayBuffer().
     const binaryError = () =>
       new TypeError("binary response body; read it with arrayBuffer()");
+    // WHATWG: a body is consumed once. The first reader locks it; a second
+    // read rejects (CX-021). `consume()` claims the body or returns false.
+    // (The binary guard is checked first, so text()/json() on a binary body
+    // always reject with the more useful binaryError, used or not.)
+    let bodyUsed = false;
+    const consume = (): boolean => {
+      if (bodyUsed) return false;
+      bodyUsed = true;
+      return true;
+    };
+    const usedError = () => new TypeError("body already consumed");
     return {
       status,
       statusText: r.statusText ?? "",
@@ -241,16 +252,29 @@ export function installFetch(g: Global): void {
       redirected: r.redirected ?? false,
       headers: new Headers(r.headers),
       bodyEncoding: r.bodyEncoding ?? "utf8",
-      text: () =>
-        binary ? Promise.reject(binaryError()) : Promise.resolve(body),
-      json: () =>
-        binary
-          ? Promise.reject(binaryError())
-          : Promise.resolve(JSON.parse(body || "null")),
-      arrayBuffer: () =>
-        Promise.resolve(
+      get bodyUsed() {
+        return bodyUsed;
+      },
+      text: () => {
+        if (binary) return Promise.reject(binaryError());
+        if (!consume()) return Promise.reject(usedError());
+        return Promise.resolve(body);
+      },
+      json: () => {
+        if (binary) return Promise.reject(binaryError());
+        if (!consume()) return Promise.reject(usedError());
+        try {
+          return Promise.resolve(JSON.parse(body || "null"));
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      },
+      arrayBuffer: () => {
+        if (!consume()) return Promise.reject(usedError());
+        return Promise.resolve(
           (binary ? base64ToBytes(body) : utf8ToBytes(body)).buffer,
-        ),
+        );
+      },
     };
   };
 
