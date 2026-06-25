@@ -5,7 +5,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { hostMethods, node, structs, tsOnly, wireVersion } from "./schema.mjs";
+import {
+  bridgeProtocol,
+  hostMethods,
+  node,
+  structs,
+  tsOnly,
+  wireVersion,
+} from "./schema.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -118,6 +125,7 @@ function swiftModel() {
     "",
     "public enum RNWire {",
     `    public static let version = ${wireVersion}`,
+    `    public static let bridgeProtocol = ${bridgeProtocol}`,
     "}",
   );
   return `${parts.join("\n")}\n`;
@@ -155,15 +163,24 @@ function tsModel() {
   ];
   for (const def of [...structs, ...tsOnly]) parts.push("", tsInterface(def));
   const manifest = JSON.stringify(
-    hostMethods.map((m) => ({ name: m.name, targets: m.targets })),
+    hostMethods.map((m) => ({
+      name: m.name,
+      targets: m.targets,
+      feature: m.feature,
+      since: m.since,
+    })),
   );
   parts.push(
     "",
-    "/** Native bridge methods and which runtime installs each. */",
+    "/** Native bridge methods: which runtime installs each, the capability",
+    " *  `feature` an OTA bundle gates on, and the bridgeProtocol it shipped in. */",
     `export const HOST_METHODS = ${manifest} as const;`,
     "",
     "/** Committed-tree wire version (SerializedTree.v). Bump on shape changes. */",
     `export const WIRE_VERSION = ${wireVersion} as const;`,
+    "",
+    "/** JS<->Swift host bridge protocol version (ARCH-01). */",
+    `export const BRIDGE_PROTOCOL = ${bridgeProtocol} as const;`,
   );
   return `${parts.join("\n")}\n`;
 }

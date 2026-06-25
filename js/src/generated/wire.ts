@@ -65,8 +65,12 @@ export interface WatchEvent {
   seq?: number;
 }
 
-/** Native bridge methods and which runtime installs each. */
-export const HOST_METHODS = [{"name":"commit","targets":["watch","widget"]},{"name":"log","targets":["watch","widget"]},{"name":"setTimer","targets":["watch","widget"]},{"name":"clearTimer","targets":["watch","widget"]},{"name":"publishWidgets","targets":["watch","widget"]},{"name":"getItem","targets":["watch","widget"]},{"name":"setItem","targets":["watch","widget"]},{"name":"playHaptic","targets":["watch"]},{"name":"requestNotificationPermission","targets":["watch"]},{"name":"scheduleNotification","targets":["watch"]},{"name":"cancelNotification","targets":["watch"]},{"name":"sendToPhone","targets":["watch"]},{"name":"fetch","targets":["watch"]},{"name":"abortFetch","targets":["watch"]},{"name":"ble","targets":["watch"]},{"name":"sensor","targets":["watch"]},{"name":"saveUpdate","targets":["watch"]},{"name":"generate","targets":["watch"]}] as const;
+/** Native bridge methods: which runtime installs each, the capability
+ *  `feature` an OTA bundle gates on, and the bridgeProtocol it shipped in. */
+export const HOST_METHODS = [{"name":"commit","targets":["watch","widget"],"feature":"core","since":1},{"name":"log","targets":["watch","widget"],"feature":"core","since":1},{"name":"setTimer","targets":["watch","widget"],"feature":"core","since":1},{"name":"clearTimer","targets":["watch","widget"],"feature":"core","since":1},{"name":"publishWidgets","targets":["watch","widget"],"feature":"widgets","since":1},{"name":"getItem","targets":["watch","widget"],"feature":"storage","since":1},{"name":"setItem","targets":["watch","widget"],"feature":"storage","since":1},{"name":"playHaptic","targets":["watch"],"feature":"haptics","since":1},{"name":"requestNotificationPermission","targets":["watch"],"feature":"notifications","since":1},{"name":"scheduleNotification","targets":["watch"],"feature":"notifications","since":1},{"name":"cancelNotification","targets":["watch"],"feature":"notifications","since":1},{"name":"sendToPhone","targets":["watch"],"feature":"connectivity","since":1},{"name":"fetch","targets":["watch"],"feature":"network","since":1},{"name":"abortFetch","targets":["watch"],"feature":"network","since":1},{"name":"ble","targets":["watch"],"feature":"bluetooth","since":1},{"name":"sensor","targets":["watch"],"feature":"sensors","since":1},{"name":"saveUpdate","targets":["watch"],"feature":"ota","since":1},{"name":"generate","targets":["watch"],"feature":"ai","since":1}] as const;
 
 /** Committed-tree wire version (SerializedTree.v). Bump on shape changes. */
 export const WIRE_VERSION = 1 as const;
+
+/** JS<->Swift host bridge protocol version (ARCH-01). */
+export const BRIDGE_PROTOCOL = 1 as const;

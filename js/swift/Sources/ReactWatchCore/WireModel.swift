@@ -127,4 +127,5 @@ public struct PublishedWidgets: Codable, Equatable, Sendable {
 
 public enum RNWire {
     public static let version = 1
+    public static let bridgeProtocol = 1
 }

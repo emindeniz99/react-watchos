@@ -13,6 +13,13 @@
 // Keep this in sync with the `v` field literal type in `structs` below.
 export const wireVersion = 1;
 
+// The JS<->Swift host *bridge* protocol version (ARCH-01), distinct from the
+// tree wire version: bump when the bridge's call/transport shape changes. The
+// native binary reports its bridgeProtocol + the set of features it provides;
+// an OTA bundle's required features must be a subset of that (the capability
+// gate that replaces a single scalar `hostApiVersion`).
+export const bridgeProtocol = 1;
+
 /** The node struct, named differently per side. */
 export const node = { swift: "RNNode", ts: "SerializedNode" };
 
@@ -142,28 +149,75 @@ export const tsOnly = [
 
 /**
  * The `__host` bridge surface. `targets` says which native runtime installs
- * each method (the widget extension is a subset). The cross-check test
- * asserts each side installs exactly its listed methods.
+ * each method (the widget extension is a subset); the cross-check test asserts
+ * each side installs exactly its listed methods.
+ *
+ * `feature` is the stable capability id an OTA bundle gates on (ARCH-01): many
+ * methods map to one feature (`getItem`+`setItem` -> "storage"); the "core"
+ * feature is infra (commit/log/timers) that's always present with the
+ * bridgeProtocol and isn't separately gateable. `since` is the bridgeProtocol
+ * version a method first shipped in — the build derives a bundle's required
+ * `minBridgeProtocol`/feature set from the methods it actually uses.
  */
 export const hostMethods = [
   // The widget runtime installs commit as a defensive no-op (intent mode
   // must not mount UI), so both runtimes install it.
-  { name: "commit", targets: ["watch", "widget"] },
-  { name: "log", targets: ["watch", "widget"] },
-  { name: "setTimer", targets: ["watch", "widget"] },
-  { name: "clearTimer", targets: ["watch", "widget"] },
-  { name: "publishWidgets", targets: ["watch", "widget"] },
-  { name: "getItem", targets: ["watch", "widget"] },
-  { name: "setItem", targets: ["watch", "widget"] },
-  { name: "playHaptic", targets: ["watch"] },
-  { name: "requestNotificationPermission", targets: ["watch"] },
-  { name: "scheduleNotification", targets: ["watch"] },
-  { name: "cancelNotification", targets: ["watch"] },
-  { name: "sendToPhone", targets: ["watch"] },
-  { name: "fetch", targets: ["watch"] },
-  { name: "abortFetch", targets: ["watch"] },
-  { name: "ble", targets: ["watch"] },
-  { name: "sensor", targets: ["watch"] },
-  { name: "saveUpdate", targets: ["watch"] },
-  { name: "generate", targets: ["watch"] },
+  { name: "commit", targets: ["watch", "widget"], feature: "core", since: 1 },
+  { name: "log", targets: ["watch", "widget"], feature: "core", since: 1 },
+  { name: "setTimer", targets: ["watch", "widget"], feature: "core", since: 1 },
+  {
+    name: "clearTimer",
+    targets: ["watch", "widget"],
+    feature: "core",
+    since: 1,
+  },
+  {
+    name: "publishWidgets",
+    targets: ["watch", "widget"],
+    feature: "widgets",
+    since: 1,
+  },
+  {
+    name: "getItem",
+    targets: ["watch", "widget"],
+    feature: "storage",
+    since: 1,
+  },
+  {
+    name: "setItem",
+    targets: ["watch", "widget"],
+    feature: "storage",
+    since: 1,
+  },
+  { name: "playHaptic", targets: ["watch"], feature: "haptics", since: 1 },
+  {
+    name: "requestNotificationPermission",
+    targets: ["watch"],
+    feature: "notifications",
+    since: 1,
+  },
+  {
+    name: "scheduleNotification",
+    targets: ["watch"],
+    feature: "notifications",
+    since: 1,
+  },
+  {
+    name: "cancelNotification",
+    targets: ["watch"],
+    feature: "notifications",
+    since: 1,
+  },
+  {
+    name: "sendToPhone",
+    targets: ["watch"],
+    feature: "connectivity",
+    since: 1,
+  },
+  { name: "fetch", targets: ["watch"], feature: "network", since: 1 },
+  { name: "abortFetch", targets: ["watch"], feature: "network", since: 1 },
+  { name: "ble", targets: ["watch"], feature: "bluetooth", since: 1 },
+  { name: "sensor", targets: ["watch"], feature: "sensors", since: 1 },
+  { name: "saveUpdate", targets: ["watch"], feature: "ota", since: 1 },
+  { name: "generate", targets: ["watch"], feature: "ai", since: 1 },
 ];

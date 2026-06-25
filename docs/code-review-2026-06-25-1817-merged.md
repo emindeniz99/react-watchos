@@ -31,7 +31,10 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
 - [x] **OP-5** — `describe()` reads `.stack` only for real Errors (no bogus "undefined" for primitive rejections). +1 test, `swift test` 52 green.
 - [x] **OP-4** — int args cross as `JS_NewInt64` (nodeId/seq beyond 2^31 no longer truncated). +1 test, `swift test` 53 green.
 - [x] **CX-010 (JS half)** — `dispatchEvent` always acks the seq in a `finally` (handlerless / unknown node / throwing handler can't strand or skip-rollback an optimistic control). +3 tests, suite 196 green. **Host half pending (Xcode):** make controls render read-only when their `onChange:true` wire flag is absent.
-- [ ] **Foundation: ARCH-01** — feature manifest in `schema.mjs` + codegen (structural versions + per-target feature set; verifiable via codegen drift + `swift test`) ← **next**
+- [~] **Foundation: ARCH-01** — feature manifest (in progress):
+  - [x] slice 1 — `bridgeProtocol` structural version + per-method `feature`/`since` in `schema.mjs`, emitted by codegen (`HOST_METHODS` carries feature/since, `BRIDGE_PROTOCOL`, `RNWire.bridgeProtocol`). Drift clean, suite 196 + `swift test` 53 green.
+  - [ ] slice 2 — generate per-target host install tables (app vs widget) from the schema; native exposes its provided feature set + bridgeProtocol to JS ← **next**
+  - [ ] slice 3 — build derives a bundle's required features from the capabilities it uses + an explicit declared contract + build check; gate `requiredFeatures ⊆ provided` in `VersionPolicy`
 - [ ] **Foundation** ARCH-01 (feature manifest schema/codegen — verifiable) → ARCH-03 (app/widget bundles) → ARCH-04 (transactional OTA); absorbs CX-002/CX-003/CX-004/CX-007
 - [ ] SD-2/ARCH-10 interpreter (CX-015/016/017/018), SD-1/SD-6 bridge+codegen (CX-022/023/024)
 - [ ] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5
