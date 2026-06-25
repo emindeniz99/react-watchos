@@ -182,6 +182,52 @@ final class UpdatePlanTests: XCTestCase {
     }
 }
 
+// CR-17: anti-rollback + stale-state boot decisions. The version is a
+// compatibility integer bumped only on a breaking change, so an older bundle is
+// refused and can never run against a newer-schema db.
+final class VersionPolicyTests: XCTestCase {
+    func testAcceptsEqualOrNewerRejectsOlder() {
+        XCTAssertTrue(VersionPolicy.accepts(incoming: 3, highWater: 3)) // non-breaking re-apply
+        XCTAssertTrue(VersionPolicy.accepts(incoming: 4, highWater: 3))
+        XCTAssertFalse(VersionPolicy.accepts(incoming: 2, highWater: 3)) // downgrade attack
+    }
+
+    func testRunsOTAWhenCurrent() {
+        XCTAssertEqual(
+            VersionPolicy.decide(otaVersion: 5, highWater: 5, shippedVersion: 3, gate: .soft),
+            .runOTA)
+    }
+
+    func testFallsBackToShippedWhenNoOTA() {
+        XCTAssertEqual(
+            VersionPolicy.decide(otaVersion: nil, highWater: 3, shippedVersion: 3, gate: .hard),
+            .runShipped)
+    }
+
+    func testStaleShippedSoftRunsHardBlocks() {
+        // We once ran v5 (highWater) but only a v3 shipped bundle is available.
+        XCTAssertEqual(
+            VersionPolicy.decide(otaVersion: nil, highWater: 5, shippedVersion: 3, gate: .soft),
+            .runShipped)
+        XCTAssertEqual(
+            VersionPolicy.decide(otaVersion: nil, highWater: 5, shippedVersion: 3, gate: .hard),
+            .blockForUpdate)
+    }
+
+    func testRejectedDowngradeOTAIsNotRun() {
+        // A persisted OTA below high-water (e.g. replayed old bundle) is ignored;
+        // shipped decides.
+        XCTAssertEqual(
+            VersionPolicy.decide(otaVersion: 2, highWater: 5, shippedVersion: 6, gate: .hard),
+            .runShipped)
+    }
+
+    func testHighWaterIsMonotonic() {
+        XCTAssertEqual(VersionPolicy.bumpedHighWater(5, booted: 7), 7)
+        XCTAssertEqual(VersionPolicy.bumpedHighWater(7, booted: 5), 7) // never decreases
+    }
+}
+
 // CR-15: the BLE bridge's connection bookkeeping (the write-replay queue, the
 // re-applied subscriptions, the deliberate-vs-dropped disconnect latch) is the
 // state that rots silently. Pulled into BleSession so it's tested off-device.

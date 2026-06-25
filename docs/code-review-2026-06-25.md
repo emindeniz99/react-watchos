@@ -317,9 +317,10 @@ update popup is JS-driven via an `update.required`/`update.available` event.
   multi-MB bundle risks an OOM kill). Done 2026-06-25.
 - [ ] **Manifest signing v2** — sign `{scheme, version, sha256(bundle)}` so the
   version is inside the signed data; wire payload `{version, js, signature}`.
-- [ ] **`VersionPolicy` (ReactWatchSupport, pure + tested)** — decision matrix
-  `runOTA | runShipped | blockForUpdate | rejectDowngrade` from
-  `(bundleVersion, highWater, shippedVersion, gate)`.
+- [x] **`VersionPolicy` (ReactWatchSupport, pure + tested)** — `accepts`
+  (anti-rollback), `decide` → `runOTA | runShipped | blockForUpdate`, and a
+  monotonic `bumpedHighWater`, plus the `OTAGate` enum. `VersionPolicyTests`
+  green on macOS. Done 2026-06-25.
 - [ ] **High-water mark** — persisted in the *same App Group container as
   Storage* (shared fate with the db); refuse `version < highWater`; bump on
   apply, never decrease.
