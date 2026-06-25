@@ -26,7 +26,15 @@ export function installMockHost() {
     abortFetch: vi.fn(),
     ble: vi.fn(),
     sensor: vi.fn(),
-    saveUpdate: vi.fn(),
+    // Mirror the native side: accept the update and settle the applyUpdate
+    // Promise (CX-005). Tests that want a rejection call __rejectSaveUpdate.
+    saveUpdate: vi.fn((id: number, _requestJson: string) => {
+      (
+        globalThis as {
+          __resolveSaveUpdate?: (id: number, resultJson: string) => void;
+        }
+      ).__resolveSaveUpdate?.(id, "{}");
+    }),
     generate: vi.fn(),
   };
   (globalThis as Record<string, unknown>).__host = host;

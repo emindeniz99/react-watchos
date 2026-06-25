@@ -53,8 +53,9 @@ public final class JSRuntime {
     public var onBle: ((String) -> Void)?
     /// Sensor op channel (js/src/sensors.ts): { op, kind }.
     public var onSensor: ((String) -> Void)?
-    /// Persist an OTA JS bundle (js/src/update.ts).
-    public var onSaveUpdate: ((String) -> Void)?
+    /// Persist an OTA JS bundle (js/src/update.ts). Fallible — settle with
+    /// resolveSaveUpdate/rejectSaveUpdate on the main thread (CX-005).
+    public var onSaveUpdate: ((Int, String) -> Void)?
     /// On-device LLM generate (js/src/ai.ts). Settle with
     /// resolveGenerate/rejectGenerate on the main thread.
     public var onGenerate: ((Int, String) -> Void)?
@@ -176,6 +177,20 @@ public final class JSRuntime {
     public func rejectFetch(id: Int, message: String) {
         bridgeCall("__rejectFetch", [.int(id), .string(message)],
                    filename: "fetch.js")
+    }
+
+    /// Settles a saveUpdate Promise (CX-005). resultJson is reserved for future
+    /// fields; `{ accepted: true }` is implied on resolve.
+    public func resolveSaveUpdate(id: Int, resultJson: String = "{}") {
+        bridgeCall("__resolveSaveUpdate", [.int(id), .string(resultJson)],
+                   filename: "update.js")
+    }
+
+    /// Rejects a saveUpdate Promise with a typed reason (errorJson =
+    /// {code, message}), so applyUpdate surfaces *why* an update was refused.
+    public func rejectSaveUpdate(id: Int, errorJson: String) {
+        bridgeCall("__rejectSaveUpdate", [.int(id), .string(errorJson)],
+                   filename: "update.js")
     }
 
     /// Pushes a named native event into JS at urgent priority (runSync), so
@@ -403,7 +418,7 @@ public final class JSRuntime {
         JS_SetPropertyStr(context, host, "sensor",
                           JS_NewCFunction(context, hostSensor, "sensor", 1))
         JS_SetPropertyStr(context, host, "saveUpdate",
-                          JS_NewCFunction(context, hostSaveUpdate, "saveUpdate", 1))
+                          JS_NewCFunction(context, hostSaveUpdate, "saveUpdate", 2))
         JS_SetPropertyStr(context, host, "generate",
                           JS_NewCFunction(context, hostGenerate, "generate", 2))
         // JS_SetPropertyStr takes ownership of `host`.
@@ -648,9 +663,11 @@ private func hostSaveUpdate(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0]) {
-        runtime.saveUpdateFromC(String(cString: cString))
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
+       let cString = JS_ToCString(ctx, argv[1]) {
+        var id: Int32 = 0
+        JS_ToInt32(ctx, &id, argv[0])
+        runtime.saveUpdateFromC(Int(id), String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
     return qjs_undefined()
@@ -765,8 +782,8 @@ extension JSRuntime {
     fileprivate func sensorFromC(_ json: String) {
         onSensor?(json)
     }
-    fileprivate func saveUpdateFromC(_ js: String) {
-        onSaveUpdate?(js)
+    fileprivate func saveUpdateFromC(_ id: Int, _ json: String) {
+        onSaveUpdate?(id, json)
     }
     fileprivate func generateFromC(_ id: Int, _ json: String) {
         onGenerate?(id, json)

@@ -179,6 +179,27 @@ final class ReactWatchModel: ObservableObject {
     /// past this rather than persist something that can't load.
     private static let maxOTABundleBytes = 3 * 1024 * 1024
 
+    /// Runs saveUpdate and settles the JS applyUpdate Promise (CX-005): resolve
+    /// on accept, reject with the reason on refusal — so a rejected OTA (bad
+    /// signature, capability gap, downgrade, write failure) no longer vanishes.
+    private func handleSaveUpdate(id: Int, payload: String) {
+        if saveUpdate(payload) {
+            runtime?.resolveSaveUpdate(id: id)
+        } else {
+            runtime?.rejectSaveUpdate(
+                id: id,
+                errorJson: Self.errorJSON(
+                    code: "rejected", message: runtimeError ?? "OTA update rejected"))
+        }
+    }
+
+    /// JSON-encodes a {code, message} reject payload, escaping safely.
+    private static func errorJSON(code: String, message: String) -> String {
+        (try? JSONSerialization.data(
+            withJSONObject: ["code": code, "message": message]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    }
+
     /// Persists an OTA bundle (CR-4 / CR-17). An OTA bundle is arbitrary JS with
     /// the full host surface, so with a key configured the signature is verified
     /// over `scheme:version:js` *before* it's written — the version is inside the
@@ -540,7 +561,9 @@ final class ReactWatchModel: ObservableObject {
         js.onAbortFetch = { [weak self] id in self?.abortFetch(id: id) }
         js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
         js.onSensor = { [weak self] json in self?.sensors.handleOp(json) }
-        js.onSaveUpdate = { [weak self] code in _ = self?.saveUpdate(code) }
+        js.onSaveUpdate = { [weak self] id, payload in
+            self?.handleSaveUpdate(id: id, payload: payload)
+        }
         js.onGenerate = { [weak self] id, reqJson in
             self?.generate(id: id, requestJson: reqJson)
         }

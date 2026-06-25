@@ -17,18 +17,21 @@ afterEach(() => {
 });
 
 describe("OTA applyUpdate", () => {
-  it("forwards the bundle to the host as a JSON payload", () => {
+  it("forwards the bundle to the host as a JSON payload and resolves accepted", async () => {
     const host = installMockHost();
-    applyUpdate("globalThis.x = 1;");
+    const result = await applyUpdate("globalThis.x = 1;");
     expect(host.saveUpdate).toHaveBeenCalledWith(
+      expect.any(Number),
       JSON.stringify({ js: "globalThis.x = 1;" }),
     );
+    expect(result).toEqual({ accepted: true });
   });
 
-  it("carries the version + Ed25519 signature when provided (CR-4/CR-17)", () => {
+  it("carries the version + Ed25519 signature when provided (CR-4/CR-17)", async () => {
     const host = installMockHost();
-    applyUpdate("globalThis.x = 1;", 4, "c2lnbmF0dXJl");
+    await applyUpdate("globalThis.x = 1;", 4, "c2lnbmF0dXJl");
     expect(host.saveUpdate).toHaveBeenCalledWith(
+      expect.any(Number),
       JSON.stringify({
         js: "globalThis.x = 1;",
         version: 4,
@@ -37,8 +40,33 @@ describe("OTA applyUpdate", () => {
     );
   });
 
-  it("is a no-op without an update-capable host", () => {
-    expect(() => applyUpdate("x")).not.toThrow();
+  // CX-005: a watch-side rejection (bad signature, capability gap, downgrade,
+  // write failure) comes back as { accepted: false } with the native reason.
+  it("resolves the native rejection reason instead of vanishing", async () => {
+    const host = installMockHost();
+    host.saveUpdate.mockImplementation((id: number) => {
+      (
+        globalThis as {
+          __rejectSaveUpdate?: (id: number, errorJson: string) => void;
+        }
+      ).__rejectSaveUpdate?.(
+        id,
+        JSON.stringify({ code: "bad-signature", message: "signature invalid" }),
+      );
+    });
+    expect(await applyUpdate("x", 2, "sig")).toEqual({
+      accepted: false,
+      code: "bad-signature",
+      message: "signature invalid",
+    });
+  });
+
+  it("resolves accepted:false without an update-capable host", async () => {
+    expect(await applyUpdate("x")).toEqual({
+      accepted: false,
+      code: "no-host",
+      message: "no update-capable host",
+    });
   });
 });
 
@@ -78,6 +106,7 @@ describe("OTA freshness check", () => {
       "https://x.test/sub/bundle.js",
     );
     expect(host.saveUpdate).toHaveBeenCalledWith(
+      expect.any(Number),
       JSON.stringify({ js: "globalThis.x=1;", version: 3, signature: "sig" }),
     );
   });

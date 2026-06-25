@@ -63,8 +63,12 @@ export interface QuickJSHostGlobal {
   ble?(json: string): void;
   /** Sensor streams (HealthKit/CoreMotion): { op, kind }. Readings push back. */
   sensor?(json: string): void;
-  /** Persists an OTA JS bundle; loaded on next launch in preference to the bundled one. */
-  saveUpdate?(js: string): void;
+  /**
+   * Persists an OTA JS bundle (loaded next launch). Fallible — settles via
+   * __resolveSaveUpdate(id, resultJson) / __rejectSaveUpdate(id, errorJson) so
+   * applyUpdate learns whether the update was accepted (CX-005).
+   */
+  saveUpdate?(id: number, requestJson: string): void;
   /** On-device LLM (Foundation Models); settles via __resolveGenerate/__rejectGenerate. */
   generate?(id: number, requestJson: string): void;
 }

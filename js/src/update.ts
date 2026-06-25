@@ -26,24 +26,87 @@ import { getHost } from "./host";
  * host surface (`__host.*`) is fixed in the native binary, so an OTA bundle
  * can only use capabilities the shipped app already exposes.
  */
+/** The outcome of an applyUpdate (CX-005). `accepted` is the only field set on
+ *  success; a rejection carries a machine code + human message (e.g. a bad
+ *  signature, a capability gap, or a write failure on the watch). */
+export interface SaveUpdateResult {
+  accepted: boolean;
+  /** Set when accepted is false. */
+  code?: string;
+  message?: string;
+}
+
+let nextSaveId = 1;
+const pendingSaves = new Map<number, (result: SaveUpdateResult) => void>();
+
+/** Installs the host->JS settle globals for saveUpdate (CX-005). Idempotent;
+ *  called lazily by applyUpdate so the globals exist before the host replies. */
+function installUpdateBridge(): void {
+  const g = globalThis as {
+    __resolveSaveUpdate?: (id: number, resultJson: string) => void;
+    __rejectSaveUpdate?: (id: number, errorJson: string) => void;
+  };
+  if (g.__resolveSaveUpdate) return;
+  g.__resolveSaveUpdate = (id, resultJson) => {
+    const resolve = pendingSaves.get(id);
+    if (!resolve) return;
+    pendingSaves.delete(id);
+    resolve({ accepted: true });
+    void resultJson; // accepted is the whole result on success
+  };
+  g.__rejectSaveUpdate = (id, errorJson) => {
+    const resolve = pendingSaves.get(id);
+    if (!resolve) return;
+    pendingSaves.delete(id);
+    let code = "rejected";
+    let message = "OTA update rejected";
+    try {
+      const parsed = errorJson ? JSON.parse(errorJson) : {};
+      if (typeof parsed.code === "string") code = parsed.code;
+      if (typeof parsed.message === "string") message = parsed.message;
+    } catch {}
+    resolve({ accepted: false, code, message });
+  };
+}
+
+/**
+ * Stages an OTA bundle and resolves whether the watch accepted it (CX-005).
+ * Resolves (never rejects) with `{ accepted }` — a rejection from the native
+ * side (bad signature, capability gap, downgrade, write failure) comes back as
+ * `{ accepted: false, code, message }`, so the UI can tell the user why.
+ */
 export function applyUpdate(
   js: string,
   version?: number,
   signature?: string,
   requiredFeatures?: string[],
   minBridgeProtocol?: number,
-): void {
-  // JSON.stringify drops undefined keys, so an older call (no capability fields)
-  // produces the same payload as before.
-  getHost()?.saveUpdate?.(
-    JSON.stringify({
-      js,
-      version,
-      signature,
-      requiredFeatures,
-      minBridgeProtocol,
-    }),
-  );
+): Promise<SaveUpdateResult> {
+  const host = getHost();
+  if (!host?.saveUpdate) {
+    return Promise.resolve({
+      accepted: false,
+      code: "no-host",
+      message: "no update-capable host",
+    });
+  }
+  installUpdateBridge();
+  return new Promise((resolve) => {
+    const id = nextSaveId++;
+    pendingSaves.set(id, resolve);
+    // JSON.stringify drops undefined keys, so a call without capability fields
+    // produces the same payload as before.
+    host.saveUpdate?.(
+      id,
+      JSON.stringify({
+        js,
+        version,
+        signature,
+        requiredFeatures,
+        minBridgeProtocol,
+      }),
+    );
+  });
 }
 
 /** This bundle's OTA compatibility version (CR-17), injected at build from
@@ -161,12 +224,14 @@ export async function fetchAndApplyUpdate(
   if (host && capabilityGap(manifest, host).length > 0) return null;
   const url = resolveBundleUrl(manifestUrl, manifest.bundle);
   const js = await (await fetch(url)).text();
-  applyUpdate(
+  const result = await applyUpdate(
     js,
     manifest.version,
     manifest.signature,
     manifest.requiredFeatures,
     manifest.minBridgeProtocol,
   );
-  return manifest.version;
+  // Downloaded, but the watch refused it at save (e.g. signature/capability):
+  // report not-staged rather than a version that won't take effect.
+  return result.accepted ? manifest.version : null;
 }
