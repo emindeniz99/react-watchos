@@ -36,9 +36,11 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
   - [x] slice 2 — per-target feature sets generated (`HostFeatures.watch`/`.widget`, widget = strict subset) + pure `CapabilityGate.decide` (subset + bridge-protocol floor) in Support. +4 tests, `swift test` 57 green. (Generating the full Swift install *table* = CX-023, deferred — install stays hand-written, the cross-check test still guards it.)
   - [~] slice 3 — **JS capability gate done:** `UpdateManifest` gains `requiredFeatures`/`minBridgeProtocol`; `checkForUpdate`/`fetchAndApplyUpdate` gate BEFORE download against `globalThis.__hostFeatures` (→ `appUpdateRequired`, no download/crash). +3 tests, suite 199 green. **Remaining (Xcode/host):** native injects `__hostFeatures`+`__bridgeProtocol` at boot + wires `CapabilityGate` into `saveUpdate`/`load`. **Remaining (build):** ARCH-02 derive a bundle's `requiredFeatures` at build + declared contract.
 - [ ] **Foundation** ARCH-01 (feature manifest schema/codegen — verifiable) → ARCH-03 (app/widget bundles) → ARCH-04 (transactional OTA); absorbs CX-002/CX-003/CX-004/CX-007
-- [~] SD-2/ARCH-10 interpreter (CX-018):
+- [x] **SD-2 / CX-018 — interpreter drift fixed** (shared-parsing approach):
   - [x] slice 1 — pure style helpers in Support (`RNStyle`: hex color → rgba, semantic font, value/timer formatting). +6 tests, `swift test` 63 green.
-  - [ ] slice 2 (**Xcode**) — `NodeView` + `WidgetNodeView` call `RNStyle` (delete the widget's duplicate switch); fixes the CX-018 hex/monospacedDigit/timer-ms drift by construction.
+  - [x] slice 2a — `NodeView` resolves color/font/format via `RNStyle` (deleted duplicate `hexColor`). Verified: `xcodebuild -scheme ReactWatchHost -destination watchOS Sim` = BUILD SUCCEEDED.
+  - [x] slice 2b — `WidgetNodeView` resolves via `RNStyle` too → **gains hex colors + monospacedDigit** (the actual CX-018 drift). Verified: `xcodebuild -scheme "React Watch Widgets"` = BUILD SUCCEEDED.
+  - Note: full one-file unification (RenderContext/adapter, ARCH-10) is a further optional refactor; the drift itself is gone since both interpreters share `RNStyle`. (timer-ms stays intentionally degraded in widgets — WidgetKit can't tick at 50ms.)
 - [~] CX-016 — pure `WidgetSnapshot.currentIndex` (latest entry ≤ now, else earliest) in Support, +4 tests, `swift test` 67 green. **Remaining (Xcode):** `ReactTimelineProvider.latestEntry` calls it instead of `.entries.last`.
 - [ ] CX-015 (Map camera — SwiftUI), CX-017 (relevantContexts — WidgetKit API): host/Xcode. SD-1/SD-6 bridge+codegen (CX-022/023/024)
 - [ ] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5

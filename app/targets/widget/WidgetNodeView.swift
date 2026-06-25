@@ -1,4 +1,5 @@
 import ReactWatchCore
+import ReactWatchSupport
 import SwiftUI
 import UIKit
 
@@ -125,6 +126,8 @@ struct WidgetNodeView: View {
     private func styled(_ node: RNNode, _ base: Text) -> some View {
         var text = base
         if node.bool("bold") == true { text = text.bold() }
+        // monospacedDigit had drifted out of the widget interpreter (CX-018).
+        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
         if let style = node.string("textStyle") {
             text = text.font(semanticFont(style))
         } else if let size = node.double("size") {
@@ -134,17 +137,17 @@ struct WidgetNodeView: View {
     }
 
     private func semanticFont(_ style: String) -> Font {
-        switch style {
-        case "largeTitle": .largeTitle
-        case "title": .title
-        case "title2": .title2
-        case "title3": .title3
-        case "headline": .headline
-        case "callout": .callout
-        case "subheadline": .subheadline
-        case "footnote": .footnote
-        case "caption": .caption
-        default: .body
+        switch RNStyle.fontStyle(style) {
+        case .largeTitle: .largeTitle
+        case .title: .title
+        case .title2: .title2
+        case .title3: .title3
+        case .headline: .headline
+        case .callout: .callout
+        case .subheadline: .subheadline
+        case .footnote: .footnote
+        case .caption: .caption
+        case .body: .body
         }
     }
 
@@ -170,15 +173,26 @@ struct WidgetNodeView: View {
     }
 
     private func formatted(_ value: Double) -> String {
-        value.truncatingRemainder(dividingBy: 1) == 0
-            ? String(Int(value)) : String(format: "%.1f", value)
+        RNStyle.formatValue(value)
     }
 
     private func cgFloat(_ node: RNNode, _ key: String) -> CGFloat? {
         node.double(key).map { CGFloat($0) }
     }
 
+    // Shares color parsing (named set + #RRGGBB/#RRGGBBAA hex) with the app
+    // interpreter via RNStyle, so the widget no longer silently lacks hex
+    // colors (CX-018). Only the name -> SwiftUI.Color mapping stays local.
     private func color(_ name: String?) -> Color? {
+        guard let value = RNStyle.color(name) else { return nil }
+        switch value {
+        case .named(let named): return Self.systemColor(named)
+        case .rgba(let r, let g, let b, let a):
+            return Color(red: r, green: g, blue: b, opacity: a)
+        }
+    }
+
+    private static func systemColor(_ name: String) -> Color {
         switch name {
         case "red": .red
         case "orange": .orange
@@ -197,7 +211,7 @@ struct WidgetNodeView: View {
         case "black": .black
         case "primary": .primary
         case "secondary": .secondary
-        default: nil
+        default: .primary
         }
     }
 }
