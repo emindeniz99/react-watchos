@@ -6,6 +6,14 @@ import { reactCompilerPlugin } from "./react-compiler-plugin.mjs";
 export const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const outfile = join(root, "dist/bundle.js");
 
+// OTA compatibility version (CR-17). Single source of truth: stamped into
+// dist/manifest.json by build.mjs and injected into the bundle (below) so the
+// running app knows its own version for the freshness check. Monotonic — bump
+// it ONLY on a breaking change (db schema / wire contract); the watch refuses
+// any bundle older than the newest it has applied (anti-rollback). Keep the
+// native `OTAConfig.shippedVersion` in lockstep with this when you ship.
+export const bundleVersion = 1;
+
 // Shipped as a resource of both targets: the watch app evaluates it to
 // run the UI; the widget extension evaluates it to handle control
 // intents and refresh timelines.
@@ -29,6 +37,7 @@ export function buildOptions({ minify = false } = {}) {
   options.define = {
     ...options.define,
     "process.env.REACT_WATCH_OTA_URL": JSON.stringify(otaUrl),
+    "process.env.BUNDLE_VERSION": JSON.stringify(String(bundleVersion)),
   };
   return options;
 }

@@ -147,7 +147,13 @@ export {
   stopSensor,
 } from "./sensors";
 export { Storage } from "./storage";
-export { applyUpdate } from "./update";
+export {
+  applyUpdate,
+  BUNDLE_VERSION,
+  checkForUpdate,
+  fetchAndApplyUpdate,
+  type UpdateManifest,
+} from "./update";
 export type {
   ControlDefinition,
   EntryRelevance,

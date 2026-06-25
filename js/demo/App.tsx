@@ -6,7 +6,7 @@ import {
   version,
 } from "react";
 import {
-  applyUpdate,
+  BUNDLE_VERSION,
   Button,
   bleConnect,
   bleDisconnect,
@@ -15,6 +15,7 @@ import {
   CrownRotation,
   Divider,
   ErrorBoundary,
+  fetchAndApplyUpdate,
   Gauge,
   generateText,
   HStack,
@@ -365,13 +366,16 @@ function MovieRemoteScreen() {
 }
 
 /**
- * OTA update: fetch a JS bundle and stage it (applyUpdate). It takes effect
- * on the next launch — the watch loads a staged bundle before the shipped
- * one. Within App Store 2.5.2 (UI fixes to reviewed features only).
+ * OTA update: fetch the manifest, and if it's newer than this bundle, download
+ * + stage it (fetchAndApplyUpdate). It takes effect on the next launch — the
+ * watch loads a staged bundle before the shipped one. REACT_WATCH_OTA_URL is
+ * the manifest endpoint. Within App Store 2.5.2 (UI fixes to reviewed features).
  */
 function UpdatesScreen() {
   const [status, setStatus] = useState(
-    OTA_UPDATE_URL ? "up to date" : "set REACT_WATCH_OTA_URL",
+    OTA_UPDATE_URL
+      ? `v${BUNDLE_VERSION} — tap to check`
+      : "set REACT_WATCH_OTA_URL",
   );
   const check = async () => {
     if (!OTA_UPDATE_URL) {
@@ -380,13 +384,12 @@ function UpdatesScreen() {
     }
     setStatus("checking…");
     try {
-      const res = await fetch(OTA_UPDATE_URL);
-      if (!res.ok) {
-        setStatus(`server returned ${res.status}`);
-        return;
-      }
-      applyUpdate(await res.text());
-      setStatus("update staged — relaunch to apply");
+      const staged = await fetchAndApplyUpdate(OTA_UPDATE_URL);
+      setStatus(
+        staged === null
+          ? `up to date (v${BUNDLE_VERSION})`
+          : `staged v${staged} — relaunch to apply`,
+      );
     } catch (e) {
       setStatus(`no update: ${(e as Error).message}`);
     }

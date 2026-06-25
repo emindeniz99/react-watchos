@@ -1,7 +1,19 @@
-import { copyFileSync, mkdirSync, rmSync, statSync } from "node:fs";
-import { dirname } from "node:path";
+import {
+  copyFileSync,
+  mkdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
 import { build } from "esbuild";
-import { assets, buildOptions, outfile } from "./config.mjs";
+import {
+  assets,
+  buildOptions,
+  bundleVersion,
+  outfile,
+  root,
+} from "./config.mjs";
 
 // `npm run build -- --minify` (or MINIFY=1) roughly halves the bundle;
 // unminified keeps watch-side stack traces readable during development.
@@ -11,6 +23,17 @@ await build(buildOptions({ minify }));
 
 const kb = (statSync(outfile).size / 1024).toFixed(0);
 console.log(`bundle: ${kb} KB${minify ? " (minified)" : ""}`);
+
+// OTA manifest (CR-17): the freshness check fetches this to compare versions.
+// `bundle` is relative so it resolves against wherever the manifest is served
+// (the dev server serves dist/ statically, so /manifest.json + /bundle.js).
+// `signature` is null here — sign "v1:<version>:<bundle>" at publish time with
+// your Ed25519 key and fill it in; unsigned bundles load only in fail-open.
+writeFileSync(
+  join(root, "dist/manifest.json"),
+  `${JSON.stringify({ version: bundleVersion, bundle: "bundle.js", signature: null }, null, 2)}\n`,
+);
+console.log(`manifest: version ${bundleVersion}`);
 
 for (const asset of assets) {
   mkdirSync(dirname(asset), { recursive: true });

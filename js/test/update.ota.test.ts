@@ -1,9 +1,17 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { applyUpdate } from "../src/index";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  applyUpdate,
+  BUNDLE_VERSION,
+  checkForUpdate,
+  fetchAndApplyUpdate,
+} from "../src/index";
 import { installMockHost } from "./helpers";
 
+const g = globalThis as Record<string, unknown>;
+
 afterEach(() => {
-  delete (globalThis as Record<string, unknown>).__host;
+  delete g.__host;
+  delete g.fetch;
 });
 
 describe("OTA applyUpdate", () => {
@@ -29,5 +37,57 @@ describe("OTA applyUpdate", () => {
 
   it("is a no-op without an update-capable host", () => {
     expect(() => applyUpdate("x")).not.toThrow();
+  });
+});
+
+// CR-17: the remote freshness check compares the server manifest's version to
+// this bundle's BUNDLE_VERSION (1 in tests, no build-time injection).
+describe("OTA freshness check", () => {
+  it("checkForUpdate flags a newer manifest version", async () => {
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({ version: 5, bundle: "bundle.js" }),
+    }));
+    expect(await checkForUpdate("https://x.test/manifest.json")).toEqual({
+      current: BUNDLE_VERSION,
+      latest: 5,
+      updateAvailable: true,
+    });
+  });
+
+  it("fetchAndApplyUpdate stages a newer bundle (resolving a relative URL)", async () => {
+    const host = installMockHost();
+    g.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        json: async () => ({
+          version: 3,
+          bundle: "bundle.js",
+          signature: "sig",
+        }),
+      })
+      .mockResolvedValueOnce({ text: async () => "globalThis.x=1;" });
+
+    const staged = await fetchAndApplyUpdate(
+      "https://x.test/sub/manifest.json",
+    );
+    expect(staged).toBe(3);
+    // bundle URL resolved relative to the manifest's directory.
+    expect((g.fetch as ReturnType<typeof vi.fn>).mock.calls[1][0]).toBe(
+      "https://x.test/sub/bundle.js",
+    );
+    expect(host.saveUpdate).toHaveBeenCalledWith(
+      JSON.stringify({ js: "globalThis.x=1;", version: 3, signature: "sig" }),
+    );
+  });
+
+  it("fetchAndApplyUpdate is a no-op when not newer", async () => {
+    const host = installMockHost();
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({ version: BUNDLE_VERSION, bundle: "bundle.js" }),
+    }));
+    expect(
+      await fetchAndApplyUpdate("https://x.test/manifest.json"),
+    ).toBeNull();
+    expect(host.saveUpdate).not.toHaveBeenCalled();
   });
 });

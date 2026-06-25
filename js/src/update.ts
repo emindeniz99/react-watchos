@@ -33,3 +33,54 @@ export function applyUpdate(
 ): void {
   getHost()?.saveUpdate?.(JSON.stringify({ js, version, signature }));
 }
+
+/** This bundle's OTA compatibility version (CR-17), injected at build from
+ *  scripts/config.mjs. Compared against the server manifest's `version`. */
+export const BUNDLE_VERSION = Number(process.env.BUNDLE_VERSION ?? "1");
+
+/** The update manifest served by your update endpoint (dist/manifest.json). */
+export interface UpdateManifest {
+  /** Monotonic compatibility version (bumped only on a breaking change). */
+  version: number;
+  /** Bundle URL — absolute (https), or relative to the manifest URL. */
+  bundle: string;
+  /** base64 Ed25519 signature over "v1:<version>:<bundle-js>". */
+  signature?: string;
+}
+
+function resolveBundleUrl(manifestUrl: string, bundle: string): string {
+  if (/^https?:\/\//.test(bundle)) return bundle;
+  // Resolve relative to the manifest's directory (no URL() in QuickJS).
+  return manifestUrl.replace(/[^/]*$/, "") + bundle;
+}
+
+/**
+ * Fetches the update manifest and compares its version to this bundle's.
+ * Use it to drive an "update available" prompt. Always serve over HTTPS.
+ */
+export async function checkForUpdate(
+  manifestUrl: string,
+): Promise<{ current: number; latest: number; updateAvailable: boolean }> {
+  const manifest = (await (await fetch(manifestUrl)).json()) as UpdateManifest;
+  return {
+    current: BUNDLE_VERSION,
+    latest: manifest.version,
+    updateAvailable: manifest.version > BUNDLE_VERSION,
+  };
+}
+
+/**
+ * Fetches the manifest and, if it's newer than this bundle, downloads the
+ * bundle and stages it (applyUpdate). Returns the staged version, or null if
+ * already up to date. The staged update takes effect on the next launch.
+ */
+export async function fetchAndApplyUpdate(
+  manifestUrl: string,
+): Promise<number | null> {
+  const manifest = (await (await fetch(manifestUrl)).json()) as UpdateManifest;
+  if (manifest.version <= BUNDLE_VERSION) return null;
+  const url = resolveBundleUrl(manifestUrl, manifest.bundle);
+  const js = await (await fetch(url)).text();
+  applyUpdate(js, manifest.version, manifest.signature);
+  return manifest.version;
+}
