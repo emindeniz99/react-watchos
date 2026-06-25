@@ -12,6 +12,8 @@ const g = globalThis as Record<string, unknown>;
 afterEach(() => {
   delete g.__host;
   delete g.fetch;
+  delete g.__hostFeatures;
+  delete g.__bridgeProtocol;
 });
 
 describe("OTA applyUpdate", () => {
@@ -89,5 +91,66 @@ describe("OTA freshness check", () => {
       await fetchAndApplyUpdate("https://x.test/manifest.json"),
     ).toBeNull();
     expect(host.saveUpdate).not.toHaveBeenCalled();
+  });
+});
+
+// ARCH-01: a bundle that needs a native capability this binary lacks can't be
+// applied over the air (OTA can't add native code) — gate it BEFORE download
+// and tell the UI to prompt an app update instead of crashing later.
+describe("OTA capability gate", () => {
+  it("checkForUpdate flags appUpdateRequired for a missing feature", async () => {
+    g.__hostFeatures = ["core", "storage", "widgets"]; // a widget-class surface
+    g.__bridgeProtocol = 1;
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: 5,
+        bundle: "bundle.js",
+        requiredFeatures: ["network"],
+      }),
+    }));
+    expect(await checkForUpdate("https://x.test/manifest.json")).toEqual({
+      current: BUNDLE_VERSION,
+      latest: 5,
+      updateAvailable: false,
+      appUpdateRequired: true,
+      missingCapabilities: ["network"],
+    });
+  });
+
+  it("fetchAndApplyUpdate refuses to download a bundle this binary can't run", async () => {
+    const host = installMockHost();
+    g.__hostFeatures = ["core", "storage", "widgets"];
+    g.__bridgeProtocol = 1;
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: 5,
+        bundle: "bundle.js",
+        requiredFeatures: ["network"],
+      }),
+    }));
+    expect(
+      await fetchAndApplyUpdate("https://x.test/manifest.json"),
+    ).toBeNull();
+    // Only the manifest was fetched — the bundle itself was never downloaded.
+    expect((g.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+    expect(host.saveUpdate).not.toHaveBeenCalled();
+  });
+
+  it("applies when the binary provides every required feature", async () => {
+    const host = installMockHost();
+    g.__hostFeatures = ["core", "storage", "network", "widgets"];
+    g.__bridgeProtocol = 1;
+    g.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        json: async () => ({
+          version: 6,
+          bundle: "bundle.js",
+          requiredFeatures: ["network", "storage"],
+        }),
+      })
+      .mockResolvedValueOnce({ text: async () => "globalThis.x=1;" });
+    expect(await fetchAndApplyUpdate("https://x.test/manifest.json")).toBe(6);
+    expect(host.saveUpdate).toHaveBeenCalled();
   });
 });

@@ -46,6 +46,54 @@ export interface UpdateManifest {
   bundle: string;
   /** base64 Ed25519 signature over "v1:<version>:<bundle-js>". */
   signature?: string;
+  /**
+   * Capability features the bundle requires (ARCH-01), e.g. ["network",
+   * "bluetooth"]. The watch refuses to apply a bundle whose features its binary
+   * doesn't provide — OTA can't add native capability, so the user must update
+   * the app. Omitted = no capability requirement declared.
+   */
+  requiredFeatures?: string[];
+  /** Minimum host bridge-protocol version the bundle needs (ARCH-01). */
+  minBridgeProtocol?: number;
+}
+
+/**
+ * Capability features the running native binary provides + its bridge protocol,
+ * injected at boot by the host (`globalThis.__hostFeatures` / `__bridgeProtocol`,
+ * from the generated `HostFeatures`). `null` when the native side hasn't exposed
+ * them (an older binary, or under a test/dev host) — then the capability gate is
+ * skipped rather than blocking everything.
+ */
+function hostCapabilities(): {
+  features: string[];
+  bridgeProtocol: number;
+} | null {
+  const g = globalThis as {
+    __hostFeatures?: unknown;
+    __bridgeProtocol?: unknown;
+  };
+  if (!Array.isArray(g.__hostFeatures)) return null;
+  return {
+    features: g.__hostFeatures.filter(
+      (f): f is string => typeof f === "string",
+    ),
+    bridgeProtocol:
+      typeof g.__bridgeProtocol === "number" ? g.__bridgeProtocol : 0,
+  };
+}
+
+/** The required capabilities a manifest declares that `host` doesn't provide
+ *  (a bridge-protocol shortfall included as a marker). Empty = runs here. */
+function capabilityGap(
+  manifest: UpdateManifest,
+  host: { features: string[]; bridgeProtocol: number },
+): string[] {
+  const missing = (manifest.requiredFeatures ?? []).filter(
+    (f) => !host.features.includes(f),
+  );
+  const minBp = manifest.minBridgeProtocol ?? 0;
+  if (minBp > host.bridgeProtocol) missing.push(`bridgeProtocol>=${minBp}`);
+  return missing;
 }
 
 function resolveBundleUrl(manifestUrl: string, bundle: string): string {
@@ -57,28 +105,48 @@ function resolveBundleUrl(manifestUrl: string, bundle: string): string {
 /**
  * Fetches the update manifest and compares its version to this bundle's.
  * Use it to drive an "update available" prompt. Always serve over HTTPS.
+ *
+ * If the manifest declares `requiredFeatures`/`minBridgeProtocol` that this
+ * binary doesn't provide (ARCH-01), the update can't be applied over the air —
+ * the result reports `appUpdateRequired` + `missingCapabilities` (and
+ * `updateAvailable` is false) so the UI can prompt an App Store update instead.
  */
-export async function checkForUpdate(
-  manifestUrl: string,
-): Promise<{ current: number; latest: number; updateAvailable: boolean }> {
+export async function checkForUpdate(manifestUrl: string): Promise<{
+  current: number;
+  latest: number;
+  updateAvailable: boolean;
+  appUpdateRequired?: boolean;
+  missingCapabilities?: string[];
+}> {
   const manifest = (await (await fetch(manifestUrl)).json()) as UpdateManifest;
+  const isNewer = manifest.version > BUNDLE_VERSION;
+  const host = hostCapabilities();
+  const missing = isNewer && host ? capabilityGap(manifest, host) : [];
+  const appUpdateRequired = missing.length > 0;
   return {
     current: BUNDLE_VERSION,
     latest: manifest.version,
-    updateAvailable: manifest.version > BUNDLE_VERSION,
+    updateAvailable: isNewer && !appUpdateRequired,
+    ...(appUpdateRequired
+      ? { appUpdateRequired: true, missingCapabilities: missing }
+      : {}),
   };
 }
 
 /**
  * Fetches the manifest and, if it's newer than this bundle, downloads the
  * bundle and stages it (applyUpdate). Returns the staged version, or null if
- * already up to date. The staged update takes effect on the next launch.
+ * already up to date — or if the bundle needs a capability this binary lacks
+ * (ARCH-01), in which case it's NOT downloaded (the app must be updated; use
+ * checkForUpdate to surface that). The staged update takes effect next launch.
  */
 export async function fetchAndApplyUpdate(
   manifestUrl: string,
 ): Promise<number | null> {
   const manifest = (await (await fetch(manifestUrl)).json()) as UpdateManifest;
   if (manifest.version <= BUNDLE_VERSION) return null;
+  const host = hostCapabilities();
+  if (host && capabilityGap(manifest, host).length > 0) return null;
   const url = resolveBundleUrl(manifestUrl, manifest.bundle);
   const js = await (await fetch(url)).text();
   applyUpdate(js, manifest.version, manifest.signature);
