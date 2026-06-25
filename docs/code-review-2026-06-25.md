@@ -215,11 +215,13 @@ Plan:
   date+time but trips an `assertionFailure` (loud in DEBUG, no-op in release)
   instead of silently swallowing the typo.
 
-- [ ] **CR-13 — Multi-value response headers stringified as array
+- [x] **CR-13 — Multi-value response headers stringified as array
   description.** `P3`
   [`ReactWatchHost.swift:331`](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift#L331)
   — `"\(value)"` on `allHeaderFields` gives Swift's array description for
   repeated headers (e.g. `Set-Cookie`), not a WHATWG comma-join. Niche.
+  **Done (2026-06-25):** an array-valued header is now `", "`-joined (WHATWG)
+  instead of rendered as `"[a, b]"`; scalar headers are unchanged.
 
 ## Testing
 

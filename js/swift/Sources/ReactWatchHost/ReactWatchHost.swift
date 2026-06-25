@@ -331,7 +331,13 @@ final class ReactWatchModel: ObservableObject {
                 let http = response as? HTTPURLResponse
                 var headers: [String: String] = [:]
                 http?.allHeaderFields.forEach { key, value in
-                    headers["\(key)".lowercased()] = "\(value)"
+                    // Repeated headers (e.g. Set-Cookie) arrive as an array;
+                    // WHATWG joins them with ", ", not Swift's "[a, b]"
+                    // array description.
+                    let joined = (value as? [Any]).map { array in
+                        array.map { "\($0)" }.joined(separator: ", ")
+                    } ?? "\(value)"
+                    headers["\(key)".lowercased()] = joined
                 }
                 let status = http?.statusCode ?? 0
                 let url = http?.url?.absoluteString ?? plan.url
