@@ -16,3 +16,12 @@ number<->string conversion out into `dtoa.c` and made `cutils` header-only, so
 Verified on Linux via `tools/embed-smoke/run.sh`, which compiles these
 exact files and runs the production React bundle through the same C API
 sequence JSRuntime.swift uses.
+
+## Updating to a new release
+
+Run `tools/vendor-quickjs/run.sh <tag>` (e.g. `v0.16.0`). It downloads the
+upstream tarball, overwrites the four `qjs_sources` files, refreshes the
+headers we vendor (leaving our `quickjs-swift-shim.h` alone) and the LICENSE,
+and bumps the version line + source URL above. Then review the prose in this
+file, bump the version in `js/swift/README.md`, and run
+`tools/embed-smoke/run.sh` to prove the new engine still embeds.
