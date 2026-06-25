@@ -459,15 +459,19 @@ public final class JSRuntime {
             message = String(cString: cString)
             JS_FreeCString(context, cString)
         }
-        // Append the JS stack (QuickJS exposes it on the error object) so
-        // the dev overlay shows where it threw, not just the message.
-        let stackVal = JS_GetPropertyStr(context, value, "stack")
-        if let stackC = JS_ToCString(context, stackVal) {
-            let stack = String(cString: stackC)
-            if !stack.isEmpty { message += "\n" + stack }
-            JS_FreeCString(context, stackC)
+        // Append the JS stack only for real Error objects (QuickJS exposes it
+        // on the error object). A thrown/rejected primitive — e.g.
+        // `Promise.reject("oops")` — has no `.stack`; reading the missing
+        // property would otherwise append a literal "undefined" line (OP-5).
+        if JS_IsError(value) {
+            let stackVal = JS_GetPropertyStr(context, value, "stack")
+            if let stackC = JS_ToCString(context, stackVal) {
+                let stack = String(cString: stackC)
+                if !stack.isEmpty { message += "\n" + stack }
+                JS_FreeCString(context, stackC)
+            }
+            JS_FreeValue(context, stackVal)
         }
-        JS_FreeValue(context, stackVal)
         return message
     }
 

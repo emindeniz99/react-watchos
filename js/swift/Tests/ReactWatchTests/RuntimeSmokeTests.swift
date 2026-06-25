@@ -71,6 +71,22 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertTrue(message.contains("rejected boom"), "got: \(message)")
     }
 
+    // OP-5: a rejected/thrown non-Error value (e.g. `Promise.reject("x")`) has
+    // no `.stack`, so describe() must not append a literal "undefined" line.
+    func testNonErrorRejectionHasNoUndefinedStack() throws {
+        let runtime = try JSRuntime()
+        var reported: String?
+        runtime.onError = { reported = $0 }
+
+        try runtime.evaluate(#"Promise.reject("plain string reason");"#)
+
+        let message = try XCTUnwrap(reported, "rejection never surfaced")
+        XCTAssertTrue(message.contains("plain string reason"), "got: \(message)")
+        XCTAssertFalse(
+            message.contains("undefined"),
+            "a non-Error reason must not get a bogus stack: \(message)")
+    }
+
     // CR-5: the Swift->JS bridge must deliver identical args whether it uses
     // JS_Call (new) or the eval-string path (legacy) — they're A/B-switchable.
     func testDispatchEventEquivalentAcrossBridgePaths() throws {
