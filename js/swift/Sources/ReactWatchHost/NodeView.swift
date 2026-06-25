@@ -251,11 +251,7 @@ struct NodeView: View {
     }
 
     private func formatTimer(_ interval: TimeInterval) -> String {
-        let totalMs = Int((interval * 1000).rounded(.down))
-        let minutes = totalMs / 60_000
-        let seconds = (totalMs / 1000) % 60
-        let millis = totalMs % 1000
-        return String(format: "%02d:%02d.%03d", minutes, seconds, millis)
+        RNStyle.formatTimer(interval)
     }
 
     @ViewBuilder private var gauge: some View {
@@ -276,22 +272,21 @@ struct NodeView: View {
     }
 
     private func formatted(_ value: Double) -> String {
-        value.truncatingRemainder(dividingBy: 1) == 0
-            ? String(Int(value)) : String(format: "%.1f", value)
+        RNStyle.formatValue(value)
     }
 
     private func semanticFont(_ style: String) -> Font {
-        switch style {
-        case "largeTitle": .largeTitle
-        case "title": .title
-        case "title2": .title2
-        case "title3": .title3
-        case "headline": .headline
-        case "callout": .callout
-        case "subheadline": .subheadline
-        case "footnote": .footnote
-        case "caption": .caption
-        default: .body
+        switch RNStyle.fontStyle(style) {
+        case .largeTitle: .largeTitle
+        case .title: .title
+        case .title2: .title2
+        case .title3: .title3
+        case .headline: .headline
+        case .callout: .callout
+        case .subheadline: .subheadline
+        case .footnote: .footnote
+        case .caption: .caption
+        case .body: .body
         }
     }
 
@@ -410,7 +405,20 @@ struct NodeView: View {
         node.double(key).map { CGFloat($0) }
     }
 
+    // Color parsing (named set + #RRGGBB/#RRGGBBAA hex) is shared with the
+    // widget interpreter via RNStyle so the two can't drift (CX-018); this only
+    // maps the parsed value to SwiftUI.
     private func color(_ name: String?) -> Color? {
+        guard let value = RNStyle.color(name) else { return nil }
+        switch value {
+        case .named(let named): return Self.systemColor(named)
+        case .rgba(let r, let g, let b, let a):
+            return Color(red: r, green: g, blue: b, opacity: a)
+        }
+    }
+
+    /// Maps a known RNStyle.namedColors name to its SwiftUI color.
+    private static func systemColor(_ name: String) -> Color {
         switch name {
         case "red": .red
         case "orange": .orange
@@ -429,27 +437,7 @@ struct NodeView: View {
         case "black": .black
         case "primary": .primary
         case "secondary": .secondary
-        default: name.flatMap(Self.hexColor)
-        }
-    }
-
-    /// A SwiftUI Color from "#RRGGBB" or "#RRGGBBAA" so brand colors work
-    /// beyond the named set; nil for anything else (an unknown name stays nil).
-    private static func hexColor(_ string: String) -> Color? {
-        guard string.hasPrefix("#") else { return nil }
-        let hex = string.dropFirst()
-        guard hex.allSatisfy(\.isHexDigit), let bits = UInt32(hex, radix: 16)
-        else { return nil }
-        func channel(_ shift: UInt32) -> Double { Double((bits >> shift) & 0xFF) / 255 }
-        switch hex.count {
-        case 6:
-            return Color(red: channel(16), green: channel(8), blue: channel(0))
-        case 8:
-            return Color(
-                red: channel(24), green: channel(16), blue: channel(8),
-                opacity: channel(0))
-        default:
-            return nil
+        default: .primary
         }
     }
 }
