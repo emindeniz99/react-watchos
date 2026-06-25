@@ -13,6 +13,22 @@ source reviews stay for detail.
   verified loader, CX-007 split gate+release-id, CX-021 tighten fetch to WHATWG,
   CX-013 skip.
 
+## Build progress (live — updated each loop iteration)
+
+Working through this autonomously (`/loop`). Sequence: CX-001 → **foundation**
+(ARCH-01 + ARCH-03 + ARCH-04, absorbing CX-002/CX-003) → Phase 1 runtime-safety →
+SD-2/ARCH-10 interpreter → SD-1/SD-6 bridge+codegen → Phase 4 DX → Phase 5.
+Done-ness is also in `git log` (one commit per item).
+
+- [x] **CX-001** — npm `files` allowlist + MIT LICENSE. `npm pack` 293 MB → 0.55 MB / 88 files, no build-output leaked.
+- [ ] **ARCH-01** — feature manifest (structural versions + per-target feature set; supersedes the scalar gate) ← **next**
+- [ ] **ARCH-03** — separate `app.bundle.js` / `widget.bundle.js` entrypoints
+- [ ] **ARCH-04** — transactional OTA (read-only validation, atomic activation, crash-loop rollback); absorbs CX-003 fail-closed + CX-002 capability surface
+- [ ] Phase 1 (CX-009/010/008/014/019 + OP-2/3/4/5/6)
+- [ ] SD-2/ARCH-10 shared interpreter (CX-015/016/017/018)
+- [ ] SD-1/SD-6 typed bridge + codegen (CX-022/023/024)
+- [ ] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5
+
 ### Verdict legend
 
 | Badge | Meaning |
