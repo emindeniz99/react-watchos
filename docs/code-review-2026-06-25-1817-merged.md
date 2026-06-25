@@ -45,7 +45,8 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
 - [ ] CX-015 (Map camera — SwiftUI), CX-017 (relevantContexts — WidgetKit API): host/Xcode. SD-1/SD-6 bridge+codegen (CX-022/023/024)
 - [ ] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5
 - [x] Host fixes (written + **verified on a watchOS build** — Xcode is available here): **CX-009** (reject a wire-mismatched commit before it reaches the interpreter or advances the ack), **OP-3** (cap app QuickJS heap at 64 MB), **OP-6** (stable Map annotation id).
-- [ ] Remaining host: CX-010 host-half (disable handlerless controls), CX-015 (Map camera), CX-017 (relevantContexts), ARCH-01/03/04 host wiring.
+- [x] CX-015 — Map `latitude`/`longitude`/`span` props now drive `Map(initialPosition: .region(...))` (were ignored); `.automatic` fits annotations when absent. Verified on watchOS build.
+- [ ] Remaining host: CX-017 (relevantContexts → WidgetKit relevance), ARCH-01 save-time enforcement, **ARCH-03** (app/widget bundle split), **ARCH-04** (transactional OTA state machine).
 
 ### Verdict legend
 

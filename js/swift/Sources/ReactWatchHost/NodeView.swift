@@ -325,7 +325,7 @@ struct NodeView: View {
     @ViewBuilder private var mapView: some View {
         let annotations = coordinates(node.props["annotations"])
         let route = coordinates(node.props["route"]).map(\.coordinate)
-        Map {
+        Map(initialPosition: mapPosition) {
             ForEach(annotations) { a in
                 Marker(a.title ?? "", systemImage: a.systemImage ?? "mappin",
                        coordinate: a.coordinate)
@@ -336,6 +336,17 @@ struct NodeView: View {
             }
         }
         .frame(height: cgFloat("height") ?? 120)
+    }
+
+    /// Region from the `latitude`/`longitude`/`span` props (CX-015) — these were
+    /// public but ignored. When absent, `.automatic` fits the annotations/route.
+    private var mapPosition: MapCameraPosition {
+        guard let lat = node.double("latitude"),
+              let lon = node.double("longitude") else { return .automatic }
+        let span = node.double("span") ?? 0.02
+        return .region(MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)))
     }
 
     private struct MapPoint: Identifiable {
