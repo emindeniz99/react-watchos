@@ -155,3 +155,50 @@ final class BluetoothUUIDTests: XCTestCase {
             hrm.replacingOccurrences(of: "-", with: "")))
     }
 }
+
+// CR-15: the BLE bridge's connection bookkeeping (the write-replay queue, the
+// re-applied subscriptions, the deliberate-vs-dropped disconnect latch) is the
+// state that rots silently. Pulled into BleSession so it's tested off-device.
+final class BleSessionTests: XCTestCase {
+    func testPendingWritesReplayInOrderThenClear() {
+        var s = BleSession()
+        s.queueWrite(characteristic: "A", value: "1", confirm: nil)
+        s.queueWrite(characteristic: "B", value: "2", confirm: true)
+
+        XCTAssertEqual(s.takePendingWrites(), [
+            .init(characteristic: "A", value: "1", confirm: nil),
+            .init(characteristic: "B", value: "2", confirm: true),
+        ])
+        // Taken exactly once — discovery must not replay the same writes twice.
+        XCTAssertTrue(s.pendingWrites.isEmpty)
+        XCTAssertTrue(s.takePendingWrites().isEmpty)
+    }
+
+    func testSubscriptionsPersistForReapplyAcrossADrop() {
+        var s = BleSession()
+        s.beginConnect()
+        s.wantSubscription("HR")
+        s.wantSubscription("HR") // de-duped (Set)
+        s.wantSubscription("BAT")
+        // An unexpected drop leaves the session untouched, so the desired set
+        // remains to re-apply on the auto-reconnect.
+        XCTAssertEqual(s.desiredSubscriptions, ["HR", "BAT"])
+        XCTAssertTrue(s.shouldAutoReconnect)
+    }
+
+    func testUserDisconnectDropsEverythingAndStaysDown() {
+        var s = BleSession()
+        s.beginConnect()
+        s.wantSubscription("HR")
+        s.queueWrite(characteristic: "CMD", value: "play", confirm: nil)
+
+        s.endByUser()
+        XCTAssertTrue(s.desiredSubscriptions.isEmpty)
+        // A deliberate disconnect must not resurrect a stale write on reconnect.
+        XCTAssertTrue(s.pendingWrites.isEmpty)
+        XCTAssertFalse(s.shouldAutoReconnect) // stays down, no auto-reconnect
+
+        s.beginConnect() // a fresh connect re-arms auto-reconnect
+        XCTAssertTrue(s.shouldAutoReconnect)
+    }
+}

@@ -236,11 +236,23 @@ Plan:
   App Groups, `WKRunsIndependentlyOfCompanionApp` on hardware. The
   headline known gap (see roadmap). Tracked, not a regression.
 
-- [ ] **CR-15 — `BluetoothBridge` / `SensorBridge` are untested.** `P2`
+- [x] **CR-15 — `BluetoothBridge` / `SensorBridge` are untested.** `P2`
   Both say so in their headers; they're the least-covered Swift, and the
   BLE auto-reconnect + pending-write-replay state is exactly what rots
   silently. **Fix:** `swift test` against a faked `CBCentralManager`-shaped
   protocol seam (Linux-runnable if abstracted).
+  **Done (2026-06-25):** extracted the exact rot-prone state — the
+  write-replay queue, the re-applied subscriptions, and the
+  deliberate-vs-dropped disconnect latch — into a pure `BleSession` in
+  `ReactWatchSupport`, now unit-tested off-device (`BleSessionTests`: replay
+  order + replay-once, subscription persistence across a drop, user-disconnect
+  drops everything and stays down). The bridge delegates state to it; the
+  CoreBluetooth I/O is unchanged. (Also fixed a latent bug surfaced by the
+  extraction: a user disconnect now drops queued writes too, not just
+  subscriptions, so a stale command can't fire on the next connect.)
+  `SensorBridge` is stateless command-dispatch + sensor→payload mapping with
+  no rot-prone state to extract — its only risk is the HealthKit/CoreMotion
+  integration, which stays under the device gate (CR-14).
 
 - [x] **CR-16 — Add a test for async-error surfacing.** `P2`
   Once CR-1 lands, pin that a throwing microtask / rejected promise
