@@ -205,11 +205,15 @@ Plan:
   `#RRGGBBAA` (`hexColor`), so brand colors work beyond the named set; an
   unknown name still resolves to nil. Documented in `components.ts`.
 
-- [ ] **CR-12 — `DatePicker` mode is loosely matched.** `P3`
+- [x] **CR-12 — `DatePicker` mode is loosely matched.** `P3`
   [`NodeView.swift:353`](../js/swift/Sources/ReactWatchHost/NodeView.swift#L353)
   / [`components.ts:251`](../js/src/components.ts#L251) — `"dateAndTime"`
   and any typo both fall through `default` to date+time. Works; just no
   loud signal on a bad mode string.
+  **Done (2026-06-25):** the three documented modes (incl. `dateAndTime` and
+  `nil`) are now explicit cases; a genuinely-unknown mode still falls back to
+  date+time but trips an `assertionFailure` (loud in DEBUG, no-op in release)
+  instead of silently swallowing the typo.
 
 - [ ] **CR-13 — Multi-value response headers stringified as array
   description.** `P3`

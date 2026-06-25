@@ -355,9 +355,15 @@ struct NodeView: View {
 
     private func dateComponents(_ mode: String?) -> DatePickerComponents {
         switch mode {
-        case "date": [.date]
-        case "hourAndMinute": [.hourAndMinute]
-        default: [.date, .hourAndMinute]
+        case "date": return [.date]
+        case "hourAndMinute": return [.hourAndMinute]
+        case "dateAndTime", nil: return [.date, .hourAndMinute]
+        default:
+            // The contract is date / hourAndMinute / dateAndTime; an unknown
+            // value is a typo from dynamic JS. Fall back to date+time, but make
+            // it loud in DEBUG rather than silently swallowing the mistake.
+            assertionFailure("unknown DatePicker mode \"\(mode ?? "")\"")
+            return [.date, .hourAndMinute]
         }
     }
 
