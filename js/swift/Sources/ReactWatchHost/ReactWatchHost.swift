@@ -56,6 +56,12 @@ final class ReactWatchModel: ObservableObject {
     private let bluetooth = BluetoothBridge()
     private let sensors = SensorBridge()
     private var fetchTasks: [Int: URLSessionDataTask] = [:]
+    /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
+    /// the JS-assigned id of a request whose id space resets with the runtime, so
+    /// a callback from a previous generation could settle the WRONG pending
+    /// request in the new one. Each async op captures the generation it started
+    /// in and drops its result if it no longer matches.
+    private var generation = 0
 
     /// OTA verification config (CR-4 / CR-17). `updatePublicKey` nil = fail-open
     /// (load unsigned + warn). `updateGate` .hard refuses to boot stale JS;
@@ -105,6 +111,16 @@ final class ReactWatchModel: ObservableObject {
     /// Boots a fresh runtime, preferring precompiled bytecode (bundle.qbc)
     /// and falling back to parsing bundle.js.
     private func boot(devCode: String? = nil) {
+        // Tear down the previous generation's in-flight async before the id space
+        // resets (CX-008): cancel outstanding fetches and stop sensor streams so
+        // their callbacks can't settle against — or push stale readings into —
+        // the fresh runtime. (BLE is intentionally left connected: it's a
+        // stateful link we don't want to drop on a dev hot-reload, and its events
+        // are name-routed, not id-keyed.)
+        generation += 1
+        for task in fetchTasks.values { task.cancel() }
+        fetchTasks.removeAll()
+        sensors.stopAll()
         runtime = nil
         root = nil
         runtimeError = nil
@@ -329,6 +345,7 @@ final class ReactWatchModel: ObservableObject {
         }
         #if canImport(FoundationModels)
         if #available(watchOS 26.0, *) {
+            let gen = generation
             Task { [weak self] in
                 do {
                     let session = LanguageModelSession(
@@ -338,11 +355,13 @@ final class ReactWatchModel: ObservableObject {
                     let response = try await session.respond(
                         to: req.prompt, options: options)
                     await MainActor.run {
-                        self?.runtime?.resolveGenerate(id: id, text: response.content)
+                        guard let self, gen == self.generation else { return }
+                        self.runtime?.resolveGenerate(id: id, text: response.content)
                     }
                 } catch {
                     await MainActor.run {
-                        self?.runtime?.rejectGenerate(
+                        guard let self, gen == self.generation else { return }
+                        self.runtime?.rejectGenerate(
                             id: id, message: error.localizedDescription)
                     }
                 }
@@ -610,9 +629,10 @@ final class ReactWatchModel: ObservableObject {
             runtime?.rejectFetch(id: id, message: "invalid fetch request")
             return
         }
+        let gen = generation
         let task = URLSession.shared.dataTask(with: plan.request) { [weak self] data, response, error in
             DispatchQueue.main.async {
-                guard let self else { return }
+                guard let self, gen == self.generation else { return }
                 self.fetchTasks[id] = nil
                 if let error {
                     if (error as NSError).code != NSURLErrorCancelled {

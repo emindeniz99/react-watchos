@@ -47,6 +47,16 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         }
     }
 
+    /// Stops every active stream — called on runtime reload (CX-008) so a stale
+    /// subscription from the previous generation can't keep the hardware running
+    /// or push readings into the fresh runtime, which never subscribed.
+    func stopAll() {
+        stopHeartRate()
+        stopMotion()
+        motion.stopGyroUpdates()
+        location.stopUpdatingLocation()
+    }
+
     // MARK: - Gyroscope / location
 
     private func startGyroscope() {
