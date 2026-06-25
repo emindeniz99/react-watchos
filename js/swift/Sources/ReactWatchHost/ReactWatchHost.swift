@@ -65,8 +65,10 @@ final class ReactWatchModel: ObservableObject {
     private let updateGate: OTAGate
     private let shippedBundleVersion: Int
     private let updateManifestURL: String?
+    /// CR-5 A/B selector for the Swift→JS bridge, applied to each runtime.
+    private let useJSCallBridge: Bool
 
-    init(appGroupId: String?, ota: OTAConfig = .init()) {
+    init(appGroupId: String?, ota: OTAConfig = .init(), useJSCallBridge: Bool = true) {
         store = SharedWidgetStore(appGroupId: appGroupId)
         updatePublicKey = ota.publicKeyBase64
             .flatMap { Data(base64Encoded: $0) }
@@ -74,6 +76,7 @@ final class ReactWatchModel: ObservableObject {
         updateGate = ota.gate
         shippedBundleVersion = ota.shippedVersion
         updateManifestURL = ota.manifestURL
+        self.useJSCallBridge = useJSCallBridge
     }
 
     func start() {
@@ -401,6 +404,7 @@ final class ReactWatchModel: ObservableObject {
 
     private func makeRuntime() throws -> JSRuntime {
         let js = try JSRuntime()
+        js.useJSCallBridge = useJSCallBridge // CR-5 A/B selector
         js.onCommit = { [weak self] json in
             self?.decodeQueue.async {
                 let decoded = try? JSONDecoder().decode(
@@ -688,12 +692,19 @@ private struct UpdateRequiredView: View {
 /// The watch UI. Embed this in your @main App's scene; ship bundle.js as a
 /// resource. `appGroupId` enables shared widget/Storage state (optional); `ota`
 /// configures signed-update verification + anti-rollback (CR-4 / CR-17).
+/// `useJSCallBridge` selects the Swift→JS bridge (CR-5): the default `JS_Call`
+/// path or, set to `false`, the legacy eval path — set it per launch (e.g. a
+/// random bucket) to A/B them on-device before the eval path is retired.
 public struct ReactWatchRootView: View {
     @StateObject private var model: ReactWatchModel
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(appGroupId: String? = nil, ota: OTAConfig = .init()) {
-        _model = StateObject(wrappedValue: ReactWatchModel(appGroupId: appGroupId, ota: ota))
+    public init(
+        appGroupId: String? = nil, ota: OTAConfig = .init(),
+        useJSCallBridge: Bool = true
+    ) {
+        _model = StateObject(wrappedValue: ReactWatchModel(
+            appGroupId: appGroupId, ota: ota, useJSCallBridge: useJSCallBridge))
     }
 
     public var body: some View {

@@ -140,7 +140,9 @@ switchable for on-device A/B comparison before the eval path is retired.
   intent-dispatch path so the eval surface is gone consistently, not just
   on the watch app.
   **Done (2026-06-25):** all Swift→JS calls go through `bridgeCall`, gated by
-  `useJSCallBridge` (default on). With the flag, `JS_Call` invokes the cached
+  `useJSCallBridge` (default on), exposed as
+  `ReactWatchRootView(useJSCallBridge:)` so a consumer can flip it per launch
+  for the on-device A/B. With the flag, `JS_Call` invokes the cached
   global function with `JSValue` args (no per-call parse, not injection-shaped);
   the legacy eval-string path stays as the other A/B arm. Covers
   `dispatchEvent` / `pushNativeEvent` / `resolveFetch` / `rejectFetch` /
