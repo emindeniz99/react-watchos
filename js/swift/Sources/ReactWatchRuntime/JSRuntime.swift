@@ -35,10 +35,12 @@ public final class JSRuntime {
     /// WKHapticType name from js/src/haptics.ts.
     public var onPlayHaptic: ((String) -> Void)?
 
-    /// Local notifications (js/src/notifications.ts). Permission is fallible —
-    /// settle with resolveNotificationPermission/rejectNotificationPermission on
-    /// the main thread (CX-022).
-    public var onRequestNotificationPermission: ((Int) -> Void)?
+    /// Generic request/response channel (SD-1): (id, method, payloadJson).
+    /// Fallible ops route through here and settle with resolveInvoke/rejectInvoke
+    /// on the main thread, instead of a host method + global pair per op.
+    public var onInvoke: ((Int, String, String) -> Void)?
+
+    /// Local notifications (js/src/notifications.ts).
     public var onScheduleNotification: ((String) -> Void)?
     public var onCancelNotification: ((String) -> Void)?
 
@@ -55,9 +57,6 @@ public final class JSRuntime {
     public var onBle: ((String) -> Void)?
     /// Sensor op channel (js/src/sensors.ts): { op, kind }.
     public var onSensor: ((String) -> Void)?
-    /// Persist an OTA JS bundle (js/src/update.ts). Fallible — settle with
-    /// resolveSaveUpdate/rejectSaveUpdate on the main thread (CX-005).
-    public var onSaveUpdate: ((Int, String) -> Void)?
     /// On-device LLM generate (js/src/ai.ts). Settle with
     /// resolveGenerate/rejectGenerate on the main thread.
     public var onGenerate: ((Int, String) -> Void)?
@@ -189,34 +188,20 @@ public final class JSRuntime {
             filename: "fetch.js")
     }
 
-    /// Settles a saveUpdate Promise (CX-005). resultJson is reserved for future
-    /// fields; `{ accepted: true }` is implied on resolve.
-    public func resolveSaveUpdate(id: Int, resultJson: String = "{}") {
+    /// Settles a generic invoke Promise (SD-1) with the op's JSON result. Call
+    /// on the main thread. resultJson must be valid JSON ("" → undefined in JS).
+    public func resolveInvoke(id: Int, resultJson: String) {
         bridgeCall(
-            "__resolveSaveUpdate", [.int(id), .string(resultJson)],
-            filename: "update.js")
+            "__resolveInvoke", [.int(id), .string(resultJson)],
+            filename: "invoke.js")
     }
 
-    /// Rejects a saveUpdate Promise with a typed reason (errorJson =
-    /// {code, message}), so applyUpdate surfaces *why* an update was refused.
-    public func rejectSaveUpdate(id: Int, errorJson: String) {
+    /// Rejects a generic invoke Promise with a typed reason (errorJson =
+    /// {code, message}), so the caller surfaces *why* it failed (SD-1).
+    public func rejectInvoke(id: Int, errorJson: String) {
         bridgeCall(
-            "__rejectSaveUpdate", [.int(id), .string(errorJson)],
-            filename: "update.js")
-    }
-
-    /// Settles a requestNotificationPermission Promise with the authorization
-    /// status string (CX-022). Call on the main thread.
-    public func resolveNotificationPermission(id: Int, status: String) {
-        bridgeCall(
-            "__resolveNotificationPermission", [.int(id), .string(status)],
-            filename: "notifications.js")
-    }
-
-    public func rejectNotificationPermission(id: Int, message: String) {
-        bridgeCall(
-            "__rejectNotificationPermission", [.int(id), .string(message)],
-            filename: "notifications.js")
+            "__rejectInvoke", [.int(id), .string(errorJson)],
+            filename: "invoke.js")
     }
 
     /// Pushes a named native event into JS at urgent priority (runSync), so
@@ -432,11 +417,8 @@ public final class JSRuntime {
             context, host, "playHaptic",
             JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
         JS_SetPropertyStr(
-            context, host, "requestNotificationPermission",
-            JS_NewCFunction(
-                context, hostRequestNotificationPermission,
-                "requestNotificationPermission", 1)
-        )
+            context, host, "invoke",
+            JS_NewCFunction(context, hostInvoke, "invoke", 3))
         JS_SetPropertyStr(
             context, host, "scheduleNotification",
             JS_NewCFunction(
@@ -464,9 +446,6 @@ public final class JSRuntime {
         JS_SetPropertyStr(
             context, host, "sensor",
             JS_NewCFunction(context, hostSensor, "sensor", 1))
-        JS_SetPropertyStr(
-            context, host, "saveUpdate",
-            JS_NewCFunction(context, hostSaveUpdate, "saveUpdate", 2))
         JS_SetPropertyStr(
             context, host, "generate",
             JS_NewCFunction(context, hostGenerate, "generate", 2))
@@ -632,14 +611,19 @@ private func hostPlayHaptic(
     return qjs_undefined()
 }
 
-private func hostRequestNotificationPermission(
+private func hostInvoke(
     ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1 {
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 3,
+        let method = JS_ToCString(ctx, argv[1]),
+        let payload = JS_ToCString(ctx, argv[2])
+    {
         var id: Int32 = 0
         JS_ToInt32(ctx, &id, argv[0])
-        runtime.requestNotificationPermissionFromC(Int(id))
+        runtime.invokeFromC(Int(id), String(cString: method), String(cString: payload))
+        JS_FreeCString(ctx, method)
+        JS_FreeCString(ctx, payload)
     }
     return qjs_undefined()
 }
@@ -719,21 +703,6 @@ private func hostSensor(
         let cString = JS_ToCString(ctx, argv[0])
     {
         runtime.sensorFromC(String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostSaveUpdate(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-        let cString = JS_ToCString(ctx, argv[1])
-    {
-        var id: Int32 = 0
-        JS_ToInt32(ctx, &id, argv[0])
-        runtime.saveUpdateFromC(Int(id), String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
     return qjs_undefined()
@@ -837,8 +806,8 @@ extension JSRuntime {
         onPlayHaptic?(type)
     }
 
-    fileprivate func requestNotificationPermissionFromC(_ id: Int) {
-        onRequestNotificationPermission?(id)
+    fileprivate func invokeFromC(_ id: Int, _ method: String, _ payload: String) {
+        onInvoke?(id, method, payload)
     }
 
     fileprivate func scheduleNotificationFromC(_ json: String) {
@@ -867,10 +836,6 @@ extension JSRuntime {
 
     fileprivate func sensorFromC(_ json: String) {
         onSensor?(json)
-    }
-
-    fileprivate func saveUpdateFromC(_ id: Int, _ json: String) {
-        onSaveUpdate?(id, json)
     }
 
     fileprivate func generateFromC(_ id: Int, _ json: String) {

@@ -171,6 +171,13 @@ export const hostMethods = [
     feature: "core",
     since: 1,
   },
+  // The generic request/response channel (SD-1): fallible ops tagged
+  // `via: "invoke"` below are NOT installed as their own host functions — they're
+  // dispatched through invoke(id, method, payloadJson) and settled by
+  // __resolveInvoke/__rejectInvoke. They keep their own `feature` (so the ARCH-01
+  // capability set is unchanged); they're just routed through one channel instead
+  // of a per-op global pair.
+  { name: "invoke", targets: ["watch", "widget"], feature: "core", since: 1 },
   {
     name: "publishWidgets",
     targets: ["watch", "widget"],
@@ -195,6 +202,7 @@ export const hostMethods = [
     targets: ["watch"],
     feature: "notifications",
     since: 1,
+    via: "invoke",
   },
   {
     name: "scheduleNotification",
@@ -218,6 +226,6 @@ export const hostMethods = [
   { name: "abortFetch", targets: ["watch"], feature: "network", since: 1 },
   { name: "ble", targets: ["watch"], feature: "bluetooth", since: 1 },
   { name: "sensor", targets: ["watch"], feature: "sensors", since: 1 },
-  { name: "saveUpdate", targets: ["watch"], feature: "ota", since: 1 },
+  { name: "saveUpdate", targets: ["watch"], feature: "ota", since: 1, via: "invoke" },
   { name: "generate", targets: ["watch"], feature: "ai", since: 1 },
 ];

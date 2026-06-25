@@ -49,14 +49,13 @@ export interface QuickJSHostGlobal {
   setItem?(key: string, value: string): void;
   /** WKInterfaceDevice haptics. */
   playHaptic?(type: string): void;
-  /** Local notifications (UNUserNotificationCenter). */
   /**
-   * Asks for notification permission; settles via __resolveNotificationPermission
-   * (id, status) / __rejectNotificationPermission (id, message) so JS learns the
-   * real authorization status — not just a Bool, which can't tell `.provisional`
-   * (silently granted) from a full grant (CX-022).
+   * Generic request/response channel for fallible ops (SD-1); settles via
+   * __resolveInvoke(id, resultJson) / __rejectInvoke(id, errorJson). Routes
+   * saveUpdate + requestNotificationPermission (see js/src/invoke.ts).
    */
-  requestNotificationPermission?(id: number): void;
+  invoke?(id: number, method: string, payloadJson: string): void;
+  /** Local notifications (UNUserNotificationCenter). */
   scheduleNotification?(payloadJson: string): void;
   cancelNotification?(id: string): void;
   /** WatchConnectivity: send a message to the paired iPhone. */
@@ -69,12 +68,6 @@ export interface QuickJSHostGlobal {
   ble?(json: string): void;
   /** Sensor streams (HealthKit/CoreMotion): { op, kind }. Readings push back. */
   sensor?(json: string): void;
-  /**
-   * Persists an OTA JS bundle (loaded next launch). Fallible — settles via
-   * __resolveSaveUpdate(id, resultJson) / __rejectSaveUpdate(id, errorJson) so
-   * applyUpdate learns whether the update was accepted (CX-005).
-   */
-  saveUpdate?(id: number, requestJson: string): void;
   /** On-device LLM (Foundation Models); settles via __resolveGenerate/__rejectGenerate. */
   generate?(id: number, requestJson: string): void;
 }

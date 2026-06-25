@@ -17,11 +17,12 @@ afterEach(() => {
 });
 
 describe("OTA applyUpdate", () => {
-  it("forwards the bundle to the host as a JSON payload and resolves accepted", async () => {
+  it("forwards the bundle through invoke and resolves accepted", async () => {
     const host = installMockHost();
     const result = await applyUpdate("globalThis.x = 1;");
-    expect(host.saveUpdate).toHaveBeenCalledWith(
+    expect(host.invoke).toHaveBeenCalledWith(
       expect.any(Number),
+      "saveUpdate",
       JSON.stringify({ js: "globalThis.x = 1;" }),
     );
     expect(result).toEqual({ accepted: true });
@@ -30,8 +31,9 @@ describe("OTA applyUpdate", () => {
   it("carries the version + Ed25519 signature when provided (CR-4/CR-17)", async () => {
     const host = installMockHost();
     await applyUpdate("globalThis.x = 1;", 4, "c2lnbmF0dXJl");
-    expect(host.saveUpdate).toHaveBeenCalledWith(
+    expect(host.invoke).toHaveBeenCalledWith(
       expect.any(Number),
+      "saveUpdate",
       JSON.stringify({
         js: "globalThis.x = 1;",
         version: 4,
@@ -40,18 +42,23 @@ describe("OTA applyUpdate", () => {
     );
   });
 
-  // CX-005: a watch-side rejection (bad signature, capability gap, downgrade,
-  // write failure) comes back as { accepted: false } with the native reason.
-  it("resolves the native rejection reason instead of vanishing", async () => {
+  // CX-005: a watch-side refusal (bad signature, capability gap, downgrade,
+  // write failure) comes back as a *resolved* { accepted: false } with the
+  // native reason — the saveUpdate invoke resolves it, it doesn't reject.
+  it("resolves the native refusal reason instead of vanishing", async () => {
     const host = installMockHost();
-    host.saveUpdate.mockImplementation((id: number) => {
+    host.invoke.mockImplementation((id: number) => {
       (
         globalThis as {
-          __rejectSaveUpdate?: (id: number, errorJson: string) => void;
+          __resolveInvoke?: (id: number, resultJson: string) => void;
         }
-      ).__rejectSaveUpdate?.(
+      ).__resolveInvoke?.(
         id,
-        JSON.stringify({ code: "bad-signature", message: "signature invalid" }),
+        JSON.stringify({
+          accepted: false,
+          code: "bad-signature",
+          message: "signature invalid",
+        }),
       );
     });
     expect(await applyUpdate("x", 2, "sig")).toEqual({
@@ -61,12 +68,10 @@ describe("OTA applyUpdate", () => {
     });
   });
 
-  it("resolves accepted:false without an update-capable host", async () => {
-    expect(await applyUpdate("x")).toEqual({
-      accepted: false,
-      code: "no-host",
-      message: "no update-capable host",
-    });
+  it("resolves accepted:false without an invoke-capable host", async () => {
+    const result = await applyUpdate("x");
+    expect(result.accepted).toBe(false);
+    expect(result.code).toBe("UNAVAILABLE");
   });
 });
 
@@ -105,8 +110,9 @@ describe("OTA freshness check", () => {
     expect((g.fetch as ReturnType<typeof vi.fn>).mock.calls[1][0]).toBe(
       "https://x.test/sub/bundle.js",
     );
-    expect(host.saveUpdate).toHaveBeenCalledWith(
+    expect(host.invoke).toHaveBeenCalledWith(
       expect.any(Number),
+      "saveUpdate",
       JSON.stringify({ js: "globalThis.x=1;", version: 3, signature: "sig" }),
     );
   });
@@ -119,7 +125,7 @@ describe("OTA freshness check", () => {
     expect(
       await fetchAndApplyUpdate("https://x.test/manifest.json"),
     ).toBeNull();
-    expect(host.saveUpdate).not.toHaveBeenCalled();
+    expect(host.invoke).not.toHaveBeenCalled();
   });
 });
 
@@ -162,7 +168,7 @@ describe("OTA capability gate", () => {
     ).toBeNull();
     // Only the manifest was fetched — the bundle itself was never downloaded.
     expect((g.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
-    expect(host.saveUpdate).not.toHaveBeenCalled();
+    expect(host.invoke).not.toHaveBeenCalled();
   });
 
   it("applies when the binary provides every required feature", async () => {
@@ -180,6 +186,6 @@ describe("OTA capability gate", () => {
       })
       .mockResolvedValueOnce({ text: async () => "globalThis.x=1;" });
     expect(await fetchAndApplyUpdate("https://x.test/manifest.json")).toBe(6);
-    expect(host.saveUpdate).toHaveBeenCalled();
+    expect(host.invoke).toHaveBeenCalled();
   });
 });

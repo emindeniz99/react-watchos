@@ -1,4 +1,5 @@
 import { getHost } from "./host";
+import { type InvokeError, invoke } from "./invoke";
 
 /**
  * Local notifications scheduled from React, delivered by the watch even
@@ -35,54 +36,19 @@ export type NotificationPermission =
   | "provisional"
   | "unavailable";
 
-let nextPermissionId = 1;
-const pendingPermissions = new Map<
-  number,
-  {
-    resolve: (status: NotificationPermission) => void;
-    reject: (e: unknown) => void;
-  }
->();
-
-/** Installs the host->JS settle globals for permission requests (CX-022).
- *  Idempotent; called lazily so the globals exist before the host replies. */
-function installNotificationBridge(): void {
-  const g = globalThis as {
-    __resolveNotificationPermission?: (id: number, status: string) => void;
-    __rejectNotificationPermission?: (id: number, message: string) => void;
-  };
-  if (g.__resolveNotificationPermission) return;
-  g.__resolveNotificationPermission = (id, status) => {
-    const p = pendingPermissions.get(id);
-    if (!p) return;
-    pendingPermissions.delete(id);
-    p.resolve(status as NotificationPermission);
-  };
-  g.__rejectNotificationPermission = (id, message) => {
-    const p = pendingPermissions.get(id);
-    if (!p) return;
-    pendingPermissions.delete(id);
-    p.reject(new Error(message || "notification permission request failed"));
-  };
-}
-
 /**
  * Asks the user for notification permission (first call shows the prompt) and
- * resolves the resulting authorization status (CX-022). Rejects only if the
- * native request errors; resolves `"unavailable"` when there's no
- * notification-capable host.
+ * resolves the resulting authorization status (CX-022). Resolves `"unavailable"`
+ * when there's no notification-capable host (tests/widget); rejects only if the
+ * native request itself errors. Routed through the generic invoke channel.
  */
-export function requestNotificationPermission(): Promise<NotificationPermission> {
-  const host = getHost();
-  if (!host?.requestNotificationPermission) {
-    return Promise.resolve("unavailable");
+export async function requestNotificationPermission(): Promise<NotificationPermission> {
+  try {
+    return await invoke<NotificationPermission>("requestNotificationPermission");
+  } catch (error) {
+    if ((error as InvokeError).code === "UNAVAILABLE") return "unavailable";
+    throw error;
   }
-  installNotificationBridge();
-  return new Promise((resolve, reject) => {
-    const id = nextPermissionId++;
-    pendingPermissions.set(id, { resolve, reject });
-    host.requestNotificationPermission?.(id);
-  });
 }
 
 /** Schedules a local notification; returns its id for cancelNotification. */

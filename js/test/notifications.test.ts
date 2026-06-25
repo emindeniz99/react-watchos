@@ -41,11 +41,15 @@ describe("notifications", () => {
     expect(payload.sound).toBe(false);
   });
 
-  it("forwards permission requests and cancellations to the host", async () => {
+  it("forwards permission requests (via invoke) and cancellations to the host", async () => {
     const host = installMockHost();
     const status = await requestNotificationPermission();
     cancelNotification("hydration.reminder");
-    expect(host.requestNotificationPermission).toHaveBeenCalledTimes(1);
+    expect(host.invoke).toHaveBeenCalledWith(
+      expect.any(Number),
+      "requestNotificationPermission",
+      "",
+    );
     expect(status).toBe("granted");
     expect(host.cancelNotification).toHaveBeenCalledWith("hydration.reminder");
   });
@@ -54,30 +58,24 @@ describe("notifications", () => {
   // provisional from full grant), and a native error rejects rather than vanishing.
   it("resolves the native authorization status", async () => {
     const host = installMockHost();
-    host.requestNotificationPermission.mockImplementation((id: number) => {
+    host.invoke.mockImplementation((id: number) => {
       (
         globalThis as {
-          __resolveNotificationPermission?: (
-            id: number,
-            status: string,
-          ) => void;
+          __resolveInvoke?: (id: number, resultJson: string) => void;
         }
-      ).__resolveNotificationPermission?.(id, "provisional");
+      ).__resolveInvoke?.(id, JSON.stringify("provisional"));
     });
     expect(await requestNotificationPermission()).toBe("provisional");
   });
 
   it("rejects when the native request errors", async () => {
     const host = installMockHost();
-    host.requestNotificationPermission.mockImplementation((id: number) => {
+    host.invoke.mockImplementation((id: number) => {
       (
         globalThis as {
-          __rejectNotificationPermission?: (
-            id: number,
-            message: string,
-          ) => void;
+          __rejectInvoke?: (id: number, errorJson: string) => void;
         }
-      ).__rejectNotificationPermission?.(id, "boom");
+      ).__rejectInvoke?.(id, JSON.stringify({ code: "INTERNAL", message: "boom" }));
     });
     await expect(requestNotificationPermission()).rejects.toThrow("boom");
   });

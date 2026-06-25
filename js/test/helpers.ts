@@ -18,17 +18,25 @@ export function installMockHost() {
     getItem: vi.fn((_key: string): string | null => null),
     setItem: vi.fn(),
     playHaptic: vi.fn(),
-    // Mirror native: settle the requestNotificationPermission Promise as granted
-    // (CX-022). Tests wanting another status call __resolve/__reject directly.
-    requestNotificationPermission: vi.fn((id: number) => {
-      (
-        globalThis as {
-          __resolveNotificationPermission?: (
-            id: number,
-            status: string,
-          ) => void;
-        }
-      ).__resolveNotificationPermission?.(id, "granted");
+    // Generic invoke channel (SD-1): dispatch by method and settle the Promise,
+    // mirroring native. saveUpdate accepts, requestNotificationPermission grants;
+    // an unrouted method rejects with UNKNOWN_METHOD. Tests wanting another
+    // outcome call .mockImplementation or __resolveInvoke/__rejectInvoke directly.
+    invoke: vi.fn((id: number, method: string, _payloadJson: string) => {
+      const g = globalThis as {
+        __resolveInvoke?: (id: number, resultJson: string) => void;
+        __rejectInvoke?: (id: number, errorJson: string) => void;
+      };
+      if (method === "saveUpdate") {
+        g.__resolveInvoke?.(id, JSON.stringify({ accepted: true }));
+      } else if (method === "requestNotificationPermission") {
+        g.__resolveInvoke?.(id, JSON.stringify("granted"));
+      } else {
+        g.__rejectInvoke?.(
+          id,
+          JSON.stringify({ code: "UNKNOWN_METHOD", message: method }),
+        );
+      }
     }),
     scheduleNotification: vi.fn(),
     cancelNotification: vi.fn(),
@@ -37,15 +45,6 @@ export function installMockHost() {
     abortFetch: vi.fn(),
     ble: vi.fn(),
     sensor: vi.fn(),
-    // Mirror the native side: accept the update and settle the applyUpdate
-    // Promise (CX-005). Tests that want a rejection call __rejectSaveUpdate.
-    saveUpdate: vi.fn((id: number, _requestJson: string) => {
-      (
-        globalThis as {
-          __resolveSaveUpdate?: (id: number, resultJson: string) => void;
-        }
-      ).__resolveSaveUpdate?.(id, "{}");
-    }),
     generate: vi.fn(),
   };
   (globalThis as Record<string, unknown>).__host = host;

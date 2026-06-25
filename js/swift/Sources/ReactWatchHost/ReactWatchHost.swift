@@ -191,19 +191,65 @@ final class ReactWatchModel: ObservableObject {
     /// past this rather than persist something that can't load.
     private static let maxOTABundleBytes = 3 * 1024 * 1024
 
-    /// Runs saveUpdate and settles the JS applyUpdate Promise (CX-005): resolve
-    /// on accept, reject with the reason on refusal — so a rejected OTA (bad
-    /// signature, capability gap, downgrade, write failure) no longer vanishes.
-    private func handleSaveUpdate(id: Int, payload: String) {
-        if saveUpdate(payload) {
-            runtime?.resolveSaveUpdate(id: id)
-        } else {
-            runtime?.rejectSaveUpdate(
+    /// Routes a generic invoke (SD-1) to its handler; an unknown method rejects
+    /// (never hangs the JS Promise).
+    private func handleInvoke(id: Int, method: String, payload: String) {
+        switch method {
+        case "saveUpdate":
+            handleSaveUpdate(id: id, payload: payload)
+        case "requestNotificationPermission":
+            requestNotificationPermission(id: id)
+        default:
+            runtime?.rejectInvoke(
                 id: id,
                 errorJson: Self.errorJSON(
-                    code: "rejected", message: runtimeError ?? "OTA update rejected"
-                )
-            )
+                    code: "UNKNOWN_METHOD", message: "no invoke handler for \(method)"))
+        }
+    }
+
+    /// Runs saveUpdate and *resolves* the invoke with a SaveUpdateResult (CX-005):
+    /// a refusal (bad signature, capability gap, downgrade, write failure) is a
+    /// normal `{accepted:false}` result — not an invoke rejection — so the reason
+    /// reaches applyUpdate instead of vanishing.
+    private func handleSaveUpdate(id: Int, payload: String) {
+        if saveUpdate(payload) {
+            runtime?.resolveInvoke(id: id, resultJson: #"{"accepted":true}"#)
+        } else {
+            let result: [String: Any] = [
+                "accepted": false,
+                "code": "rejected",
+                "message": runtimeError ?? "OTA update rejected",
+            ]
+            runtime?.resolveInvoke(id: id, resultJson: Self.jsonObject(result))
+        }
+    }
+
+    /// Requests notification permission and resolves the invoke with the real
+    /// authorization status (CX-022) — resolved from getNotificationSettings, not
+    /// the granted Bool (`.provisional` silently returns true). A native error
+    /// rejects. Generation-guarded (CX-008).
+    private func requestNotificationPermission(id: Int) {
+        let gen = generation
+        let center = UNUserNotificationCenter.current()
+        center.requestAuthorization(options: [.alert, .sound]) { [weak self] _, error in
+            if let error {
+                DispatchQueue.main.async {
+                    guard let self, gen == self.generation else { return }
+                    self.runtime?.rejectInvoke(
+                        id: id,
+                        errorJson: Self.errorJSON(
+                            code: "INTERNAL", message: error.localizedDescription))
+                }
+                return
+            }
+            center.getNotificationSettings { settings in
+                let status = Self.permissionStatus(settings.authorizationStatus)
+                DispatchQueue.main.async {
+                    guard let self, gen == self.generation else { return }
+                    self.runtime?.resolveInvoke(
+                        id: id, resultJson: Self.jsonString(status))
+                }
+            }
         }
     }
 
@@ -223,10 +269,21 @@ final class ReactWatchModel: ObservableObject {
 
     /// JSON-encodes a {code, message} reject payload, escaping safely.
     private static func errorJSON(code: String, message: String) -> String {
+        jsonObject(["code": code, "message": message])
+    }
+
+    /// JSON-encodes an object for an invoke result/error, escaping safely.
+    private static func jsonObject(_ object: [String: Any]) -> String {
+        (try? JSONSerialization.data(withJSONObject: object))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    }
+
+    /// JSON-encodes a bare string as an invoke result (e.g. a status enum).
+    private static func jsonString(_ value: String) -> String {
         (try? JSONSerialization.data(
-            withJSONObject: ["code": code, "message": message]
+            withJSONObject: value, options: .fragmentsAllowed
         ))
-        .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        .flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
     }
 
     /// Persists an OTA bundle (CR-4 / CR-17). An OTA bundle is arbitrary JS with
@@ -618,8 +675,8 @@ final class ReactWatchModel: ObservableObject {
         js.onAbortFetch = { [weak self] id in self?.abortFetch(id: id) }
         js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
         js.onSensor = { [weak self] json in self?.sensors.handleOp(json) }
-        js.onSaveUpdate = { [weak self] id, payload in
-            self?.handleSaveUpdate(id: id, payload: payload)
+        js.onInvoke = { [weak self] id, method, payload in
+            self?.handleInvoke(id: id, method: method, payload: payload)
         }
         js.onGenerate = { [weak self] id, reqJson in
             self?.generate(id: id, requestJson: reqJson)
@@ -641,30 +698,6 @@ final class ReactWatchModel: ObservableObject {
                 default: .click
                 }
             WKInterfaceDevice.current().play(haptic)
-        }
-        js.onRequestNotificationPermission = { [weak self] id in
-            guard let self else { return }
-            let gen = self.generation
-            let center = UNUserNotificationCenter.current()
-            center.requestAuthorization(options: [.alert, .sound]) { [weak self] _, error in
-                if let error {
-                    DispatchQueue.main.async {
-                        guard let self, gen == self.generation else { return }
-                        self.runtime?.rejectNotificationPermission(
-                            id: id, message: error.localizedDescription)
-                    }
-                    return
-                }
-                // Resolve from the real authorizationStatus, not the granted Bool:
-                // `.provisional` silently returns granted == true (CX-022).
-                center.getNotificationSettings { settings in
-                    let status = Self.permissionStatus(settings.authorizationStatus)
-                    DispatchQueue.main.async {
-                        guard let self, gen == self.generation else { return }
-                        self.runtime?.resolveNotificationPermission(id: id, status: status)
-                    }
-                }
-            }
         }
         js.onScheduleNotification = { [weak self] json in
             self?.scheduleNotification(json)

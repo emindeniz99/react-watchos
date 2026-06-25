@@ -215,6 +215,7 @@ function tsModel() {
       targets: m.targets,
       feature: m.feature,
       since: m.since,
+      ...(m.via ? { via: m.via } : {}),
     })),
   );
   parts.push(

@@ -1,4 +1,4 @@
-import { getHost } from "./host";
+import { invoke, type InvokeError } from "./invoke";
 
 /**
  * Over-the-air UI updates. The dev live-reload (DEBUG) and this production
@@ -36,77 +36,41 @@ export interface SaveUpdateResult {
   message?: string;
 }
 
-let nextSaveId = 1;
-const pendingSaves = new Map<number, (result: SaveUpdateResult) => void>();
-
-/** Installs the host->JS settle globals for saveUpdate (CX-005). Idempotent;
- *  called lazily by applyUpdate so the globals exist before the host replies. */
-function installUpdateBridge(): void {
-  const g = globalThis as {
-    __resolveSaveUpdate?: (id: number, resultJson: string) => void;
-    __rejectSaveUpdate?: (id: number, errorJson: string) => void;
-  };
-  if (g.__resolveSaveUpdate) return;
-  g.__resolveSaveUpdate = (id, resultJson) => {
-    const resolve = pendingSaves.get(id);
-    if (!resolve) return;
-    pendingSaves.delete(id);
-    resolve({ accepted: true });
-    void resultJson; // accepted is the whole result on success
-  };
-  g.__rejectSaveUpdate = (id, errorJson) => {
-    const resolve = pendingSaves.get(id);
-    if (!resolve) return;
-    pendingSaves.delete(id);
-    let code = "rejected";
-    let message = "OTA update rejected";
-    try {
-      const parsed = errorJson ? JSON.parse(errorJson) : {};
-      if (typeof parsed.code === "string") code = parsed.code;
-      if (typeof parsed.message === "string") message = parsed.message;
-    } catch {}
-    resolve({ accepted: false, code, message });
-  };
-}
-
 /**
  * Stages an OTA bundle and resolves whether the watch accepted it (CX-005).
- * Resolves (never rejects) with `{ accepted }` — a rejection from the native
- * side (bad signature, capability gap, downgrade, write failure) comes back as
- * `{ accepted: false, code, message }`, so the UI can tell the user why.
+ * Resolves (never rejects) with `{ accepted }` — a refusal from the native side
+ * (bad signature, capability gap, downgrade, write failure) comes back as
+ * `{ accepted: false, code, message }`, and no invoke-capable host (tests/Node)
+ * as `{ accepted: false }` too, so the UI can always tell the user why. Routed
+ * through the generic invoke channel (SD-1); the native `saveUpdate` handler
+ * always *resolves* its invoke with a SaveUpdateResult.
  */
-export function applyUpdate(
+export async function applyUpdate(
   js: string,
   version?: number,
   signature?: string,
   requiredFeatures?: string[],
   minBridgeProtocol?: number,
 ): Promise<SaveUpdateResult> {
-  const host = getHost();
-  if (!host?.saveUpdate) {
-    return Promise.resolve({
-      accepted: false,
-      code: "no-host",
-      message: "no update-capable host",
-    });
-  }
-  installUpdateBridge();
-  return new Promise((resolve) => {
-    const id = nextSaveId++;
-    pendingSaves.set(id, resolve);
+  try {
     // JSON.stringify drops undefined keys, so a call without capability fields
     // produces the same payload as before.
-    host.saveUpdate?.(
-      id,
-      JSON.stringify({
-        js,
-        version,
-        signature,
-        requiredFeatures,
-        minBridgeProtocol,
-      }),
-    );
-  });
+    return await invoke<SaveUpdateResult>("saveUpdate", {
+      js,
+      version,
+      signature,
+      requiredFeatures,
+      minBridgeProtocol,
+    });
+  } catch (error) {
+    // invoke only rejects here when there's no host / the native side errored;
+    // a normal OTA refusal is a resolved { accepted: false }.
+    return {
+      accepted: false,
+      code: (error as InvokeError).code ?? "INTERNAL",
+      message: error instanceof Error ? error.message : "OTA update rejected",
+    };
+  }
 }
 
 /** This bundle's OTA compatibility version (CR-17), injected at build from

@@ -18,10 +18,12 @@ describe("codegen", () => {
     ).not.toThrow();
   });
 
-  it("the Swift runtime installs exactly the schema's host methods", () => {
+  it("the Swift runtime installs exactly the schema's direct host methods", () => {
     // One embedding now: ReactWatchRuntime.JSRuntime serves both the watch app
     // and the widget extension (IntentRuntime reuses it), so it must install
-    // every host method the schema declares. Cross-checks codegen <-> Swift.
+    // every DIRECT host method the schema declares. `via:"invoke"` methods are
+    // routed through the generic invoke channel, not installed as their own host
+    // functions (SD-1), so they're excluded here. Cross-checks codegen <-> Swift.
     const src = readFileSync(
       join(swiftRoot, "Sources/ReactWatchRuntime/JSRuntime.swift"),
       "utf8",
@@ -32,7 +34,25 @@ describe("codegen", () => {
     )) {
       installed.add(m[1] as string);
     }
-    const expected = new Set(hostMethods.map((m) => m.name));
+    const expected = new Set(
+      hostMethods.filter((m) => m.via !== "invoke").map((m) => m.name),
+    );
     expect([...installed].sort()).toEqual([...expected].sort());
+  });
+
+  it("the host routes exactly the schema's invoke methods", () => {
+    // Each `via:"invoke"` method must have a routing case in ReactWatchHost's
+    // onInvoke dispatcher, so the schema and the native router can't drift.
+    const src = readFileSync(
+      join(swiftRoot, "Sources/ReactWatchHost/ReactWatchHost.swift"),
+      "utf8",
+    );
+    const routed = new Set<string>();
+    for (const m of src.matchAll(/case\s+"(\w+)"\s*:/g)) {
+      routed.add(m[1] as string);
+    }
+    for (const m of hostMethods.filter((m) => m.via === "invoke")) {
+      expect(routed.has(m.name)).toBe(true);
+    }
   });
 });
