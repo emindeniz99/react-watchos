@@ -116,6 +116,7 @@ final class ReactWatchModel: ObservableObject {
         do {
             let js = try makeRuntime()
             runtime = js
+            installHostCapabilities(js)
             #if DEBUG
             try? js.evaluate(
                 "globalThis.__inspectorUrl='http://127.0.0.1:8099/snapshot'")
@@ -128,6 +129,19 @@ final class ReactWatchModel: ObservableObject {
         } catch {
             startupError = "JS startup failed: \(error)"
         }
+    }
+
+    /// Exposes this binary's capability set + bridge protocol to JS before the
+    /// bundle runs (ARCH-01), so the JS OTA gate (update.ts) can refuse — before
+    /// downloading — a bundle needing a feature this app doesn't provide.
+    private func installHostCapabilities(_ js: JSRuntime) {
+        let features = Array(HostFeatures.watch).sorted()
+        let json = (try? JSONSerialization.data(withJSONObject: features))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        try? js.evaluate(
+            "globalThis.__hostFeatures=\(json);"
+                + "globalThis.__bridgeProtocol=\(RNWire.bridgeProtocol);",
+            filename: "host-capabilities.js")
     }
 
     /// App Group files holding an OTA bundle (js/src/update.ts) + its metadata
