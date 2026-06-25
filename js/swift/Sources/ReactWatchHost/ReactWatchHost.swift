@@ -144,28 +144,17 @@ final class ReactWatchModel: ObservableObject {
             filename: "host-capabilities.js")
     }
 
-    /// App Group files holding an OTA bundle (js/src/update.ts) + its metadata
-    /// (compatibility version + base64 Ed25519 signature).
-    private var otaBundleURL: URL? { appGroupFile("ota-bundle.js") }
-    private var otaMetaURL: URL? { appGroupFile("ota-meta.json") }
+    /// The persisted active OTA bundle (js/src/update.ts): source + metadata in
+    /// ONE atomically-written record (OTARecord), so an apply can't half-land.
+    private var otaRecordURL: URL? { appGroupFile("ota-bundle.json") }
     /// On-device-compiled bytecode cache for the OTA bundle (CR-17), so a cold
-    /// start skips the parser. Derived from the verified source at save time.
+    /// start skips the parser. Pinned to the record by `bytecodeHash`.
     private var otaBytecodeURL: URL? { appGroupFile("ota-bundle.qbc") }
     private func appGroupFile(_ name: String) -> URL? {
         guard let group = store.appGroupId else { return nil }
         return FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: group)?
             .appendingPathComponent(name)
-    }
-
-    /// Sidecar for the persisted OTA bundle.
-    private struct OTAMeta: Codable {
-        let version: Int?
-        let signature: String? // base64 Ed25519 over UpdatePlan.signedMessage
-        /// ContentHash of the source the cached bytecode was compiled from
-        /// (OP-1); load trusts the `.qbc` only when this matches the source on
-        /// disk. nil = no trustworthy bytecode, parse the source.
-        var bytecodeSourceHash: String?
     }
 
     /// Ceiling for an OTA bundle. The app parses the whole source through
@@ -184,7 +173,7 @@ final class ReactWatchModel: ObservableObject {
     /// with `runtimeError` set) — the native recovery path reboots only on true.
     @discardableResult
     private func saveUpdate(_ payload: String) -> Bool {
-        guard let url = otaBundleURL, let metaURL = otaMetaURL else { return false }
+        guard otaRecordURL != nil else { return false }
         let plan = UpdatePlan(payload: payload)
         let size = plan.js.utf8.count
         guard size <= Self.maxOTABundleBytes else {
@@ -220,19 +209,16 @@ final class ReactWatchModel: ObservableObject {
             }
             return persistOTA(
                 js: plan.js, version: version,
-                signature: signature.base64EncodedString(), url: url, metaURL: metaURL)
+                signature: signature.base64EncodedString())
         } else {
             print("[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
                 + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
-            return persistOTA(
-                js: plan.js, version: plan.version, signature: nil,
-                url: url, metaURL: metaURL)
+            return persistOTA(js: plan.js, version: plan.version, signature: nil)
         }
     }
 
-    private func persistOTA(
-        js: String, version: Int?, signature: String?, url: URL, metaURL: URL
-    ) -> Bool {
+    private func persistOTA(js: String, version: Int?, signature: String?) -> Bool {
+        guard let recordURL = otaRecordURL else { return false }
         // Read-only validation (ARCH-04): eval the candidate in a throwaway
         // runtime whose host callbacks are all nil (so commit/setItem/publish are
         // no-ops). A bundle that throws on load is caught BEFORE we persist it,
@@ -244,19 +230,19 @@ final class ReactWatchModel: ObservableObject {
             runtimeError = "OTA update rejected: bundle failed to evaluate: \(error)"
             return false
         }
-        guard (try? js.write(to: url, atomically: true, encoding: .utf8)) != nil else {
-            runtimeError = "OTA update rejected: could not write bundle"
+        // Compile the bytecode first so the record can pin the exact blob written
+        // (OP-1); a nil hash just means load will parse the source.
+        let bytecodeHash = cacheOTABytecode(source: js)
+        let record = OTARecord(
+            js: js, version: version, signature: signature, bytecodeHash: bytecodeHash)
+        // ONE atomic write is the commit point (ARCH-04): a crash before it
+        // leaves the previous record (or none) intact — never a new source paired
+        // with a stale version/signature, the half-applied state the old two-file
+        // (.js + .json) write could produce.
+        guard let data = try? JSONEncoder().encode(record),
+              (try? data.write(to: recordURL, options: .atomic)) != nil else {
+            runtimeError = "OTA update rejected: could not write bundle record"
             return false
-        }
-        // Compile the bytecode first and only record its source hash in meta if
-        // that succeeded, so load never trusts a `.qbc` that doesn't match this
-        // exact source (OP-1).
-        let bytecodeHash = cacheOTABytecode(source: js) ? ContentHash.of(js) : nil
-        let meta = OTAMeta(
-            version: version, signature: signature,
-            bytecodeSourceHash: bytecodeHash)
-        if let data = try? JSONEncoder().encode(meta) {
-            try? data.write(to: metaURL, options: .atomic)
         }
         return true
     }
@@ -264,28 +250,27 @@ final class ReactWatchModel: ObservableObject {
     /// Compiles the just-verified OTA source to bytecode now (CR-17) so the next
     /// cold start skips the parser. Compiled in a throwaway runtime — the same
     /// quickjs-ng, so it's version-matched — to avoid touching the live context.
-    /// Returns whether a fresh `.qbc` was written; on failure the stale cache is
-    /// dropped and load falls back to the source.
-    @discardableResult
-    private func cacheOTABytecode(source: String) -> Bool {
-        guard let bcURL = otaBytecodeURL else { return false }
-        if let bytecode = (try? JSRuntime())?.compileToBytecode(source) {
-            return (try? bytecode.write(to: bcURL, options: .atomic)) != nil
+    /// Returns the hash of the blob written (to pin it in the record), or nil if
+    /// compilation/write failed — then the stale cache is dropped and load falls
+    /// back to the source.
+    private func cacheOTABytecode(source: String) -> String? {
+        guard let bcURL = otaBytecodeURL else { return nil }
+        if let bytecode = (try? JSRuntime())?.compileToBytecode(source),
+           (try? bytecode.write(to: bcURL, options: .atomic)) != nil {
+            return ContentHash.of(bytecode)
         }
         try? FileManager.default.removeItem(at: bcURL)
-        return false
+        return nil
     }
 
-    private func loadOTAMeta() -> OTAMeta? {
-        guard let metaURL = otaMetaURL, let data = try? Data(contentsOf: metaURL) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(OTAMeta.self, from: data)
+    private func loadOTARecord() -> OTARecord? {
+        guard let recordURL = otaRecordURL,
+              let data = try? Data(contentsOf: recordURL) else { return nil }
+        return try? JSONDecoder().decode(OTARecord.self, from: data)
     }
 
     private func dropOTA() {
-        if let url = otaBundleURL { try? FileManager.default.removeItem(at: url) }
-        if let metaURL = otaMetaURL { try? FileManager.default.removeItem(at: metaURL) }
+        if let url = otaRecordURL { try? FileManager.default.removeItem(at: url) }
         if let bcURL = otaBytecodeURL { try? FileManager.default.removeItem(at: bcURL) }
     }
 
@@ -404,7 +389,7 @@ final class ReactWatchModel: ObservableObject {
                 } else {
                     store.setOTABootAttempts(store.otaBootAttempts() + 1)
                     do {
-                        try evaluateOTA(c.code, into: js)
+                        try evaluateOTA(c, into: js)
                         if let v = c.version {
                             store.setOTAHighWater(
                                 VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v))
@@ -436,24 +421,22 @@ final class ReactWatchModel: ObservableObject {
     /// save (the network boundary); the App Group is a trusted local sandbox,
     /// so load doesn't re-verify — which is what lets it run the unsigned local
     /// bytecode cache. nil if none.
-    private func otaCandidate() -> (code: String, version: Int?)? {
-        guard let ota = otaBundleURL,
-              let code = try? String(contentsOf: ota, encoding: .utf8),
-              !code.isEmpty else { return nil }
-        return (code, loadOTAMeta()?.version)
+    private func otaCandidate() -> OTARecord? {
+        guard let record = loadOTARecord(), !record.js.isEmpty else { return nil }
+        return record
     }
 
     /// Runs the OTA bundle, preferring the on-device bytecode cache (no parser);
     /// falls back to parsing the source if the cache is missing or stale (e.g.
     /// the embedded quickjs-ng changed in a native release, so the cached
     /// bytecode no longer loads).
-    private func evaluateOTA(_ source: String, into js: JSRuntime) throws {
-        // Trust the cached bytecode only if meta says it was compiled from THIS
-        // exact source (OP-1): a crash between writing the source and its
-        // bytecode, or a leftover `.qbc` from a previous bundle, must never run
-        // as if it were this bundle.
+    private func evaluateOTA(_ record: OTARecord, into js: JSRuntime) throws {
+        // Trust the cached bytecode only if the blob on disk hashes to what this
+        // record was saved with (OP-1): a `.qbc` left by a previous bundle, or a
+        // partial write, won't match and is reparsed — so stale bytecode can
+        // never run as if it were this bundle.
         if let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL),
-           loadOTAMeta()?.bytecodeSourceHash == ContentHash.of(source) {
+           record.bytecodeHash == ContentHash.of(data) {
             do {
                 try js.evaluateBytecode(data)
                 return
@@ -461,7 +444,7 @@ final class ReactWatchModel: ObservableObject {
                 try? FileManager.default.removeItem(at: bcURL) // engine-version stale
             }
         }
-        try js.evaluate(source)
+        try js.evaluate(record.js)
     }
 
     private func loadShipped(into js: JSRuntime) throws {

@@ -420,6 +420,40 @@ final class ContentHashTests: XCTestCase {
             ContentHash.of("globalThis.x=1"), ContentHash.of("globalThis.x=2"))
         XCTAssertFalse(ContentHash.of("").isEmpty)
     }
+
+    // ARCH-04: the Data overload pins an OTA record to its bytecode blob, so a
+    // different blob (a stale `.qbc`) must hash differently. Matches the String
+    // overload for the same bytes (one FNV-1a core).
+    func testDataOverloadDistinctAndMatchesStringForSameBytes() {
+        XCTAssertEqual(
+            ContentHash.of(Data([1, 2, 3])), ContentHash.of(Data([1, 2, 3])))
+        XCTAssertNotEqual(
+            ContentHash.of(Data([1, 2, 3])), ContentHash.of(Data([1, 2, 4])))
+        XCTAssertEqual(
+            ContentHash.of(Data("abc".utf8)), ContentHash.of("abc"))
+    }
+}
+
+// ARCH-04 atomic apply: the active-bundle record is one Codable unit, so source
+// and version/signature/bytecodeHash always land together — JSON round-trips
+// without losing the optional fields.
+final class OTARecordTests: XCTestCase {
+    func testRoundTripsAllFields() throws {
+        let record = OTARecord(
+            js: "globalThis.x=1", version: 7, signature: "sig==", bytecodeHash: "abcd")
+        let data = try JSONEncoder().encode(record)
+        XCTAssertEqual(try JSONDecoder().decode(OTARecord.self, from: data), record)
+    }
+
+    func testRoundTripsUnsignedFailOpen() throws {
+        // Fail-open path: no key configured -> nil version/signature, no bytecode.
+        let record = OTARecord(js: "x", version: nil, signature: nil, bytecodeHash: nil)
+        let data = try JSONEncoder().encode(record)
+        let back = try JSONDecoder().decode(OTARecord.self, from: data)
+        XCTAssertEqual(back, record)
+        XCTAssertNil(back.version)
+        XCTAssertNil(back.bytecodeHash)
+    }
 }
 
 // ARCH-04: the OTA boot-attempt counter (crash-loop guard) and high-water mark
