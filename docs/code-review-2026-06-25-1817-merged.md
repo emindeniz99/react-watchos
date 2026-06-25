@@ -57,7 +57,8 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
   - **Single-use body** (`bodyUsed`; first `text()`/`json()`/`arrayBuffer()` consumes, second rejects with `TypeError`).
   - **Honest header**: documents the supported subset and what's *intentionally not* implemented (`Request` input, `clone`, `credentials`/`cache`/`redirect`, `Blob`/`FormData`) — the host can't honor them, so adding them would be the false "WHATWG-aligned" claim the review flagged.
   - TDD: JS passthrough test written red → green; Swift `FetchPlanTests` gained "any absolute scheme accepted" + "schemeless rejected" to lock the native contract. JS suite 201, `swift test` 79, typecheck + biome clean.
-- [ ] Remaining host: CX-017 (relevantContexts → WidgetKit relevance), **ARCH-03** (app/widget bundle split).
+- [x] **ARCH-03** — **separate app & widget bundles** (build-only; CX-004 deepened). `demo/entry.tsx` split into `app.entry.tsx` (mounts UI + seeds/syncs complications) and `widget.entry.tsx` (registers intent + timeline handlers only — no `App` import, no `runApp`). Build emits two bundles: the app keeps the name `dist/bundle.js` (dev server, OTA manifest, dev-fetch URL unchanged) and the new `dist/widget.bundle.js`; each copies to `bundle.js` in its target dir, so **no Swift change** (native loads the resource named "bundle" from its own target). The widget process no longer evaluates app code — minified widget 143 KB vs app 171 KB. Per-target size budgets (app 200 / widget 160) + bytecode tooling now cover both. The `qjs-smoke` intent run loads the **widget** bundle with a `commit`-throws guard, proving it never mounts UI. JS suite 201, widget Xcode scheme BUILD SUCCEEDED. (OTA-side dual-bundle release = SD-4, separate.)
+- [ ] Remaining host: CX-017 (relevantContexts → WidgetKit relevance).
 
 ### Verdict legend
 

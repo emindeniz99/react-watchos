@@ -13,6 +13,9 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const jsRoot = join(__dirname, "..");
 const bundlePath = join(jsRoot, "dist/bundle.js");
+// ARCH-03: the widget extension evaluates its OWN, smaller bundle — never the
+// app bundle — so the intent path runs widget.bundle.js here.
+const widgetBundlePath = join(jsRoot, "dist/widget.bundle.js");
 
 const harnessPrelude = `
 "use strict";
@@ -108,11 +111,11 @@ print(JSON.stringify({
 }));
 `;
 
-// Mirrors IntentRuntime.swift in the widget extension: same bundle,
-// __entrypoint = "intent", storage bridge, no UI mount.
+// Mirrors IntentRuntime.swift in the widget extension: the WIDGET bundle (which
+// has no App import / runApp), storage bridge, no UI mount. `commit` throws, so
+// the test fails loud if the widget bundle ever tries to mount UI.
 const intentPrelude = `
 "use strict";
-globalThis.__entrypoint = "intent";
 const __published = [];
 const __storage = new Map();
 const __armedTimers = [];
@@ -193,8 +196,9 @@ describe("quickjs smoke", () => {
       execFileSync("qjs", [appScript], { encoding: "utf8" }).trim(),
     );
 
+    const widgetBundle = readFileSync(widgetBundlePath, "utf8");
     const intentScript = join(dir, "smoke-intent.js");
-    writeFileSync(intentScript, intentPrelude + bundle + intentEpilogue);
+    writeFileSync(intentScript, intentPrelude + widgetBundle + intentEpilogue);
     intentResult = JSON.parse(
       execFileSync("qjs", [intentScript], { encoding: "utf8" }).trim(),
     );
