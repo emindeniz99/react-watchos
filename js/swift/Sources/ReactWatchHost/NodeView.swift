@@ -72,7 +72,7 @@ struct NodeView: View {
         case "NavigationRoute":
             NavigationRouteDestination(node: node)
         case "TextField":
-            ModalTextField(node: node)
+            OptimisticTextField(node: node)
         case "Picker":
             Picker(node.string("label") ?? "", selection: pickerBinding) {
                 let options = node.stringArray("options") ?? []
@@ -559,37 +559,33 @@ private struct MissingNavigationRoute: View {
 
 /// watchOS text input is modal (dictation/scribble/QWERTY); the value
 /// dispatches to React on commit, with a local copy while editing.
-/// Text entry on watchOS is modal — the system takes over full-screen
-/// (dictation / Scribble / QWERTY) and hands back one committed string — so
-/// the JS `TextFieldProps.onChange` contract fires on commit, not per
-/// keystroke. That's why this deliberately uses view-local `@State` rather
-/// than the model-keyed optimistic store the *continuous* controls (Toggle /
-/// Slider / Stepper) use: there's no in-flight value to preserve across a
-/// SwiftUI view-identity change, because editing happens in the modal, not in
-/// the list that might reorder underneath. Optimistic bookkeeping would only
-/// add a per-keystroke dispatch that contradicts the modal contract.
-private struct ModalTextField: View {
+/// Controlled text field, the way React Native's TextInput is controlled: the
+/// displayed value is the model-keyed optimistic edit (`optimisticString`)
+/// falling back to the committed `value` prop — never view-local `@State`. So
+/// the in-flight text is keyed by node id and survives a SwiftUI view-identity
+/// change mid-edit (e.g. a List reorder), exactly like Toggle / Slider /
+/// Stepper. watchOS text entry is modal (the system takes over full-screen for
+/// dictation / Scribble / QWERTY and hands back one string), so the binding
+/// commits once when the input UI closes: that single `set` records the
+/// optimistic value and dispatches "change" — matching the
+/// `TextFieldProps.onChange` "fires on commit" contract — and the entry clears
+/// when React acks the commit.
+private struct OptimisticTextField: View {
     let node: RNNode
     @EnvironmentObject private var model: ReactWatchModel
-    @State private var text: String = ""
-    @State private var seeded = false
+
+    private var textBinding: Binding<String> {
+        Binding(
+            get: { model.optimisticString(node.id) ?? node.string("value") ?? "" },
+            set: { newValue in
+                model.dispatchOptimistic(
+                    nodeId: node.id, value: .string(newValue),
+                    payload: ["value": newValue])
+            })
+    }
 
     var body: some View {
-        TextField(node.string("placeholder") ?? "", text: $text)
-            .onAppear {
-                if !seeded {
-                    text = node.string("value") ?? ""
-                    seeded = true
-                }
-            }
-            .onChange(of: node.string("value")) { _, newValue in
-                text = newValue ?? ""
-            }
-            .onSubmit {
-                model.dispatch(
-                    nodeId: node.id, event: "change",
-                    payload: ["value": text])
-            }
+        TextField(node.string("placeholder") ?? "", text: textBinding)
     }
 }
 

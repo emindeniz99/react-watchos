@@ -14,10 +14,13 @@ final class OptimisticStoreTests: XCTestCase {
 
         store.set(nodeId: 1, seq: 5, value: .bool(true))
         store.set(nodeId: 2, seq: 6, value: .number(42))
+        store.set(nodeId: 3, seq: 7, value: .string("draft")) // CR-3: TextField
         XCTAssertEqual(store.bool(1), true)
         XCTAssertEqual(store.int(2), 42)
         XCTAssertEqual(store.double(2), 42)
+        XCTAssertEqual(store.string(3), "draft")
         XCTAssertNil(store.bool(2)) // wrong kind -> nil
+        XCTAssertNil(store.string(1)) // wrong kind -> nil
         XCTAssertNil(store.int(99)) // unknown id -> nil
     }
 

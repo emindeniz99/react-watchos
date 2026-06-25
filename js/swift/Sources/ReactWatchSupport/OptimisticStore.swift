@@ -36,4 +36,9 @@ public struct OptimisticStore: Sendable {
         if case .number(let value)? = values[nodeId]?.value { return value }
         return nil
     }
+
+    public func string(_ nodeId: Int) -> String? {
+        if case .string(let value)? = values[nodeId]?.value { return value }
+        return nil
+    }
 }

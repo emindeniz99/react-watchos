@@ -379,6 +379,7 @@ final class ReactWatchModel: ObservableObject {
     func optimisticBool(_ nodeId: Int) -> Bool? { optimistic.bool(nodeId) }
     func optimisticInt(_ nodeId: Int) -> Int? { optimistic.int(nodeId) }
     func optimisticDouble(_ nodeId: Int) -> Double? { optimistic.double(nodeId) }
+    func optimisticString(_ nodeId: Int) -> String? { optimistic.string(nodeId) }
 
     #if DEBUG
     private static let devBundleURL = URL(string: "http://127.0.0.1:8788/bundle.js")!

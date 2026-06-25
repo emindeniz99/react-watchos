@@ -87,15 +87,17 @@ Plan:
   resets the text. Likely tolerable because watch text entry is modal —
   **fix or document** the inconsistency inline next to the comment that
   promises the opposite.
-  **Done (2026-06-25): documented (the "fix" would be wrong here).** The JS
-  `TextFieldProps.onChange` contract fires on *commit*, not per keystroke,
-  because watchOS text entry is modal (full-screen dictation/Scribble/QWERTY).
-  So there's no in-flight value to preserve across a view-identity change —
-  editing happens in the modal, not the list — and the optimistic store
-  (built for *continuous* controls) doesn't apply; forcing it would only add
-  a per-keystroke dispatch that breaks the modal contract. Renamed the
-  misleading `OptimisticTextField` → `ModalTextField` and documented the
-  deliberate `@State` choice inline.
+  **Done (2026-06-25): fixed the React-Native way — controlled value.** Like
+  RN's controlled `TextInput`, the displayed text now comes from the
+  model-keyed optimistic store (`optimisticString`) falling back to the
+  `value` prop, never view-local `@State` — so the in-flight edit is keyed by
+  node id and survives a view-identity change, exactly like Toggle/Slider.
+  watchOS text entry is modal (one commit when the input UI closes), so the
+  binding's single `set` calls `dispatchOptimistic` and the entry clears on
+  React's ack — no per-keystroke dispatch, and the `onChange` "fires on commit"
+  contract is unchanged. Added `OptimisticStore.string` (Linux-tested) +
+  `model.optimisticString`; the struct keeps its now-accurate
+  `OptimisticTextField` name.
 
 ## Security
 
