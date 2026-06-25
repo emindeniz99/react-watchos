@@ -24,25 +24,19 @@ genuine "fail loud" ethos in several places. The items below are
 refinement, not rework. The highest-value standalone fix is **CR-1**
 (async JS errors are silently swallowed).
 
-## Decision: PR #26 (`claude/rn-watchos-js-call-bridge`) will NOT be merged
+## Decision: PR #26 (`claude/rn-watchos-js-call-bridge`) — history merged, code reimplemented
 
-We are **not merging** the open `JS_Call` bridge branch (PR #26
-supersedes the earlier #6 / `claude/hopeful-volta-vigrf7`, now deleted).
-Every issue below — including the eval-string → `JS_Call` bridge refactor
-(CR-5) and the orphaned doc-comment (CR-2) — is solved **directly on
-`main`**. The `claude/rn-watchos-js-call-bridge` branch is kept only as a
-reference implementation for the bridge work.
+We did **not** take PR #26's code wholesale (it supersedes the earlier #6 /
+`claude/hopeful-volta-vigrf7`, now deleted). Every issue below — including the
+eval-string → `JS_Call` bridge refactor (CR-5) and the orphaned doc-comment
+(CR-2) — is solved **directly on `main`**.
 
-Plan:
-
-1. First fix the standalone issues below (CR-1, CR-4, CR-6, CR-8…) so
-   `main` is clean on its own merits.
-2. Then re-implement the eval-string → `JS_Call` bridge on `main`
-   **behind an A/B feature flag** (CR-5), so the old and new paths can be
-   compared on-device before the old one is removed. The refactor is
-   broad (Swift bridge + the `index.ts` payload contract) and the worry
-   is regressions that only surface on a real watch — the flag de-risks
-   that.
+**Done:** #26's 17-commit history is preserved in `main` via a
+`git merge -s ours` (history only, tree unchanged — `main` had moved ~310
+commits, so a real merge would be a large conflict), and the bridge was then
+**re-implemented cleanly on `main` behind an A/B flag** (`useJSCallBridge`),
+using #26's hardening as reference. The two paths are equivalent (same args),
+switchable for on-device A/B comparison before the eval path is retired.
 
 ---
 
@@ -134,7 +128,7 @@ Plan:
   strictly stronger than transport. Tested: `UpdatePlanTests` (Swift) +
   `update.ota.test.ts` (JS); host builds for the watchOS simulator.
 
-- [ ] **CR-5 — eval-string bridge is an injection-shaped pattern.** `P1`
+- [x] **CR-5 — eval-string bridge is an injection-shaped pattern.** `P1`
   [`JSRuntime.swift:121-165`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L121)
   `dispatchEvent`/`pushNativeEvent`/`resolveFetch` build JS source and
   `JS_Eval` it. Currently *safe* (every value goes through `jsStringLiteral`
@@ -143,10 +137,24 @@ Plan:
   globals, behind the A/B flag (see Decision); the
   `claude/rn-watchos-js-call-bridge` branch is the reference. Also cover the
   **widget extension's** `evaluateBool`/`evaluateString`
-  ([`:169`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L169),
-  [`:184`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L184))
   intent-dispatch path so the eval surface is gone consistently, not just
   on the watch app.
+  **Done (2026-06-25):** all Swift→JS calls go through `bridgeCall`, gated by
+  `useJSCallBridge` (default on). With the flag, `JS_Call` invokes the cached
+  global function with `JSValue` args (no per-call parse, not injection-shaped);
+  the legacy eval-string path stays as the other A/B arm. Covers
+  `dispatchEvent` / `pushNativeEvent` / `resolveFetch` / `rejectFetch` /
+  `resolveGenerate` / `rejectGenerate` / `__fireTimer`, **and** the widget
+  intent path via `callReturningBool("__handleIntent",…)` /
+  `callReturningString("__renderWidgets",…)` — so the eval surface is gone
+  consistently. The `index.ts` payload contract is unchanged (args are the same
+  numbers + JSON string the JS parses). #26's history is preserved via the
+  `-s ours` merge (see Decision). A thrown JS exception routes to `onError`; a
+  missing global is reported, not crashed. Tested: A/B equivalence for
+  `dispatchEvent` + the widget return methods across *both* flag states, plus
+  the missing-function path (`RuntimeSmokeTests`). 50 swift tests green; host
+  builds for watchOS. **On-device A/B comparison before retiring the eval path
+  remains the CR-14 gate.**
 
 ## Performance
 

@@ -71,6 +71,66 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertTrue(message.contains("rejected boom"), "got: \(message)")
     }
 
+    // CR-5: the Swift->JS bridge must deliver identical args whether it uses
+    // JS_Call (new) or the eval-string path (legacy) — they're A/B-switchable.
+    func testDispatchEventEquivalentAcrossBridgePaths() throws {
+        for useJSCall in [true, false] {
+            let runtime = try JSRuntime()
+            runtime.useJSCallBridge = useJSCall
+            var committed: String?
+            runtime.onCommit = { committed = $0 }
+            // A fake __dispatchEvent that echoes its args back through the
+            // commit bridge, so we can assert the call delivered them.
+            try runtime.evaluate(#"""
+            globalThis.__dispatchEvent = (nodeId, event, payloadJson) => {
+              __host.commit(JSON.stringify({
+                v: 1, seq: 0,
+                root: { id: nodeId, type: event,
+                        props: JSON.parse(payloadJson || "{}"), children: [] }
+              }));
+              return true;
+            };
+            """#)
+
+            runtime.dispatchEvent(nodeId: 7, event: "Text", payload: ["text": "hi"])
+
+            let path = useJSCall ? "JS_Call" : "eval"
+            let json = try XCTUnwrap(committed, "\(path) path did not commit")
+            let tree = try JSONDecoder().decode(RNTree.self, from: Data(json.utf8))
+            XCTAssertEqual(tree.root?.id, 7, "\(path)")
+            XCTAssertEqual(tree.root?.type, "Text", "\(path)")
+            XCTAssertEqual(tree.root?.string("text"), "hi", "\(path)")
+        }
+    }
+
+    func testBridgeCallToMissingFunctionReportsError() throws {
+        let runtime = try JSRuntime()
+        var reported: String?
+        runtime.onError = { reported = $0 }
+        // __resolveFetch isn't defined (no bundle) -> JS_Call reports, not crash.
+        runtime.resolveFetch(id: 1, responseJson: "{}")
+        XCTAssertEqual(reported, "global __resolveFetch is not a function")
+    }
+
+    // CR-5: the widget intent path returns Bool/String, also via JS_Call,
+    // equivalent across both bridge paths.
+    func testCallReturningBoolAndStringAcrossBridgePaths() throws {
+        for useJSCall in [true, false] {
+            let runtime = try JSRuntime()
+            runtime.useJSCallBridge = useJSCall
+            try runtime.evaluate(#"""
+            globalThis.__handleIntent = (name) => name === "go";
+            globalThis.__renderWidgets = (ms) => JSON.stringify({ at: ms });
+            """#)
+            let path = useJSCall ? "JS_Call" : "eval"
+            XCTAssertTrue(runtime.callReturningBool("__handleIntent", "go"), "\(path)")
+            XCTAssertFalse(runtime.callReturningBool("__handleIntent", "stop"), "\(path)")
+            XCTAssertEqual(
+                runtime.callReturningString("__renderWidgets", 1000),
+                #"{"at":1000}"#, "\(path)")
+        }
+    }
+
     // CR-17: the OTA bytecode cache — compile source to bytecode, then a fresh
     // runtime runs it without the parser (and rejects bad source).
     func testCompileToBytecodeRoundTrips() throws {

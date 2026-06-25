@@ -73,8 +73,7 @@ final class IntentRuntime {
     @discardableResult
     static func handle(intent name: String) -> Bool {
         guard let runtime = IntentRuntime() else { return false }
-        return runtime.js.evaluateBool(
-            "globalThis.__handleIntent(\(literal(name)))")
+        return runtime.js.callReturningBool("__handleIntent", name)
     }
 
     /// Recomputes all timelines without going through publish. Persists the
@@ -91,8 +90,7 @@ final class IntentRuntime {
         }
         guard let runtime = IntentRuntime() else { return nil }
         let ms = now.timeIntervalSince1970 * 1000
-        guard let json = runtime.js.evaluateString(
-                  "globalThis.__renderWidgets(\(ms))"),
+        guard let json = runtime.js.callReturningString("__renderWidgets", ms),
               let payload = try? JSONDecoder().decode(
                   PublishedWidgets.self, from: Data(json.utf8)) else {
             return nil
@@ -110,12 +108,5 @@ final class IntentRuntime {
         cacheLock.lock()
         freshCache = nil
         cacheLock.unlock()
-    }
-
-    private static func literal(_ value: String) -> String {
-        let data = (try? JSONSerialization.data(
-            withJSONObject: [value])) ?? Data("[\"\"]".utf8)
-        let array = String(data: data, encoding: .utf8) ?? "[\"\"]"
-        return String(array.dropFirst().dropLast())
     }
 }

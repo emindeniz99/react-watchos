@@ -63,6 +63,17 @@ public final class JSRuntime {
     private let context: OpaquePointer
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
 
+    /// Selects the Swift→JS call mechanism (CR-5). true: direct `JS_Call` on
+    /// cached global functions — no per-call parse/compile, and not the
+    /// "code assembled from runtime data" shape the eval path had. false: the
+    /// legacy eval-string path. Kept switchable so the two can be A/B-compared
+    /// on a real watch before the eval path is retired (the args are identical
+    /// — numbers and a JSON string the JS parses — so the paths are equivalent).
+    public var useJSCallBridge = true
+    /// Global JS functions (`__dispatchEvent`, …) retained for `JS_Call`,
+    /// looked up lazily once the bundle defines them. Freed in deinit.
+    private var globalFnCache: [String: JSValue] = [:]
+
     /// - Parameter memoryLimitBytes: caps the QuickJS heap (the widget
     ///   extension runs in a tight ~30MB budget; nil = unlimited).
     public init(memoryLimitBytes: Int? = nil) throws {
@@ -86,6 +97,7 @@ public final class JSRuntime {
 
     deinit {
         pendingTimers.values.forEach { $0.cancel() }
+        globalFnCache.values.forEach { JS_FreeValue(context, $0) }
         JS_FreeContext(context)
         JS_FreeRuntime(runtime)
     }
@@ -147,46 +159,32 @@ public final class JSRuntime {
         nodeId: Int, event: String, payload: [String: Any]? = nil,
         seq: Int? = nil
     ) {
-        var payloadArg = "undefined"
-        if let payload,
-           let data = try? JSONSerialization.data(withJSONObject: payload),
-           let json = String(data: data, encoding: .utf8) {
-            payloadArg = jsStringLiteral(json)
-        }
-        var call = "globalThis.__dispatchEvent(\(nodeId), "
-            + "\(jsStringLiteral(event)), \(payloadArg)"
-        if let seq { call += ", \(seq)" }
-        call += ")"
-        evaluateReportingErrors(call, filename: "dispatch.js")
+        var args: [JSArg] = [
+            .int(nodeId), .string(event), .jsonOrUndefined(jsonString(payload)),
+        ]
+        if let seq { args.append(.int(seq)) }
+        bridgeCall("__dispatchEvent", args, filename: "dispatch.js")
     }
 
     /// Settles a JS fetch Promise. MUST be called on the main thread (the
     /// QuickJS context lives there); URLSession completions hop here.
     public func resolveFetch(id: Int, responseJson: String) {
-        evaluateReportingErrors(
-            "globalThis.__resolveFetch(\(id), \(jsStringLiteral(responseJson)))",
-            filename: "fetch.js")
+        bridgeCall("__resolveFetch", [.int(id), .string(responseJson)],
+                   filename: "fetch.js")
     }
 
     public func rejectFetch(id: Int, message: String) {
-        evaluateReportingErrors(
-            "globalThis.__rejectFetch(\(id), \(jsStringLiteral(message)))",
-            filename: "fetch.js")
+        bridgeCall("__rejectFetch", [.int(id), .string(message)],
+                   filename: "fetch.js")
     }
 
     /// Pushes a named native event into JS at urgent priority (runSync), so
     /// the resulting UI update commits immediately. Use for non-interaction
     /// state: connectivity, sensors, app lifecycle.
     public func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
-        var payloadArg = "undefined"
-        if let payload,
-           let data = try? JSONSerialization.data(withJSONObject: payload),
-           let json = String(data: data, encoding: .utf8) {
-            payloadArg = jsStringLiteral(json)
-        }
-        let call = "globalThis.__pushNativeEvent("
-            + "\(jsStringLiteral(name)), \(payloadArg))"
-        evaluateReportingErrors(call, filename: "push.js")
+        bridgeCall("__pushNativeEvent",
+                   [.string(name), .jsonOrUndefined(jsonString(payload))],
+                   filename: "push.js")
     }
 
     /// Evaluates `code` and returns its result as a Bool (false on exception).
@@ -229,6 +227,131 @@ public final class JSRuntime {
         } catch {
             onError?(String(describing: error))
         }
+    }
+
+    // MARK: - Swift -> JS bridge (CR-5)
+
+    /// An argument to a global JS function. Both bridge paths render it: as a
+    /// JSValue (JS_Call) or as JS source text (eval). The JSON payload crosses
+    /// as a *string* the JS parses (matching the existing `index.ts` contract).
+    private enum JSArg {
+        case int(Int)
+        case double(Double)
+        case string(String)
+        /// JSON payload as a JS string, or JS `undefined` when nil.
+        case jsonOrUndefined(String?)
+    }
+
+    private func jsonString(_ payload: [String: Any]?) -> String? {
+        payload.flatMap { try? JSONSerialization.data(withJSONObject: $0) }
+            .flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    /// Calls `globalThis.<name>(args…)`. With `useJSCallBridge`, via JS_Call on
+    /// the cached function (no parse, not injection-shaped); otherwise via the
+    /// legacy eval-string path. The two are behaviorally identical — same args.
+    private func bridgeCall(_ name: String, _ args: [JSArg], filename: String) {
+        if useJSCallBridge {
+            callGlobalFunction(name, args.map(makeValue))
+        } else {
+            let rendered = args.map(renderArg).joined(separator: ", ")
+            evaluateReportingErrors("globalThis.\(name)(\(rendered))", filename: filename)
+        }
+    }
+
+    private func makeValue(_ arg: JSArg) -> JSValue {
+        switch arg {
+        case .int(let n): return JS_NewInt32(context, Int32(truncatingIfNeeded: n))
+        case .double(let d): return JS_NewFloat64(context, d)
+        case .string(let s): return JS_NewString(context, s)
+        case .jsonOrUndefined(let s):
+            return s.map { JS_NewString(context, $0) } ?? qjs_undefined()
+        }
+    }
+
+    private func renderArg(_ arg: JSArg) -> String {
+        switch arg {
+        case .int(let n): return "\(n)"
+        case .double(let d): return "\(d)"
+        case .string(let s): return jsStringLiteral(s)
+        case .jsonOrUndefined(let s): return s.map(jsStringLiteral) ?? "undefined"
+        }
+    }
+
+    /// JS_Call a cached global function, discarding the result (routes a thrown
+    /// exception to onError).
+    private func callGlobalFunction(_ name: String, _ args: [JSValue]) {
+        if let result = callGlobalReturning(name, args) {
+            JS_FreeValue(context, result)
+        }
+    }
+
+    /// JS_Call a cached global function and return the (owned) result for the
+    /// caller to convert + free; nil on a missing function or thrown exception
+    /// (reported to onError). `args` are owned here and freed after the call.
+    private func callGlobalReturning(_ name: String, _ args: [JSValue]) -> JSValue? {
+        let fn = cachedGlobalFunction(name)
+        guard JS_IsFunction(context, fn) else {
+            args.forEach { JS_FreeValue(context, $0) }
+            onError?("global \(name) is not a function")
+            return nil
+        }
+        let global = JS_GetGlobalObject(context)
+        defer { JS_FreeValue(context, global) }
+        var argv = args
+        let result = argv.withUnsafeMutableBufferPointer {
+            JS_Call(context, fn, global, Int32($0.count), $0.baseAddress)
+        }
+        args.forEach { JS_FreeValue(context, $0) }
+        drainJobs()
+        if JS_IsException(result) {
+            onError?(takeExceptionMessage())
+            JS_FreeValue(context, result)
+            return nil
+        }
+        return result
+    }
+
+    /// Calls `globalThis.<name>(stringArg)` and returns its Bool result (false
+    /// on a missing function / exception). The widget intent-dispatch path
+    /// (CR-5), gated by `useJSCallBridge` like the rest of the bridge.
+    public func callReturningBool(_ name: String, _ stringArg: String) -> Bool {
+        guard useJSCallBridge else {
+            return evaluateBool("globalThis.\(name)(\(jsStringLiteral(stringArg)))")
+        }
+        guard let result = callGlobalReturning(name, [makeValue(.string(stringArg))])
+        else { return false }
+        defer { JS_FreeValue(context, result) }
+        return JS_ToBool(context, result) == 1
+    }
+
+    /// Calls `globalThis.<name>(numberArg)` and returns its String result (nil
+    /// on a missing function / exception). Used to render widget timelines.
+    public func callReturningString(_ name: String, _ numberArg: Double) -> String? {
+        guard useJSCallBridge else {
+            return evaluateString("globalThis.\(name)(\(numberArg))")
+        }
+        guard let result = callGlobalReturning(name, [makeValue(.double(numberArg))])
+        else { return nil }
+        defer { JS_FreeValue(context, result) }
+        guard let cString = JS_ToCString(context, result) else { return nil }
+        defer { JS_FreeCString(context, cString) }
+        return String(cString: cString)
+    }
+
+    /// Looks up and retains a global function for reuse. Not cached until the
+    /// bundle has actually defined it, so an early call can't pin `undefined`.
+    private func cachedGlobalFunction(_ name: String) -> JSValue {
+        if let fn = globalFnCache[name] { return fn }
+        let global = JS_GetGlobalObject(context)
+        defer { JS_FreeValue(context, global) }
+        let fn = JS_GetPropertyStr(context, global, name)
+        if JS_IsFunction(context, fn) {
+            globalFnCache[name] = fn
+            return fn
+        }
+        JS_FreeValue(context, fn)
+        return qjs_undefined()
     }
 
     // MARK: - Host bridge (JS -> Swift)
@@ -292,8 +415,7 @@ public final class JSRuntime {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.pendingTimers[id] = nil
-            self.evaluateReportingErrors(
-                "globalThis.__fireTimer(\(id))", filename: "timer.js")
+            self.bridgeCall("__fireTimer", [.int(Int(id))], filename: "timer.js")
         }
         pendingTimers[id] = work
         DispatchQueue.main.asyncAfter(
@@ -646,14 +768,10 @@ extension JSRuntime {
     /// Settles a generateText Promise on the main thread (where the context
     /// lives).
     public func resolveGenerate(id: Int, text: String) {
-        evaluateReportingErrors(
-            "globalThis.__resolveGenerate(\(id), \(jsStringLiteral(text)))",
-            filename: "ai.js")
+        bridgeCall("__resolveGenerate", [.int(id), .string(text)], filename: "ai.js")
     }
     public func rejectGenerate(id: Int, message: String) {
-        evaluateReportingErrors(
-            "globalThis.__rejectGenerate(\(id), \(jsStringLiteral(message)))",
-            filename: "ai.js")
+        bridgeCall("__rejectGenerate", [.int(id), .string(message)], filename: "ai.js")
     }
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)
