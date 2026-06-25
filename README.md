@@ -212,6 +212,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 | `tools/embed-smoke/` | Reference C host: compiles the package's quickjs-ng and runs the real bundle through the exact API sequence Swift uses. |
 | `tools/qjs-compile/` | Compiles the bundle to QuickJS bytecode (`bundle.qbc`) with the *vendored* engine, so the shipped bytecode version always matches the runtime; the watch app + widget prefer it over the source (`pnpm build:bytecode`, wired into `prebuild`). |
 | `js/swift/Tests/` | The package's `swift test` wire-contract tests: decode real serializer fixtures with the codegen'd `ReactWatchCore` models on Linux. |
+| `docs/README.md` | **Docs index + current improvement plan** — start here for reviews, the verified backlog, and the architecture decisions. |
 | `docs/research.md` | Why RN-core-on-watchOS is impossible; engine and architecture comparison. |
 | `docs/prior-art.md` | Where this sits among production React renderers (RN, Raycast, r3f, Ink, …) and which techniques we adopt/skip/defer. |
 | `docs/roadmap.md` | Forward plan in three parallel tracks (input, runtime, platform) with priorities, dependencies, and the Mac-build gate. |

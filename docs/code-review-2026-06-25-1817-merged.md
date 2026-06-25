@@ -194,6 +194,11 @@ Assert main-thread on the JS settle calls (OP-2) + generation token on reload (C
 
 ## Phase 4 — Consumer path / DX
 
+> Full DX analysis (what the config plugin already does vs the 2 post-prebuild
+> gaps, connectivity, npm-consumption) is in the
+> [DX & integration review](./dx-integration-review-2026-06-25-1859.md)
+> (DX-1…DX-7). The table below is the CX subset of that work.
+
 | # | ID | Problem | Verdict | Evidence | Fix | Eff |
 |---|----|---------|---------|----------|-----|-----|
 | 22 | CX-011 | Plugin doesn't remove stale `expo-target.config.js` on `widget:false` | ✅ REAL | [plugin/index.js](../js/plugin/index.js) only adds under `if(opts.widget)`; no removal | Track plugin-owned files/EAS entries; reconcile add/update/rename/remove (marker-gated) | M |
