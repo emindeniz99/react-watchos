@@ -26,6 +26,61 @@ Effort: **XS** <½h · **S** ~1–2h · **M** ~half-day · **L** ~1+ day.
 
 ---
 
+## Architecture decisions — do these FIRST (they subsume backlog items)
+
+Design-level calls from the [system-design review](./system-design-review-2026-06-25-1824-opus.md), refined with the owner 2026-06-25. Several backlog rows are *symptoms* of these — doing these deletes those rows. **Sequence:** publish-blockers (CX-001/003/002, orthogonal/fast) → **SD-3+SD-4** → **SD-2** → **SD-1+SD-6** → SD-5 rides with Phase 1 → then the remaining per-item phases. SD-3/SD-4 each get a short design note before code (data/App-Store-update posture).
+
+| SD | Decision | Subsumes | Status |
+|----|----------|----------|--------|
+| **SD-3** | Native-capability compatibility gate (upper = min-native, lower = anti-rollback) | CX-004, CX-007 | design note pending |
+| **SD-4** | OTA = one state machine + single active-bundle record shared by app+widget | CX-004/005/006/007/025 | design note pending |
+| **SD-2** | One shared SwiftUI interpreter for app + widget | CX-018, CX-024 (CX-015/017 ride along) | planned |
+| **SD-1** | Typed command/result channel for fallible native ops | CX-005, CX-022 | planned |
+| **SD-6** | Schema = single source for wire + bridge + component contract | CX-023, CX-024 | planned |
+| **SD-5** | Enforce (+ later isolate) the JS thread | CX-008, OP-2 | with Phase 1 |
+
+### SD-3 — capability compatibility gate (the `fetchX` problem) ← top priority
+
+The risk is **not** old-code/new-data (there's no DB). It's a **new OTA bundle calling a native capability the installed binary lacks** — new JS calls `fetchX`, the old Swift client has no `fetchX` → crash. Two-sided gate:
+
+- Native binary exposes **`hostApiVersion: Int`** — bump when a `__host.*` capability is added.
+- Each JS bundle declares **`minHostApi: Int`** — the newest native capability it uses.
+- A separate monotonic **`releaseId`** — freshness + anti-rollback ordering.
+- Gates, checked in **JS (pre-download)**, **native (at save)**, and **native (at boot)**:
+  - **Upper:** `bundle.minHostApi ≤ native.hostApiVersion` — else **block + "Update the app"** (App Store; OTA can't fix a too-old binary). Covers new-JS-on-old-client *and* a native downgrade below a staged bundle (the "app reinstalled older / filesystem" case).
+  - **Lower:** `bundle.releaseId ≥ highWater` — downgrade blocked.
+  - signature valid (CX-003 fail-closed).
+- Expose `native.hostApiVersion` to JS so `checkForUpdate` gates before downloading.
+- Defense-in-depth (optional): host-call wrappers throw a typed `"capability X needs app vN"` instead of `undefined is not a function`.
+
+Makes CX-007's "split" concrete: **`releaseId`** (freshness+rollback) + **`hostApiVersion`/`minHostApi`** (capability). **Open:** `minHostApi` manual vs build-derived; runtime guard yes/no; (no DB → no data-migration concept for now).
+
+### SD-4 — OTA state machine
+
+One explicit active-bundle record `{releaseId, minHostApi, hash, signature}`, identical for app + widget; atomic apply (CX-006/OP-1); request/response apply (CX-005, via SD-1); the widget participates in the same gate (CX-004) instead of blindly loading `Bundle.main`.
+
+### SD-2 — one shared interpreter (how)
+
+- New watchOS-only module **`ReactWatchUI`** in the SPM package (above Core/Support, below Host).
+- Pure parsing → `ReactWatchSupport` (Linux-tested): hex→RGBA, font-name→enum, value format, timer math (return *data*, not SwiftUI types).
+- One `NodeView` parameterized by a **`RenderContext`**: `interactive` (app) vs read-only (widget) + an **injected dispatcher** (app → `ReactWatchModel`; widget → no-op). That injected seam lets one view serve both processes.
+- App host + widget extension both import it; **delete `WidgetNodeView`**.
+- Golden contract test: every primitive × {app, widget}. (CX-016 stays separate — it's timeline *selection* in the provider, not interpretation.)
+
+### SD-1 — typed command/result channel (what we do)
+
+Today fallible ops are fire-and-forget → failures vanish. Make them look like `fetch`: a generic `__host.invoke(id, method, payloadJson)` → `__resolveInvoke(id,json)` / `__rejectInvoke(id, {code,message})`, wrapped as Promises. Route `saveUpdate` (→CX-005), notification permission (granted/denied), `scheduleNotification`, BLE connect/write through it. Keep sync `getItem`; keep the push channel for streams.
+
+### SD-6 — finish codegen
+
+Make `schema.mjs` the authority for: wire structs (done), the **bridge** (generate install table + C trampolines + TS types from `hostMethods`, tagged `since` for SD-3), and the **component contract** (primitives/props/events/app+widget support → feeds SD-2's test).
+
+### SD-5 — thread
+
+Assert main-thread on the JS settle calls (OP-2) + generation token on reload (CX-008) now; consider a dedicated JS queue later (don't speculate).
+
+---
+
 ## Phase 0 — Publish blockers & safety (fast, decision-clear) — do first
 
 | # | ID | Problem | Verdict | Evidence | Fix | Eff |

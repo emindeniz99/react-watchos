@@ -93,7 +93,17 @@ the app and the widget extension) with an explicit `interactive: Bool` /
 (color/font/format/timer) moves to `ReactWatchSupport`. Subsumes
 **CX-015, CX-016, CX-017, CX-018, CX-024**, and shrinks the untested surface (#11).
 
-### 5. Data model: KV in App Group UserDefaults, **no schema, no migration (SD-3)**
+### 5. Data model & native-capability compatibility (SD-3)
+
+> **Refined 2026-06-25 (owner):** there's no DB, so "data migration" was the
+> wrong frame. The live risk is a **new OTA bundle calling a native capability
+> the installed binary lacks** (`fetchX` → crash). SD-3 is therefore a
+> **two-sided native-capability gate** — upper `minHostApi ≤
+> native.hostApiVersion` (→ "update the app"), lower `releaseId ≥ highWater`
+> (downgrade blocked) — *not* data migration. Authoritative plan: the merged
+> backlog's "Architecture decisions → SD-3". The notes below stand as secondary
+> data-hygiene points for if a real persistent store ever appears.
+
 **Now:** `Storage` is namespaced KV over App Group `UserDefaults`
 ([storage.ts](../js/src/storage.ts), [SharedWidgetStore.swift](../js/swift/Sources/ReactWatchSupport/SharedWidgetStore.swift));
 both the app and the widget read/write it. **Feedback — this is the important
@@ -189,7 +199,7 @@ one app-specific shared product (CX-026); generate/share the constants.
 
 | SD | Decision | Why it matters | Subsumes |
 |----|----------|----------------|----------|
-| **SD-3** | Add a JS-owned **data-schema version + migration**, gated by the OTA compat integer | The actual fix for "old JS must not corrupt the db" — signing/version gates are partial | CX-004, CX-007 |
+| **SD-3** | **Native-capability gate** — upper (`minHostApi ≤ native`) + lower (anti-rollback) *(refined: not data migration; no DB exists)* | Fixes new-JS-on-old-binary (`fetchX` crash) + downgrade block | CX-004, CX-007 |
 | **SD-2** | **One shared SwiftUI interpreter** for app + widget | Kills the perpetual drift between two hand-written switches | CX-015/016/017/018/024 |
 | **SD-4** | OTA = one state machine; separate integrity / compatibility / freshness; compat == data-schema version | Untangles the overloaded `version`; brings the widget into the model | CX-004/005/006/007/025 |
 | **SD-1** | One **typed command/result channel** for fallible native ops | Failures stop vanishing; `applyUpdate`/storage/BLE/perm become observable | CX-005, CX-022 |
@@ -200,9 +210,9 @@ These are **architecture** calls — larger than the backlog items, and several
 backlog items are just *symptoms* of them. My recommended sequencing if you take
 the system view:
 
-1. **SD-3 + SD-4 together** (data-schema versioning + OTA state machine) — this is
-   your top concern and they're the same design problem. Do them as one piece;
-   it absorbs the whole Phase-2 OTA cluster.
+1. **SD-3 + SD-4 together** (capability gate + OTA state machine) — your top
+   concern, the same design problem. Do them as one piece; it absorbs the whole
+   Phase-2 OTA cluster.
 2. **SD-2** (shared interpreter) — highest leverage on long-term maintainability;
    absorbs the Phase-3 drift cluster.
 3. **SD-1 + SD-6** (typed bridge + finish codegen) — do together; SD-6 makes SD-1
@@ -228,5 +238,5 @@ and still go first.
 - Architecture-level; I did not re-verify every line. Backlog items keep their
   per-line evidence in the merged doc.
 - The SD recommendations are **directional**; each deserves its own short design
-  note before implementation (especially SD-3 migration semantics and SD-4 state
-  machine), since they touch data durability and the App Store update posture.
+  note before implementation (especially the SD-3 gate semantics and SD-4 state
+  machine), since they touch the App Store update posture and anti-rollback.
