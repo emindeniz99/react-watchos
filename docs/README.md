@@ -8,6 +8,12 @@ architecture decisions first (SD-1…SD-6 + Codex ARCH-01…14), then Phases 0�
 the per-item fixes. Every item carries `file:line` evidence, the decided fix, and
 an effort estimate. Everything else here feeds into it.
 
+**"Is feature X actually real yet?" →
+[status.md](./status.md)** — the single, evidence-backed view of verified
+current state (a maturity-tiered capability matrix, each claim linked to a
+test/build). Distinct from the backlog (what to *work on*) and roadmap (what's
+*planned*). When a doc says "shipped", status.md is the authority.
+
 **Conventions for working here:** [`../CONTRIBUTING.md`](../CONTRIBUTING.md) —
 pre-release "break freely", verify-Apple-availability-before-assuming, the
 JS-driven principle, and how to verify changes. (Agents also auto-load
@@ -58,6 +64,8 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 
 ## Reference / background
 
+- [status.md](./status.md) — verified current capabilities (the "is it real?"
+  matrix; superseding "shipped" claims elsewhere).
 - [roadmap.md](./roadmap.md), [publishing.md](./publishing.md),
   [extending.md](./extending.md), [ota-signing.md](./ota-signing.md),
   [prior-art.md](./prior-art.md), [research.md](./research.md),

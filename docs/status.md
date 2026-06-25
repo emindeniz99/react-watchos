@@ -1,0 +1,66 @@
+# Status — what's actually verified
+
+The honest "can I rely on X today?" view, kept **separate from the forward
+plan** in [roadmap.md](./roadmap.md) and from the work queue in
+[code-review-2026-06-25-1817-merged.md](./code-review-2026-06-25-1817-merged.md)
+(THE backlog). roadmap.md describes *intent and history*; this file describes
+*verified current state* and links every claim to evidence. When the two
+disagree, **this file wins** for "is it real yet?".
+
+> Why this exists (CX-027): "shipped" was being claimed inline next to
+> aspirational items, and two features were overclaimed — on-device AI and the
+> predictive part of Smart Stack relevance. This page is the single place where
+> a status claim has to be falsifiable.
+
+## Verification ladder
+
+Every capability sits at one level. Higher levels subsume the lower ones.
+
+| Level | Means | How it's checked |
+|---|---|---|
+| ① **Logic-tested** | Pure logic unit-tested off-device | `pnpm test` (212 JS, vitest) + `swift test` (80, Linux: Core/Support/Runtime) |
+| ② **Builds for watchOS** | The SwiftUI host/widget compiles for the watch | `react-native-watchos-build.yml` (macOS/Xcode) — `BUILD SUCCEEDED` |
+| ③ **Device/sim-verified** | Exercised on a watchOS simulator or real Apple Watch | manual; noted per row |
+| ⛔ **Blocked** | Needs an unreleased OS/SDK, or hardware we don't have | noted per row |
+
+Linux `swift test` (①) verifies the **wire decode** of props — not the SwiftUI
+view. So for anything that renders or touches native frameworks, the **watchOS
+build (②) is the real gate**, and behavioral correctness isn't guaranteed until
+③. Most native features below are at ② with ③ as the standing gap.
+
+## Capability matrix
+
+| Capability | Level | Evidence / note |
+|---|---|---|
+| React → JSON tree → SwiftUI renderer + sync commit pipeline | ② | reconciler [renderer.ts](../js/src/renderer.ts); wire decode in `swift test`; host builds green |
+| 25 UI primitives (Stack/Text/Image/Gauge/List/Map/…) | ② | contract is single-sourced + drift-guarded ① ([component-contract.test.ts](../js/test/component-contract.test.ts)); views in `NodeView.swift` build green (②) |
+| Digital Crown, gestures, Slider/Stepper/DatePicker/Picker | ② | prop decode ①; views ② — on-device feel is ③ |
+| WatchConnectivity — watch→phone (`sendToPhone`) + phone→watch | ② | `PhoneConnectivity` builds ②; **iPhone-side WCSession still needs wiring in the Expo companion app** |
+| `fetch` over URLSession (WHATWG subset) | ② | `FetchPlan` request/response parsing ① (`FetchPlanTests`); URLSession orchestration ② |
+| Sensors / HealthKit push streams | ② | builds ②; real sensor behavior is ③ (needs a device) |
+| BLE bridge (event-driven `ble`/`ble.state`/`ble.notify`) | ② | builds ②; connect/write redesign + ③ device-verify pending (see backlog CX-017 remaining-ops) |
+| Complications + Smart Stack widgets (timeline, snapshot) | ② | `WidgetSnapshot.currentIndex` ① (`WidgetSnapshotTests`); widget scheme builds green ② |
+| Smart Stack **relevance ranking** (per-entry score/duration) | ② | `TimelineEntryRelevance(score:duration:)` wired in `ReactWidgets.swift` (CX-017) |
+| Smart Stack **predictive `relevantContexts`** (date/location surfacing) | ⛔ partial | decoded into the wire model but **not applied** to `WidgetRelevance` — watchOS-version-specific API, best done on device (CX-017). Do **not** rely on it. |
+| OTA update channel — signed, anti-rollback, transactional, keyId rotation | ② | heavy logic ① (`UpdatePlan`/`OTARecord`/`VersionPolicy` + Node↔CryptoKit interop in `swift test`); host applies it ②. See [ota-signing.md](./ota-signing.md) |
+| Liquid Glass (`glass`), double-tap (`primaryAction`) | ② | `#available(watchOS 26.0 / 11.0)`-gated; builds ② |
+| **On-device AI** (`generateText` / Foundation Models) | ⛔ **Blocked** | **unreachable today** — gated at `watchOS 26.0` but Foundation Models' `SystemLanguageModel` is **watchOS 27.0+ (beta)**; the fix (gate→27, `maxTokens`, capability query) is unshipped and device-verify waits on **Xcode 27** (CX-002). Treat as *not available*. |
+| DevTools | ② note | a **remote inspector** (`startInspector` tees `console.log` + tree snapshots over `fetch`), **not** the official React DevTools — QuickJS has no WebSocket transport |
+| macOS / tvOS targets | — | not built; cross-platform core extraction is a roadmap bet, not current |
+
+## Two corrected overclaims (the CX-027 trigger)
+
+- **On-device AI is blocked, not shipped.** roadmap.md previously listed it as
+  "shipped (watchOS 26+)". It is implemented but **unreachable** until the
+  `watchOS 27.0` gate fix lands and an Xcode-27 / watchOS-27 build verifies it
+  (CX-002). Until then, apps must not depend on `generateText`.
+- **`relevantContexts` is partial.** Smart Stack relevance **ranking** (sorting
+  entries by score) is real (②). The **predictive** surfacing of a widget at a
+  date/location from `relevantContexts` is decoded but **not applied** (CX-017).
+
+## How to keep this honest
+
+When you mark something "shipped" anywhere in the docs, it must map to a row
+here at level ② or ③ with an evidence link. New native features land at ②
+(watchOS build green) and only move to ③ after a simulator/device run. If you
+can't link evidence, it belongs in [roadmap.md](./roadmap.md), not here.

@@ -5,6 +5,11 @@ tracks that touch mostly disjoint files. Derived from a reviewed feedback
 pass; corrections from that review are folded in. Priorities: **P0** =
 unblocks real apps, **P1** = strong value, **P2** = polish.
 
+> **Verified status lives in [status.md](./status.md), not here.** This file is
+> forward-looking plan + history; when it says "shipped", read that as a
+> historical note and check status.md for the evidence-backed current level.
+> status.md is the single source of truth for "is it real yet?" (CX-027).
+
 ## Already shipped (don't redo)
 
 - **Digital Crown** (`CrownRotation`, T1-P0) — done.
@@ -30,12 +35,15 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
   entitlement** — all done.
 
 Also shipped: **DatePicker**, **onDrag** scrub (T1), **sensors/HealthKit**
-(T3-P1), **Map** primitive, **Smart Stack relevantContexts**, **Liquid
-Glass** (`glass`), **OTA update channel** (`applyUpdate`), **React Compiler**
-in the esbuild pipeline (auto-memoization), **double-tap** (`primaryAction`
-→ `handGestureShortcut(.primaryAction)`, watchOS 11+), **on-device AI**
-(`generateText` over Foundation Models, watchOS 26+), and the **QuickJS
-bridging-header config plugin** (toward the macOS build).
+(T3-P1), **Map** primitive, **Smart Stack relevance ranking** (per-entry score;
+the *predictive* `relevantContexts` surfacing is decoded-not-applied — CX-017,
+[status.md](./status.md)), **Liquid Glass** (`glass`), **OTA update channel**
+(`applyUpdate`), **React Compiler** in the esbuild pipeline (auto-memoization),
+**double-tap** (`primaryAction` → `handGestureShortcut(.primaryAction)`,
+watchOS 11+), and the **QuickJS bridging-header config plugin** (toward the
+macOS build). **On-device AI** (`generateText`) is implemented but
+**blocked/unreachable** until the watchOS-27 gate fix + Xcode 27 (CX-002,
+[status.md](./status.md)) — *not* "shipped".
 
 **DevTools — shipped as a remote inspector**, not the official React
 DevTools. Full DevTools needs a WebSocket transport QuickJS doesn't provide,
@@ -227,11 +235,14 @@ equipment), navigation, timers, medication reminders. The reusable play is a
 **starter-kit of React watch apps** (remote, tracker, timer, now-playing
 complication) on top of this renderer.
 
-## 6. On-device intelligence (shipped, room to grow)
+## 6. On-device intelligence (implemented, blocked — see status.md)
 
-`generateText` now brokers Apple's **Foundation Models** (~3B on-device LLM,
-watchOS 26+) entirely on the watch — no network, no phone — through the
-`generate` host method, settled on the main actor. Natural extensions, all
+`generateText` brokers Apple's **Foundation Models** (~3B on-device LLM) on the
+watch — no network, no phone — through the `generate` host method, settled on
+the main actor. **Status: blocked/unreachable today** — it's gated at
+`watchOS 26.0` but Foundation Models is **watchOS 27.0+ (beta)**, so the fix
+(gate→27, `maxTokens`, capability query) and an Xcode-27 build are still pending
+(CX-002, [status.md](./status.md)). Natural extensions once it's reachable, all
 behind the same `HostBridge` seam:
 
 - **Streaming tokens** via the existing `__pushNativeEvent` channel (partial
@@ -256,8 +267,9 @@ behind the same `HostBridge` seam:
 6. Then: OTA channel hardening, tree-diff (still measure-first).
 
 Done since the last pass: **React Compiler** (build), **DevTools** (remote
-inspector), **double-tap** (`primaryAction`), **on-device AI** (`generateText`).
-**Suspense** investigated and deliberately not adopted (see above).
+inspector), **double-tap** (`primaryAction`). **On-device AI** (`generateText`)
+is implemented but blocked (CX-002, [status.md](./status.md)). **Suspense**
+investigated and deliberately not adopted (see above).
 
 ---
 
