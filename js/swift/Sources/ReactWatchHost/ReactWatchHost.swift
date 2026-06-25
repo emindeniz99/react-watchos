@@ -188,6 +188,19 @@ final class ReactWatchModel: ObservableObject {
                 + "\(Self.maxOTABundleBytes)-byte limit"
             return false
         }
+        // Capability gate (ARCH-01): refuse a bundle needing features this
+        // binary doesn't provide, even if validly signed — OTA can't add native
+        // code, so the user must update the app. Defense-in-depth behind the JS
+        // pre-download gate (update.ts).
+        if case .updateAppRequired(let missing) = CapabilityGate.decide(
+            bundleBridgeProtocol: plan.minBridgeProtocol,
+            bundleFeatures: Set(plan.requiredFeatures),
+            nativeBridgeProtocol: RNWire.bridgeProtocol,
+            nativeFeatures: HostFeatures.watch) {
+            runtimeError = "OTA update rejected: needs capabilities this app "
+                + "lacks (\(missing.joined(separator: ", "))) — update the app"
+            return false
+        }
         if let key = updatePublicKey {
             guard let signature = plan.signature, let version = plan.version,
                   let message = plan.signedMessage(),

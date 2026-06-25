@@ -30,8 +30,20 @@ export function applyUpdate(
   js: string,
   version?: number,
   signature?: string,
+  requiredFeatures?: string[],
+  minBridgeProtocol?: number,
 ): void {
-  getHost()?.saveUpdate?.(JSON.stringify({ js, version, signature }));
+  // JSON.stringify drops undefined keys, so an older call (no capability fields)
+  // produces the same payload as before.
+  getHost()?.saveUpdate?.(
+    JSON.stringify({
+      js,
+      version,
+      signature,
+      requiredFeatures,
+      minBridgeProtocol,
+    }),
+  );
 }
 
 /** This bundle's OTA compatibility version (CR-17), injected at build from
@@ -149,6 +161,12 @@ export async function fetchAndApplyUpdate(
   if (host && capabilityGap(manifest, host).length > 0) return null;
   const url = resolveBundleUrl(manifestUrl, manifest.bundle);
   const js = await (await fetch(url)).text();
-  applyUpdate(js, manifest.version, manifest.signature);
+  applyUpdate(
+    js,
+    manifest.version,
+    manifest.signature,
+    manifest.requiredFeatures,
+    manifest.minBridgeProtocol,
+  );
   return manifest.version;
 }

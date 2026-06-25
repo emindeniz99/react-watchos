@@ -23,17 +23,30 @@ public struct UpdatePlan: Equatable, Sendable {
     public let version: Int?
     /// Raw Ed25519 signature bytes over `signedMessage` (base64 on the wire).
     public let signature: Data?
+    /// Capability features the bundle requires (ARCH-01). The host refuses to
+    /// apply a bundle whose features it doesn't provide (CapabilityGate); empty
+    /// = no requirement declared.
+    public let requiredFeatures: [String]
+    /// Minimum host bridge-protocol the bundle needs (ARCH-01); 0 = none.
+    public let minBridgeProtocol: Int
 
     private struct Payload: Decodable {
         let js: String
         let version: Int?
         let signature: String?
+        let requiredFeatures: [String]?
+        let minBridgeProtocol: Int?
     }
 
-    public init(js: String, version: Int?, signature: Data?) {
+    public init(
+        js: String, version: Int?, signature: Data?,
+        requiredFeatures: [String] = [], minBridgeProtocol: Int = 0
+    ) {
         self.js = js
         self.version = version
         self.signature = signature
+        self.requiredFeatures = requiredFeatures
+        self.minBridgeProtocol = minBridgeProtocol
     }
 
     /// Parses the saveUpdate payload. The signed shape is
@@ -47,11 +60,15 @@ public struct UpdatePlan: Equatable, Sendable {
             js = payload
             version = nil
             signature = nil
+            requiredFeatures = []
+            minBridgeProtocol = 0
             return
         }
         js = decoded.js
         version = decoded.version
         signature = decoded.signature.flatMap { Data(base64Encoded: $0) }
+        requiredFeatures = decoded.requiredFeatures ?? []
+        minBridgeProtocol = decoded.minBridgeProtocol ?? 0
     }
 
     /// The exact bytes the signature must cover: scheme + version + bundle, so

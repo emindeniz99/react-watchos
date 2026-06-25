@@ -185,6 +185,20 @@ final class UpdatePlanTests: XCTestCase {
         XCTAssertNil(plan.signature)
     }
 
+    func testParsesCapabilityRequirements() {
+        let payload =
+            #"{"js":"x","version":2,"requiredFeatures":["network","bluetooth"],"minBridgeProtocol":3}"#
+        let plan = UpdatePlan(payload: payload)
+        XCTAssertEqual(plan.requiredFeatures, ["network", "bluetooth"])
+        XCTAssertEqual(plan.minBridgeProtocol, 3)
+    }
+
+    func testCapabilityRequirementsDefaultToEmpty() {
+        let plan = UpdatePlan(payload: #"{"js":"x"}"#)
+        XCTAssertEqual(plan.requiredFeatures, [])
+        XCTAssertEqual(plan.minBridgeProtocol, 0)
+    }
+
     func testSignedMessageBindsSchemeVersionAndBundle() {
         // The version is inside the signed bytes, so it can't be relabelled.
         let plan = UpdatePlan(js: "code", version: 7, signature: nil)
