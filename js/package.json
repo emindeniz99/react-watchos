@@ -1,6 +1,7 @@
 {
   "name": "react-native-watchos",
   "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "description": "Custom React renderer: JSX to a serialized SwiftUI tree, runnable in QuickJS on Apple Watch",
   "keywords": [
@@ -54,7 +55,11 @@
     "esbuild",
     "app.plugin.js",
     "plugin",
-    "swift",
+    "swift/Package.swift",
+    "swift/Sources",
+    "swift/Tests",
+    "swift/README.md",
+    "LICENSE",
     "README.md"
   ],
   "scripts": {
