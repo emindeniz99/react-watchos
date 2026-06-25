@@ -9,7 +9,7 @@ depends on this package instead of copying the host into their app.
 
 | Product | Imports | Builds on Linux? |
 |---|---|---|
-| `CQuickJS` | quickjs-ng v0.10.1 as a Clang module (`import CQuickJS`) | ✅ |
+| `CQuickJS` | quickjs-ng v0.15.1 as a Clang module (`import CQuickJS`) | ✅ |
 | `ReactWatchCore` | the codegen'd wire models (`RNNode`, `RNTree`, `RNWire`, `JSONValue`, `Published*`) — Foundation only, `Sendable` | ✅ |
 | `ReactWatchSupport` | Foundation-only platform logic: `SharedWidgetStore`, `OptimisticStore`, `NotificationPlan`, `FetchPlan`/`FetchResponse` (extracted from the host so it's unit-tested) | ✅ |
 | `ReactWatchRuntime` | the QuickJS embedding (`JSRuntime`) — Foundation + `CQuickJS` | ✅ |
