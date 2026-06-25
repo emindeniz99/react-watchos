@@ -294,3 +294,45 @@ Plan:
 
 See [roadmap.md](./roadmap.md) for the forward feature plan; this file is
 the correctness/cleanup backlog from the 2026-06-25 pass.
+
+---
+
+## CR-17 — OTA versioning, anti-rollback & integrity (planned 2026-06-25)
+
+Follow-up to **CR-4**, agreed in discussion. Goal: never silently run stale JS
+after a downgrade or state loss, and never let an old/wrong-version bundle
+corrupt the persisted db. Decisions: keep **Ed25519** (+ a `scheme` byte for
+future agility); **3 MiB** cap; **monotonic-integer compatibility version**,
+bumped *manually only on a breaking change* (db schema / wire contract) — so an
+older bundle is refused and can't touch a newer-schema db; **hard gate opt-in**
+(default soft) that *won't boot* stale JS so it can't write to the db;
+**compile-on-get bytecode cache**; **remote freshness check** on launch.
+
+Trust placement: enforcement in Swift (JS — incl. `update.ts` — is itself
+OTA-replaceable); pure decision logic in `ReactWatchSupport` (tested); the
+update popup is JS-driven via an `update.required`/`update.available` event.
+
+- [x] **3 MiB size cap** — `saveUpdate` rejects an oversized bundle before
+  persisting (the app parses the whole source through QuickJS at launch, so a
+  multi-MB bundle risks an OOM kill). Done 2026-06-25.
+- [ ] **Manifest signing v2** — sign `{scheme, version, sha256(bundle)}` so the
+  version is inside the signed data; wire payload `{version, js, signature}`.
+- [ ] **`VersionPolicy` (ReactWatchSupport, pure + tested)** — decision matrix
+  `runOTA | runShipped | blockForUpdate | rejectDowngrade` from
+  `(bundleVersion, highWater, shippedVersion, gate)`.
+- [ ] **High-water mark** — persisted in the *same App Group container as
+  Storage* (shared fate with the db); refuse `version < highWater`; bump on
+  apply, never decrease.
+- [ ] **Hard-gate-blocks-boot** — `ReactWatchRootView(updateGate: .soft|.hard)`;
+  in `.hard` + stale state, don't evaluate the old bundle at all.
+- [ ] **Compile-on-get bytecode cache** — on a verified save, compile source →
+  bytecode (`JS_Eval` COMPILE_ONLY + `JS_WriteObject`) and cache `ota-bundle.qbc`;
+  `load` prefers the cache, re-verifying the source's signature/version first.
+- [ ] **Remote freshness check** — launch-time `GET <updateUrl>` →
+  `{version, bundleUrl, signature}`; emit `update.available`/`update.required`
+  when remote > local (covers the full-reinstall case where local state is gone).
+  *(Endpoint shape to be confirmed.)*
+
+Sequencing: OTA core (cap → manifest v2 → VersionPolicy → high-water → hard
+gate) → compile-cache → remote check → then **CR-5** (`-s ours` merge of #26 +
+clean A/B-flagged rewrite). Deferred (measure-first): **core/app bundle split**.

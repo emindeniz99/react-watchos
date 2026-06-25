@@ -130,9 +130,21 @@ final class ReactWatchModel: ObservableObject {
     /// over the bundle bytes *before* it's written — an unsigned or bad bundle
     /// is refused and never evaluated. With no key it's fail-open: persisted
     /// with a loud warning so an un-updated consumer keeps working.
+    /// Ceiling for an OTA bundle. The app parses the whole source through
+    /// QuickJS at launch, so a multi-MB bundle risks an out-of-memory kill on a
+    /// memory-tight watch (the atomic write also needs ~2x transiently). Reject
+    /// past this rather than persist something that can't load.
+    private static let maxOTABundleBytes = 3 * 1024 * 1024
+
     private func saveUpdate(_ payload: String) {
         guard let url = otaBundleURL, let sigURL = otaSignatureURL else { return }
         let plan = UpdatePlan(payload: payload)
+        let size = plan.js.utf8.count
+        guard size <= Self.maxOTABundleBytes else {
+            runtimeError = "OTA update rejected: bundle is \(size) bytes, over the "
+                + "\(Self.maxOTABundleBytes)-byte limit"
+            return
+        }
         if let key = updatePublicKey {
             guard let signature = plan.signature,
                   key.isValidSignature(signature, for: Data(plan.js.utf8)) else {
