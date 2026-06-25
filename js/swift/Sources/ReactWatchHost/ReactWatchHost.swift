@@ -162,6 +162,10 @@ final class ReactWatchModel: ObservableObject {
     private struct OTAMeta: Codable {
         let version: Int?
         let signature: String? // base64 Ed25519 over UpdatePlan.signedMessage
+        /// ContentHash of the source the cached bytecode was compiled from
+        /// (OP-1); load trusts the `.qbc` only when this matches the source on
+        /// disk. nil = no trustworthy bytecode, parse the source.
+        var bytecodeSourceHash: String?
     }
 
     /// Ceiling for an OTA bundle. The app parses the whole source through
@@ -229,24 +233,31 @@ final class ReactWatchModel: ObservableObject {
         js: String, version: Int?, signature: String?, url: URL, metaURL: URL
     ) {
         guard (try? js.write(to: url, atomically: true, encoding: .utf8)) != nil else { return }
-        let meta = OTAMeta(version: version, signature: signature)
+        // Compile the bytecode first and only record its source hash in meta if
+        // that succeeded, so load never trusts a `.qbc` that doesn't match this
+        // exact source (OP-1).
+        let bytecodeHash = cacheOTABytecode(source: js) ? ContentHash.of(js) : nil
+        let meta = OTAMeta(
+            version: version, signature: signature,
+            bytecodeSourceHash: bytecodeHash)
         if let data = try? JSONEncoder().encode(meta) {
             try? data.write(to: metaURL, options: .atomic)
         }
-        cacheOTABytecode(source: js)
     }
 
     /// Compiles the just-verified OTA source to bytecode now (CR-17) so the next
     /// cold start skips the parser. Compiled in a throwaway runtime — the same
-    /// quickjs-ng, so it's version-matched — to avoid touching the live context;
-    /// on failure the stale cache is dropped and load falls back to the source.
-    private func cacheOTABytecode(source: String) {
-        guard let bcURL = otaBytecodeURL else { return }
+    /// quickjs-ng, so it's version-matched — to avoid touching the live context.
+    /// Returns whether a fresh `.qbc` was written; on failure the stale cache is
+    /// dropped and load falls back to the source.
+    @discardableResult
+    private func cacheOTABytecode(source: String) -> Bool {
+        guard let bcURL = otaBytecodeURL else { return false }
         if let bytecode = (try? JSRuntime())?.compileToBytecode(source) {
-            try? bytecode.write(to: bcURL, options: .atomic)
-        } else {
-            try? FileManager.default.removeItem(at: bcURL)
+            return (try? bytecode.write(to: bcURL, options: .atomic)) != nil
         }
+        try? FileManager.default.removeItem(at: bcURL)
+        return false
     }
 
     private func loadOTAMeta() -> OTAMeta? {
@@ -401,12 +412,17 @@ final class ReactWatchModel: ObservableObject {
     /// the embedded quickjs-ng changed in a native release, so the cached
     /// bytecode no longer loads).
     private func evaluateOTA(_ source: String, into js: JSRuntime) throws {
-        if let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL) {
+        // Trust the cached bytecode only if meta says it was compiled from THIS
+        // exact source (OP-1): a crash between writing the source and its
+        // bytecode, or a leftover `.qbc` from a previous bundle, must never run
+        // as if it were this bundle.
+        if let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL),
+           loadOTAMeta()?.bytecodeSourceHash == ContentHash.of(source) {
             do {
                 try js.evaluateBytecode(data)
                 return
             } catch {
-                try? FileManager.default.removeItem(at: bcURL) // stale cache
+                try? FileManager.default.removeItem(at: bcURL) // engine-version stale
             }
         }
         try js.evaluate(source)

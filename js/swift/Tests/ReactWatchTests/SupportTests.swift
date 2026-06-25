@@ -409,3 +409,15 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNil(WidgetSnapshot.currentIndex(dates: [], now: date(0)))
     }
 }
+
+// OP-1: the source<->bytecode pairing hash must be deterministic across launches
+// (so a stale .qbc is detected) and differ for different sources.
+final class ContentHashTests: XCTestCase {
+    func testDeterministicAndDistinct() {
+        XCTAssertEqual(
+            ContentHash.of("globalThis.x=1"), ContentHash.of("globalThis.x=1"))
+        XCTAssertNotEqual(
+            ContentHash.of("globalThis.x=1"), ContentHash.of("globalThis.x=2"))
+        XCTAssertFalse(ContentHash.of("").isEmpty)
+    }
+}
