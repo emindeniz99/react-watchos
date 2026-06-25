@@ -32,8 +32,8 @@ Design-level calls from the [system-design review](./system-design-review-2026-0
 
 | SD | Decision | Subsumes | Status |
 |----|----------|----------|--------|
-| **SD-3** | Native-capability compatibility gate (upper = min-native, lower = anti-rollback) | CX-004, CX-007 | design note pending |
-| **SD-4** | OTA = one state machine + single active-bundle record shared by app+widget | CX-004/005/006/007/025 | design note pending |
+| **SD-3** | Native-capability compatibility gate (upper = min-native, lower = anti-rollback) | CX-004, CX-007 | [design ready](./design-ota-capability-gate-2026-06-25-1847.md) |
+| **SD-4** | OTA = one state machine + single active-bundle record shared by app+widget | CX-004/005/006/007/025 | [design ready](./design-ota-capability-gate-2026-06-25-1847.md) |
 | **SD-2** | One shared SwiftUI interpreter for app + widget | CX-018, CX-024 (CX-015/017 ride along) | planned |
 | **SD-1** | Typed command/result channel for fallible native ops | CX-005, CX-022 | planned |
 | **SD-6** | Schema = single source for wire + bridge + component contract | CX-023, CX-024 | planned |
