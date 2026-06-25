@@ -72,7 +72,32 @@ export function installShims(): void {
   if (typeof g.console === "undefined") {
     const write = (...args: unknown[]) =>
       g.__host?.log(args.map(String).join(" "));
-    g.console = { log: write, info: write, warn: write, error: write };
+    const noop = () => {};
+    // React dev builds and libraries reach for more than log/info/warn/error;
+    // the rest are `undefined` in bare QuickJS and throw on call. Alias the
+    // printing methods (debug/trace/dir/group/table) to the host log and
+    // no-op the structural/measurement ones so no console call ever crashes.
+    g.console = {
+      log: write,
+      info: write,
+      warn: write,
+      error: write,
+      debug: write,
+      trace: write,
+      dir: write,
+      group: write,
+      groupCollapsed: write,
+      table: write,
+      assert: (condition: unknown, ...args: unknown[]) => {
+        if (!condition) write("Assertion failed:", ...args);
+      },
+      groupEnd: noop,
+      count: noop,
+      countReset: noop,
+      time: noop,
+      timeEnd: noop,
+      timeLog: noop,
+    };
   }
 
   if (typeof g.performance === "undefined") {

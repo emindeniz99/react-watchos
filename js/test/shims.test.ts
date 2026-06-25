@@ -111,3 +111,79 @@ describe("timer shims (QuickJS environment)", () => {
     });
   });
 });
+
+// CR-8: a bare QuickJS console only had log/info/warn/error; the extras React
+// dev builds and libraries call (debug/assert/group/table/dir) were undefined
+// and threw on call. Drive the shim with console deleted and a recording host.
+describe("console shim (QuickJS environment)", () => {
+  function withBareConsole(body: (logged: string[]) => void): void {
+    const g = globalThis as Record<string, unknown>;
+    const savedConsole = g.console;
+    delete g.console;
+    const logged: string[] = [];
+    g.__host = { log: (line: string) => logged.push(line) };
+    installShims();
+    try {
+      body(logged);
+    } finally {
+      g.console = savedConsole;
+      delete g.__host;
+    }
+  }
+
+  it("defines the extra console methods so they never throw", () => {
+    withBareConsole(() => {
+      const c = (globalThis as Record<string, unknown>).console as Record<
+        string,
+        unknown
+      >;
+      for (const name of [
+        "log",
+        "info",
+        "warn",
+        "error",
+        "debug",
+        "trace",
+        "dir",
+        "group",
+        "groupCollapsed",
+        "groupEnd",
+        "table",
+        "assert",
+        "count",
+        "time",
+        "timeEnd",
+      ]) {
+        expect(typeof c[name], name).toBe("function");
+      }
+    });
+  });
+
+  it("routes the printing methods to the host log", () => {
+    withBareConsole((logged) => {
+      const c = (globalThis as Record<string, unknown>).console as Record<
+        string,
+        (...a: unknown[]) => void
+      >;
+      c.debug("d");
+      c.dir("x");
+      c.group("g");
+      c.table([1]);
+      expect(logged).toContain("d");
+      expect(logged.length).toBe(4);
+    });
+  });
+
+  it("assert logs only when the condition is falsy", () => {
+    withBareConsole((logged) => {
+      const c = (globalThis as Record<string, unknown>).console as Record<
+        string,
+        (...a: unknown[]) => void
+      >;
+      c.assert(true, "should not appear");
+      expect(logged.length).toBe(0);
+      c.assert(false, "boom");
+      expect(logged).toEqual(["Assertion failed: boom"]);
+    });
+  });
+});

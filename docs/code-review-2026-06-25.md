@@ -141,11 +141,15 @@ Plan:
 
 ## Robustness / error handling
 
-- [ ] **CR-8 — `console` shim is incomplete.** `P2`
+- [x] **CR-8 — `console` shim is incomplete.** `P2`
   [`shims.ts:72-76`](../js/src/shims.ts#L72) wires only
   `log/info/warn/error`. `console.debug/assert/group/table/dir` are
   `undefined` and throw in QuickJS — libraries and React dev builds call
   them. **Fix:** alias `debug`→`log` etc.; no-op the rest. Small.
+  **Done (2026-06-25):** printing methods (debug/trace/dir/group/
+  groupCollapsed/table) alias to the host log, `assert` logs only when
+  falsy, structural/measurement methods (groupEnd/count/time…) no-op.
+  Regression test in `shims.test.ts` (driven with `console` deleted).
 
 - [ ] **CR-9 — `performance.now()` is `Date.now()`.** `P3`
   [`shims.ts:79`](../js/src/shims.ts#L79) — wall-clock, ms resolution, not
