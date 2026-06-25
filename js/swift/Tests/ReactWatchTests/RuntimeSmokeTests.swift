@@ -16,6 +16,15 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertTrue(runtime.evaluateBool("1 < 2"))
     }
 
+    // ARCH-04: OTA read-only validation (persistOTA) relies on evaluate()
+    // throwing for a bundle that fails at load, so a bad bundle is rejected
+    // before it's persisted.
+    func testEvaluateThrowsOnTopLevelThrow() throws {
+        let runtime = try JSRuntime()
+        XCTAssertThrowsError(
+            try runtime.evaluate("throw new Error('bad bundle')"))
+    }
+
     func testHostCommitReachesSwiftAndDecodes() throws {
         let runtime = try JSRuntime()
         var committed: String?

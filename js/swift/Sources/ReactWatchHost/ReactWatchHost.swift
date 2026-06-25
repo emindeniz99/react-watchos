@@ -218,21 +218,36 @@ final class ReactWatchModel: ObservableObject {
                     + "installed \(highWater) (downgrade blocked)"
                 return false
             }
-            persistOTA(js: plan.js, version: version,
-                       signature: signature.base64EncodedString(), url: url, metaURL: metaURL)
+            return persistOTA(
+                js: plan.js, version: version,
+                signature: signature.base64EncodedString(), url: url, metaURL: metaURL)
         } else {
             print("[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
                 + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
-            persistOTA(js: plan.js, version: plan.version, signature: nil,
-                       url: url, metaURL: metaURL)
+            return persistOTA(
+                js: plan.js, version: plan.version, signature: nil,
+                url: url, metaURL: metaURL)
         }
-        return true
     }
 
     private func persistOTA(
         js: String, version: Int?, signature: String?, url: URL, metaURL: URL
-    ) {
-        guard (try? js.write(to: url, atomically: true, encoding: .utf8)) != nil else { return }
+    ) -> Bool {
+        // Read-only validation (ARCH-04): eval the candidate in a throwaway
+        // runtime whose host callbacks are all nil (so commit/setItem/publish are
+        // no-ops). A bundle that throws on load is caught BEFORE we persist it,
+        // and its module init can't mutate the real App Group storage here.
+        guard let validator = try? JSRuntime() else { return false }
+        do {
+            try validator.evaluate(js)
+        } catch {
+            runtimeError = "OTA update rejected: bundle failed to evaluate: \(error)"
+            return false
+        }
+        guard (try? js.write(to: url, atomically: true, encoding: .utf8)) != nil else {
+            runtimeError = "OTA update rejected: could not write bundle"
+            return false
+        }
         // Compile the bytecode first and only record its source hash in meta if
         // that succeeded, so load never trusts a `.qbc` that doesn't match this
         // exact source (OP-1).
@@ -243,6 +258,7 @@ final class ReactWatchModel: ObservableObject {
         if let data = try? JSONEncoder().encode(meta) {
             try? data.write(to: metaURL, options: .atomic)
         }
+        return true
     }
 
     /// Compiles the just-verified OTA source to bytecode now (CR-17) so the next

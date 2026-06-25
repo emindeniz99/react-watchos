@@ -48,7 +48,8 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
 - [x] CX-015 — Map `latitude`/`longitude`/`span` props now drive `Map(initialPosition: .region(...))` (were ignored); `.automatic` fits annotations when absent. Verified on watchOS build.
 - [~] **ARCH-04** (transactional OTA state machine):
   - [x] slice 1 / **OP-1** — bytecode cache keyed to a source `ContentHash` in `OTAMeta`; `evaluateOTA` trusts the `.qbc` only on a hash match, so a crash mid-apply or a stale cache can't run old code as if it were this bundle. +1 test (swift 70), watchOS BUILD SUCCEEDED.
-  - [ ] remaining — atomic staged apply (+ previous known-good for rollback), read-only validation host, crash-loop boot rollback, signing keyId/rotation.
+  - [x] slice 2 — **read-only validation**: `persistOTA` evals the candidate in a throwaway runtime (host callbacks nil → no-op commit/setItem/publish) and refuses to persist a bundle that throws on load, so a bad bundle is never saved and can't partially mutate storage during the check. +1 test (swift 71), watchOS BUILD SUCCEEDED.
+  - [ ] remaining — atomic staged apply (+ previous known-good for rollback), crash-loop boot rollback, signing keyId/rotation.
 - [ ] Remaining host: CX-017 (relevantContexts → WidgetKit relevance), **ARCH-03** (app/widget bundle split).
 
 ### Verdict legend
