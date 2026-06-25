@@ -68,7 +68,7 @@ Plan:
   `generateText`) never throws at the job level — it only notifies the
   tracker. Both halves were needed. Covered by **CR-16**.
 
-- [ ] **CR-2 — Orphaned doc-comment in `JSRuntime.swift`.** `cosmetic`
+- [x] **CR-2 — Orphaned doc-comment in `JSRuntime.swift`.** `cosmetic`
   On `main`,
   [`JSRuntime.swift:138-142`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L138)
   the `pushNativeEvent` doc block sits above `resolveFetch` (fused with
@@ -76,6 +76,8 @@ Plan:
   **Fix on main:** move the `pushNativeEvent` doc block down to its
   function and restore `resolveFetch`'s own comment — a ~4-line move.
   (PR #26's rewrite happens to fix this too, but we're not merging it.)
+  **Done (2026-06-25):** moved the `pushNativeEvent` doc to `pushNativeEvent`;
+  `resolveFetch` keeps only its own comment.
 
 - [x] **CR-3 — `OptimisticTextField` doesn't use the optimistic store.**
   `P2`

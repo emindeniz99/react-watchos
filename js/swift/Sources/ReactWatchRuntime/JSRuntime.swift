@@ -141,9 +141,6 @@ public final class JSRuntime {
         evaluateReportingErrors(call, filename: "dispatch.js")
     }
 
-    /// Pushes a named native event into JS at urgent priority (runSync), so
-    /// the resulting UI update commits immediately. Use for non-interaction
-    /// state: connectivity, sensors, app lifecycle.
     /// Settles a JS fetch Promise. MUST be called on the main thread (the
     /// QuickJS context lives there); URLSession completions hop here.
     public func resolveFetch(id: Int, responseJson: String) {
@@ -158,6 +155,9 @@ public final class JSRuntime {
             filename: "fetch.js")
     }
 
+    /// Pushes a named native event into JS at urgent priority (runSync), so
+    /// the resulting UI update commits immediately. Use for non-interaction
+    /// state: connectivity, sensors, app lifecycle.
     public func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
         var payloadArg = "undefined"
         if let payload,
