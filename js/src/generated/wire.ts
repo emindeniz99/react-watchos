@@ -77,3 +77,8 @@ export const BRIDGE_PROTOCOL = 1 as const;
 
 /** Capability features each native target provides (ARCH-01). */
 export const HOST_FEATURES = {"watch":["ai","bluetooth","connectivity","core","haptics","network","notifications","ota","sensors","storage","widgets"],"widget":["core","storage","widgets"]} as const;
+
+/** The component contract (CX-024): every primitive the tree can emit and
+ *  how the widget interpreter supports it (full | degraded). Both Swift
+ *  interpreters are drift-tested against this. */
+export const COMPONENTS = [{"name":"VStack","widget":"full"},{"name":"HStack","widget":"full"},{"name":"ZStack","widget":"full"},{"name":"ScrollView","widget":"degraded"},{"name":"List","widget":"degraded"},{"name":"TabView","widget":"degraded"},{"name":"Spacer","widget":"full"},{"name":"Divider","widget":"full"},{"name":"Text","widget":"full"},{"name":"TimerText","widget":"full"},{"name":"Image","widget":"full"},{"name":"Map","widget":"degraded"},{"name":"Gauge","widget":"full"},{"name":"ProgressView","widget":"full"},{"name":"Button","widget":"degraded"},{"name":"Toggle","widget":"degraded"},{"name":"Slider","widget":"degraded"},{"name":"Stepper","widget":"degraded"},{"name":"Picker","widget":"degraded"},{"name":"DatePicker","widget":"degraded"},{"name":"TextField","widget":"degraded"},{"name":"CrownRotation","widget":"degraded"},{"name":"NavigationStack","widget":"degraded"},{"name":"NavigationLink","widget":"degraded"},{"name":"NavigationRoute","widget":"degraded"}] as const;

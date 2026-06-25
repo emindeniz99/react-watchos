@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   bridgeProtocol,
+  components,
   hostMethods,
   node,
   structs,
@@ -235,6 +236,11 @@ function tsModel() {
       watch: featuresFor("watch"),
       widget: featuresFor("widget"),
     })} as const;`,
+    "",
+    "/** The component contract (CX-024): every primitive the tree can emit and",
+    " *  how the widget interpreter supports it (full | degraded). Both Swift",
+    " *  interpreters are drift-tested against this. */",
+    `export const COMPONENTS = ${JSON.stringify(components)} as const;`,
   );
   return `${parts.join("\n")}\n`;
 }

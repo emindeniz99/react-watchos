@@ -23,6 +23,47 @@ export const bridgeProtocol = 1;
 /** The node struct, named differently per side. */
 export const node = { swift: "RNNode", ts: "SerializedNode" };
 
+/**
+ * The component contract (CX-024 / SD-6): every primitive type the React tree
+ * can emit, and how the widget interpreter supports it — `full` (same as the
+ * app) or `degraded` (a static/read-only stand-in, since WidgetKit views are
+ * non-interactive). The app interpreter supports all of them fully.
+ *
+ * Single source of truth for the vocabulary. `component-contract.test` asserts
+ * BOTH interpreters (ReactWatchHost/NodeView + the widget's WidgetNodeView) have
+ * a `case` for every entry, so a primitive can't be handled in one and silently
+ * dropped in the other (the CX-018 class of drift). The Swift switches keep a
+ * `default:` (logs + skips, for forward-compat with newer bundles), so Swift
+ * can't enforce this at compile time — hence the test.
+ */
+export const components = [
+  { name: "VStack", widget: "full" },
+  { name: "HStack", widget: "full" },
+  { name: "ZStack", widget: "full" },
+  { name: "ScrollView", widget: "degraded" },
+  { name: "List", widget: "degraded" },
+  { name: "TabView", widget: "degraded" },
+  { name: "Spacer", widget: "full" },
+  { name: "Divider", widget: "full" },
+  { name: "Text", widget: "full" },
+  { name: "TimerText", widget: "full" },
+  { name: "Image", widget: "full" },
+  { name: "Map", widget: "degraded" },
+  { name: "Gauge", widget: "full" },
+  { name: "ProgressView", widget: "full" },
+  { name: "Button", widget: "degraded" },
+  { name: "Toggle", widget: "degraded" },
+  { name: "Slider", widget: "degraded" },
+  { name: "Stepper", widget: "degraded" },
+  { name: "Picker", widget: "degraded" },
+  { name: "DatePicker", widget: "degraded" },
+  { name: "TextField", widget: "degraded" },
+  { name: "CrownRotation", widget: "degraded" },
+  { name: "NavigationStack", widget: "degraded" },
+  { name: "NavigationLink", widget: "degraded" },
+  { name: "NavigationRoute", widget: "degraded" },
+];
+
 /** Plain structs, rendered for both Swift and TS from `fields`. */
 export const structs = [
   {

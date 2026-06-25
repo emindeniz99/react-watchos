@@ -8,6 +8,11 @@ export interface HostMethod {
   via?: "invoke";
 }
 export const hostMethods: HostMethod[];
+export interface Component {
+  name: string;
+  widget: "full" | "degraded";
+}
+export const components: Component[];
 export const node: { swift: string; ts: string };
 export const structs: unknown[];
 export const tsOnly: unknown[];
