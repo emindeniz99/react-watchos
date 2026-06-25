@@ -28,9 +28,9 @@ describe("OTA applyUpdate", () => {
     expect(result).toEqual({ accepted: true });
   });
 
-  it("carries the version + Ed25519 signature when provided (CR-4/CR-17)", async () => {
+  it("carries the version + Ed25519 signature + keyId when provided (CR-4/CR-17/CX-007)", async () => {
     const host = installMockHost();
-    await applyUpdate("globalThis.x = 1;", 4, "c2lnbmF0dXJl");
+    await applyUpdate("globalThis.x = 1;", 4, "c2lnbmF0dXJl", "k1A2b3C4");
     expect(host.invoke).toHaveBeenCalledWith(
       expect.any(Number),
       "saveUpdate",
@@ -38,6 +38,7 @@ describe("OTA applyUpdate", () => {
         js: "globalThis.x = 1;",
         version: 4,
         signature: "c2lnbmF0dXJl",
+        keyId: "k1A2b3C4",
       }),
     );
   });
@@ -98,6 +99,7 @@ describe("OTA freshness check", () => {
           version: 3,
           bundle: "bundle.js",
           signature: "sig",
+          keyId: "k1A2b3C4",
         }),
       })
       .mockResolvedValueOnce({ text: async () => "globalThis.x=1;" });
@@ -110,10 +112,16 @@ describe("OTA freshness check", () => {
     expect((g.fetch as ReturnType<typeof vi.fn>).mock.calls[1][0]).toBe(
       "https://x.test/sub/bundle.js",
     );
+    // The manifest's keyId threads through to the saveUpdate payload (CX-007).
     expect(host.invoke).toHaveBeenCalledWith(
       expect.any(Number),
       "saveUpdate",
-      JSON.stringify({ js: "globalThis.x=1;", version: 3, signature: "sig" }),
+      JSON.stringify({
+        js: "globalThis.x=1;",
+        version: 3,
+        signature: "sig",
+        keyId: "k1A2b3C4",
+      }),
     );
   });
 

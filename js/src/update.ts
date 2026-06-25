@@ -7,18 +7,22 @@ import { invoke, type InvokeError } from "./invoke";
  *
  *   const m = await (await fetch(MANIFEST_URL)).json(); // use https://
  *   const js = await (await fetch(m.bundleUrl)).text();
- *   applyUpdate(js, m.version, m.signature);            // next launch
+ *   applyUpdate(js, m.version, m.signature, m.keyId);   // next launch
  *
  * Security (CR-4 / CR-17): an OTA bundle is arbitrary JS that runs with the
  * full host surface, so an unverified one from a compromised origin is
- * in-sandbox RCE. Sign `"v1:<version>:<js>"` with your Ed25519 private key and
- * pass the base64 `signature` + the `version`; the watch verifies it against
- * the public key configured on `ReactWatchRootView(updatePublicKeyBase64:)`
- * before persisting/evaluating. The `version` is a compatibility integer
- * (bump it only on a breaking change); the watch refuses any bundle older than
- * the newest it has applied (anti-rollback), so an old bundle can't run against
- * a newer-schema db. Always fetch over HTTPS. With no key configured the bundle
- * still loads (fail-open) but the native side logs a loud warning.
+ * in-sandbox RCE. Sign `"v1:<keyId>:<version>:<js>"` with your Ed25519 private
+ * key and pass the base64 `signature`, the `keyId`, and the `version`; the
+ * watch looks the `keyId` up in the trusted `keyId -> publicKey` map configured
+ * on `ReactWatchRootView(ota: OTAConfig(signerPublicKeys:))` and verifies the
+ * signature before persisting/evaluating. The `keyId` is bound *inside* the
+ * signed bytes (CX-007), so it can't be swapped to steer the watch to a
+ * different key, and an unknown `keyId` fails closed — that's what makes key
+ * rotation safe. The `version` is a compatibility integer (bump it only on a
+ * breaking change); the watch refuses any bundle older than the newest it has
+ * applied (anti-rollback), so an old bundle can't run against a newer-schema db.
+ * Always fetch over HTTPS. With no key configured the bundle still loads
+ * (fail-open) but the native side logs a loud warning.
  *
  * App Store guardrail (2.5.2): OTA bundles may ship fixes and UI changes to
  * *already-reviewed* functionality — not materially new capability, and
@@ -49,16 +53,18 @@ export async function applyUpdate(
   js: string,
   version?: number,
   signature?: string,
+  keyId?: string,
   requiredFeatures?: string[],
   minBridgeProtocol?: number,
 ): Promise<SaveUpdateResult> {
   try {
-    // JSON.stringify drops undefined keys, so a call without capability fields
-    // produces the same payload as before.
+    // JSON.stringify drops undefined keys, so a call without keyId/capability
+    // fields produces the same payload as before.
     return await invoke<SaveUpdateResult>("saveUpdate", {
       js,
       version,
       signature,
+      keyId,
       requiredFeatures,
       minBridgeProtocol,
     });
@@ -83,8 +89,11 @@ export interface UpdateManifest {
   version: number;
   /** Bundle URL — absolute (https), or relative to the manifest URL. */
   bundle: string;
-  /** base64 Ed25519 signature over "v1:<version>:<bundle-js>". */
+  /** base64 Ed25519 signature over "v1:<keyId>:<version>:<bundle-js>". */
   signature?: string;
+  /** Opaque id of the signing key (CX-007). Selects the watch's trusted public
+   *  key and is bound into the signed bytes; an unknown id fails closed. */
+  keyId?: string;
   /**
    * Capability features the bundle requires (ARCH-01), e.g. ["network",
    * "bluetooth"]. The watch refuses to apply a bundle whose features its binary
@@ -192,6 +201,7 @@ export async function fetchAndApplyUpdate(
     js,
     manifest.version,
     manifest.signature,
+    manifest.keyId,
     manifest.requiredFeatures,
     manifest.minBridgeProtocol,
   );

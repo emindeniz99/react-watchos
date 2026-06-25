@@ -63,11 +63,13 @@ final class ReactWatchModel: ObservableObject {
     /// in and drops its result if it no longer matches.
     private var generation = 0
 
-    /// OTA verification config (CR-4 / CR-17). `updatePublicKey` nil = fail-open
-    /// (load unsigned + warn). `updateGate` .hard refuses to boot stale JS;
+    /// OTA verification config (CR-4 / CR-17). `updatePublicKeys` empty =
+    /// fail-open (load unsigned + warn); otherwise it's the trusted
+    /// `keyId -> publicKey` map (CX-007) — an OTA's `keyId` selects the key, and
+    /// an unknown one fails closed. `updateGate` .hard refuses to boot stale JS;
     /// `shippedBundleVersion` is the compatibility version of the bundle in the
     /// app binary, used for the anti-rollback boot decision.
-    private let updatePublicKey: Curve25519.Signing.PublicKey?
+    private let updatePublicKeys: [String: Curve25519.Signing.PublicKey]
     private let updateGate: OTAGate
     private let shippedBundleVersion: Int
     private let updateManifestURL: String?
@@ -76,9 +78,10 @@ final class ReactWatchModel: ObservableObject {
 
     init(appGroupId: String?, ota: OTAConfig = .init(), useJSCallBridge: Bool = true) {
         store = SharedWidgetStore(appGroupId: appGroupId)
-        updatePublicKey = ota.publicKeyBase64
-            .flatMap { Data(base64Encoded: $0) }
-            .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
+        updatePublicKeys = ota.signerPublicKeys.compactMapValues {
+            Data(base64Encoded: $0)
+                .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
+        }
         updateGate = ota.gate
         shippedBundleVersion = ota.shippedVersion
         updateManifestURL = ota.manifestURL
@@ -344,7 +347,16 @@ final class ReactWatchModel: ObservableObject {
                 + "lacks (\(missing.joined(separator: ", "))) — update the app"
             return false
         }
-        if let key = updatePublicKey {
+        if !updatePublicKeys.isEmpty {
+            // Fail closed on an unknown key id (CX-007): an attacker-supplied
+            // `keyId` can only ever resolve to a key in the baked-in map — never
+            // outside the pinned trust set (the JWT `kid`-confusion lesson). The
+            // same `keyId` selects the key AND is bound into `signedMessage`, so
+            // the verified bytes commit to *which* key signed *this* bundle.
+            guard let keyId = plan.keyId, let key = updatePublicKeys[keyId] else {
+                runtimeError = "OTA update rejected: unknown or missing signing key id"
+                return false
+            }
             guard let signature = plan.signature, let version = plan.version,
                 let message = plan.signedMessage(),
                 key.isValidSignature(signature, for: message)
@@ -360,18 +372,21 @@ final class ReactWatchModel: ObservableObject {
                 return false
             }
             return persistOTA(
-                js: plan.js, version: version,
+                js: plan.js, keyId: keyId, version: version,
                 signature: signature.base64EncodedString()
             )
         } else {
             print(
                 "[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
-                    + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
-            return persistOTA(js: plan.js, version: plan.version, signature: nil)
+                    + "verification — set OTAConfig.signerPublicKeys to enforce (CR-4).")
+            return persistOTA(
+                js: plan.js, keyId: plan.keyId, version: plan.version, signature: nil)
         }
     }
 
-    private func persistOTA(js: String, version: Int?, signature: String?) -> Bool {
+    private func persistOTA(
+        js: String, keyId: String?, version: Int?, signature: String?
+    ) -> Bool {
         guard let recordURL = otaRecordURL else { return false }
         // Read-only validation (ARCH-04): eval the candidate in a throwaway
         // runtime whose host callbacks are all nil (so commit/setItem/publish are
@@ -388,7 +403,8 @@ final class ReactWatchModel: ObservableObject {
         // (OP-1); a nil hash just means load will parse the source.
         let bytecodeHash = cacheOTABytecode(source: js)
         let record = OTARecord(
-            js: js, version: version, signature: signature, bytecodeHash: bytecodeHash
+            js: js, keyId: keyId, version: version, signature: signature,
+            bytecodeHash: bytecodeHash
         )
         // ONE atomic write is the commit point (ARCH-04): a crash before it
         // leaves the previous record (or none) intact — never a new source paired
@@ -438,6 +454,7 @@ final class ReactWatchModel: ObservableObject {
         let version: Int
         let bundle: String
         let signature: String?
+        let keyId: String?
     }
 
     /// Native OTA recovery for the hard gate (CR-17): when stale JS is blocked
@@ -463,6 +480,7 @@ final class ReactWatchModel: ObservableObject {
             }
             var payload: [String: Any] = ["js": js, "version": manifest.version]
             if let signature = manifest.signature { payload["signature"] = signature }
+            if let keyId = manifest.keyId { payload["keyId"] = keyId }
             guard let payloadData = try? JSONSerialization.data(withJSONObject: payload),
                 let payloadString = String(data: payloadData, encoding: .utf8),
                 saveUpdate(payloadString)
@@ -528,7 +546,7 @@ final class ReactWatchModel: ObservableObject {
     private func load(into js: JSRuntime) throws {
         let candidate = otaCandidate()
         let decision: BootDecision =
-            if updatePublicKey == nil {
+            if updatePublicKeys.isEmpty {
                 // Fail-open: versions are unverified, so no anti-rollback — run the
                 // OTA bundle if present, else shipped.
                 candidate != nil ? .runOTA : .runShipped
@@ -581,7 +599,7 @@ final class ReactWatchModel: ObservableObject {
             break
         }
         try loadShipped(into: js)
-        if updatePublicKey != nil {
+        if !updatePublicKeys.isEmpty {
             store.setOTAHighWater(
                 VersionPolicy.bumpedHighWater(
                     store.otaHighWater(),
@@ -913,9 +931,15 @@ final class ReactWatchModel: ObservableObject {
 
 /// OTA verification + rollback policy for `ReactWatchRootView` (CR-4 / CR-17).
 public struct OTAConfig: Sendable {
-    /// Base64 Ed25519 public key. nil = fail-open: bundles load unsigned with a
-    /// loud warning. Set it to enforce signed updates + anti-rollback.
-    public var publicKeyBase64: String?
+    /// Trusted OTA signing keys (CX-007): `keyId -> base64 Ed25519 public key`.
+    /// Empty = fail-open (bundles load unsigned with a loud warning); set it to
+    /// enforce signed updates + anti-rollback. Multiple entries enable key
+    /// rotation — trust `{old, new}` while you migrate signing to `new`, then
+    /// drop `old` in a later app release (rotate-then-revoke with an overlap
+    /// window so no device is stranded). This map ships INSIDE the code-signed
+    /// app binary: it's the trust anchor, so it must never come from a source
+    /// the OTA channel could mutate.
+    public var signerPublicKeys: [String: String]
     /// `.hard` refuses to boot a bundle older than the newest applied (protects
     /// the db from stale JS); `.soft` runs it and lets the app prompt to update.
     public var gate: OTAGate
@@ -929,10 +953,10 @@ public struct OTAConfig: Sendable {
     public var manifestURL: String?
 
     public init(
-        publicKeyBase64: String? = nil, gate: OTAGate = .soft,
+        signerPublicKeys: [String: String] = [:], gate: OTAGate = .soft,
         shippedVersion: Int = 1, manifestURL: String? = nil
     ) {
-        self.publicKeyBase64 = publicKeyBase64
+        self.signerPublicKeys = signerPublicKeys
         self.gate = gate
         self.shippedVersion = shippedVersion
         self.manifestURL = manifestURL

@@ -11,10 +11,13 @@ import Foundation
 /// (SD-4 direction) and unit-testable on Linux.
 public struct OTARecord: Codable, Sendable, Equatable {
     public let js: String
+    /// Signing key id this bundle was verified against (CX-007) — recorded for
+    /// audit (which key shipped this bundle), nil when running unsigned/fail-open.
+    public let keyId: String?
     /// Compatibility/anti-rollback version (nil when running unsigned/fail-open).
     public let version: Int?
     /// base64 Ed25519 over `UpdatePlan.signedMessage` — recorded for audit /
-    /// future key rotation; load trusts the App Group, so it isn't re-verified.
+    /// key rotation; load trusts the App Group, so it isn't re-verified.
     public let signature: String?
     /// `ContentHash.of` the cached bytecode blob this record was saved with; load
     /// trusts the `.qbc` only when the on-disk blob hashes to this. nil = no
@@ -22,9 +25,11 @@ public struct OTARecord: Codable, Sendable, Equatable {
     public var bytecodeHash: String?
 
     public init(
-        js: String, version: Int?, signature: String?, bytecodeHash: String? = nil
+        js: String, keyId: String? = nil, version: Int?, signature: String?,
+        bytecodeHash: String? = nil
     ) {
         self.js = js
+        self.keyId = keyId
         self.version = version
         self.signature = signature
         self.bytecodeHash = bytecodeHash

@@ -180,9 +180,10 @@ final class UpdatePlanTests: XCTestCase {
     func testParsesSignedPayload() {
         let sig = Data([1, 2, 3, 4])
         let payload =
-            #"{"js":"globalThis.x=1","version":4,"signature":"\#(sig.base64EncodedString())"}"#
+            #"{"js":"globalThis.x=1","keyId":"abc123","version":4,"signature":"\#(sig.base64EncodedString())"}"#
         let plan = UpdatePlan(payload: payload)
         XCTAssertEqual(plan.js, "globalThis.x=1")
+        XCTAssertEqual(plan.keyId, "abc123")
         XCTAssertEqual(plan.version, 4)
         XCTAssertEqual(plan.signature, sig)
     }
@@ -190,6 +191,7 @@ final class UpdatePlanTests: XCTestCase {
     func testUnsignedObjectHasNoVersionOrSignature() {
         let plan = UpdatePlan(payload: #"{"js":"globalThis.x=1"}"#)
         XCTAssertEqual(plan.js, "globalThis.x=1")
+        XCTAssertNil(plan.keyId)
         XCTAssertNil(plan.version)
         XCTAssertNil(plan.signature)
     }
@@ -216,12 +218,31 @@ final class UpdatePlanTests: XCTestCase {
         XCTAssertEqual(plan.minBridgeProtocol, 0)
     }
 
-    func testSignedMessageBindsSchemeVersionAndBundle() {
-        // The version is inside the signed bytes, so it can't be relabelled.
-        let plan = UpdatePlan(js: "code", version: 7, signature: nil)
-        XCTAssertEqual(plan.signedMessage(), Data("v1:7:code".utf8))
+    func testSignedMessageBindsSchemeKeyIdVersionAndBundle() {
+        // The keyId and version are inside the signed bytes (CX-007), so neither
+        // can be relabelled.
+        let plan = UpdatePlan(js: "code", keyId: "abc123", version: 7, signature: nil)
+        XCTAssertEqual(plan.signedMessage(), Data("v1:abc123:7:code".utf8))
         // No version -> nothing to verify.
-        XCTAssertNil(UpdatePlan(js: "code", version: nil, signature: nil).signedMessage())
+        XCTAssertNil(
+            UpdatePlan(js: "code", keyId: "abc123", version: nil, signature: nil)
+                .signedMessage())
+        // No keyId -> nothing to verify (host fails closed when keys configured).
+        XCTAssertNil(
+            UpdatePlan(js: "code", keyId: nil, version: 7, signature: nil).signedMessage())
+        // A keyId with a colon would make the `:`-delimited message ambiguous —
+        // rejected, so the concatenation stays injective.
+        XCTAssertNil(
+            UpdatePlan(js: "code", keyId: "a:1", version: 7, signature: nil).signedMessage())
+    }
+
+    func testIsValidKeyId() {
+        XCTAssertTrue(UpdatePlan.isValidKeyId("k1A2b3C4"))
+        XCTAssertTrue(UpdatePlan.isValidKeyId("a-b_C9"))
+        XCTAssertFalse(UpdatePlan.isValidKeyId(""))
+        XCTAssertFalse(UpdatePlan.isValidKeyId("has:colon"))
+        XCTAssertFalse(UpdatePlan.isValidKeyId("has space"))
+        XCTAssertFalse(UpdatePlan.isValidKeyId(String(repeating: "a", count: 65)))
     }
 }
 
@@ -482,18 +503,23 @@ final class ContentHashTests: XCTestCase {
 final class OTARecordTests: XCTestCase {
     func testRoundTripsAllFields() throws {
         let record = OTARecord(
-            js: "globalThis.x=1", version: 7, signature: "sig==", bytecodeHash: "abcd"
+            js: "globalThis.x=1", keyId: "abc123", version: 7, signature: "sig==",
+            bytecodeHash: "abcd"
         )
-        let data = try JSONEncoder().encode(record)
-        XCTAssertEqual(try JSONDecoder().decode(OTARecord.self, from: data), record)
-    }
-
-    func testRoundTripsUnsignedFailOpen() throws {
-        // Fail-open path: no key configured -> nil version/signature, no bytecode.
-        let record = OTARecord(js: "x", version: nil, signature: nil, bytecodeHash: nil)
         let data = try JSONEncoder().encode(record)
         let back = try JSONDecoder().decode(OTARecord.self, from: data)
         XCTAssertEqual(back, record)
+        XCTAssertEqual(back.keyId, "abc123")  // CX-007 audit field
+    }
+
+    func testRoundTripsUnsignedFailOpen() throws {
+        // Fail-open path: no key configured -> nil keyId/version/signature.
+        let record = OTARecord(
+            js: "x", keyId: nil, version: nil, signature: nil, bytecodeHash: nil)
+        let data = try JSONEncoder().encode(record)
+        let back = try JSONDecoder().decode(OTARecord.self, from: data)
+        XCTAssertEqual(back, record)
+        XCTAssertNil(back.keyId)
         XCTAssertNil(back.version)
         XCTAssertNil(back.bytecodeHash)
     }

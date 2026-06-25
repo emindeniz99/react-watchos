@@ -16,30 +16,51 @@ will run it. This is how you produce that signature.
 npm run ota:keygen
 ```
 
-Prints two base64 values:
+Prints a **key id** (`kid`) plus two base64 values:
 
-- **public key** → pass to the app: `ReactWatchRootView(ota: OTAConfig(publicKeyBase64: "…"))`.
-- **signing (private) key** → store as a **CI secret** named `OTA_SIGNING_KEY`.
-  **Never commit it.** It is the only thing that lets you ship a bundle the
-  watch will run — treat it like a code-signing key. Rotating it means shipping
-  a native release with the new public key.
+- **key id + public key** → add to the app's trusted-key map:
+  `ReactWatchRootView(ota: OTAConfig(signerPublicKeys: ["<kid>": "<public>"]))`.
+  The `signerPublicKeys` map is the trust anchor and ships **inside the
+  code-signed app binary** — never source it from a channel the OTA path can
+  touch.
+- **signing (private) key** → store as a **CI secret** named `OTA_SIGNING_KEY`,
+  and set its **`OTA_SIGNING_KEY_ID=<kid>`** alongside it. **Never commit the
+  private key.** It is the only thing that lets you ship a bundle the watch will
+  run — treat it like a code-signing key.
 
-With **no** public key configured the app is *fail-open*: it loads unsigned
-bundles and logs a warning. Configure the key to enforce signatures + the
-anti-rollback gate.
+With an **empty** `signerPublicKeys` the app is *fail-open*: it loads unsigned
+bundles and logs a warning. Configure at least one key to enforce signatures +
+the anti-rollback gate.
+
+### Key rotation (CX-007)
+
+The `kid` is bound **inside** the signed bytes, so it can't be swapped to steer
+the watch to a different key, and an unknown `kid` **fails closed**. To rotate a
+signing key without bricking any device, do it in two releases (overlap window):
+
+1. **Rotate:** ship an app release whose `signerPublicKeys` trusts **both** the
+   old and new `kid`, and switch CI's `OTA_SIGNING_KEY`/`OTA_SIGNING_KEY_ID` to
+   the **new** key. Now old and new devices both verify.
+2. **Revoke:** once enough of the fleet has that release, ship a release that
+   **drops the old `kid`** from `signerPublicKeys`. Never reuse a retired `kid`.
+
+Collapsing both steps into one strands any device that hasn't taken the release
+that trusts the new key.
 
 ## 2. Build, then sign (in CI, at publish time)
 
 ```sh
 npm run build                          # emits dist/bundle.js + dist/manifest.json (signature: null)
-OTA_SIGNING_KEY="$OTA_SIGNING_KEY" npm run ota:sign   # fills manifest.json's signature
+OTA_SIGNING_KEY="$OTA_SIGNING_KEY" \
+OTA_SIGNING_KEY_ID="$OTA_SIGNING_KEY_ID" \
+npm run ota:sign                       # fills manifest.json's signature + keyId
 ```
 
 `ota:sign` signs the exact bytes the watch verifies —
-`"v1:<version>:<dist/bundle.js>"` (matching Swift's `UpdatePlan.signedMessage`)
-— and writes the base64 signature into `dist/manifest.json`. Signing is a
-**separate step from `build`** on purpose: the private key never touches a dev
-build.
+`"v1:<kid>:<version>:<dist/bundle.js>"` (matching Swift's
+`UpdatePlan.signedMessage`) — and writes the base64 signature **and the `keyId`**
+into `dist/manifest.json`. Signing is a **separate step from `build`** on
+purpose: the private key never touches a dev build.
 
 Then upload `dist/manifest.json` and `dist/bundle.js` to your update endpoint
 (serve over **HTTPS**). The app's `fetchAndApplyUpdate(manifestUrl)` /
@@ -49,7 +70,7 @@ recovery path (`OTAConfig.manifestURL`) does the same.
 The manifest:
 
 ```json
-{ "version": 1, "bundle": "bundle.js", "signature": "<base64>" }
+{ "version": 1, "bundle": "bundle.js", "signature": "<base64>", "keyId": "<kid>" }
 ```
 
 ## 3. Versioning (anti-rollback)
