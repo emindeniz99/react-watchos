@@ -312,7 +312,7 @@ struct NodeView: View {
         let annotations = coordinates(node.props["annotations"])
         let route = coordinates(node.props["route"]).map(\.coordinate)
         Map {
-            ForEach(Array(annotations.enumerated()), id: \.offset) { _, a in
+            ForEach(annotations) { a in
                 Marker(a.title ?? "", systemImage: a.systemImage ?? "mappin",
                        coordinate: a.coordinate)
                     .tint(color(a.tint) ?? .red)
@@ -324,11 +324,16 @@ struct NodeView: View {
         .frame(height: cgFloat("height") ?? 120)
     }
 
-    private struct MapPoint {
+    private struct MapPoint: Identifiable {
         let coordinate: CLLocationCoordinate2D
         let title: String?
         let systemImage: String?
         let tint: String?
+        // Stable across reorders (OP-6): identity is the marker's place + label,
+        // not its array position, so SwiftUI doesn't re-drop every pin on change.
+        var id: String {
+            "\(coordinate.latitude),\(coordinate.longitude):\(title ?? "")"
+        }
     }
 
     private func coordinates(_ value: JSONValue?) -> [MapPoint] {
