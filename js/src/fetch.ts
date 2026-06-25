@@ -1,17 +1,28 @@
 import type { QuickJSHostGlobal } from "./host";
 
 /**
- * A focused, WHATWG-aligned fetch for QuickJS (no native fetch/XHR on the
- * watch). React Native ships the full whatwg-fetch polyfill over
- * XMLHttpRequest over native networking; we don't have XHR/Blob/FormData
- * and don't want their weight on a watch, so this implements the parts that
- * matter: a case-insensitive Headers class, AbortController/AbortSignal
- * cancellation (the standard way; `timeout` is sugar over it), and a
- * Response with status/statusText/ok/url/headers/text()/json()/arrayBuffer().
+ * A focused fetch for QuickJS (no native fetch/XHR on the watch) — a deliberate
+ * WHATWG *subset*, not the full API. React Native ships the whatwg-fetch
+ * polyfill over XMLHttpRequest; we don't have XHR/Blob/FormData and don't want
+ * their weight on a watch, so this implements the parts that matter:
+ *   - a case-insensitive `Headers` class;
+ *   - `AbortController`/`AbortSignal` cancellation (the standard way; `timeout`
+ *     is sugar over it);
+ *   - a `Response` with status/statusText/ok/url/headers and a single-use body
+ *     (`bodyUsed`; the first text()/json()/arrayBuffer() consumes it).
  * Text bodies are strings (decode/encode JSON yourself); binary bodies arrive
  * base64-encoded (`bodyEncoding === "base64"`) — read them with arrayBuffer(),
  * since text()/json() reject on binary rather than return a silently-wrong
  * value. Oversized bodies are rejected by the host before they reach here.
+ *
+ * The URL scheme is NOT restricted here: the request string is passed verbatim
+ * to native, where `FetchPlan` + URLSession decide what can actually be fetched
+ * (they accept any absolute URL and reject the rest) — that's the single
+ * authority, so a custom app scheme works iff URLSession supports it.
+ *
+ * Intentionally NOT implemented (the host can't honor them, so faking them would
+ * mislead): `Request` input, `clone()`, `credentials`/`cache`/`redirect`,
+ * `Blob`/`FormData`.
  *
  * Wire: __host.fetch(id, requestJson) arms an async URLSession request;
  * Swift settles it on the main thread via __resolveFetch/__rejectFetch, and
@@ -143,28 +154,6 @@ function signalReason(signal: WatchAbortSignal): unknown {
   return signal.reason ?? abortError();
 }
 
-/**
- * WHATWG fetch only speaks http(s) (it has no base URL here, so a relative URL
- * can't be resolved either). Reject anything else with a TypeError — the same
- * failure mode as the spec — so a bundle can't reach `file://` (a local-file
- * read via URLSession) or another scheme through fetch. The host has no scheme
- * allowlist of its own, so this is the gate (CX-021).
- */
-function httpUrlOrThrow(url: unknown): string {
-  if (typeof url !== "string" || url === "") {
-    throw new TypeError("fetch requires a non-empty URL string");
-  }
-  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(url)?.[1]?.toLowerCase();
-  if (scheme !== "http" && scheme !== "https") {
-    throw new TypeError(
-      scheme
-        ? `fetch: unsupported URL scheme "${scheme}" (only http/https)`
-        : `fetch: URL must be absolute http(s): "${url}"`,
-    );
-  }
-  return url;
-}
-
 /** Decode base64 → bytes. `atob` is a QuickJS global (JS_AddIntrinsicAToB). */
 function base64ToBytes(b64: string): Uint8Array {
   const binary = (globalThis as { atob: (s: string) => string }).atob(b64);
@@ -280,13 +269,6 @@ export function installFetch(g: Global): void {
 
   g.fetch = (url: string, options?: FetchOptions): Promise<unknown> =>
     new Promise((resolve, reject) => {
-      let validUrl: string;
-      try {
-        validUrl = httpUrlOrThrow(url);
-      } catch (error) {
-        reject(error);
-        return;
-      }
       const signal =
         options?.signal ??
         (options?.timeout
@@ -312,7 +294,7 @@ export function installFetch(g: Global): void {
       g.__host?.fetch?.(
         id,
         JSON.stringify({
-          url: validUrl,
+          url,
           method: (options?.method ?? "GET").toUpperCase(),
           headers: new Headers(options?.headers).toJSON(),
           body: options?.body ?? null,

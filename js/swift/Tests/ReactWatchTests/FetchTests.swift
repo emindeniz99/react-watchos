@@ -30,6 +30,23 @@ final class FetchPlanTests: XCTestCase {
         XCTAssertNil(FetchPlan(json: #"{"method":"GET"}"#)) // no url
         XCTAssertNil(FetchPlan(json: #"{"url":"","method":"GET"}"#)) // empty url
     }
+
+    // CX-021: the native side is the single URL authority and does NOT restrict
+    // the scheme — any absolute URL builds a request (URLSession decides at
+    // request time whether it can actually fetch it), so a custom app scheme is
+    // accepted here rather than gatekept in JS.
+    func testAcceptsAnyAbsoluteScheme() throws {
+        let plan = try XCTUnwrap(
+            FetchPlan(json: #"{"url":"xapp://hello/world","method":"GET"}"#))
+        XCTAssertEqual(plan.request.url?.scheme, "xapp")
+        XCTAssertEqual(plan.url, "xapp://hello/world")
+    }
+
+    // ...but a URL with no scheme (a relative path) can't be fetched, so it's
+    // rejected — there's no base URL to resolve it against on the watch.
+    func testRejectsSchemelessURL() {
+        XCTAssertNil(FetchPlan(json: #"{"url":"/relative/path","method":"GET"}"#))
+    }
 }
 
 final class FetchResponseTests: XCTestCase {

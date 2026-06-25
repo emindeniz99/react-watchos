@@ -177,29 +177,18 @@ describe("fetch shim (QuickJS environment)", () => {
     ]);
   });
 
-  // CX-021: fetch only speaks http(s) (no base URL to resolve relatives). A
-  // non-http scheme must be rejected with a TypeError and must NOT reach the
-  // host — otherwise a bundle could read `file://` via URLSession.
-  it.each([
-    ["file:///etc/passwd"],
-    ["ftp://host/x"],
-    ["data:text/plain,hi"],
-    ["/relative/path"],
-    [""],
-  ])("rejects non-http(s) URL %j without calling the host", async (url) => {
-    const fetch = g.fetch as (u: unknown) => Promise<unknown>;
-    await expect(fetch(url)).rejects.toBeInstanceOf(TypeError);
-    expect(hostFetch).not.toHaveBeenCalled();
-  });
-
-  it("accepts http(s) case-insensitively (scheme is normalized)", async () => {
+  // CX-021: the URL scheme is NOT gatekept in JS. The native FetchPlan +
+  // URLSession are the single authority on what can be requested (they accept
+  // any absolute URL and reject what they can't fetch). So any scheme — including
+  // a custom app scheme — is passed straight through, verbatim, for native to
+  // attempt; JS doesn't pre-restrict it.
+  it("passes any URL scheme through to the host unchanged", () => {
     const fetch = g.fetch as (url: string) => Promise<unknown>;
+    fetch("xapp://hello");
     fetch("HTTPS://api.test/x");
-    fetch("Http://api.test/y");
     expect(hostFetch).toHaveBeenCalledTimes(2);
-    // The original URL string is passed through unchanged (only the scheme
-    // *check* is case-insensitive).
-    expect(JSON.parse(hostFetch.mock.calls[0][1]).url).toBe(
+    expect(JSON.parse(hostFetch.mock.calls[0][1]).url).toBe("xapp://hello");
+    expect(JSON.parse(hostFetch.mock.calls[1][1]).url).toBe(
       "HTTPS://api.test/x",
     );
   });
