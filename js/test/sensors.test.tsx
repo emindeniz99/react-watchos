@@ -11,10 +11,12 @@ import {
   Text,
   unregisterAllNativeListeners,
 } from "../src/index";
+import { __resetSensorCountsForTest } from "../src/sensors";
 import { installMockHost } from "./helpers";
 
 afterEach(() => {
   unregisterAllNativeListeners();
+  __resetSensorCountsForTest();
   delete (globalThis as Record<string, unknown>).__host;
   delete (globalThis as Record<string, unknown>).__pushNativeEvent;
   delete (globalThis as Record<string, unknown>).__dispatchEvent;
@@ -59,6 +61,53 @@ describe("sensor streams", () => {
     expect(host.sensor.mock.calls.map((c) => JSON.parse(c[0]).kind)).toEqual([
       "gyroscope",
       "location",
+    ]);
+  });
+});
+
+// CX-014: the native stream is shared, so start/stop must be reference-counted.
+// These encode WHY: a second subscriber must not re-start the hardware, and one
+// component unmounting must not stop a stream others still depend on.
+describe("sensor refcounting (CX-014)", () => {
+  const ops = (host: ReturnType<typeof installMockHost>) =>
+    host.sensor.mock.calls.map((c) => JSON.parse(c[0] as string));
+
+  it("starts once for two subscribers and stops only when the last leaves", () => {
+    const host = installMockHost();
+    const off1 = startSensor("heartRate", () => {});
+    const off2 = startSensor("heartRate", () => {});
+    // Second subscriber rides the already-running stream — no second start.
+    expect(ops(host)).toEqual([{ op: "start", kind: "heartRate" }]);
+
+    off1(); // not the last subscriber → stream stays up
+    expect(ops(host)).toEqual([{ op: "start", kind: "heartRate" }]);
+
+    off2(); // last subscriber → now stop
+    expect(ops(host)).toEqual([
+      { op: "start", kind: "heartRate" },
+      { op: "stop", kind: "heartRate" },
+    ]);
+  });
+
+  it("treats a duplicate cleanup as a no-op (no spurious stop / negative count)", () => {
+    const host = installMockHost();
+    const off = startSensor("motion", () => {});
+    off();
+    off(); // calling cleanup twice must not emit a second stop
+    expect(ops(host)).toEqual([
+      { op: "start", kind: "motion" },
+      { op: "stop", kind: "motion" },
+    ]);
+  });
+
+  it("re-starts the stream when a kind is remounted after full cleanup", () => {
+    const host = installMockHost();
+    startSensor("gyroscope", () => {})(); // start then immediately stop
+    startSensor("gyroscope", () => {}); // fresh subscriber → start again
+    expect(ops(host)).toEqual([
+      { op: "start", kind: "gyroscope" },
+      { op: "stop", kind: "gyroscope" },
+      { op: "start", kind: "gyroscope" },
     ]);
   });
 });

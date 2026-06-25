@@ -25,26 +25,53 @@ function sensor(op: "start" | "stop", kind: SensorKind): void {
   getHost()?.sensor?.(JSON.stringify({ op, kind }));
 }
 
+// Per-kind subscriber count. A sensor's native stream is shared, so it starts
+// on the first subscriber (0->1) and stops only when the last one leaves
+// (1->0). Without this, unmounting one component stops a stream others still
+// use (CX-014).
+const activeCounts = new Map<SensorKind, number>();
+
 /**
  * Starts a sensor and routes its readings to `handler` (`{ ...reading }`).
- * Returns a cleanup that removes the listener AND stops the native stream, so
- * `useEffect(() => startSensor(kind, cb), [])` ties the sensor to the
- * component's lifecycle.
+ * Returns a cleanup that removes the listener and, when it's the last
+ * subscriber, stops the native stream — so `useEffect(() => startSensor(kind,
+ * cb), [])` ties the sensor to the component's lifecycle. Multiple components
+ * can subscribe to one kind; the stream lives until the last unsubscribes.
  */
 export function startSensor(
   kind: SensorKind,
   handler: NativeEventHandler,
 ): Unsubscribe {
   const off = registerNativeListener(SENSOR_EVENT_PREFIX + kind, handler);
-  sensor("start", kind);
+  const count = (activeCounts.get(kind) ?? 0) + 1;
+  activeCounts.set(kind, count);
+  if (count === 1) sensor("start", kind);
+  let cleaned = false;
   return () => {
+    // Idempotent: a double cleanup (or a cleanup after stopSensor) must not
+    // drive the count negative or emit a spurious stop.
+    if (cleaned) return;
+    cleaned = true;
     off();
-    sensor("stop", kind);
+    const next = (activeCounts.get(kind) ?? 0) - 1;
+    if (next <= 0) {
+      activeCounts.delete(kind);
+      sensor("stop", kind);
+    } else {
+      activeCounts.set(kind, next);
+    }
   };
 }
 
+/** Force-stops a kind's native stream regardless of remaining subscribers. */
 export function stopSensor(kind: SensorKind): void {
+  activeCounts.delete(kind);
   sensor("stop", kind);
+}
+
+/** Test-only: clears the per-kind subscriber counts (not part of the public API). */
+export function __resetSensorCountsForTest(): void {
+  activeCounts.clear();
 }
 
 /** Live heart rate (bpm): handler gets `{ bpm }`. */
