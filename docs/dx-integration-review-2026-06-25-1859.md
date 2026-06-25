@@ -51,6 +51,21 @@ gate and where the documented gaps are.)
 | Widget/complication Swift glue | ⚠️ consumer-authored (Phase-2 "own target generation" is out of scope today) |
 | `widget: false` later | ❌ stale `expo-target.config.js` left behind (CX-011) |
 
+> **Precisely what the plugin already does** (it does a lot — fair point): at
+> prebuild it generates `expo-target.config.js` for watch + widget (so
+> apple-targets creates the targets), declares the **EAS app extensions**,
+> **pre-registers the SwiftPM package reference**, and is
+> `createRunOncePlugin`-wrapped + idempotent. **Only two things land in a
+> post-prebuild step, not the plugin:** (1) the authoritative **product linking**
+> (`ReactWatchHost` → watch target) — apple-targets adds the targets via its own
+> mod at a point we can't reliably order *after*, so the plugin lands only the
+> package *reference*; and (2) the **Info.plist deep-merge** — apple-targets
+> ignores `expo-target.config.js`'s `infoPlist` (known issue, handled by
+> `merge-target-infoplist.cjs`). **DX-2 = pull those two into the
+> plugin/prebuild lifecycle** (or a lifecycle-hooked executable) so EAS's
+> prebuild re-run can't drop them. That's the "one-step" gap — not "the plugin
+> does nothing."
+
 ## DX gaps (what's missing / what to do)
 
 - [ ] **DX-1 — the example doesn't dogfood the plugin (CX-020).** [expo-watch-app
@@ -77,6 +92,11 @@ gate and where the documented gaps are.)
   `node_modules/react-native-watchos/swift` for a real consumer (the example uses
   a repo-relative path). Verify with a packed-tarball install test.
 - [ ] **DX-5 — `widget:false` cleanup (CX-011)** so toggling options converges.
+- [ ] **DX-7 — npm-consumption smoke test (owner-requested).** Pack the tarball,
+  install it into a clean Expo fixture, add the plugin, `expo prebuild`, assert
+  the watch target builds — the realistic "use it quickly from npm" check.
+  Combines with DX-1 (the example *is* the fixture) and DX-4 (tarball must ship
+  `swift/Sources`). This is also how we test the example "from the user's side".
 
 ## Connectivity story — real, but not turnkey
 
