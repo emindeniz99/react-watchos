@@ -37,7 +37,77 @@ Design-level calls from the [system-design review](./system-design-review-2026-0
 | **SD-2** | One shared SwiftUI interpreter for app + widget | CX-018, CX-024 (CX-015/017 ride along) | [design ready](./design-shared-interpreter-2026-06-25-1855.md) |
 | **SD-1** | Typed command/result channel for fallible native ops | CX-005, CX-022 | [design ready](./design-typed-bridge-codegen-2026-06-25-1855.md) |
 | **SD-6** | Schema = single source for wire + bridge + component contract | CX-023, CX-024 | [design ready](./design-typed-bridge-codegen-2026-06-25-1855.md) |
-| **SD-5** | Enforce (+ later isolate) the JS thread | CX-008, OP-2 | with Phase 1 |
+| **SD-5** | Enforce (+ later isolate) the JS thread | CX-008, OP-2 | → RuntimeSession (ARCH-08) |
+
+### Codex second-pass review — adopted refinements (2026-06-25)
+
+A [second architecture review (Codex)](./system-architecture-review-2026-06-25-1859-codex.md)
+(ARCH-01…14) pressure-tested the SD decisions. I verified its load-bearing
+claims against the code — **two corrected my own notes** — and adopt the
+following. Net: the model gets *more correct*, and pre-release the breaking
+changes are free.
+
+**Supersedes / corrects the SD notes:**
+- **SD-3 scalar → feature manifest (ARCH-01).** One `hostApiVersion`/`minHostApi`
+  integer can't model what's really a *set*: app vs widget differ; features need
+  entitlements/OS/permission; a consumer may disallow some. Replace with
+  **structural versions** (`wireVersion`, `bridgeProtocol`, `engineABI`) + a
+  **per-target feature set** the binary provides; the bundle declares
+  **`requiredFeatures`/`optionalFeatures`**; gate = `requiredFeatures ⊆
+  provided` (+ policy). `fetchX` becomes "is `network.fetchX` provided?" — set
+  membership, not `N ≥ M`.
+- **SD-3 metafile → explicit declared contract (ARCH-02).** *Correction:*
+  `esbuild/preset.mjs` does **not** emit a metafile (my note was wrong), and
+  import-presence isn't a sound authority anyway. The bundle **declares** its
+  features; generated wrappers/primitives emit stable markers; **static analysis
+  is a build CHECK that fails loud on an undeclared capability** (so it still
+  can't be silently forgotten) — not the signed authority.
+- **"No DB" was too strong (ARCH-05).** *Correction:* structured shared state
+  **already exists** — [shoppingStore.ts](../js/demo/shoppingStore.ts) keeps
+  `ShoppingList[]` in the App Group, written by **both** app and widget-intent
+  via whole-object `Storage.set` → lost-update is a **present** gap. Minimal now:
+  add **`dataSchemaRange`** to the release contract + route structured mutations
+  through one path with a `revision` + atomic write; defer a full SQLite/migration
+  engine.
+- **SD-5 → RuntimeSession (ARCH-08).** A session object owning
+  executor/root/registries/cancellation + `dispose()` beats a bare
+  generation-token; absorbs CX-008 + the module-global smell + testability.
+- **SD-1 → generated typed envelopes (ARCH-11).** `{requestId, methodId, payload,
+  deadline, sessionId} → result|error|cancelled` with timeout/cancellation, not a
+  generic stringly `invoke`.
+- **SD-2 → shared core + adapters (ARCH-10).** A `RenderAdapter` protocol per
+  target, not one `interactive: Bool`.
+
+**New items adopted:**
+- **ARCH-03 — separate app & widget bundles (P0).** Today one `bundle.js` is
+  copied to both; the widget evals the *whole app artifact* in a 16 MB cap. Split
+  into `app.bundle.js` + `widget.bundle.js`, one signed release, independent
+  hashes/sizes/features/budgets. (Deepens CX-004 — the widget shouldn't run app
+  code at all.)
+- **ARCH-04 expansions — OTA validation + rollback (P0).** Validate a candidate
+  with a **read-only host** (eval can otherwise mutate/publish), explicit
+  `bundleReady`, **crash-loop rollback** to previous known-good, signing `keyId`
+  + rotation.
+- **ARCH-07 — HostPolicy (P1).** Install only consumer/target-allowed features;
+  authorization separate from compatibility (cheap once features are a set).
+- **ARCH-09 — JS-confirmed lazy navigation (P1).** Sync event bridge as a nav
+  transaction so only the active stack serializes (kills eager-mount); structured
+  event result `{handled, accepted, reason}` (pairs with CX-010).
+- **ARCH-12 — split WatchConnectivity by delivery semantics (P2)** — refines DX-6.
+- **ARCH-13 — structured diagnostics + operating budgets (P1).** Replace the
+  single last-write-wins `runtimeError`; enforce node/JSON/commit budgets.
+- **ARCH-14 — isolate the reconciler surface (P2).** The `as never` cast vs
+  mismatched `@types` is upgrade-fragile; one adapter + pinned versions + matrix.
+
+**Kept simple / not wholesale:** full SQLite `StateStore` + migration framework
+(revision+atomic-doc now, engine later); the 6-module npm split (one npm facade —
+Codex agrees; split Swift modules incrementally); the full metrics suite (start
+small); freezing all feature work in Phase 0.
+
+**Revised first move (Codex's, and I agree):** **ARCH-01 + ARCH-03 + ARCH-04
+together** — feature model + per-target artifacts + transactional release are the
+foundation state/codegen/widget-safety/rollback all build on. The scalar
+`hostApiVersion` would be thrown away if built first.
 
 ### SD-3 — capability compatibility gate (the `fetchX` problem) ← top priority
 

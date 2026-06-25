@@ -4,6 +4,18 @@ The "short design note before code" flagged in the
 [system-design review](./system-design-review-2026-06-25-1824-opus.md). Concrete
 enough to implement; resolves the open forks with the owner (2026-06-25).
 
+> **⚠️ Partly superseded by the Codex second pass** (see the merged backlog →
+> "Codex second-pass review"). Three corrections, verified against the code:
+> (1) the scalar `hostApiVersion`/`minHostApi` is replaced by a **per-target
+> feature set** (`requiredFeatures ⊆ provided`) — ARCH-01; (2) the **esbuild
+> metafile is NOT emitted** by `preset.mjs`, so derivation is replaced by an
+> **explicit declared feature contract + a build-time check** — ARCH-02; (3)
+> structured shared state **already exists** (`shoppingStore.ts`), so the data
+> axis is a **present** concern, not deferred — ARCH-05. The two-sided-gate
+> intuition (upper = capability, lower = anti-rollback) and the
+> keep-the-record-extensible guidance below still hold; read them through the
+> feature-set lens.
+
 ## Problem (restated)
 
 There is **no DB**, so this is not data migration. The risk is **version skew
