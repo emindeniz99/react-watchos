@@ -366,3 +366,32 @@ final class RNStyleTests: XCTestCase {
         XCTAssertEqual(RNStyle.formatTimer(65.25), "01:05.250")
     }
 }
+
+// CX-016: snapshots must show the entry applicable *now*, not the last
+// (future-dated) one.
+final class WidgetSnapshotTests: XCTestCase {
+    private func date(_ s: TimeInterval) -> Date { Date(timeIntervalSince1970: s) }
+
+    func testPicksLatestEntryAtOrBeforeNow() {
+        let dates = [date(0), date(100), date(200), date(300)]
+        // now = 250 → the 200 entry (index 2), not the future 300 (.last).
+        XCTAssertEqual(
+            WidgetSnapshot.currentIndex(dates: dates, now: date(250)), 2)
+    }
+
+    func testAllFuturePicksEarliest() {
+        let dates = [date(300), date(100), date(200)]
+        XCTAssertEqual(
+            WidgetSnapshot.currentIndex(dates: dates, now: date(50)), 1)
+    }
+
+    func testExactNowIsIncluded() {
+        let dates = [date(100), date(200)]
+        XCTAssertEqual(
+            WidgetSnapshot.currentIndex(dates: dates, now: date(200)), 1)
+    }
+
+    func testEmptyIsNil() {
+        XCTAssertNil(WidgetSnapshot.currentIndex(dates: [], now: date(0)))
+    }
+}

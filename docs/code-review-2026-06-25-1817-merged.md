@@ -39,7 +39,8 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
 - [~] SD-2/ARCH-10 interpreter (CX-018):
   - [x] slice 1 — pure style helpers in Support (`RNStyle`: hex color → rgba, semantic font, value/timer formatting). +6 tests, `swift test` 63 green.
   - [ ] slice 2 (**Xcode**) — `NodeView` + `WidgetNodeView` call `RNStyle` (delete the widget's duplicate switch); fixes the CX-018 hex/monospacedDigit/timer-ms drift by construction.
-- [ ] CX-015/016/017 (host/widget — extract pure cores to Support where possible), SD-1/SD-6 bridge+codegen (CX-022/023/024)
+- [~] CX-016 — pure `WidgetSnapshot.currentIndex` (latest entry ≤ now, else earliest) in Support, +4 tests, `swift test` 67 green. **Remaining (Xcode):** `ReactTimelineProvider.latestEntry` calls it instead of `.entries.last`.
+- [ ] CX-015 (Map camera — SwiftUI), CX-017 (relevantContexts — WidgetKit API): host/Xcode. SD-1/SD-6 bridge+codegen (CX-022/023/024)
 - [ ] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5
 - [ ] Host/UI-only items needing Xcode verification: CX-009, OP-3, OP-6 (write + flag)
 
