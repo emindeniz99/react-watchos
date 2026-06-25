@@ -403,7 +403,10 @@ final class ReactWatchModel: ObservableObject {
     }
 
     private func makeRuntime() throws -> JSRuntime {
-        let js = try JSRuntime()
+        // Cap the app's QuickJS heap so a runaway/oversized bundle fails loudly
+        // inside the engine instead of getting the whole app OOM-jetsammed
+        // (OP-3). Generous vs the widget's 16MB — the app has the full UI tree.
+        let js = try JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
         js.useJSCallBridge = useJSCallBridge // CR-5 A/B selector
         js.onCommit = { [weak self] json in
             self?.decodeQueue.async {
@@ -415,14 +418,19 @@ final class ReactWatchModel: ObservableObject {
                         self.runtimeError = "tree decode failed"
                         return
                     }
-                    // The JS bundle and this native target version
-                    // independently; a wire-version mismatch means the tree
-                    // may mis-decode silently. Surface it loudly (once).
-                    if tree.v != RNWire.version, !self.warnedWireMismatch {
-                        self.warnedWireMismatch = true
-                        self.runtimeError =
-                            "wire version mismatch: bundle v\(tree.v) vs "
-                            + "runtime v\(RNWire.version) — rebuild the bundle"
+                    // The JS bundle and this native target version evolve
+                    // independently; a wire-version mismatch means the tree may
+                    // mis-decode. Surface it loudly (once) and REJECT the commit
+                    // — don't let an incompatible tree reach the interpreter or
+                    // advance the optimistic ack (CX-009).
+                    if tree.v != RNWire.version {
+                        if !self.warnedWireMismatch {
+                            self.warnedWireMismatch = true
+                            self.runtimeError =
+                                "wire version mismatch: bundle v\(tree.v) vs "
+                                + "runtime v\(RNWire.version) — rebuild the bundle"
+                        }
+                        return
                     }
                     self.root = tree.root
                     if tree.seq > self.ackedSeq {

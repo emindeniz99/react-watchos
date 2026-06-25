@@ -44,7 +44,8 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
 - [x] CX-016 — pure `WidgetSnapshot.currentIndex` (latest entry ≤ now, else earliest) in Support (+4 tests, `swift test` 67); `ReactTimelineProvider.latestEntry` now uses it instead of `.entries.last`. Verified: `xcodebuild -scheme "React Watch Widgets"` = BUILD SUCCEEDED.
 - [ ] CX-015 (Map camera — SwiftUI), CX-017 (relevantContexts — WidgetKit API): host/Xcode. SD-1/SD-6 bridge+codegen (CX-022/023/024)
 - [ ] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5
-- [ ] Host/UI-only items needing Xcode verification: CX-009, OP-3, OP-6 (write + flag)
+- [x] Host fixes (written + **verified on a watchOS build** — Xcode is available here): **CX-009** (reject a wire-mismatched commit before it reaches the interpreter or advances the ack), **OP-3** (cap app QuickJS heap at 64 MB), **OP-6** (stable Map annotation id).
+- [ ] Remaining host: CX-010 host-half (disable handlerless controls), CX-015 (Map camera), CX-017 (relevantContexts), ARCH-01/03/04 host wiring.
 
 ### Verdict legend
 
