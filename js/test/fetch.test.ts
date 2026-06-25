@@ -141,4 +141,39 @@ describe("fetch shim (QuickJS environment)", () => {
     expect(res.ok).toBe(false);
     expect(res.status).toBe(404);
   });
+
+  // CR-6: a binary body used to UTF-8-decode to "" and vanish silently. It now
+  // arrives base64-encoded; arrayBuffer() recovers the exact bytes and
+  // text()/json() reject loudly instead of returning a wrong value.
+  it("exposes a binary body via arrayBuffer and rejects text/json", async () => {
+    const fetch = g.fetch as (url: string) => Promise<any>;
+    const promise = fetch("https://api.test/blob");
+    const [id] = hostFetch.mock.calls[0];
+    (g.__resolveFetch as (i: number, j: string) => void)(
+      id,
+      JSON.stringify({ status: 200, body: "AAEC/w==", bodyEncoding: "base64" }),
+    );
+    const res = await promise;
+    expect(res.bodyEncoding).toBe("base64");
+    expect([...new Uint8Array(await res.arrayBuffer())]).toEqual([
+      0, 1, 2, 255,
+    ]);
+    await expect(res.text()).rejects.toBeInstanceOf(TypeError);
+    await expect(res.json()).rejects.toBeInstanceOf(TypeError);
+  });
+
+  it("arrayBuffer UTF-8-encodes a text body (multi-byte safe)", async () => {
+    const fetch = g.fetch as (url: string) => Promise<any>;
+    const promise = fetch("https://api.test/text");
+    const [id] = hostFetch.mock.calls[0];
+    (g.__resolveFetch as (i: number, j: string) => void)(
+      id,
+      JSON.stringify({ status: 200, body: "hé" }),
+    );
+    const res = await promise;
+    expect(res.bodyEncoding).toBe("utf8");
+    expect([...new Uint8Array(await res.arrayBuffer())]).toEqual([
+      104, 195, 169,
+    ]);
+  });
 });

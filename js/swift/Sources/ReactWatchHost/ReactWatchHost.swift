@@ -330,12 +330,31 @@ final class ReactWatchModel: ObservableObject {
                 http?.allHeaderFields.forEach { key, value in
                     headers["\(key)".lowercased()] = "\(value)"
                 }
-                let json = FetchResponse.json(
-                    status: http?.statusCode ?? 0,
-                    url: http?.url?.absoluteString ?? plan.url,
-                    body: data.flatMap { String(data: $0, encoding: .utf8) } ?? "",
-                    headers: headers)
-                self.runtime?.resolveFetch(id: id, responseJson: json)
+                let status = http?.statusCode ?? 0
+                let url = http?.url?.absoluteString ?? plan.url
+                switch FetchResponse.classifyBody(data) {
+                case let .tooLarge(bytes, limit):
+                    // Don't bridge an unbounded body into the watch's tight
+                    // QuickJS heap — fail loud instead of risking OOM.
+                    self.runtime?.rejectFetch(
+                        id: id,
+                        message: "response body too large: \(bytes) bytes "
+                            + "exceeds \(limit)-byte limit")
+                case let .text(text):
+                    self.runtime?.resolveFetch(
+                        id: id,
+                        responseJson: FetchResponse.json(
+                            status: status, url: url, body: text,
+                            headers: headers))
+                case let .base64(encoded):
+                    // Binary body — carried as base64 so it isn't silently
+                    // dropped (the old UTF-8 decode turned it into "").
+                    self.runtime?.resolveFetch(
+                        id: id,
+                        responseJson: FetchResponse.json(
+                            status: status, url: url, body: encoded,
+                            headers: headers, bodyEncoding: "base64"))
+                }
             }
         }
         fetchTasks[id] = task

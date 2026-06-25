@@ -122,7 +122,7 @@ Plan:
 
 ## Performance
 
-- [ ] **CR-6 — Unbounded fetch response into one bridged string; binary
+- [x] **CR-6 — Unbounded fetch response into one bridged string; binary
   lost.** `P1`
   [`ReactWatchHost.swift:333`](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift#L333)
   The whole body is UTF-8-decoded into a `String` and crammed across the
@@ -130,6 +130,15 @@ Plan:
   ~16 MB QuickJS cap) a large response can exhaust the heap. Binary
   responses silently become `""` (the `?? ""` fallback).
   **Fix:** reject loudly past a size limit; add a base64 path for binary.
+  **Done (2026-06-25):** a pure `FetchResponse.classifyBody(data, maxBytes)`
+  in `ReactWatchSupport` (Linux-tested) returns `.text` / `.base64` /
+  `.tooLarge` (5 MiB default cap). The host rejects `.tooLarge` loudly and
+  tags binary with `bodyEncoding: "base64"`. `fetch.ts` carries
+  `bodyEncoding`, adds `arrayBuffer()` (base64-decode or a hand-rolled UTF-8
+  encode — no `TextEncoder` in QuickJS), and makes `text()`/`json()` reject
+  on binary instead of returning a silently-wrong value. Covered by
+  `FetchBodyTests` (Swift) + `fetch.test.ts` (JS); verified on the watchOS
+  simulator.
 
 - [ ] **CR-7 — Per-commit full serialize + string-compare dedup.**
   `accepted, no action`

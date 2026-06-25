@@ -7,8 +7,11 @@ import type { QuickJSHostGlobal } from "./host";
  * and don't want their weight on a watch, so this implements the parts that
  * matter: a case-insensitive Headers class, AbortController/AbortSignal
  * cancellation (the standard way; `timeout` is sugar over it), and a
- * Response with status/statusText/ok/url/headers/text()/json(). Bodies are
- * strings (decode/encode JSON yourself).
+ * Response with status/statusText/ok/url/headers/text()/json()/arrayBuffer().
+ * Text bodies are strings (decode/encode JSON yourself); binary bodies arrive
+ * base64-encoded (`bodyEncoding === "base64"`) — read them with arrayBuffer(),
+ * since text()/json() reject on binary rather than return a silently-wrong
+ * value. Oversized bodies are rejected by the host before they reach here.
  *
  * Wire: __host.fetch(id, requestJson) arms an async URLSession request;
  * Swift settles it on the main thread via __resolveFetch/__rejectFetch, and
@@ -132,10 +135,46 @@ interface RawResponse {
   redirected?: boolean;
   headers?: Record<string, string>;
   body?: string;
+  /** "utf8" (body is text) or "base64" (body is a base64-encoded binary). */
+  bodyEncoding?: "utf8" | "base64";
 }
 
 function signalReason(signal: WatchAbortSignal): unknown {
   return signal.reason ?? abortError();
+}
+
+/** Decode base64 → bytes. `atob` is a QuickJS global (JS_AddIntrinsicAToB). */
+function base64ToBytes(b64: string): Uint8Array {
+  const binary = (globalThis as { atob: (s: string) => string }).atob(b64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/** UTF-8 encode a string → bytes. QuickJS has no TextEncoder, so do it by
+ *  hand for arrayBuffer() on text bodies. */
+function utf8ToBytes(str: string): Uint8Array {
+  const out: number[] = [];
+  for (let i = 0; i < str.length; i++) {
+    let c = str.charCodeAt(i);
+    if (c < 0x80) {
+      out.push(c);
+    } else if (c < 0x800) {
+      out.push(0xc0 | (c >> 6), 0x80 | (c & 0x3f));
+    } else if (c >= 0xd800 && c <= 0xdbff && i + 1 < str.length) {
+      const lo = str.charCodeAt(++i);
+      c = 0x10000 + ((c & 0x3ff) << 10) + (lo & 0x3ff);
+      out.push(
+        0xf0 | (c >> 18),
+        0x80 | ((c >> 12) & 0x3f),
+        0x80 | ((c >> 6) & 0x3f),
+        0x80 | (c & 0x3f),
+      );
+    } else {
+      out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 0x3f), 0x80 | (c & 0x3f));
+    }
+  }
+  return new Uint8Array(out);
 }
 
 /** Installs fetch + Headers + AbortController if the engine lacks fetch. */
@@ -166,6 +205,12 @@ export function installFetch(g: Global): void {
   const makeResponse = (r: RawResponse) => {
     const status = r.status ?? 0;
     const body = r.body ?? "";
+    const binary = r.bodyEncoding === "base64";
+    // A binary body can't be UTF-8-decoded without a TextDecoder QuickJS
+    // lacks; rather than hand back a silently-wrong string, reject text()/
+    // json() and steer the caller to arrayBuffer().
+    const binaryError = () =>
+      new TypeError("binary response body; read it with arrayBuffer()");
     return {
       status,
       statusText: r.statusText ?? "",
@@ -173,8 +218,17 @@ export function installFetch(g: Global): void {
       url: r.url ?? "",
       redirected: r.redirected ?? false,
       headers: new Headers(r.headers),
-      text: () => Promise.resolve(body),
-      json: () => Promise.resolve(JSON.parse(body || "null")),
+      bodyEncoding: r.bodyEncoding ?? "utf8",
+      text: () =>
+        binary ? Promise.reject(binaryError()) : Promise.resolve(body),
+      json: () =>
+        binary
+          ? Promise.reject(binaryError())
+          : Promise.resolve(JSON.parse(body || "null")),
+      arrayBuffer: () =>
+        Promise.resolve(
+          (binary ? base64ToBytes(body) : utf8ToBytes(body)).buffer,
+        ),
     };
   };
 
