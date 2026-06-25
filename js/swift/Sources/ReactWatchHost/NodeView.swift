@@ -18,6 +18,10 @@ struct NodeView: View {
 
     var body: some View {
         rendered
+            // A controlled input with no `onChange` handler (serialize.ts emits
+            // the prop as `true` when a handler exists) is read-only: disable it
+            // so it can't show a local value React will never accept (CX-010).
+            .disabled(isHandlerlessControl)
             .modifier(GlassModifier(glass: node.bool("glass") == true))
             .modifier(A11yModifier(
                 label: node.string("accessibilityLabel"),
@@ -27,6 +31,16 @@ struct NodeView: View {
                 node: node, model: model,
                 trailingTint: color(node.string("swipeActionTint")),
                 leadingTint: color(node.string("leadingSwipeActionTint"))))
+    }
+
+    /// A native input control whose change handler is absent. `.disabled(false)`
+    /// on every other node is a SwiftUI no-op, so this is safe to apply in body.
+    private var isHandlerlessControl: Bool {
+        let controls: Set<String> = [
+            "Toggle", "Slider", "Stepper", "Picker", "DatePicker", "TextField",
+            "CrownRotation",
+        ]
+        return controls.contains(node.type) && node.bool("onChange") != true
     }
 
     @ViewBuilder private var rendered: some View {
