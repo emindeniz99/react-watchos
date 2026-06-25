@@ -120,3 +120,38 @@ final class RouteMatcherTests: XCTestCase {
         XCTAssertNil(RouteMatcher.best(patterns: ["/list/[id]"], route: "/other"))
     }
 }
+
+// CR-10: the BLE bridge keyed characteristics by the raw string, so a write/
+// subscribe by the full 128-bit UUID missed one CoreBluetooth stored in short
+// form. canonical() collapses every form to one key.
+final class BluetoothUUIDTests: XCTestCase {
+    private let hrm = "00002A37-0000-1000-8000-00805F9B34FB" // heart-rate measurement
+
+    func testShortAndLongFormsCollide() {
+        XCTAssertEqual(BluetoothUUID.canonical("2A37"), hrm)
+        XCTAssertEqual(BluetoothUUID.canonical("2a37"), hrm) // case-insensitive
+        XCTAssertEqual(BluetoothUUID.canonical(hrm.lowercased()), hrm)
+        XCTAssertEqual(BluetoothUUID.canonical(hrm), hrm)
+    }
+
+    func testThirtyTwoBitShortExpands() {
+        XCTAssertEqual(
+            BluetoothUUID.canonical("12345678"),
+            "12345678-0000-1000-8000-00805F9B34FB")
+    }
+
+    func testCustom128BitNormalizesCase() {
+        XCTAssertEqual(
+            BluetoothUUID.canonical("1234abcd-0000-1000-8000-00805f9b0000"),
+            "1234ABCD-0000-1000-8000-00805F9B0000")
+    }
+
+    func testRejectsMalformed() {
+        XCTAssertNil(BluetoothUUID.canonical("")) // empty
+        XCTAssertNil(BluetoothUUID.canonical("XYZ")) // non-hex
+        XCTAssertNil(BluetoothUUID.canonical("2A3")) // 3 hex: not 4/8/32
+        // 32 hex but not in dashed 8-4-4-4-12 form (CBUUID wouldn't accept it).
+        XCTAssertNil(BluetoothUUID.canonical(
+            hrm.replacingOccurrences(of: "-", with: "")))
+    }
+}

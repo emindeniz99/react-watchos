@@ -3,6 +3,7 @@
 #if os(watchOS)
 import CoreBluetooth
 import Foundation
+import ReactWatchSupport
 
 /// BLE central for talking to a peripheral (e.g. a laptop running a movie-
 /// remote GATT service). watchOS only supports the central role, so the
@@ -106,8 +107,9 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     }
 
     private func write(_ characteristic: String, _ value: String, confirm: Bool?) {
-        guard let peripheral, let ch = characteristics[characteristic] else {
-            pendingWrites.append((characteristic, value, confirm))
+        let key = BluetoothUUID.canonical(characteristic) ?? characteristic
+        guard let peripheral, let ch = characteristics[key] else {
+            pendingWrites.append((key, value, confirm))
             return
         }
         let type: CBCharacteristicWriteType
@@ -122,8 +124,9 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     }
 
     private func subscribe(_ characteristic: String) {
-        desiredSubscriptions.insert(characteristic)
-        if let peripheral, let ch = characteristics[characteristic] {
+        let key = BluetoothUUID.canonical(characteristic) ?? characteristic
+        desiredSubscriptions.insert(key)
+        if let peripheral, let ch = characteristics[key] {
             peripheral.setNotifyValue(true, for: ch)
         }
     }
@@ -190,9 +193,11 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         didDiscoverCharacteristicsFor service: CBService, error: Error?
     ) {
         for ch in service.characteristics ?? [] {
-            characteristics[ch.uuid.uuidString] = ch
-            // CoreBluetooth uppercases short UUIDs; index both forms.
-            characteristics[ch.uuid.uuidString.lowercased()] = ch
+            // Key by the canonical 128-bit form so a write/subscribe by either
+            // the short ("2A37") or full UUID, in any case, resolves here —
+            // CoreBluetooth reports standard UUIDs in short form. See CR-10.
+            let key = BluetoothUUID.canonical(ch.uuid.uuidString) ?? ch.uuid.uuidString
+            characteristics[key] = ch
         }
         // (Re)apply desired subscriptions so notifications resume after a
         // reconnect, then flush any writes queued before discovery.

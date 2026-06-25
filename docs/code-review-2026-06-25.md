@@ -177,7 +177,7 @@ Plan:
   scheduler tolerates it. If quickjs-ng exposes a monotonic clock to the
   host, prefer it.
 
-- [ ] **CR-10 — BLE characteristic lookup by raw JS string.** `P2`
+- [x] **CR-10 — BLE characteristic lookup by raw JS string.** `P2`
   [`BluetoothBridge.swift:190-198`](../js/swift/Sources/ReactWatchHost/BluetoothBridge.swift#L190)
   indexes both `uuidString` and its lowercased form, but `write`/
   `subscribe` look up by exactly the string JS passed. CoreBluetooth
@@ -185,6 +185,15 @@ Plan:
   caller using the full 128-bit string can miss. Untested path (flagged in
   the file header). **Fix:** normalize via `makeCBUUID(...).uuidString`
   on both store and lookup.
+  **Done (2026-06-25):** added a pure `BluetoothUUID.canonical(_:)` in
+  `ReactWatchSupport` that expands 16/32-bit short UUIDs through the Bluetooth
+  Base UUID to one uppercase 128-bit key. The bridge now stores characteristics
+  *and* resolves `write`/`subscribe`/`desiredSubscriptions` through it, so
+  short, full, and any-case forms all collide on the same key. Pulled into
+  `ReactWatchSupport` so it's unit-tested on Linux/macOS (`BluetoothUUIDTests`)
+  rather than only on a watch with a real peripheral — also chips at CR-15.
+  (`onNotify` still reports the char's own short form, unchanged, to avoid
+  breaking the common short-form consumer.)
 
 ## API / DX
 
