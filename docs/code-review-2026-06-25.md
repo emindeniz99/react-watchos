@@ -327,11 +327,17 @@ update popup is JS-driven via an `update.required`/`update.available` event.
   (anti-rollback), `decide` → `runOTA | runShipped | blockForUpdate`, and a
   monotonic `bumpedHighWater`, plus the `OTAGate` enum. `VersionPolicyTests`
   green on macOS. Done 2026-06-25.
-- [ ] **High-water mark** — persisted in the *same App Group container as
-  Storage* (shared fate with the db); refuse `version < highWater`; bump on
-  apply, never decrease.
-- [ ] **Hard-gate-blocks-boot** — `ReactWatchRootView(updateGate: .soft|.hard)`;
-  in `.hard` + stale state, don't evaluate the old bundle at all.
+- [x] **High-water mark** — `SharedWidgetStore.otaHighWater` in the *same App
+  Group as Storage* (shared fate with the db). `saveUpdate` refuses
+  `version < highWater` (anti-rollback); `load` bumps it on a successful boot
+  via `VersionPolicy.bumpedHighWater`, never decreasing. Done 2026-06-25.
+- [x] **Hard-gate-blocks-boot** — config moved to `OTAConfig` (publicKey, gate,
+  shippedVersion); `ReactWatchRootView(ota:)`. `load` runs `VersionPolicy.decide`:
+  in `.hard` + stale state it sets `updateRequired` and shows a native
+  `UpdateRequiredView` *without evaluating the old bundle*, so it can't write to
+  a newer-schema db. (Fail-open keeps the simple OTA-if-present path; versions
+  are unverified there.) Native re-fetch recovery lands with the remote check.
+  45 swift tests green; host builds for watchOS. Done 2026-06-25.
 - [ ] **Compile-on-get bytecode cache** — on a verified save, compile source →
   bytecode (`JS_Eval` COMPILE_ONLY + `JS_WriteObject`) and cache `ota-bundle.qbc`;
   `load` prefers the cache, re-verifying the source's signature/version first.

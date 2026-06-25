@@ -32,4 +32,18 @@ public struct SharedWidgetStore: Sendable {
     public func setItem(_ key: String, _ value: String) {
         defaults?.set(value, forKey: Self.storagePrefix + key)
     }
+
+    // OTA anti-rollback high-water mark (CR-17). Kept in the *same* App Group as
+    // Storage so the version record and the db share fate: if the db survives,
+    // so does the mark; if one is wiped (uninstall), so is the other — the db
+    // can never be "ahead" of a reset mark. `integer(forKey:)` is 0 when unset.
+    public static let otaHighWaterKey = "react.ota.highWater"
+
+    public func otaHighWater() -> Int {
+        defaults?.integer(forKey: Self.otaHighWaterKey) ?? 0
+    }
+
+    public func setOTAHighWater(_ version: Int) {
+        defaults?.set(version, forKey: Self.otaHighWaterKey)
+    }
 }

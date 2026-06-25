@@ -31,6 +31,10 @@ final class ReactWatchModel: ObservableObject {
     @Published var startupError: String?
     /// Non-fatal JS errors (event handlers, timers) surfaced as a banner.
     @Published var runtimeError: String?
+    /// Set when the hard update gate refuses to boot stale JS (CR-17): the only
+    /// available bundle is older than one already applied, so we show a native
+    /// "update required" screen instead of running it against a newer-schema db.
+    @Published var updateRequired = false
     /// Highest event seq React has acknowledged (tree.seq). Optimistic
     /// controls hold their local value until their dispatch is acked.
     @Published var ackedSeq = 0
@@ -53,15 +57,21 @@ final class ReactWatchModel: ObservableObject {
     private let sensors = SensorBridge()
     private var fetchTasks: [Int: URLSessionDataTask] = [:]
 
-    /// Ed25519 public key for verifying OTA bundles (CR-4). nil = fail-open:
-    /// bundles load unsigned with a loud warning. Set it to enforce signatures.
+    /// OTA verification config (CR-4 / CR-17). `updatePublicKey` nil = fail-open
+    /// (load unsigned + warn). `updateGate` .hard refuses to boot stale JS;
+    /// `shippedBundleVersion` is the compatibility version of the bundle in the
+    /// app binary, used for the anti-rollback boot decision.
     private let updatePublicKey: Curve25519.Signing.PublicKey?
+    private let updateGate: OTAGate
+    private let shippedBundleVersion: Int
 
-    init(appGroupId: String?, updatePublicKeyBase64: String? = nil) {
+    init(appGroupId: String?, ota: OTAConfig = .init()) {
         store = SharedWidgetStore(appGroupId: appGroupId)
-        updatePublicKey = updatePublicKeyBase64
+        updatePublicKey = ota.publicKeyBase64
             .flatMap { Data(base64Encoded: $0) }
             .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
+        updateGate = ota.gate
+        shippedBundleVersion = ota.shippedVersion
     }
 
     func start() {
@@ -94,6 +104,7 @@ final class ReactWatchModel: ObservableObject {
         root = nil
         runtimeError = nil
         startupError = nil
+        updateRequired = false
         ackedSeq = 0
         nextSeq = 1
         optimistic = OptimisticStore()
@@ -153,13 +164,19 @@ final class ReactWatchModel: ObservableObject {
             return
         }
         if let key = updatePublicKey {
-            guard let signature = plan.signature,
+            guard let signature = plan.signature, let version = plan.version,
                   let message = plan.signedMessage(),
                   key.isValidSignature(signature, for: message) else {
                 runtimeError = "OTA update rejected: signature/version missing or invalid"
                 return
             }
-            persistOTA(js: plan.js, version: plan.version,
+            let highWater = store.otaHighWater()
+            guard VersionPolicy.accepts(incoming: version, highWater: highWater) else {
+                runtimeError = "OTA update rejected: version \(version) is older than the "
+                    + "installed \(highWater) (downgrade blocked)"
+                return
+            }
+            persistOTA(js: plan.js, version: version,
                        signature: signature.base64EncodedString(), url: url, metaURL: metaURL)
         } else {
             print("[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
@@ -254,17 +271,59 @@ final class ReactWatchModel: ObservableObject {
     }
 
     private func load(into js: JSRuntime) throws {
-        if let ota = otaBundleURL,
-           let code = try? String(contentsOf: ota, encoding: .utf8),
-           !code.isEmpty, otaPassesVerification(code) {
-            do {
-                try js.evaluate(code)
-                return
-            } catch {
-                try? FileManager.default.removeItem(at: ota)
-                runtimeError = "OTA bundle failed, using shipped bundle: \(error)"
-            }
+        let candidate = otaCandidate()
+        let decision: BootDecision
+        if updatePublicKey == nil {
+            // Fail-open: versions are unverified, so no anti-rollback — run the
+            // OTA bundle if present (otaCandidate already warned), else shipped.
+            decision = candidate != nil ? .runOTA : .runShipped
+        } else {
+            decision = VersionPolicy.decide(
+                otaVersion: candidate.flatMap(\.version),
+                highWater: store.otaHighWater(),
+                shippedVersion: shippedBundleVersion,
+                gate: updateGate)
         }
+        switch decision {
+        case .runOTA:
+            if let c = candidate {
+                do {
+                    try js.evaluate(c.code)
+                    if let v = c.version {
+                        store.setOTAHighWater(
+                            VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v))
+                    }
+                    return
+                } catch {
+                    dropOTA()
+                    runtimeError = "OTA bundle failed, using shipped bundle: \(error)"
+                }
+            }
+        case .blockForUpdate:
+            // Hard gate: the only available bundle is older than one already
+            // applied — refuse to boot it so it can't write to a newer-schema db.
+            updateRequired = true
+            return
+        case .runShipped:
+            break
+        }
+        try loadShipped(into: js)
+        if updatePublicKey != nil {
+            store.setOTAHighWater(
+                VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: shippedBundleVersion))
+        }
+    }
+
+    /// The persisted OTA bundle + its version after signature/version
+    /// verification (which warns, not rejects, in fail-open mode). nil if none.
+    private func otaCandidate() -> (code: String, version: Int?)? {
+        guard let ota = otaBundleURL,
+              let code = try? String(contentsOf: ota, encoding: .utf8),
+              !code.isEmpty, otaPassesVerification(code) else { return nil }
+        return (code, loadOTAMeta()?.version)
+    }
+
+    private func loadShipped(into js: JSRuntime) throws {
         if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
            let data = try? Data(contentsOf: qbc) {
             do {
@@ -513,23 +572,62 @@ final class ReactWatchModel: ObservableObject {
     #endif
 }
 
+/// OTA verification + rollback policy for `ReactWatchRootView` (CR-4 / CR-17).
+public struct OTAConfig: Sendable {
+    /// Base64 Ed25519 public key. nil = fail-open: bundles load unsigned with a
+    /// loud warning. Set it to enforce signed updates + anti-rollback.
+    public var publicKeyBase64: String?
+    /// `.hard` refuses to boot a bundle older than the newest applied (protects
+    /// the db from stale JS); `.soft` runs it and lets the app prompt to update.
+    public var gate: OTAGate
+    /// Compatibility version of the bundle shipped in the app binary. Bump it in
+    /// lockstep with the shipped bundle, only on a breaking change (db schema /
+    /// wire contract); it anchors the anti-rollback boot decision.
+    public var shippedVersion: Int
+
+    public init(
+        publicKeyBase64: String? = nil, gate: OTAGate = .soft, shippedVersion: Int = 1
+    ) {
+        self.publicKeyBase64 = publicKeyBase64
+        self.gate = gate
+        self.shippedVersion = shippedVersion
+    }
+}
+
+/// Shown by the hard update gate (CR-17) when stale JS is refused, so it never
+/// runs against a newer-schema db. Native, because the JS app isn't booted in
+/// this state; recovery (re-fetching a current bundle) is wired separately.
+private struct UpdateRequiredView: View {
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle").font(.title2)
+                Text("Update required").font(.headline)
+                Text("A newer version is needed to run safely. "
+                    + "Open the app with a connection to update.")
+                    .font(.footnote).multilineTextAlignment(.center)
+            }
+            .padding()
+        }
+    }
+}
+
 /// The watch UI. Embed this in your @main App's scene; ship bundle.js as a
-/// resource. `appGroupId` enables shared widget/Storage state (optional).
-/// `updatePublicKeyBase64` is your base64 Ed25519 public key for verifying OTA
-/// bundles (CR-4): set it to enforce signed updates; omit it to keep loading
-/// unsigned bundles (with a loud warning).
+/// resource. `appGroupId` enables shared widget/Storage state (optional); `ota`
+/// configures signed-update verification + anti-rollback (CR-4 / CR-17).
 public struct ReactWatchRootView: View {
     @StateObject private var model: ReactWatchModel
     @Environment(\.scenePhase) private var scenePhase
 
-    public init(appGroupId: String? = nil, updatePublicKeyBase64: String? = nil) {
-        _model = StateObject(wrappedValue: ReactWatchModel(
-            appGroupId: appGroupId, updatePublicKeyBase64: updatePublicKeyBase64))
+    public init(appGroupId: String? = nil, ota: OTAConfig = .init()) {
+        _model = StateObject(wrappedValue: ReactWatchModel(appGroupId: appGroupId, ota: ota))
     }
 
     public var body: some View {
         Group {
-            if let root = model.root {
+            if model.updateRequired {
+                UpdateRequiredView()
+            } else if let root = model.root {
                 // Screens own their scrolling (ScrollView/List nodes).
                 NodeView(node: root)
             } else if let error = model.startupError {
