@@ -286,3 +286,44 @@ final class BleSessionTests: XCTestCase {
         XCTAssertTrue(s.shouldAutoReconnect)
     }
 }
+
+// ARCH-01: the capability gate decides whether an OTA bundle may run on this
+// binary. The point is that the same bundle can be accepted by one target and
+// rejected by another (the widget provides a strict subset), so the gate is a
+// set-subset test, not a scalar version compare.
+final class CapabilityGateTests: XCTestCase {
+    func testWidgetProvidesAStrictSubset() {
+        XCTAssertEqual(HostFeatures.widget, ["core", "storage", "widgets"])
+        XCTAssertTrue(HostFeatures.widget.isSubset(of: HostFeatures.watch))
+    }
+
+    func testAcceptsWhenFeaturesSubsetAndProtocolCompatible() {
+        XCTAssertEqual(
+            CapabilityGate.decide(
+                bundleBridgeProtocol: 1,
+                bundleFeatures: ["storage", "network"],
+                nativeBridgeProtocol: 1,
+                nativeFeatures: HostFeatures.watch),
+            .accept)
+    }
+
+    func testRejectsWhenAFeatureIsMissing() {
+        // A bundle using fetch ("network") can't run in the widget target.
+        XCTAssertEqual(
+            CapabilityGate.decide(
+                bundleBridgeProtocol: 1,
+                bundleFeatures: ["storage", "network"],
+                nativeBridgeProtocol: 1,
+                nativeFeatures: HostFeatures.widget),
+            .updateAppRequired(missing: ["network"]))
+    }
+
+    func testRejectsWhenBundleNeedsANewerBridgeProtocol() {
+        XCTAssertFalse(
+            CapabilityGate.accepts(
+                bundleBridgeProtocol: 2,
+                bundleFeatures: ["storage"],
+                nativeBridgeProtocol: 1,
+                nativeFeatures: HostFeatures.watch))
+    }
+}

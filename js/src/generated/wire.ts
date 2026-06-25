@@ -74,3 +74,6 @@ export const WIRE_VERSION = 1 as const;
 
 /** JS<->Swift host bridge protocol version (ARCH-01). */
 export const BRIDGE_PROTOCOL = 1 as const;
+
+/** Capability features each native target provides (ARCH-01). */
+export const HOST_FEATURES = {"watch":["ai","bluetooth","connectivity","core","haptics","network","notifications","ota","sensors","storage","widgets"],"widget":["core","storage","widgets"]} as const;
