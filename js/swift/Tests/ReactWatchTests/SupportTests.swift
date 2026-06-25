@@ -14,14 +14,14 @@ final class OptimisticStoreTests: XCTestCase {
 
         store.set(nodeId: 1, seq: 5, value: .bool(true))
         store.set(nodeId: 2, seq: 6, value: .number(42))
-        store.set(nodeId: 3, seq: 7, value: .string("draft")) // CR-3: TextField
+        store.set(nodeId: 3, seq: 7, value: .string("draft"))  // CR-3: TextField
         XCTAssertEqual(store.bool(1), true)
         XCTAssertEqual(store.int(2), 42)
         XCTAssertEqual(store.double(2), 42)
         XCTAssertEqual(store.string(3), "draft")
-        XCTAssertNil(store.bool(2)) // wrong kind -> nil
-        XCTAssertNil(store.string(1)) // wrong kind -> nil
-        XCTAssertNil(store.int(99)) // unknown id -> nil
+        XCTAssertNil(store.bool(2))  // wrong kind -> nil
+        XCTAssertNil(store.string(1))  // wrong kind -> nil
+        XCTAssertNil(store.int(99))  // unknown id -> nil
     }
 
     func testAckDropsOnlyCaughtUpEntries() {
@@ -43,10 +43,11 @@ final class NotificationPlanTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_000_000)
 
     func testRelativeAfterMs() throws {
-        let plan = try XCTUnwrap(NotificationPlan(
-            json: #"{"id":"a","title":"T","body":"B","afterMs":30000,"sound":true}"#,
-            now: now
-        ))
+        let plan = try XCTUnwrap(
+            NotificationPlan(
+                json: #"{"id":"a","title":"T","body":"B","afterMs":30000,"sound":true}"#,
+                now: now
+            ))
         XCTAssertEqual(plan.id, "a")
         XCTAssertTrue(plan.sound)
         XCTAssertEqual(plan.triggerSeconds, 30, accuracy: 0.001)
@@ -55,26 +56,29 @@ final class NotificationPlanTests: XCTestCase {
 
     func testAbsoluteAtWinsOverAfterMs() throws {
         let at = (now.timeIntervalSince1970 + 60) * 1000
-        let plan = try XCTUnwrap(NotificationPlan(
-            json: #"{"id":"b","title":"T","body":"B","at":\#(at),"afterMs":5000,"sound":false}"#,
-            now: now
-        ))
+        let plan = try XCTUnwrap(
+            NotificationPlan(
+                json:
+                    #"{"id":"b","title":"T","body":"B","at":\#(at),"afterMs":5000,"sound":false}"#,
+                now: now
+            ))
         XCTAssertEqual(plan.triggerSeconds, 60, accuracy: 0.001)
     }
 
     func testPastTimeClampsToOneSecondAndFlags() throws {
         let at = (now.timeIntervalSince1970 - 120) * 1000
-        let plan = try XCTUnwrap(NotificationPlan(
-            json: #"{"id":"c","title":"T","body":"B","at":\#(at),"sound":false}"#,
-            now: now
-        ))
+        let plan = try XCTUnwrap(
+            NotificationPlan(
+                json: #"{"id":"c","title":"T","body":"B","at":\#(at),"sound":false}"#,
+                now: now
+            ))
         XCTAssertTrue(plan.scheduledInPast)
-        XCTAssertEqual(plan.triggerSeconds, 1) // never silently in the past
+        XCTAssertEqual(plan.triggerSeconds, 1)  // never silently in the past
     }
 
     func testBadPayloadReturnsNil() {
         XCTAssertNil(NotificationPlan(json: "not json", now: now))
-        XCTAssertNil(NotificationPlan(json: #"{"id":"x"}"#, now: now)) // missing fields
+        XCTAssertNil(NotificationPlan(json: #"{"id":"x"}"#, now: now))  // missing fields
     }
 }
 
@@ -114,7 +118,7 @@ final class RouteMatcherTests: XCTestCase {
             RouteMatcher.match(
                 pattern: "/shop/[name]/[[...rest]]", route: "/shop/nike/shoes/running"
             )?
-                .params,
+            .params,
             ["name": ["nike"], "rest": ["shoes", "running"]]
         )
     }
@@ -134,11 +138,11 @@ final class RouteMatcherTests: XCTestCase {
 // subscribe by the full 128-bit UUID missed one CoreBluetooth stored in short
 // form. canonical() collapses every form to one key.
 final class BluetoothUUIDTests: XCTestCase {
-    private let hrm = "00002A37-0000-1000-8000-00805F9B34FB" // heart-rate measurement
+    private let hrm = "00002A37-0000-1000-8000-00805F9B34FB"  // heart-rate measurement
 
     func testShortAndLongFormsCollide() {
         XCTAssertEqual(BluetoothUUID.canonical("2A37"), hrm)
-        XCTAssertEqual(BluetoothUUID.canonical("2a37"), hrm) // case-insensitive
+        XCTAssertEqual(BluetoothUUID.canonical("2a37"), hrm)  // case-insensitive
         XCTAssertEqual(BluetoothUUID.canonical(hrm.lowercased()), hrm)
         XCTAssertEqual(BluetoothUUID.canonical(hrm), hrm)
     }
@@ -158,13 +162,14 @@ final class BluetoothUUIDTests: XCTestCase {
     }
 
     func testRejectsMalformed() {
-        XCTAssertNil(BluetoothUUID.canonical("")) // empty
-        XCTAssertNil(BluetoothUUID.canonical("XYZ")) // non-hex
-        XCTAssertNil(BluetoothUUID.canonical("2A3")) // 3 hex: not 4/8/32
+        XCTAssertNil(BluetoothUUID.canonical(""))  // empty
+        XCTAssertNil(BluetoothUUID.canonical("XYZ"))  // non-hex
+        XCTAssertNil(BluetoothUUID.canonical("2A3"))  // 3 hex: not 4/8/32
         // 32 hex but not in dashed 8-4-4-4-12 form (CBUUID wouldn't accept it).
-        XCTAssertNil(BluetoothUUID.canonical(
-            hrm.replacingOccurrences(of: "-", with: "")
-        ))
+        XCTAssertNil(
+            BluetoothUUID.canonical(
+                hrm.replacingOccurrences(of: "-", with: "")
+            ))
     }
 }
 
@@ -225,9 +230,9 @@ final class UpdatePlanTests: XCTestCase {
 // refused and can never run against a newer-schema db.
 final class VersionPolicyTests: XCTestCase {
     func testAcceptsEqualOrNewerRejectsOlder() {
-        XCTAssertTrue(VersionPolicy.accepts(incoming: 3, highWater: 3)) // non-breaking re-apply
+        XCTAssertTrue(VersionPolicy.accepts(incoming: 3, highWater: 3))  // non-breaking re-apply
         XCTAssertTrue(VersionPolicy.accepts(incoming: 4, highWater: 3))
-        XCTAssertFalse(VersionPolicy.accepts(incoming: 2, highWater: 3)) // downgrade attack
+        XCTAssertFalse(VersionPolicy.accepts(incoming: 2, highWater: 3))  // downgrade attack
     }
 
     func testRunsOTAWhenCurrent() {
@@ -267,7 +272,7 @@ final class VersionPolicyTests: XCTestCase {
 
     func testHighWaterIsMonotonic() {
         XCTAssertEqual(VersionPolicy.bumpedHighWater(5, booted: 7), 7)
-        XCTAssertEqual(VersionPolicy.bumpedHighWater(7, booted: 5), 7) // never decreases
+        XCTAssertEqual(VersionPolicy.bumpedHighWater(7, booted: 5), 7)  // never decreases
     }
 }
 
@@ -280,10 +285,12 @@ final class BleSessionTests: XCTestCase {
         s.queueWrite(characteristic: "A", value: "1", confirm: nil)
         s.queueWrite(characteristic: "B", value: "2", confirm: true)
 
-        XCTAssertEqual(s.takePendingWrites(), [
-            .init(characteristic: "A", value: "1", confirm: nil),
-            .init(characteristic: "B", value: "2", confirm: true)
-        ])
+        XCTAssertEqual(
+            s.takePendingWrites(),
+            [
+                .init(characteristic: "A", value: "1", confirm: nil),
+                .init(characteristic: "B", value: "2", confirm: true),
+            ])
         // Taken exactly once — discovery must not replay the same writes twice.
         XCTAssertTrue(s.pendingWrites.isEmpty)
         XCTAssertTrue(s.takePendingWrites().isEmpty)
@@ -293,7 +300,7 @@ final class BleSessionTests: XCTestCase {
         var s = BleSession()
         s.beginConnect()
         s.wantSubscription("HR")
-        s.wantSubscription("HR") // de-duped (Set)
+        s.wantSubscription("HR")  // de-duped (Set)
         s.wantSubscription("BAT")
         // An unexpected drop leaves the session untouched, so the desired set
         // remains to re-apply on the auto-reconnect.
@@ -311,9 +318,9 @@ final class BleSessionTests: XCTestCase {
         XCTAssertTrue(s.desiredSubscriptions.isEmpty)
         // A deliberate disconnect must not resurrect a stale write on reconnect.
         XCTAssertTrue(s.pendingWrites.isEmpty)
-        XCTAssertFalse(s.shouldAutoReconnect) // stays down, no auto-reconnect
+        XCTAssertFalse(s.shouldAutoReconnect)  // stays down, no auto-reconnect
 
-        s.beginConnect() // a fresh connect re-arms auto-reconnect
+        s.beginConnect()  // a fresh connect re-arms auto-reconnect
         XCTAssertTrue(s.shouldAutoReconnect)
     }
 }
@@ -385,7 +392,7 @@ final class RNStyleTests: XCTestCase {
 
     func testUnknownColorIsNil() {
         XCTAssertNil(RNStyle.color("chartreuse"))
-        XCTAssertNil(RNStyle.color("#12")) // wrong length
+        XCTAssertNil(RNStyle.color("#12"))  // wrong length
         XCTAssertNil(RNStyle.color(nil))
     }
 
@@ -518,7 +525,7 @@ final class SharedWidgetStoreTests: XCTestCase {
         )
         store.setOTABootAttempts(2)
         XCTAssertEqual(store.otaBootAttempts(), 2)
-        store.setOTABootAttempts(0) // healthy commit resets
+        store.setOTABootAttempts(0)  // healthy commit resets
         XCTAssertEqual(store.otaBootAttempts(), 0)
     }
 
@@ -530,7 +537,7 @@ final class SharedWidgetStoreTests: XCTestCase {
 
     func testNilAppGroupIsInertNotCrashing() {
         let none = SharedWidgetStore(appGroupId: nil)
-        none.setOTABootAttempts(5) // no-op without a group
+        none.setOTABootAttempts(5)  // no-op without a group
         XCTAssertEqual(none.otaBootAttempts(), 0)
     }
 }

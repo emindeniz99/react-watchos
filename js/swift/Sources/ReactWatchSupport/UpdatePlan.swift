@@ -55,7 +55,7 @@ public struct UpdatePlan: Equatable, Sendable {
     /// callers still work — they then take the fail-open path in the host.
     public init(payload: String) {
         guard let data = payload.data(using: .utf8),
-              let decoded = try? JSONDecoder().decode(Payload.self, from: data)
+            let decoded = try? JSONDecoder().decode(Payload.self, from: data)
         else {
             js = payload
             version = nil

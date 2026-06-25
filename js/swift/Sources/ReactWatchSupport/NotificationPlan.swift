@@ -26,15 +26,18 @@ public struct NotificationPlan: Sendable, Equatable {
     }
 
     public init?(json: String, now: Date = .now) {
-        guard let payload = try? JSONDecoder().decode(
-            Payload.self, from: Data(json.utf8)
-        ) else { return nil }
+        guard
+            let payload = try? JSONDecoder().decode(
+                Payload.self, from: Data(json.utf8)
+            )
+        else { return nil }
         // `at` (absolute, ms since epoch) wins over `afterMs` (relative).
-        let seconds: TimeInterval = if let at = payload.at {
-            at / 1000 - now.timeIntervalSince1970
-        } else {
-            (payload.afterMs ?? 0) / 1000
-        }
+        let seconds: TimeInterval =
+            if let at = payload.at {
+                at / 1000 - now.timeIntervalSince1970
+            } else {
+                (payload.afterMs ?? 0) / 1000
+            }
         id = payload.id
         title = payload.title
         body = payload.body

@@ -13,8 +13,10 @@ enum WidgetStore {
     static let storagePrefix = "react.storage."
 
     static func load() -> PublishedWidgets? {
-        guard let json = UserDefaults(suiteName: appGroupId)?
-            .string(forKey: payloadKey) else { return nil }
+        guard
+            let json = UserDefaults(suiteName: appGroupId)?
+                .string(forKey: payloadKey)
+        else { return nil }
         return try? JSONDecoder().decode(
             PublishedWidgets.self, from: Data(json.utf8)
         )

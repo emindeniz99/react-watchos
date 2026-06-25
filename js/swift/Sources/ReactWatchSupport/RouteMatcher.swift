@@ -29,15 +29,15 @@ public struct RouteMatcher {
         var i = 0
         for segment in segments {
             switch segment {
-            case let .catchAll(name, optional):
+            case .catchAll(let name, let optional):
                 let rest = Array(parts[min(i, parts.count)...])
                 if !optional, rest.isEmpty { return nil }
                 params[name] = rest
                 return Match(params: params, score: score - 1)
-            case let .literal(value):
+            case .literal(let value):
                 guard i < parts.count, parts[i] == value else { return nil }
                 score += 2
-            case let .param(name):
+            case .param(let name):
                 guard i < parts.count else { return nil }
                 params[name] = [parts[i]]
                 score += 1

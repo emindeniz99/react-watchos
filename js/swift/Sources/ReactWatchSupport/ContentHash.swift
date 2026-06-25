@@ -20,10 +20,10 @@ public enum ContentHash {
     }
 
     private static func fnv1a(_ bytes: some Sequence<UInt8>) -> String {
-        var hash: UInt64 = 0xCBF2_9CE4_8422_2325 // FNV offset basis
+        var hash: UInt64 = 0xCBF2_9CE4_8422_2325  // FNV offset basis
         for byte in bytes {
             hash ^= UInt64(byte)
-            hash = hash &* 0x0000_0100_0000_01B3 // FNV prime
+            hash = hash &* 0x0000_0100_0000_01B3  // FNV prime
         }
         return String(hash, radix: 16)
     }

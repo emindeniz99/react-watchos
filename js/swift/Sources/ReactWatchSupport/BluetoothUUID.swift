@@ -16,11 +16,11 @@ public enum BluetoothUUID {
         let hex = string.replacingOccurrences(of: "-", with: "").uppercased()
         guard !hex.isEmpty, hex.allSatisfy(\.isHexDigit) else { return nil }
         switch (hex.count, string.count) {
-        case (4, 4): // 16-bit short, no dashes
+        case (4, 4):  // 16-bit short, no dashes
             return "0000\(hex)\(baseSuffix)"
-        case (8, 8): // 32-bit short, no dashes
+        case (8, 8):  // 32-bit short, no dashes
             return "\(hex)\(baseSuffix)"
-        case (32, 36): // full 128-bit, canonical dashed form
+        case (32, 36):  // full 128-bit, canonical dashed form
             let c = Array(hex)
             return "\(String(c[0 ..< 8]))-\(String(c[8 ..< 12]))-\(String(c[12 ..< 16]))"
                 + "-\(String(c[16 ..< 20]))-\(String(c[20 ..< 32]))"

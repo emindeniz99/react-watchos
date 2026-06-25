@@ -52,7 +52,7 @@ final class IntentRuntime {
         // Prefer precompiled bytecode (faster cold start in the short-lived
         // extension), fall back to parsing bundle.js.
         if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
-           let data = try? Data(contentsOf: qbc)
+            let data = try? Data(contentsOf: qbc)
         {
             do {
                 try js.evaluateBytecode(data)
@@ -62,7 +62,7 @@ final class IntentRuntime {
             }
         }
         guard let url = Bundle.main.url(forResource: "bundle", withExtension: "js"),
-              let code = try? String(contentsOf: url, encoding: .utf8)
+            let code = try? String(contentsOf: url, encoding: .utf8)
         else {
             throw JSRuntime.JSError.exception("bundle missing — run `npm run build`")
         }
@@ -94,9 +94,9 @@ final class IntentRuntime {
         guard let runtime = IntentRuntime() else { return nil }
         let ms = now.timeIntervalSince1970 * 1000
         guard let json = runtime.js.callReturningString("__renderWidgets", ms),
-              let payload = try? JSONDecoder().decode(
-                  PublishedWidgets.self, from: Data(json.utf8)
-              )
+            let payload = try? JSONDecoder().decode(
+                PublishedWidgets.self, from: Data(json.utf8)
+            )
         else {
             return nil
         }

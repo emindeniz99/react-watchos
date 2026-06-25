@@ -1,16 +1,19 @@
 import Foundation
-#if canImport(FoundationNetworking)
-    import FoundationNetworking
-#endif
 import ReactWatchSupport
 import XCTest
 
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
+
 final class FetchPlanTests: XCTestCase {
     func testBuildsRequestFromJSON() throws {
-        let plan = try XCTUnwrap(FetchPlan(json: #"""
-        {"url":"https://example.com/x","method":"POST",
-         "headers":{"X-A":"1"},"body":"hello"}
-        """#))
+        let plan = try XCTUnwrap(
+            FetchPlan(
+                json: #"""
+                    {"url":"https://example.com/x","method":"POST",
+                     "headers":{"X-A":"1"},"body":"hello"}
+                    """#))
         XCTAssertEqual(plan.url, "https://example.com/x")
         XCTAssertEqual(plan.request.url?.absoluteString, "https://example.com/x")
         XCTAssertEqual(plan.request.httpMethod, "POST")
@@ -19,17 +22,18 @@ final class FetchPlanTests: XCTestCase {
     }
 
     func testNoBodyOrHeaders() throws {
-        let plan = try XCTUnwrap(FetchPlan(
-            json: #"{"url":"https://example.com","method":"GET"}"#
-        ))
+        let plan = try XCTUnwrap(
+            FetchPlan(
+                json: #"{"url":"https://example.com","method":"GET"}"#
+            ))
         XCTAssertEqual(plan.request.httpMethod, "GET")
         XCTAssertNil(plan.request.httpBody)
     }
 
     func testRejectsBadInput() {
         XCTAssertNil(FetchPlan(json: "not json"))
-        XCTAssertNil(FetchPlan(json: #"{"method":"GET"}"#)) // no url
-        XCTAssertNil(FetchPlan(json: #"{"url":"","method":"GET"}"#)) // empty url
+        XCTAssertNil(FetchPlan(json: #"{"method":"GET"}"#))  // no url
+        XCTAssertNil(FetchPlan(json: #"{"url":"","method":"GET"}"#))  // empty url
     }
 
     // CX-021: the native side is the single URL authority and does NOT restrict
@@ -64,11 +68,12 @@ final class FetchResponseTests: XCTestCase {
                 as? [String: Any]
         )
         XCTAssertEqual(obj["status"] as? Int, 200)
-        XCTAssertEqual(obj["statusText"] as? String,
-                       HTTPURLResponse.localizedString(forStatusCode: 200))
+        XCTAssertEqual(
+            obj["statusText"] as? String,
+            HTTPURLResponse.localizedString(forStatusCode: 200))
         XCTAssertEqual(obj["url"] as? String, "https://example.com/x")
         XCTAssertEqual(obj["body"] as? String, "ok")
-        XCTAssertEqual(obj["bodyEncoding"] as? String, "utf8") // default
+        XCTAssertEqual(obj["bodyEncoding"] as? String, "utf8")  // default
         XCTAssertEqual(
             (obj["headers"] as? [String: String])?["content-type"], "text/plain"
         )
@@ -103,7 +108,7 @@ final class FetchBodyTests: XCTestCase {
     }
 
     func testBinaryBodyIsBase64() {
-        let bytes = Data([0x00, 0x01, 0x02, 0xFF]) // not valid UTF-8
+        let bytes = Data([0x00, 0x01, 0x02, 0xFF])  // not valid UTF-8
         XCTAssertEqual(FetchResponse.classifyBody(bytes), .base64("AAEC/w=="))
     }
 

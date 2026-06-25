@@ -133,6 +133,9 @@ public enum RNWire {
 /// The capability features each native target provides (ARCH-01). A bundle
 /// runs only if its required features are a subset (see CapabilityGate).
 public enum HostFeatures {
-    public static let watch: Set<String> = ["ai", "bluetooth", "connectivity", "core", "haptics", "network", "notifications", "ota", "sensors", "storage", "widgets"]
+    public static let watch: Set<String> = [
+        "ai", "bluetooth", "connectivity", "core", "haptics", "network", "notifications", "ota",
+        "sensors", "storage", "widgets",
+    ]
     public static let widget: Set<String> = ["core", "storage", "widgets"]
 }

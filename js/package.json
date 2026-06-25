@@ -76,7 +76,9 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "format:swift": "swift format -i -r swift/Sources swift/Tests ../app/targets",
+    "format:swift:check": "swift format lint -s -r -p swift/Sources swift/Tests ../app/targets"
   },
   "peerDependencies": {
     "@bacons/apple-targets": ">=4.0.0",

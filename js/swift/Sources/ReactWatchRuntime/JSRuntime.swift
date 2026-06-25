@@ -107,8 +107,9 @@ public final class JSRuntime {
 
     public func evaluate(_ code: String, filename: String = "bundle.js") throws {
         let result = code.withCString { codePtr in
-            JS_Eval(context, codePtr, strlen(codePtr), filename,
-                    qjs_eval_type_global())
+            JS_Eval(
+                context, codePtr, strlen(codePtr), filename,
+                qjs_eval_type_global())
         }
         defer { JS_FreeValue(context, result) }
         if JS_IsException(result) {
@@ -123,8 +124,9 @@ public final class JSRuntime {
     /// source if this throws.
     public func evaluateBytecode(_ data: Data) throws {
         let fn = data.withUnsafeBytes { raw -> JSValue in
-            JS_ReadObject(context, raw.bindMemory(to: UInt8.self).baseAddress,
-                          data.count, qjs_read_obj_bytecode())
+            JS_ReadObject(
+                context, raw.bindMemory(to: UInt8.self).baseAddress,
+                data.count, qjs_read_obj_bytecode())
         }
         if JS_IsException(fn) {
             throw JSError.exception(takeExceptionMessage())
@@ -144,15 +146,18 @@ public final class JSRuntime {
     /// fall back to parsing the source. nil if `source` doesn't compile.
     public func compileToBytecode(_ source: String) -> Data? {
         let compiled = source.withCString { ptr in
-            JS_Eval(context, ptr, strlen(ptr), "bundle.js",
-                    qjs_eval_flag_compile_only())
+            JS_Eval(
+                context, ptr, strlen(ptr), "bundle.js",
+                qjs_eval_flag_compile_only())
         }
         defer { JS_FreeValue(context, compiled) }
         if JS_IsException(compiled) { return nil }
         var size = 0
-        guard let buf = JS_WriteObject(
-            context, &size, compiled, qjs_write_obj_bytecode()
-        ) else { return nil }
+        guard
+            let buf = JS_WriteObject(
+                context, &size, compiled, qjs_write_obj_bytecode()
+            )
+        else { return nil }
         defer { js_free(context, buf) }
         return Data(bytes: buf, count: size)
     }
@@ -162,7 +167,7 @@ public final class JSRuntime {
         seq: Int? = nil
     ) {
         var args: [JSArg] = [
-            .int(nodeId), .string(event), .jsonOrUndefined(jsonString(payload))
+            .int(nodeId), .string(event), .jsonOrUndefined(jsonString(payload)),
         ]
         if let seq { args.append(.int(seq)) }
         bridgeCall("__dispatchEvent", args, filename: "dispatch.js")
@@ -171,36 +176,41 @@ public final class JSRuntime {
     /// Settles a JS fetch Promise. MUST be called on the main thread (the
     /// QuickJS context lives there); URLSession completions hop here.
     public func resolveFetch(id: Int, responseJson: String) {
-        bridgeCall("__resolveFetch", [.int(id), .string(responseJson)],
-                   filename: "fetch.js")
+        bridgeCall(
+            "__resolveFetch", [.int(id), .string(responseJson)],
+            filename: "fetch.js")
     }
 
     public func rejectFetch(id: Int, message: String) {
-        bridgeCall("__rejectFetch", [.int(id), .string(message)],
-                   filename: "fetch.js")
+        bridgeCall(
+            "__rejectFetch", [.int(id), .string(message)],
+            filename: "fetch.js")
     }
 
     /// Settles a saveUpdate Promise (CX-005). resultJson is reserved for future
     /// fields; `{ accepted: true }` is implied on resolve.
     public func resolveSaveUpdate(id: Int, resultJson: String = "{}") {
-        bridgeCall("__resolveSaveUpdate", [.int(id), .string(resultJson)],
-                   filename: "update.js")
+        bridgeCall(
+            "__resolveSaveUpdate", [.int(id), .string(resultJson)],
+            filename: "update.js")
     }
 
     /// Rejects a saveUpdate Promise with a typed reason (errorJson =
     /// {code, message}), so applyUpdate surfaces *why* an update was refused.
     public func rejectSaveUpdate(id: Int, errorJson: String) {
-        bridgeCall("__rejectSaveUpdate", [.int(id), .string(errorJson)],
-                   filename: "update.js")
+        bridgeCall(
+            "__rejectSaveUpdate", [.int(id), .string(errorJson)],
+            filename: "update.js")
     }
 
     /// Pushes a named native event into JS at urgent priority (runSync), so
     /// the resulting UI update commits immediately. Use for non-interaction
     /// state: connectivity, sensors, app lifecycle.
     public func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
-        bridgeCall("__pushNativeEvent",
-                   [.string(name), .jsonOrUndefined(jsonString(payload))],
-                   filename: "push.js")
+        bridgeCall(
+            "__pushNativeEvent",
+            [.string(name), .jsonOrUndefined(jsonString(payload))],
+            filename: "push.js")
     }
 
     /// Evaluates `code` and returns its result as a Bool (false on exception).
@@ -227,7 +237,7 @@ public final class JSRuntime {
         defer { JS_FreeValue(context, result) }
         drainJobs()
         guard !JS_IsException(result),
-              let cString = JS_ToCString(context, result)
+            let cString = JS_ToCString(context, result)
         else {
             onError?(takeExceptionMessage())
             return nil
@@ -281,20 +291,20 @@ public final class JSRuntime {
         // Int64, not Int32: nodeId/seq are monotonic and a long session could
         // exceed 2^31 — truncating would wrap an id and mis-route an event/ack
         // (OP-4). JS represents it exactly up to 2^53.
-        case let .int(n): JS_NewInt64(context, Int64(n))
-        case let .double(d): JS_NewFloat64(context, d)
-        case let .string(s): JS_NewString(context, s)
-        case let .jsonOrUndefined(s):
+        case .int(let n): JS_NewInt64(context, Int64(n))
+        case .double(let d): JS_NewFloat64(context, d)
+        case .string(let s): JS_NewString(context, s)
+        case .jsonOrUndefined(let s):
             s.map { JS_NewString(context, $0) } ?? qjs_undefined()
         }
     }
 
     private func renderArg(_ arg: JSArg) -> String {
         switch arg {
-        case let .int(n): "\(n)"
-        case let .double(d): "\(d)"
-        case let .string(s): jsStringLiteral(s)
-        case let .jsonOrUndefined(s): s.map(jsStringLiteral) ?? "undefined"
+        case .int(let n): "\(n)"
+        case .double(let d): "\(d)"
+        case .string(let s): jsStringLiteral(s)
+        case .jsonOrUndefined(let s): s.map(jsStringLiteral) ?? "undefined"
         }
     }
 
@@ -381,51 +391,69 @@ public final class JSRuntime {
         defer { JS_FreeValue(context, global) }
 
         let host = JS_NewObject(context)
-        JS_SetPropertyStr(context, host, "commit",
-                          JS_NewCFunction(context, hostCommit, "commit", 1))
-        JS_SetPropertyStr(context, host, "log",
-                          JS_NewCFunction(context, hostLog, "log", 1))
-        JS_SetPropertyStr(context, host, "setTimer",
-                          JS_NewCFunction(context, hostSetTimer, "setTimer", 2))
-        JS_SetPropertyStr(context, host, "clearTimer",
-                          JS_NewCFunction(context, hostClearTimer, "clearTimer", 1))
-        JS_SetPropertyStr(context, host, "publishWidgets",
-                          JS_NewCFunction(context, hostPublishWidgets, "publishWidgets", 1))
-        JS_SetPropertyStr(context, host, "getItem",
-                          JS_NewCFunction(context, hostGetItem, "getItem", 1))
-        JS_SetPropertyStr(context, host, "setItem",
-                          JS_NewCFunction(context, hostSetItem, "setItem", 2))
-        JS_SetPropertyStr(context, host, "playHaptic",
-                          JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
+        JS_SetPropertyStr(
+            context, host, "commit",
+            JS_NewCFunction(context, hostCommit, "commit", 1))
+        JS_SetPropertyStr(
+            context, host, "log",
+            JS_NewCFunction(context, hostLog, "log", 1))
+        JS_SetPropertyStr(
+            context, host, "setTimer",
+            JS_NewCFunction(context, hostSetTimer, "setTimer", 2))
+        JS_SetPropertyStr(
+            context, host, "clearTimer",
+            JS_NewCFunction(context, hostClearTimer, "clearTimer", 1))
+        JS_SetPropertyStr(
+            context, host, "publishWidgets",
+            JS_NewCFunction(context, hostPublishWidgets, "publishWidgets", 1))
+        JS_SetPropertyStr(
+            context, host, "getItem",
+            JS_NewCFunction(context, hostGetItem, "getItem", 1))
+        JS_SetPropertyStr(
+            context, host, "setItem",
+            JS_NewCFunction(context, hostSetItem, "setItem", 2))
+        JS_SetPropertyStr(
+            context, host, "playHaptic",
+            JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
         JS_SetPropertyStr(
             context, host, "requestNotificationPermission",
-            JS_NewCFunction(context, hostRequestNotificationPermission,
-                            "requestNotificationPermission", 0)
+            JS_NewCFunction(
+                context, hostRequestNotificationPermission,
+                "requestNotificationPermission", 0)
         )
         JS_SetPropertyStr(
             context, host, "scheduleNotification",
-            JS_NewCFunction(context, hostScheduleNotification,
-                            "scheduleNotification", 1)
+            JS_NewCFunction(
+                context, hostScheduleNotification,
+                "scheduleNotification", 1)
         )
         JS_SetPropertyStr(
             context, host, "cancelNotification",
-            JS_NewCFunction(context, hostCancelNotification,
-                            "cancelNotification", 1)
+            JS_NewCFunction(
+                context, hostCancelNotification,
+                "cancelNotification", 1)
         )
-        JS_SetPropertyStr(context, host, "sendToPhone",
-                          JS_NewCFunction(context, hostSendToPhone, "sendToPhone", 1))
-        JS_SetPropertyStr(context, host, "fetch",
-                          JS_NewCFunction(context, hostFetch, "fetch", 2))
-        JS_SetPropertyStr(context, host, "abortFetch",
-                          JS_NewCFunction(context, hostAbortFetch, "abortFetch", 1))
-        JS_SetPropertyStr(context, host, "ble",
-                          JS_NewCFunction(context, hostBle, "ble", 1))
-        JS_SetPropertyStr(context, host, "sensor",
-                          JS_NewCFunction(context, hostSensor, "sensor", 1))
-        JS_SetPropertyStr(context, host, "saveUpdate",
-                          JS_NewCFunction(context, hostSaveUpdate, "saveUpdate", 2))
-        JS_SetPropertyStr(context, host, "generate",
-                          JS_NewCFunction(context, hostGenerate, "generate", 2))
+        JS_SetPropertyStr(
+            context, host, "sendToPhone",
+            JS_NewCFunction(context, hostSendToPhone, "sendToPhone", 1))
+        JS_SetPropertyStr(
+            context, host, "fetch",
+            JS_NewCFunction(context, hostFetch, "fetch", 2))
+        JS_SetPropertyStr(
+            context, host, "abortFetch",
+            JS_NewCFunction(context, hostAbortFetch, "abortFetch", 1))
+        JS_SetPropertyStr(
+            context, host, "ble",
+            JS_NewCFunction(context, hostBle, "ble", 1))
+        JS_SetPropertyStr(
+            context, host, "sensor",
+            JS_NewCFunction(context, hostSensor, "sensor", 1))
+        JS_SetPropertyStr(
+            context, host, "saveUpdate",
+            JS_NewCFunction(context, hostSaveUpdate, "saveUpdate", 2))
+        JS_SetPropertyStr(
+            context, host, "generate",
+            JS_NewCFunction(context, hostGenerate, "generate", 2))
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }
@@ -507,9 +535,10 @@ public final class JSRuntime {
     }
 
     private func jsStringLiteral(_ value: String) -> String {
-        let data = (try? JSONSerialization.data(
-            withJSONObject: [value]
-        )) ?? Data("[\"\"]".utf8)
+        let data =
+            (try? JSONSerialization.data(
+                withJSONObject: [value]
+            )) ?? Data("[\"\"]".utf8)
         let array = String(data: data, encoding: .utf8) ?? "[\"\"]"
         return String(array.dropFirst().dropLast())
     }
@@ -542,7 +571,7 @@ private func hostCommit(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0])
+        let cString = JS_ToCString(ctx, argv[0])
     {
         runtime.handleCommitFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
@@ -566,7 +595,7 @@ private func hostPublishWidgets(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0])
+        let cString = JS_ToCString(ctx, argv[0])
     {
         runtime.handlePublishWidgetsFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
@@ -579,7 +608,7 @@ private func hostPlayHaptic(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0])
+        let cString = JS_ToCString(ctx, argv[0])
     {
         runtime.playHapticFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
@@ -600,7 +629,7 @@ private func hostScheduleNotification(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0])
+        let cString = JS_ToCString(ctx, argv[0])
     {
         runtime.scheduleNotificationFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
@@ -613,7 +642,7 @@ private func hostCancelNotification(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0])
+        let cString = JS_ToCString(ctx, argv[0])
     {
         runtime.cancelNotificationFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
@@ -626,7 +655,7 @@ private func hostSendToPhone(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0])
+        let cString = JS_ToCString(ctx, argv[0])
     {
         runtime.sendToPhoneFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
@@ -639,7 +668,7 @@ private func hostFetch(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-       let cString = JS_ToCString(ctx, argv[1])
+        let cString = JS_ToCString(ctx, argv[1])
     {
         var id: Int32 = 0
         JS_ToInt32(ctx, &id, argv[0])
@@ -654,7 +683,7 @@ private func hostBle(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0])
+        let cString = JS_ToCString(ctx, argv[0])
     {
         runtime.bleFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
@@ -667,7 +696,7 @@ private func hostSensor(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0])
+        let cString = JS_ToCString(ctx, argv[0])
     {
         runtime.sensorFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
@@ -680,7 +709,7 @@ private func hostSaveUpdate(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-       let cString = JS_ToCString(ctx, argv[1])
+        let cString = JS_ToCString(ctx, argv[1])
     {
         var id: Int32 = 0
         JS_ToInt32(ctx, &id, argv[0])
@@ -695,7 +724,7 @@ private func hostGenerate(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-       let cString = JS_ToCString(ctx, argv[1])
+        let cString = JS_ToCString(ctx, argv[1])
     {
         var id: Int32 = 0
         JS_ToInt32(ctx, &id, argv[0])
@@ -722,7 +751,8 @@ private func hostGetItem(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-          let keyC = JS_ToCString(ctx, argv[0]) else { return qjs_null() }
+        let keyC = JS_ToCString(ctx, argv[0])
+    else { return qjs_null() }
     let key = String(cString: keyC)
     JS_FreeCString(ctx, keyC)
     guard let value = runtime.getItemFromC(key) else { return qjs_null() }
@@ -734,8 +764,8 @@ private func hostSetItem(
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-       let keyC = JS_ToCString(ctx, argv[0]),
-       let valueC = JS_ToCString(ctx, argv[1])
+        let keyC = JS_ToCString(ctx, argv[0]),
+        let valueC = JS_ToCString(ctx, argv[1])
     {
         runtime.setItemFromC(String(cString: keyC), String(cString: valueC))
         JS_FreeCString(ctx, keyC)

@@ -22,7 +22,7 @@ struct WidgetNodeView: View {
         _ content: some View, _ node: RNNode
     ) -> some View {
         if let label = node.string("accessibilityLabel"),
-           let hint = node.string("accessibilityHint")
+            let hint = node.string("accessibilityHint")
         {
             content.accessibilityLabel(label).accessibilityHint(hint)
         } else if let label = node.string("accessibilityLabel") {
@@ -50,8 +50,8 @@ struct WidgetNodeView: View {
             // Widgets can't load remote images (no async at render time), so
             // a `source` URL falls back to a symbol; base64 `data` works.
             if let b64 = node.string("data"),
-               let data = Data(base64Encoded: b64),
-               let ui = UIImage(data: data)
+                let data = Data(base64Encoded: b64),
+                let ui = UIImage(data: data)
             {
                 Image(uiImage: ui).resizable().scaledToFit()
                     .frame(width: cgFloat(node, "size"), height: cgFloat(node, "size"))
@@ -74,7 +74,7 @@ struct WidgetNodeView: View {
             }
         // Interactive/navigation nodes degrade to their content.
         case "Button", "NavigationStack", "NavigationLink", "NavigationRoute",
-             "ScrollView", "List", "TabView", "CrownRotation":
+            "ScrollView", "List", "TabView", "CrownRotation":
             children(node)
         case "Toggle":
             Text(node.string("label") ?? "")
@@ -86,8 +86,9 @@ struct WidgetNodeView: View {
             ProgressView(value: max(0, min(1, hi > lo ? (v - lo) / (hi - lo) : 0)))
         case "DatePicker":
             // Read-only in widgets: the formatted date.
-            Text(Date(timeIntervalSince1970: (node.double("value") ?? 0) / 1000),
-                 style: .date)
+            Text(
+                Date(timeIntervalSince1970: (node.double("value") ?? 0) / 1000),
+                style: .date)
         case "Map":
             // Maps aren't supported in widget timelines; show a placeholder.
             Image(systemName: "map")
@@ -110,7 +111,7 @@ struct WidgetNodeView: View {
         let min = node.double("min") ?? 0
         let max = node.double("max") ?? 1
         let value = Swift.min(Swift.max(node.double("value") ?? 0, min), max)
-        let base = Gauge(value: value, in: min ... max) {
+        let base = Gauge(value: value, in: min...max) {
             Text(node.string("label") ?? "")
         } currentValueLabel: {
             Text(formatted(value))
@@ -158,12 +159,18 @@ struct WidgetNodeView: View {
     @ViewBuilder private func timerText(_ node: RNNode) -> some View {
         if let until = node.double("until") {
             let end = Date(timeIntervalSince1970: until / 1000)
-            styled(node, Text(timerInterval: Date() ... Swift.max(Date(), end),
-                              countsDown: true))
+            styled(
+                node,
+                Text(
+                    timerInterval: Date()...Swift.max(Date(), end),
+                    countsDown: true))
         } else {
             let start = Date(timeIntervalSince1970: (node.double("since") ?? 0) / 1000)
-            styled(node, Text(timerInterval: start ... Date.distantFuture,
-                              countsDown: false))
+            styled(
+                node,
+                Text(
+                    timerInterval: start...Date.distantFuture,
+                    countsDown: false))
         }
     }
 
@@ -188,8 +195,8 @@ struct WidgetNodeView: View {
     private func color(_ name: String?) -> Color? {
         guard let value = RNStyle.color(name) else { return nil }
         switch value {
-        case let .named(named): return Self.systemColor(named)
-        case let .rgba(r, g, b, a):
+        case .named(let named): return Self.systemColor(named)
+        case .rgba(let r, let g, let b, let a):
             return Color(red: r, green: g, blue: b, opacity: a)
         }
     }

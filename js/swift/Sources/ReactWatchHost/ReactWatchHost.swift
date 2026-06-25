@@ -1,429 +1,439 @@
 // watchOS-only host (WatchKit/UIKit/HealthKit/SwiftUI). The #if compiles this
 // file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
 #if os(watchOS)
-    import CryptoKit
-    import ReactWatchCore
-    import ReactWatchRuntime
-    import ReactWatchSupport
-    import SwiftUI
-    import UserNotifications
-    import WatchKit
-    import WidgetKit
-    #if canImport(FoundationModels)
-        import FoundationModels
-    #endif
+import CryptoKit
+import ReactWatchCore
+import ReactWatchRuntime
+import ReactWatchSupport
+import SwiftUI
+import UserNotifications
+import WatchKit
+import WidgetKit
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
-    // The public watch host: a consumer's @main App embeds `ReactWatchRootView`,
-    // and that's the whole integration (plus shipping bundle.js as a resource).
-    // Everything below — runtime ownership, tree decoding, optimistic state, the
-    // native bridges — was the app's ReactAppModel; it now lives in the package.
+// The public watch host: a consumer's @main App embeds `ReactWatchRootView`,
+// and that's the whole integration (plus shipping bundle.js as a resource).
+// Everything below — runtime ownership, tree decoding, optimistic state, the
+// native bridges — was the app's ReactAppModel; it now lives in the package.
 //
-    // NOTE: SwiftUI + WatchKit/WidgetKit + the native bridges can't compile on
-    // Linux, so this target is the macOS gate. The engine (CQuickJS), the wire
-    // models (ReactWatchCore), and the embedding (ReactWatchRuntime) are all
-    // built and smoke-tested on Linux.
+// NOTE: SwiftUI + WatchKit/WidgetKit + the native bridges can't compile on
+// Linux, so this target is the macOS gate. The engine (CQuickJS), the wire
+// models (ReactWatchCore), and the embedding (ReactWatchRuntime) are all
+// built and smoke-tested on Linux.
 
-    /// Loads bundle.js into QuickJS and republishes every committed React tree
-    /// as SwiftUI state.
-    @MainActor
-    final class ReactWatchModel: ObservableObject {
-        @Published var root: RNNode?
-        @Published var startupError: String?
-        /// Non-fatal JS errors (event handlers, timers) surfaced as a banner.
-        @Published var runtimeError: String?
-        /// Set when the hard update gate refuses to boot stale JS (CR-17): the only
-        /// available bundle is older than one already applied, so we show a native
-        /// "update required" screen instead of running it against a newer-schema db.
-        @Published var updateRequired = false
-        /// Highest event seq React has acknowledged (tree.seq). Optimistic
-        /// controls hold their local value until their dispatch is acked.
-        @Published var ackedSeq = 0
-        /// Optimistic values keyed by node id — lives on the model (not view
-        /// @State) so it survives SwiftUI view identity changes mid-flight. The
-        /// bookkeeping is ReactWatchSupport.OptimisticStore (unit-tested on Linux).
-        @Published private var optimistic = OptimisticStore()
+/// Loads bundle.js into QuickJS and republishes every committed React tree
+/// as SwiftUI state.
+@MainActor
+final class ReactWatchModel: ObservableObject {
+    @Published var root: RNNode?
+    @Published var startupError: String?
+    /// Non-fatal JS errors (event handlers, timers) surfaced as a banner.
+    @Published var runtimeError: String?
+    /// Set when the hard update gate refuses to boot stale JS (CR-17): the only
+    /// available bundle is older than one already applied, so we show a native
+    /// "update required" screen instead of running it against a newer-schema db.
+    @Published var updateRequired = false
+    /// Highest event seq React has acknowledged (tree.seq). Optimistic
+    /// controls hold their local value until their dispatch is acked.
+    @Published var ackedSeq = 0
+    /// Optimistic values keyed by node id — lives on the model (not view
+    /// @State) so it survives SwiftUI view identity changes mid-flight. The
+    /// bookkeeping is ReactWatchSupport.OptimisticStore (unit-tested on Linux).
+    @Published private var optimistic = OptimisticStore()
 
-        /// App Group storage, configured with the consumer's group id at init —
-        /// no global mutable state. nil disables widget/Storage sharing.
-        private let store: SharedWidgetStore
-        private var runtime: JSRuntime?
-        private var nextSeq = 1
-        /// Set once after reporting a renderer-vs-runtime wire mismatch.
-        private var warnedWireMismatch = false
-        /// Serial queue for decoding committed trees off the main thread.
-        private let decodeQueue = DispatchQueue(label: "react.watch.decode")
-        private let connectivity = PhoneConnectivity()
-        private let bluetooth = BluetoothBridge()
-        private let sensors = SensorBridge()
-        private var fetchTasks: [Int: URLSessionDataTask] = [:]
-        /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
-        /// the JS-assigned id of a request whose id space resets with the runtime, so
-        /// a callback from a previous generation could settle the WRONG pending
-        /// request in the new one. Each async op captures the generation it started
-        /// in and drops its result if it no longer matches.
-        private var generation = 0
+    /// App Group storage, configured with the consumer's group id at init —
+    /// no global mutable state. nil disables widget/Storage sharing.
+    private let store: SharedWidgetStore
+    private var runtime: JSRuntime?
+    private var nextSeq = 1
+    /// Set once after reporting a renderer-vs-runtime wire mismatch.
+    private var warnedWireMismatch = false
+    /// Serial queue for decoding committed trees off the main thread.
+    private let decodeQueue = DispatchQueue(label: "react.watch.decode")
+    private let connectivity = PhoneConnectivity()
+    private let bluetooth = BluetoothBridge()
+    private let sensors = SensorBridge()
+    private var fetchTasks: [Int: URLSessionDataTask] = [:]
+    /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
+    /// the JS-assigned id of a request whose id space resets with the runtime, so
+    /// a callback from a previous generation could settle the WRONG pending
+    /// request in the new one. Each async op captures the generation it started
+    /// in and drops its result if it no longer matches.
+    private var generation = 0
 
-        /// OTA verification config (CR-4 / CR-17). `updatePublicKey` nil = fail-open
-        /// (load unsigned + warn). `updateGate` .hard refuses to boot stale JS;
-        /// `shippedBundleVersion` is the compatibility version of the bundle in the
-        /// app binary, used for the anti-rollback boot decision.
-        private let updatePublicKey: Curve25519.Signing.PublicKey?
-        private let updateGate: OTAGate
-        private let shippedBundleVersion: Int
-        private let updateManifestURL: String?
-        /// CR-5 A/B selector for the Swift→JS bridge, applied to each runtime.
-        private let useJSCallBridge: Bool
+    /// OTA verification config (CR-4 / CR-17). `updatePublicKey` nil = fail-open
+    /// (load unsigned + warn). `updateGate` .hard refuses to boot stale JS;
+    /// `shippedBundleVersion` is the compatibility version of the bundle in the
+    /// app binary, used for the anti-rollback boot decision.
+    private let updatePublicKey: Curve25519.Signing.PublicKey?
+    private let updateGate: OTAGate
+    private let shippedBundleVersion: Int
+    private let updateManifestURL: String?
+    /// CR-5 A/B selector for the Swift→JS bridge, applied to each runtime.
+    private let useJSCallBridge: Bool
 
-        init(appGroupId: String?, ota: OTAConfig = .init(), useJSCallBridge: Bool = true) {
-            store = SharedWidgetStore(appGroupId: appGroupId)
-            updatePublicKey = ota.publicKeyBase64
-                .flatMap { Data(base64Encoded: $0) }
-                .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
-            updateGate = ota.gate
-            shippedBundleVersion = ota.shippedVersion
-            updateManifestURL = ota.manifestURL
-            self.useJSCallBridge = useJSCallBridge
+    init(appGroupId: String?, ota: OTAConfig = .init(), useJSCallBridge: Bool = true) {
+        store = SharedWidgetStore(appGroupId: appGroupId)
+        updatePublicKey = ota.publicKeyBase64
+            .flatMap { Data(base64Encoded: $0) }
+            .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
+        updateGate = ota.gate
+        shippedBundleVersion = ota.shippedVersion
+        updateManifestURL = ota.manifestURL
+        self.useJSCallBridge = useJSCallBridge
+    }
+
+    func start() {
+        guard runtime == nil else { return }
+        connectivity.onMessage = { [weak self] message in
+            self?.pushNativeEvent("watchConnectivity", payload: message)
         }
+        connectivity.activate()
+        bluetooth.onState = { [weak self] state in
+            self?.pushNativeEvent("ble.state", payload: ["state": state])
+        }
+        bluetooth.onNotify = { [weak self] characteristic, value in
+            self?.pushNativeEvent(
+                "ble.notify",
+                payload: ["characteristic": characteristic, "value": value]
+            )
+        }
+        sensors.onReading = { [weak self] kind, payload in
+            self?.pushNativeEvent("sensor.\(kind)", payload: payload)
+        }
+        boot()
+        #if DEBUG
+        startDevReload()
+        #endif
+    }
 
-        func start() {
-            guard runtime == nil else { return }
-            connectivity.onMessage = { [weak self] message in
-                self?.pushNativeEvent("watchConnectivity", payload: message)
-            }
-            connectivity.activate()
-            bluetooth.onState = { [weak self] state in
-                self?.pushNativeEvent("ble.state", payload: ["state": state])
-            }
-            bluetooth.onNotify = { [weak self] characteristic, value in
-                self?.pushNativeEvent(
-                    "ble.notify",
-                    payload: ["characteristic": characteristic, "value": value]
-                )
-            }
-            sensors.onReading = { [weak self] kind, payload in
-                self?.pushNativeEvent("sensor.\(kind)", payload: payload)
-            }
-            boot()
+    /// Boots a fresh runtime, preferring precompiled bytecode (bundle.qbc)
+    /// and falling back to parsing bundle.js.
+    private func boot(devCode: String? = nil) {
+        // Tear down the previous generation's in-flight async before the id space
+        // resets (CX-008): cancel outstanding fetches and stop sensor streams so
+        // their callbacks can't settle against — or push stale readings into —
+        // the fresh runtime. (BLE is intentionally left connected: it's a
+        // stateful link we don't want to drop on a dev hot-reload, and its events
+        // are name-routed, not id-keyed.)
+        generation += 1
+        for task in fetchTasks.values {
+            task.cancel()
+        }
+        fetchTasks.removeAll()
+        sensors.stopAll()
+        runtime = nil
+        root = nil
+        runtimeError = nil
+        startupError = nil
+        updateRequired = false
+        ackedSeq = 0
+        nextSeq = 1
+        optimistic = OptimisticStore()
+        do {
+            let js = try makeRuntime()
+            runtime = js
+            installHostCapabilities(js)
             #if DEBUG
-                startDevReload()
-            #endif
-        }
-
-        /// Boots a fresh runtime, preferring precompiled bytecode (bundle.qbc)
-        /// and falling back to parsing bundle.js.
-        private func boot(devCode: String? = nil) {
-            // Tear down the previous generation's in-flight async before the id space
-            // resets (CX-008): cancel outstanding fetches and stop sensor streams so
-            // their callbacks can't settle against — or push stale readings into —
-            // the fresh runtime. (BLE is intentionally left connected: it's a
-            // stateful link we don't want to drop on a dev hot-reload, and its events
-            // are name-routed, not id-keyed.)
-            generation += 1
-            for task in fetchTasks.values {
-                task.cancel()
-            }
-            fetchTasks.removeAll()
-            sensors.stopAll()
-            runtime = nil
-            root = nil
-            runtimeError = nil
-            startupError = nil
-            updateRequired = false
-            ackedSeq = 0
-            nextSeq = 1
-            optimistic = OptimisticStore()
-            do {
-                let js = try makeRuntime()
-                runtime = js
-                installHostCapabilities(js)
-                #if DEBUG
-                    try? js.evaluate(
-                        "globalThis.__inspectorUrl='http://127.0.0.1:8099/snapshot'"
-                    )
-                #endif
-                if let devCode {
-                    try js.evaluate(devCode)
-                } else {
-                    try load(into: js)
-                }
-            } catch {
-                startupError = "JS startup failed: \(error)"
-            }
-        }
-
-        /// Exposes this binary's capability set + bridge protocol to JS before the
-        /// bundle runs (ARCH-01), so the JS OTA gate (update.ts) can refuse — before
-        /// downloading — a bundle needing a feature this app doesn't provide.
-        private func installHostCapabilities(_ js: JSRuntime) {
-            let features = Array(HostFeatures.watch).sorted()
-            let json = (try? JSONSerialization.data(withJSONObject: features))
-                .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
             try? js.evaluate(
-                "globalThis.__hostFeatures=\(json);"
-                    + "globalThis.__bridgeProtocol=\(RNWire.bridgeProtocol);",
-                filename: "host-capabilities.js"
+                "globalThis.__inspectorUrl='http://127.0.0.1:8099/snapshot'"
             )
-        }
-
-        /// The persisted active OTA bundle (js/src/update.ts): source + metadata in
-        /// ONE atomically-written record (OTARecord), so an apply can't half-land.
-        private var otaRecordURL: URL? {
-            appGroupFile("ota-bundle.json")
-        }
-
-        /// On-device-compiled bytecode cache for the OTA bundle (CR-17), so a cold
-        /// start skips the parser. Pinned to the record by `bytecodeHash`.
-        private var otaBytecodeURL: URL? {
-            appGroupFile("ota-bundle.qbc")
-        }
-
-        private func appGroupFile(_ name: String) -> URL? {
-            guard let group = store.appGroupId else { return nil }
-            return FileManager.default
-                .containerURL(forSecurityApplicationGroupIdentifier: group)?
-                .appendingPathComponent(name)
-        }
-
-        /// Ceiling for an OTA bundle. The app parses the whole source through
-        /// QuickJS at launch, so a multi-MB bundle risks an out-of-memory kill on a
-        /// memory-tight watch (the atomic write also needs ~2x transiently). Reject
-        /// past this rather than persist something that can't load.
-        private static let maxOTABundleBytes = 3 * 1024 * 1024
-
-        /// Runs saveUpdate and settles the JS applyUpdate Promise (CX-005): resolve
-        /// on accept, reject with the reason on refusal — so a rejected OTA (bad
-        /// signature, capability gap, downgrade, write failure) no longer vanishes.
-        private func handleSaveUpdate(id: Int, payload: String) {
-            if saveUpdate(payload) {
-                runtime?.resolveSaveUpdate(id: id)
-            } else {
-                runtime?.rejectSaveUpdate(
-                    id: id,
-                    errorJson: Self.errorJSON(
-                        code: "rejected", message: runtimeError ?? "OTA update rejected"
-                    )
-                )
-            }
-        }
-
-        /// JSON-encodes a {code, message} reject payload, escaping safely.
-        private static func errorJSON(code: String, message: String) -> String {
-            (try? JSONSerialization.data(
-                withJSONObject: ["code": code, "message": message]
-            ))
-            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-        }
-
-        /// Persists an OTA bundle (CR-4 / CR-17). An OTA bundle is arbitrary JS with
-        /// the full host surface, so with a key configured the signature is verified
-        /// over `scheme:version:js` *before* it's written — the version is inside the
-        /// signed bytes, so it can't be relabelled (anti-rollback in `load` can trust
-        /// it). An unsigned or bad bundle is refused. With no key it's fail-open:
-        /// persisted with a loud warning so an un-updated consumer keeps working.
-        /// Returns whether the bundle was accepted + persisted (false = rejected,
-        /// with `runtimeError` set) — the native recovery path reboots only on true.
-        @discardableResult
-        private func saveUpdate(_ payload: String) -> Bool {
-            guard otaRecordURL != nil else { return false }
-            let plan = UpdatePlan(payload: payload)
-            let size = plan.js.utf8.count
-            guard size <= Self.maxOTABundleBytes else {
-                runtimeError = "OTA update rejected: bundle is \(size) bytes, over the "
-                    + "\(Self.maxOTABundleBytes)-byte limit"
-                return false
-            }
-            // Capability gate (ARCH-01): refuse a bundle needing features this
-            // binary doesn't provide, even if validly signed — OTA can't add native
-            // code, so the user must update the app. Defense-in-depth behind the JS
-            // pre-download gate (update.ts).
-            if case let .updateAppRequired(missing) = CapabilityGate.decide(
-                bundleBridgeProtocol: plan.minBridgeProtocol,
-                bundleFeatures: Set(plan.requiredFeatures),
-                nativeBridgeProtocol: RNWire.bridgeProtocol,
-                nativeFeatures: HostFeatures.watch
-            ) {
-                runtimeError = "OTA update rejected: needs capabilities this app "
-                    + "lacks (\(missing.joined(separator: ", "))) — update the app"
-                return false
-            }
-            if let key = updatePublicKey {
-                guard let signature = plan.signature, let version = plan.version,
-                      let message = plan.signedMessage(),
-                      key.isValidSignature(signature, for: message)
-                else {
-                    runtimeError = "OTA update rejected: signature/version missing or invalid"
-                    return false
-                }
-                let highWater = store.otaHighWater()
-                guard VersionPolicy.accepts(incoming: version, highWater: highWater) else {
-                    runtimeError = "OTA update rejected: version \(version) is older than the "
-                        + "installed \(highWater) (downgrade blocked)"
-                    return false
-                }
-                return persistOTA(
-                    js: plan.js, version: version,
-                    signature: signature.base64EncodedString()
-                )
-            } else {
-                print("[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
-                    + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
-                return persistOTA(js: plan.js, version: plan.version, signature: nil)
-            }
-        }
-
-        private func persistOTA(js: String, version: Int?, signature: String?) -> Bool {
-            guard let recordURL = otaRecordURL else { return false }
-            // Read-only validation (ARCH-04): eval the candidate in a throwaway
-            // runtime whose host callbacks are all nil (so commit/setItem/publish are
-            // no-ops). A bundle that throws on load is caught BEFORE we persist it,
-            // and its module init can't mutate the real App Group storage here.
-            guard let validator = try? JSRuntime() else { return false }
-            do {
-                try validator.evaluate(js)
-            } catch {
-                runtimeError = "OTA update rejected: bundle failed to evaluate: \(error)"
-                return false
-            }
-            // Compile the bytecode first so the record can pin the exact blob written
-            // (OP-1); a nil hash just means load will parse the source.
-            let bytecodeHash = cacheOTABytecode(source: js)
-            let record = OTARecord(
-                js: js, version: version, signature: signature, bytecodeHash: bytecodeHash
-            )
-            // ONE atomic write is the commit point (ARCH-04): a crash before it
-            // leaves the previous record (or none) intact — never a new source paired
-            // with a stale version/signature, the half-applied state the old two-file
-            // (.js + .json) write could produce.
-            guard let data = try? JSONEncoder().encode(record),
-                  (try? data.write(to: recordURL, options: .atomic)) != nil
-            else {
-                runtimeError = "OTA update rejected: could not write bundle record"
-                return false
-            }
-            return true
-        }
-
-        /// Compiles the just-verified OTA source to bytecode now (CR-17) so the next
-        /// cold start skips the parser. Compiled in a throwaway runtime — the same
-        /// quickjs-ng, so it's version-matched — to avoid touching the live context.
-        /// Returns the hash of the blob written (to pin it in the record), or nil if
-        /// compilation/write failed — then the stale cache is dropped and load falls
-        /// back to the source.
-        private func cacheOTABytecode(source: String) -> String? {
-            guard let bcURL = otaBytecodeURL else { return nil }
-            if let bytecode = (try? JSRuntime())?.compileToBytecode(source),
-               (try? bytecode.write(to: bcURL, options: .atomic)) != nil
-            {
-                return ContentHash.of(bytecode)
-            }
-            try? FileManager.default.removeItem(at: bcURL)
-            return nil
-        }
-
-        private func loadOTARecord() -> OTARecord? {
-            guard let recordURL = otaRecordURL,
-                  let data = try? Data(contentsOf: recordURL) else { return nil }
-            return try? JSONDecoder().decode(OTARecord.self, from: data)
-        }
-
-        private func dropOTA() {
-            if let url = otaRecordURL { try? FileManager.default.removeItem(at: url) }
-            if let bcURL = otaBytecodeURL { try? FileManager.default.removeItem(at: bcURL) }
-        }
-
-        /// Remote manifest served at `OTAConfig.manifestURL` ({version, bundle,
-        /// signature}); `bundle` is absolute or relative to the manifest URL.
-        private struct RemoteManifest: Decodable {
-            let version: Int
-            let bundle: String
-            let signature: String?
-        }
-
-        /// Native OTA recovery for the hard gate (CR-17): when stale JS is blocked
-        /// the JS app isn't running to fetch an update, so fetch the manifest +
-        /// bundle natively, stage it through the same verified `saveUpdate` gate,
-        /// and reboot to apply. Used by `UpdateRequiredView`'s button.
-        func checkForUpdateNatively() async {
-            guard let urlString = updateManifestURL, let url = URL(string: urlString) else {
-                runtimeError = "no update URL configured"
-                return
-            }
-            do {
-                let (data, _) = try await URLSession.shared.data(from: url)
-                let manifest = try JSONDecoder().decode(RemoteManifest.self, from: data)
-                guard let bundleURL = URL(string: manifest.bundle, relativeTo: url) else {
-                    runtimeError = "update manifest has no bundle URL"
-                    return
-                }
-                let (jsData, _) = try await URLSession.shared.data(from: bundleURL)
-                guard let js = String(data: jsData, encoding: .utf8) else {
-                    runtimeError = "update bundle was not UTF-8 text"
-                    return
-                }
-                var payload: [String: Any] = ["js": js, "version": manifest.version]
-                if let signature = manifest.signature { payload["signature"] = signature }
-                guard let payloadData = try? JSONSerialization.data(withJSONObject: payload),
-                      let payloadString = String(data: payloadData, encoding: .utf8),
-                      saveUpdate(payloadString) else { return }
-                boot() // re-load; the staged bundle (>= high-water) now runs
-            } catch {
-                runtimeError = "update check failed: \(error.localizedDescription)"
-            }
-        }
-
-        private struct GenerateRequest: Decodable {
-            let prompt: String
-            let instructions: String?
-            let temperature: Double?
-        }
-
-        /// On-device text generation via Foundation Models (js/src/ai.ts).
-        private func generate(id: Int, requestJson: String) {
-            guard let req = try? JSONDecoder().decode(
-                GenerateRequest.self, from: Data(requestJson.utf8)
-            ) else {
-                runtime?.rejectGenerate(id: id, message: "bad request")
-                return
-            }
-            #if canImport(FoundationModels)
-                if #available(watchOS 26.0, *) {
-                    let gen = generation
-                    Task { [weak self] in
-                        do {
-                            let session = LanguageModelSession(
-                                instructions: req.instructions ?? ""
-                            )
-                            var options = GenerationOptions()
-                            if let t = req.temperature { options.temperature = t }
-                            let response = try await session.respond(
-                                to: req.prompt, options: options
-                            )
-                            await MainActor.run {
-                                guard let self, gen == self.generation else { return }
-                                self.runtime?.resolveGenerate(id: id, text: response.content)
-                            }
-                        } catch {
-                            await MainActor.run {
-                                guard let self, gen == self.generation else { return }
-                                self.runtime?.rejectGenerate(
-                                    id: id, message: error.localizedDescription
-                                )
-                            }
-                        }
-                    }
-                    return
-                }
             #endif
-            runtime?.rejectGenerate(id: id, message: "on-device AI unavailable")
+            if let devCode {
+                try js.evaluate(devCode)
+            } else {
+                try load(into: js)
+            }
+        } catch {
+            startupError = "JS startup failed: \(error)"
         }
+    }
 
-        /// How many times the OTA bundle may boot without reaching a healthy commit
-        /// before it's rolled back to shipped (ARCH-04 crash-loop guard).
-        private static let maxOTABootAttempts = 3
+    /// Exposes this binary's capability set + bridge protocol to JS before the
+    /// bundle runs (ARCH-01), so the JS OTA gate (update.ts) can refuse — before
+    /// downloading — a bundle needing a feature this app doesn't provide.
+    private func installHostCapabilities(_ js: JSRuntime) {
+        let features = Array(HostFeatures.watch).sorted()
+        let json =
+            (try? JSONSerialization.data(withJSONObject: features))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        try? js.evaluate(
+            "globalThis.__hostFeatures=\(json);"
+                + "globalThis.__bridgeProtocol=\(RNWire.bridgeProtocol);",
+            filename: "host-capabilities.js"
+        )
+    }
 
-        private func load(into js: JSRuntime) throws {
-            let candidate = otaCandidate()
-            let decision: BootDecision = if updatePublicKey == nil {
+    /// The persisted active OTA bundle (js/src/update.ts): source + metadata in
+    /// ONE atomically-written record (OTARecord), so an apply can't half-land.
+    private var otaRecordURL: URL? {
+        appGroupFile("ota-bundle.json")
+    }
+
+    /// On-device-compiled bytecode cache for the OTA bundle (CR-17), so a cold
+    /// start skips the parser. Pinned to the record by `bytecodeHash`.
+    private var otaBytecodeURL: URL? {
+        appGroupFile("ota-bundle.qbc")
+    }
+
+    private func appGroupFile(_ name: String) -> URL? {
+        guard let group = store.appGroupId else { return nil }
+        return FileManager.default
+            .containerURL(forSecurityApplicationGroupIdentifier: group)?
+            .appendingPathComponent(name)
+    }
+
+    /// Ceiling for an OTA bundle. The app parses the whole source through
+    /// QuickJS at launch, so a multi-MB bundle risks an out-of-memory kill on a
+    /// memory-tight watch (the atomic write also needs ~2x transiently). Reject
+    /// past this rather than persist something that can't load.
+    private static let maxOTABundleBytes = 3 * 1024 * 1024
+
+    /// Runs saveUpdate and settles the JS applyUpdate Promise (CX-005): resolve
+    /// on accept, reject with the reason on refusal — so a rejected OTA (bad
+    /// signature, capability gap, downgrade, write failure) no longer vanishes.
+    private func handleSaveUpdate(id: Int, payload: String) {
+        if saveUpdate(payload) {
+            runtime?.resolveSaveUpdate(id: id)
+        } else {
+            runtime?.rejectSaveUpdate(
+                id: id,
+                errorJson: Self.errorJSON(
+                    code: "rejected", message: runtimeError ?? "OTA update rejected"
+                )
+            )
+        }
+    }
+
+    /// JSON-encodes a {code, message} reject payload, escaping safely.
+    private static func errorJSON(code: String, message: String) -> String {
+        (try? JSONSerialization.data(
+            withJSONObject: ["code": code, "message": message]
+        ))
+        .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    }
+
+    /// Persists an OTA bundle (CR-4 / CR-17). An OTA bundle is arbitrary JS with
+    /// the full host surface, so with a key configured the signature is verified
+    /// over `scheme:version:js` *before* it's written — the version is inside the
+    /// signed bytes, so it can't be relabelled (anti-rollback in `load` can trust
+    /// it). An unsigned or bad bundle is refused. With no key it's fail-open:
+    /// persisted with a loud warning so an un-updated consumer keeps working.
+    /// Returns whether the bundle was accepted + persisted (false = rejected,
+    /// with `runtimeError` set) — the native recovery path reboots only on true.
+    @discardableResult
+    private func saveUpdate(_ payload: String) -> Bool {
+        guard otaRecordURL != nil else { return false }
+        let plan = UpdatePlan(payload: payload)
+        let size = plan.js.utf8.count
+        guard size <= Self.maxOTABundleBytes else {
+            runtimeError =
+                "OTA update rejected: bundle is \(size) bytes, over the "
+                + "\(Self.maxOTABundleBytes)-byte limit"
+            return false
+        }
+        // Capability gate (ARCH-01): refuse a bundle needing features this
+        // binary doesn't provide, even if validly signed — OTA can't add native
+        // code, so the user must update the app. Defense-in-depth behind the JS
+        // pre-download gate (update.ts).
+        if case .updateAppRequired(let missing) = CapabilityGate.decide(
+            bundleBridgeProtocol: plan.minBridgeProtocol,
+            bundleFeatures: Set(plan.requiredFeatures),
+            nativeBridgeProtocol: RNWire.bridgeProtocol,
+            nativeFeatures: HostFeatures.watch
+        ) {
+            runtimeError =
+                "OTA update rejected: needs capabilities this app "
+                + "lacks (\(missing.joined(separator: ", "))) — update the app"
+            return false
+        }
+        if let key = updatePublicKey {
+            guard let signature = plan.signature, let version = plan.version,
+                let message = plan.signedMessage(),
+                key.isValidSignature(signature, for: message)
+            else {
+                runtimeError = "OTA update rejected: signature/version missing or invalid"
+                return false
+            }
+            let highWater = store.otaHighWater()
+            guard VersionPolicy.accepts(incoming: version, highWater: highWater) else {
+                runtimeError =
+                    "OTA update rejected: version \(version) is older than the "
+                    + "installed \(highWater) (downgrade blocked)"
+                return false
+            }
+            return persistOTA(
+                js: plan.js, version: version,
+                signature: signature.base64EncodedString()
+            )
+        } else {
+            print(
+                "[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
+                    + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
+            return persistOTA(js: plan.js, version: plan.version, signature: nil)
+        }
+    }
+
+    private func persistOTA(js: String, version: Int?, signature: String?) -> Bool {
+        guard let recordURL = otaRecordURL else { return false }
+        // Read-only validation (ARCH-04): eval the candidate in a throwaway
+        // runtime whose host callbacks are all nil (so commit/setItem/publish are
+        // no-ops). A bundle that throws on load is caught BEFORE we persist it,
+        // and its module init can't mutate the real App Group storage here.
+        guard let validator = try? JSRuntime() else { return false }
+        do {
+            try validator.evaluate(js)
+        } catch {
+            runtimeError = "OTA update rejected: bundle failed to evaluate: \(error)"
+            return false
+        }
+        // Compile the bytecode first so the record can pin the exact blob written
+        // (OP-1); a nil hash just means load will parse the source.
+        let bytecodeHash = cacheOTABytecode(source: js)
+        let record = OTARecord(
+            js: js, version: version, signature: signature, bytecodeHash: bytecodeHash
+        )
+        // ONE atomic write is the commit point (ARCH-04): a crash before it
+        // leaves the previous record (or none) intact — never a new source paired
+        // with a stale version/signature, the half-applied state the old two-file
+        // (.js + .json) write could produce.
+        guard let data = try? JSONEncoder().encode(record),
+            (try? data.write(to: recordURL, options: .atomic)) != nil
+        else {
+            runtimeError = "OTA update rejected: could not write bundle record"
+            return false
+        }
+        return true
+    }
+
+    /// Compiles the just-verified OTA source to bytecode now (CR-17) so the next
+    /// cold start skips the parser. Compiled in a throwaway runtime — the same
+    /// quickjs-ng, so it's version-matched — to avoid touching the live context.
+    /// Returns the hash of the blob written (to pin it in the record), or nil if
+    /// compilation/write failed — then the stale cache is dropped and load falls
+    /// back to the source.
+    private func cacheOTABytecode(source: String) -> String? {
+        guard let bcURL = otaBytecodeURL else { return nil }
+        if let bytecode = (try? JSRuntime())?.compileToBytecode(source),
+            (try? bytecode.write(to: bcURL, options: .atomic)) != nil
+        {
+            return ContentHash.of(bytecode)
+        }
+        try? FileManager.default.removeItem(at: bcURL)
+        return nil
+    }
+
+    private func loadOTARecord() -> OTARecord? {
+        guard let recordURL = otaRecordURL,
+            let data = try? Data(contentsOf: recordURL)
+        else { return nil }
+        return try? JSONDecoder().decode(OTARecord.self, from: data)
+    }
+
+    private func dropOTA() {
+        if let url = otaRecordURL { try? FileManager.default.removeItem(at: url) }
+        if let bcURL = otaBytecodeURL { try? FileManager.default.removeItem(at: bcURL) }
+    }
+
+    /// Remote manifest served at `OTAConfig.manifestURL` ({version, bundle,
+    /// signature}); `bundle` is absolute or relative to the manifest URL.
+    private struct RemoteManifest: Decodable {
+        let version: Int
+        let bundle: String
+        let signature: String?
+    }
+
+    /// Native OTA recovery for the hard gate (CR-17): when stale JS is blocked
+    /// the JS app isn't running to fetch an update, so fetch the manifest +
+    /// bundle natively, stage it through the same verified `saveUpdate` gate,
+    /// and reboot to apply. Used by `UpdateRequiredView`'s button.
+    func checkForUpdateNatively() async {
+        guard let urlString = updateManifestURL, let url = URL(string: urlString) else {
+            runtimeError = "no update URL configured"
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let manifest = try JSONDecoder().decode(RemoteManifest.self, from: data)
+            guard let bundleURL = URL(string: manifest.bundle, relativeTo: url) else {
+                runtimeError = "update manifest has no bundle URL"
+                return
+            }
+            let (jsData, _) = try await URLSession.shared.data(from: bundleURL)
+            guard let js = String(data: jsData, encoding: .utf8) else {
+                runtimeError = "update bundle was not UTF-8 text"
+                return
+            }
+            var payload: [String: Any] = ["js": js, "version": manifest.version]
+            if let signature = manifest.signature { payload["signature"] = signature }
+            guard let payloadData = try? JSONSerialization.data(withJSONObject: payload),
+                let payloadString = String(data: payloadData, encoding: .utf8),
+                saveUpdate(payloadString)
+            else { return }
+            boot()  // re-load; the staged bundle (>= high-water) now runs
+        } catch {
+            runtimeError = "update check failed: \(error.localizedDescription)"
+        }
+    }
+
+    private struct GenerateRequest: Decodable {
+        let prompt: String
+        let instructions: String?
+        let temperature: Double?
+    }
+
+    /// On-device text generation via Foundation Models (js/src/ai.ts).
+    private func generate(id: Int, requestJson: String) {
+        guard
+            let req = try? JSONDecoder().decode(
+                GenerateRequest.self, from: Data(requestJson.utf8)
+            )
+        else {
+            runtime?.rejectGenerate(id: id, message: "bad request")
+            return
+        }
+        #if canImport(FoundationModels)
+        if #available(watchOS 26.0, *) {
+            let gen = generation
+            Task { [weak self] in
+                do {
+                    let session = LanguageModelSession(
+                        instructions: req.instructions ?? ""
+                    )
+                    var options = GenerationOptions()
+                    if let t = req.temperature { options.temperature = t }
+                    let response = try await session.respond(
+                        to: req.prompt, options: options
+                    )
+                    await MainActor.run {
+                        guard let self, gen == self.generation else { return }
+                        self.runtime?.resolveGenerate(id: id, text: response.content)
+                    }
+                } catch {
+                    await MainActor.run {
+                        guard let self, gen == self.generation else { return }
+                        self.runtime?.rejectGenerate(
+                            id: id, message: error.localizedDescription
+                        )
+                    }
+                }
+            }
+            return
+        }
+        #endif
+        runtime?.rejectGenerate(id: id, message: "on-device AI unavailable")
+    }
+
+    /// How many times the OTA bundle may boot without reaching a healthy commit
+    /// before it's rolled back to shipped (ARCH-04 crash-loop guard).
+    private static let maxOTABootAttempts = 3
+
+    private func load(into js: JSRuntime) throws {
+        let candidate = otaCandidate()
+        let decision: BootDecision =
+            if updatePublicKey == nil {
                 // Fail-open: versions are unverified, so no anti-rollback — run the
                 // OTA bundle if present, else shipped.
                 candidate != nil ? .runOTA : .runShipped
@@ -435,176 +445,177 @@
                     gate: updateGate
                 )
             }
-            switch decision {
-            case .runOTA:
-                if let c = candidate {
-                    // Crash-loop rollback (ARCH-04): the JS-throw path is caught
-                    // below, but a *native* crash on boot (QuickJS OOM, a Swift trap
-                    // in a host callback) kills the process before that catch — a
-                    // bundle that does so bricks every launch. otaBootAttempts counts
-                    // boots that haven't reached a healthy commit (which resets it);
-                    // once it hits the cap, drop the bundle and fall back to shipped.
-                    if store.otaBootAttempts() >= Self.maxOTABootAttempts {
+        switch decision {
+        case .runOTA:
+            if let c = candidate {
+                // Crash-loop rollback (ARCH-04): the JS-throw path is caught
+                // below, but a *native* crash on boot (QuickJS OOM, a Swift trap
+                // in a host callback) kills the process before that catch — a
+                // bundle that does so bricks every launch. otaBootAttempts counts
+                // boots that haven't reached a healthy commit (which resets it);
+                // once it hits the cap, drop the bundle and fall back to shipped.
+                if store.otaBootAttempts() >= Self.maxOTABootAttempts {
+                    dropOTA()
+                    store.setOTABootAttempts(0)
+                    runtimeError =
+                        "OTA bundle rolled back: failed to boot "
+                        + "\(Self.maxOTABootAttempts)× — using shipped bundle"
+                } else {
+                    store.setOTABootAttempts(store.otaBootAttempts() + 1)
+                    do {
+                        try evaluateOTA(c, into: js)
+                        if let v = c.version {
+                            store.setOTAHighWater(
+                                VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v)
+                            )
+                        }
+                        return
+                    } catch {
                         dropOTA()
                         store.setOTABootAttempts(0)
-                        runtimeError =
-                            "OTA bundle rolled back: failed to boot "
-                                + "\(Self.maxOTABootAttempts)× — using shipped bundle"
-                    } else {
-                        store.setOTABootAttempts(store.otaBootAttempts() + 1)
-                        do {
-                            try evaluateOTA(c, into: js)
-                            if let v = c.version {
-                                store.setOTAHighWater(
-                                    VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v)
-                                )
-                            }
-                            return
-                        } catch {
-                            dropOTA()
-                            store.setOTABootAttempts(0)
-                            runtimeError = "OTA bundle failed, using shipped bundle: \(error)"
-                        }
+                        runtimeError = "OTA bundle failed, using shipped bundle: \(error)"
                     }
                 }
-            case .blockForUpdate:
-                // Hard gate: the only available bundle is older than one already
-                // applied — refuse to boot it so it can't write to a newer-schema db.
-                updateRequired = true
-                return
-            case .runShipped:
-                break
             }
-            try loadShipped(into: js)
-            if updatePublicKey != nil {
-                store.setOTAHighWater(
-                    VersionPolicy.bumpedHighWater(
-                        store.otaHighWater(),
-                        booted: shippedBundleVersion
-                    )
+        case .blockForUpdate:
+            // Hard gate: the only available bundle is older than one already
+            // applied — refuse to boot it so it can't write to a newer-schema db.
+            updateRequired = true
+            return
+        case .runShipped:
+            break
+        }
+        try loadShipped(into: js)
+        if updatePublicKey != nil {
+            store.setOTAHighWater(
+                VersionPolicy.bumpedHighWater(
+                    store.otaHighWater(),
+                    booted: shippedBundleVersion
                 )
+            )
+        }
+    }
+
+    /// The persisted OTA bundle + its version. The signature was verified at
+    /// save (the network boundary); the App Group is a trusted local sandbox,
+    /// so load doesn't re-verify — which is what lets it run the unsigned local
+    /// bytecode cache. nil if none.
+    private func otaCandidate() -> OTARecord? {
+        guard let record = loadOTARecord(), !record.js.isEmpty else { return nil }
+        return record
+    }
+
+    /// Runs the OTA bundle, preferring the on-device bytecode cache (no parser);
+    /// falls back to parsing the source if the cache is missing or stale (e.g.
+    /// the embedded quickjs-ng changed in a native release, so the cached
+    /// bytecode no longer loads).
+    private func evaluateOTA(_ record: OTARecord, into js: JSRuntime) throws {
+        // Trust the cached bytecode only if the blob on disk hashes to what this
+        // record was saved with (OP-1): a `.qbc` left by a previous bundle, or a
+        // partial write, won't match and is reparsed — so stale bytecode can
+        // never run as if it were this bundle.
+        if let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL),
+            record.bytecodeHash == ContentHash.of(data)
+        {
+            do {
+                try js.evaluateBytecode(data)
+                return
+            } catch {
+                try? FileManager.default.removeItem(at: bcURL)  // engine-version stale
             }
         }
+        try js.evaluate(record.js)
+    }
 
-        /// The persisted OTA bundle + its version. The signature was verified at
-        /// save (the network boundary); the App Group is a trusted local sandbox,
-        /// so load doesn't re-verify — which is what lets it run the unsigned local
-        /// bytecode cache. nil if none.
-        private func otaCandidate() -> OTARecord? {
-            guard let record = loadOTARecord(), !record.js.isEmpty else { return nil }
-            return record
-        }
-
-        /// Runs the OTA bundle, preferring the on-device bytecode cache (no parser);
-        /// falls back to parsing the source if the cache is missing or stale (e.g.
-        /// the embedded quickjs-ng changed in a native release, so the cached
-        /// bytecode no longer loads).
-        private func evaluateOTA(_ record: OTARecord, into js: JSRuntime) throws {
-            // Trust the cached bytecode only if the blob on disk hashes to what this
-            // record was saved with (OP-1): a `.qbc` left by a previous bundle, or a
-            // partial write, won't match and is reparsed — so stale bytecode can
-            // never run as if it were this bundle.
-            if let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL),
-               record.bytecodeHash == ContentHash.of(data)
-            {
-                do {
-                    try js.evaluateBytecode(data)
-                    return
-                } catch {
-                    try? FileManager.default.removeItem(at: bcURL) // engine-version stale
-                }
+    private func loadShipped(into js: JSRuntime) throws {
+        if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
+            let data = try? Data(contentsOf: qbc)
+        {
+            do {
+                try js.evaluateBytecode(data)
+                return
+            } catch {
+                runtimeError = "bytecode load failed, using bundle.js: \(error)"
             }
-            try js.evaluate(record.js)
         }
-
-        private func loadShipped(into js: JSRuntime) throws {
-            if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
-               let data = try? Data(contentsOf: qbc)
-            {
-                do {
-                    try js.evaluateBytecode(data)
-                    return
-                } catch {
-                    runtimeError = "bytecode load failed, using bundle.js: \(error)"
-                }
-            }
-            guard let jsURL = Bundle.main.url(forResource: "bundle", withExtension: "js"),
-                  let code = try? String(contentsOf: jsURL, encoding: .utf8)
-            else {
-                throw JSRuntime.JSError.exception("bundle.js missing — run `npm run build`")
-            }
-            try js.evaluate(code)
+        guard let jsURL = Bundle.main.url(forResource: "bundle", withExtension: "js"),
+            let code = try? String(contentsOf: jsURL, encoding: .utf8)
+        else {
+            throw JSRuntime.JSError.exception("bundle.js missing — run `npm run build`")
         }
+        try js.evaluate(code)
+    }
 
-        private func makeRuntime() throws -> JSRuntime {
-            // Cap the app's QuickJS heap so a runaway/oversized bundle fails loudly
-            // inside the engine instead of getting the whole app OOM-jetsammed
-            // (OP-3). Generous vs the widget's 16MB — the app has the full UI tree.
-            let js = try JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
-            js.useJSCallBridge = useJSCallBridge // CR-5 A/B selector
-            js.onCommit = { [weak self] json in
-                self?.decodeQueue.async {
-                    let decoded = try? JSONDecoder().decode(
-                        RNTree.self, from: Data(json.utf8)
-                    )
-                    DispatchQueue.main.async {
-                        guard let self else { return }
-                        guard let tree = decoded else {
-                            self.runtimeError = "tree decode failed"
-                            return
+    private func makeRuntime() throws -> JSRuntime {
+        // Cap the app's QuickJS heap so a runaway/oversized bundle fails loudly
+        // inside the engine instead of getting the whole app OOM-jetsammed
+        // (OP-3). Generous vs the widget's 16MB — the app has the full UI tree.
+        let js = try JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
+        js.useJSCallBridge = useJSCallBridge  // CR-5 A/B selector
+        js.onCommit = { [weak self] json in
+            self?.decodeQueue.async {
+                let decoded = try? JSONDecoder().decode(
+                    RNTree.self, from: Data(json.utf8)
+                )
+                DispatchQueue.main.async {
+                    guard let self else { return }
+                    guard let tree = decoded else {
+                        self.runtimeError = "tree decode failed"
+                        return
+                    }
+                    // The JS bundle and this native target version evolve
+                    // independently; a wire-version mismatch means the tree may
+                    // mis-decode. Surface it loudly (once) and REJECT the commit
+                    // — don't let an incompatible tree reach the interpreter or
+                    // advance the optimistic ack (CX-009).
+                    if tree.v != RNWire.version {
+                        if !self.warnedWireMismatch {
+                            self.warnedWireMismatch = true
+                            self.runtimeError =
+                                "wire version mismatch: bundle v\(tree.v) vs "
+                                + "runtime v\(RNWire.version) — rebuild the bundle"
                         }
-                        // The JS bundle and this native target version evolve
-                        // independently; a wire-version mismatch means the tree may
-                        // mis-decode. Surface it loudly (once) and REJECT the commit
-                        // — don't let an incompatible tree reach the interpreter or
-                        // advance the optimistic ack (CX-009).
-                        if tree.v != RNWire.version {
-                            if !self.warnedWireMismatch {
-                                self.warnedWireMismatch = true
-                                self.runtimeError =
-                                    "wire version mismatch: bundle v\(tree.v) vs "
-                                        + "runtime v\(RNWire.version) — rebuild the bundle"
-                            }
-                            return
-                        }
-                        self.root = tree.root
-                        // A committed tree means the bundle booted healthily — clear
-                        // the crash-loop counter so only *boot* failures accumulate
-                        // (ARCH-04). Idempotent; after the first reset it's a no-op.
-                        if self.store.otaBootAttempts() != 0 {
-                            self.store.setOTABootAttempts(0)
-                        }
-                        if tree.seq > self.ackedSeq {
-                            self.ackedSeq = tree.seq
-                            self.optimistic.ack(throughSeq: tree.seq)
-                        }
+                        return
+                    }
+                    self.root = tree.root
+                    // A committed tree means the bundle booted healthily — clear
+                    // the crash-loop counter so only *boot* failures accumulate
+                    // (ARCH-04). Idempotent; after the first reset it's a no-op.
+                    if self.store.otaBootAttempts() != 0 {
+                        self.store.setOTABootAttempts(0)
+                    }
+                    if tree.seq > self.ackedSeq {
+                        self.ackedSeq = tree.seq
+                        self.optimistic.ack(throughSeq: tree.seq)
                     }
                 }
             }
-            js.onPublishWidgets = { [store] json in
-                store.save(json)
-                WidgetCenter.shared.reloadAllTimelines()
-            }
-            js.onGetItem = { [store] in store.getItem($0) }
-            js.onSetItem = { [store] in store.setItem($0, $1) }
-            js.onSendToPhone = { [weak self] json in self?.connectivity.send(json) }
-            js.onFetch = { [weak self] id, reqJson in
-                self?.performFetch(id: id, requestJson: reqJson)
-            }
-            js.onAbortFetch = { [weak self] id in self?.abortFetch(id: id) }
-            js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
-            js.onSensor = { [weak self] json in self?.sensors.handleOp(json) }
-            js.onSaveUpdate = { [weak self] id, payload in
-                self?.handleSaveUpdate(id: id, payload: payload)
-            }
-            js.onGenerate = { [weak self] id, reqJson in
-                self?.generate(id: id, requestJson: reqJson)
-            }
-            js.onError = { [weak self] message in
-                DispatchQueue.main.async { self?.runtimeError = message }
-            }
-            js.onPlayHaptic = { type in
-                let haptic: WKHapticType = switch type {
+        }
+        js.onPublishWidgets = { [store] json in
+            store.save(json)
+            WidgetCenter.shared.reloadAllTimelines()
+        }
+        js.onGetItem = { [store] in store.getItem($0) }
+        js.onSetItem = { [store] in store.setItem($0, $1) }
+        js.onSendToPhone = { [weak self] json in self?.connectivity.send(json) }
+        js.onFetch = { [weak self] id, reqJson in
+            self?.performFetch(id: id, requestJson: reqJson)
+        }
+        js.onAbortFetch = { [weak self] id in self?.abortFetch(id: id) }
+        js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
+        js.onSensor = { [weak self] json in self?.sensors.handleOp(json) }
+        js.onSaveUpdate = { [weak self] id, payload in
+            self?.handleSaveUpdate(id: id, payload: payload)
+        }
+        js.onGenerate = { [weak self] id, reqJson in
+            self?.generate(id: id, requestJson: reqJson)
+        }
+        js.onError = { [weak self] message in
+            DispatchQueue.main.async { self?.runtimeError = message }
+        }
+        js.onPlayHaptic = { type in
+            let haptic: WKHapticType =
+                switch type {
                 case "success": .success
                 case "failure": .failure
                 case "notification": .notification
@@ -615,310 +626,313 @@
                 case "retry": .retry
                 default: .click
                 }
-                WKInterfaceDevice.current().play(haptic)
-            }
-            js.onRequestNotificationPermission = {
-                UNUserNotificationCenter.current().requestAuthorization(
-                    options: [.alert, .sound]
-                ) { _, _ in }
-            }
-            js.onScheduleNotification = { [weak self] json in
-                self?.scheduleNotification(json)
-            }
-            js.onCancelNotification = { id in
-                UNUserNotificationCenter.current()
-                    .removePendingNotificationRequests(withIdentifiers: [id])
-            }
-            return js
+            WKInterfaceDevice.current().play(haptic)
         }
+        js.onRequestNotificationPermission = {
+            UNUserNotificationCenter.current().requestAuthorization(
+                options: [.alert, .sound]
+            ) { _, _ in }
+        }
+        js.onScheduleNotification = { [weak self] json in
+            self?.scheduleNotification(json)
+        }
+        js.onCancelNotification = { id in
+            UNUserNotificationCenter.current()
+                .removePendingNotificationRequests(withIdentifiers: [id])
+        }
+        return js
+    }
 
-        private func scheduleNotification(_ json: String) {
-            // Decode + trigger-time math is ReactWatchSupport.NotificationPlan
-            // (unit-tested on Linux); the host just builds the request from it.
-            guard let plan = NotificationPlan(json: json) else {
-                runtimeError = "bad notification payload"
-                return
-            }
-            if plan.scheduledInPast {
-                runtimeError =
-                    "notification '\(plan.id)' scheduled in the past; delivering now"
-            }
-            let content = UNMutableNotificationContent()
-            content.title = plan.title
-            content.body = plan.body
-            if plan.sound { content.sound = .default }
-            let request = UNNotificationRequest(
-                identifier: plan.id,
-                content: content,
-                trigger: UNTimeIntervalNotificationTrigger(
-                    timeInterval: plan.triggerSeconds, repeats: false
-                )
+    private func scheduleNotification(_ json: String) {
+        // Decode + trigger-time math is ReactWatchSupport.NotificationPlan
+        // (unit-tested on Linux); the host just builds the request from it.
+        guard let plan = NotificationPlan(json: json) else {
+            runtimeError = "bad notification payload"
+            return
+        }
+        if plan.scheduledInPast {
+            runtimeError =
+                "notification '\(plan.id)' scheduled in the past; delivering now"
+        }
+        let content = UNMutableNotificationContent()
+        content.title = plan.title
+        content.body = plan.body
+        if plan.sound { content.sound = .default }
+        let request = UNNotificationRequest(
+            identifier: plan.id,
+            content: content,
+            trigger: UNTimeIntervalNotificationTrigger(
+                timeInterval: plan.triggerSeconds, repeats: false
             )
-            UNUserNotificationCenter.current().add(request) { [weak self] error in
-                if let error {
-                    DispatchQueue.main.async {
-                        self?.runtimeError = "notification: \(error.localizedDescription)"
-                    }
+        )
+        UNUserNotificationCenter.current().add(request) { [weak self] error in
+            if let error {
+                DispatchQueue.main.async {
+                    self?.runtimeError = "notification: \(error.localizedDescription)"
                 }
             }
         }
+    }
 
-        /// Returns the seq assigned to this dispatch; optimistic controls
-        /// compare it against ackedSeq to know when React has caught up.
-        @discardableResult
-        func dispatch(nodeId: Int, event: String, payload: [String: Any]? = nil) -> Int {
-            let seq = nextSeq
-            nextSeq += 1
-            runtime?.dispatchEvent(
-                nodeId: nodeId, event: event, payload: payload, seq: seq
-            )
-            return seq
+    /// Returns the seq assigned to this dispatch; optimistic controls
+    /// compare it against ackedSeq to know when React has caught up.
+    @discardableResult
+    func dispatch(nodeId: Int, event: String, payload: [String: Any]? = nil) -> Int {
+        let seq = nextSeq
+        nextSeq += 1
+        runtime?.dispatchEvent(
+            nodeId: nodeId, event: event, payload: payload, seq: seq
+        )
+        return seq
+    }
+
+    /// Forwards a native state push (connectivity, lifecycle, sensors) into
+    /// React at urgent priority — commits instantly, like a tap.
+    func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
+        runtime?.pushNativeEvent(name, payload: payload)
+    }
+
+    /// Runs a JS fetch over URLSession; settles the Promise back on main.
+    /// Request parsing + response assembly are ReactWatchSupport (FetchPlan /
+    /// FetchResponse), tested on Linux; the host only orchestrates URLSession.
+    private func performFetch(id: Int, requestJson: String) {
+        guard let plan = FetchPlan(json: requestJson) else {
+            runtime?.rejectFetch(id: id, message: "invalid fetch request")
+            return
         }
-
-        /// Forwards a native state push (connectivity, lifecycle, sensors) into
-        /// React at urgent priority — commits instantly, like a tap.
-        func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
-            runtime?.pushNativeEvent(name, payload: payload)
-        }
-
-        /// Runs a JS fetch over URLSession; settles the Promise back on main.
-        /// Request parsing + response assembly are ReactWatchSupport (FetchPlan /
-        /// FetchResponse), tested on Linux; the host only orchestrates URLSession.
-        private func performFetch(id: Int, requestJson: String) {
-            guard let plan = FetchPlan(json: requestJson) else {
-                runtime?.rejectFetch(id: id, message: "invalid fetch request")
-                return
-            }
-            let gen = generation
-            let task = URLSession.shared
-                .dataTask(with: plan.request) { [weak self] data, response, error in
-                    DispatchQueue.main.async {
-                        guard let self, gen == self.generation else { return }
-                        self.fetchTasks[id] = nil
-                        if let error {
-                            if (error as NSError).code != NSURLErrorCancelled {
-                                self.runtime?.rejectFetch(
-                                    id: id, message: error.localizedDescription
-                                )
-                            }
-                            return
+        let gen = generation
+        let task = URLSession.shared
+            .dataTask(with: plan.request) { [weak self] data, response, error in
+                DispatchQueue.main.async {
+                    guard let self, gen == self.generation else { return }
+                    self.fetchTasks[id] = nil
+                    if let error {
+                        if (error as NSError).code != NSURLErrorCancelled {
+                            self.runtime?.rejectFetch(
+                                id: id, message: error.localizedDescription
+                            )
                         }
-                        let http = response as? HTTPURLResponse
-                        var headers: [String: String] = [:]
-                        http?.allHeaderFields.forEach { key, value in
-                            // Repeated headers (e.g. Set-Cookie) arrive as an array;
-                            // WHATWG joins them with ", ", not Swift's "[a, b]"
-                            // array description.
-                            let joined = (value as? [Any]).map { array in
+                        return
+                    }
+                    let http = response as? HTTPURLResponse
+                    var headers: [String: String] = [:]
+                    http?.allHeaderFields.forEach { key, value in
+                        // Repeated headers (e.g. Set-Cookie) arrive as an array;
+                        // WHATWG joins them with ", ", not Swift's "[a, b]"
+                        // array description.
+                        let joined =
+                            (value as? [Any]).map { array in
                                 array.map { "\($0)" }.joined(separator: ", ")
                             } ?? "\(value)"
-                            headers["\(key)".lowercased()] = joined
-                        }
-                        let status = http?.statusCode ?? 0
-                        let url = http?.url?.absoluteString ?? plan.url
-                        switch FetchResponse.classifyBody(data) {
-                        case let .tooLarge(bytes, limit):
-                            // Don't bridge an unbounded body into the watch's tight
-                            // QuickJS heap — fail loud instead of risking OOM.
-                            self.runtime?.rejectFetch(
-                                id: id,
-                                message: "response body too large: \(bytes) bytes "
-                                    + "exceeds \(limit)-byte limit"
-                            )
-                        case let .text(text):
-                            self.runtime?.resolveFetch(
-                                id: id,
-                                responseJson: FetchResponse.json(
-                                    status: status, url: url, body: text,
-                                    headers: headers
-                                )
-                            )
-                        case let .base64(encoded):
-                            // Binary body — carried as base64 so it isn't silently
-                            // dropped (the old UTF-8 decode turned it into "").
-                            self.runtime?.resolveFetch(
-                                id: id,
-                                responseJson: FetchResponse.json(
-                                    status: status, url: url, body: encoded,
-                                    headers: headers, bodyEncoding: "base64"
-                                )
-                            )
-                        }
+                        headers["\(key)".lowercased()] = joined
                     }
-                }
-            fetchTasks[id] = task
-            task.resume()
-        }
-
-        private func abortFetch(id: Int) {
-            fetchTasks[id]?.cancel()
-            fetchTasks[id] = nil
-        }
-
-        /// Dispatches a change event and remembers `value` as the node's
-        /// optimistic value until React acks this dispatch.
-        func dispatchOptimistic(nodeId: Int, value: JSONValue, payload: [String: Any]) {
-            let seq = dispatch(nodeId: nodeId, event: "change", payload: payload)
-            optimistic.set(nodeId: nodeId, seq: seq, value: value)
-        }
-
-        func optimisticBool(_ nodeId: Int) -> Bool? {
-            optimistic.bool(nodeId)
-        }
-
-        func optimisticInt(_ nodeId: Int) -> Int? {
-            optimistic.int(nodeId)
-        }
-
-        func optimisticDouble(_ nodeId: Int) -> Double? {
-            optimistic.double(nodeId)
-        }
-
-        func optimisticString(_ nodeId: Int) -> String? {
-            optimistic.string(nodeId)
-        }
-
-        #if DEBUG
-            private static let devBundleURL = URL(string: "http://127.0.0.1:8788/bundle.js")!
-            private var devTask: Task<Void, Never>?
-            private var lastDevBundle: String?
-
-            private func startDevReload() {
-                guard devTask == nil else { return }
-                devTask = Task { [weak self] in
-                    while !Task.isCancelled {
-                        try? await Task.sleep(for: .seconds(2))
-                        await self?.pollDevServer()
+                    let status = http?.statusCode ?? 0
+                    let url = http?.url?.absoluteString ?? plan.url
+                    switch FetchResponse.classifyBody(data) {
+                    case .tooLarge(let bytes, let limit):
+                        // Don't bridge an unbounded body into the watch's tight
+                        // QuickJS heap — fail loud instead of risking OOM.
+                        self.runtime?.rejectFetch(
+                            id: id,
+                            message: "response body too large: \(bytes) bytes "
+                                + "exceeds \(limit)-byte limit"
+                        )
+                    case .text(let text):
+                        self.runtime?.resolveFetch(
+                            id: id,
+                            responseJson: FetchResponse.json(
+                                status: status, url: url, body: text,
+                                headers: headers
+                            )
+                        )
+                    case .base64(let encoded):
+                        // Binary body — carried as base64 so it isn't silently
+                        // dropped (the old UTF-8 decode turned it into "").
+                        self.runtime?.resolveFetch(
+                            id: id,
+                            responseJson: FetchResponse.json(
+                                status: status, url: url, body: encoded,
+                                headers: headers, bodyEncoding: "base64"
+                            )
+                        )
                     }
                 }
             }
-
-            private func pollDevServer() async {
-                var request = URLRequest(url: Self.devBundleURL)
-                request.timeoutInterval = 1.5
-                request.cachePolicy = .reloadIgnoringLocalCacheData
-                guard let (data, _) = try? await URLSession.shared.data(for: request),
-                      let code = String(data: data, encoding: .utf8),
-                      !code.isEmpty, code != lastDevBundle else { return }
-                let isFirstFetch = lastDevBundle == nil
-                lastDevBundle = code
-                if !isFirstFetch {
-                    boot(devCode: code)
-                }
-            }
-        #endif
+        fetchTasks[id] = task
+        task.resume()
     }
 
-    /// OTA verification + rollback policy for `ReactWatchRootView` (CR-4 / CR-17).
-    public struct OTAConfig: Sendable {
-        /// Base64 Ed25519 public key. nil = fail-open: bundles load unsigned with a
-        /// loud warning. Set it to enforce signed updates + anti-rollback.
-        public var publicKeyBase64: String?
-        /// `.hard` refuses to boot a bundle older than the newest applied (protects
-        /// the db from stale JS); `.soft` runs it and lets the app prompt to update.
-        public var gate: OTAGate
-        /// Compatibility version of the bundle shipped in the app binary. Bump it in
-        /// lockstep with the shipped bundle, only on a breaking change (db schema /
-        /// wire contract); it anchors the anti-rollback boot decision.
-        public var shippedVersion: Int
-        /// Update manifest endpoint (`{version, bundle, signature}`). Lets the hard
-        /// gate's "Check for update" recover natively — re-fetching a current bundle
-        /// when stale JS is blocked and the JS app isn't running to fetch. HTTPS.
-        public var manifestURL: String?
-
-        public init(
-            publicKeyBase64: String? = nil, gate: OTAGate = .soft,
-            shippedVersion: Int = 1, manifestURL: String? = nil
-        ) {
-            self.publicKeyBase64 = publicKeyBase64
-            self.gate = gate
-            self.shippedVersion = shippedVersion
-            self.manifestURL = manifestURL
-        }
+    private func abortFetch(id: Int) {
+        fetchTasks[id]?.cancel()
+        fetchTasks[id] = nil
     }
 
-    /// Shown by the hard update gate (CR-17) when stale JS is refused, so it never
-    /// runs against a newer-schema db. Native, because the JS app isn't booted in
-    /// this state; recovery (re-fetching a current bundle) is wired separately.
-    private struct UpdateRequiredView: View {
-        @EnvironmentObject private var model: ReactWatchModel
+    /// Dispatches a change event and remembers `value` as the node's
+    /// optimistic value until React acks this dispatch.
+    func dispatchOptimistic(nodeId: Int, value: JSONValue, payload: [String: Any]) {
+        let seq = dispatch(nodeId: nodeId, event: "change", payload: payload)
+        optimistic.set(nodeId: nodeId, seq: seq, value: value)
+    }
 
-        var body: some View {
-            ScrollView {
-                VStack(spacing: 6) {
-                    Image(systemName: "arrow.down.circle").font(.title2)
-                    Text("Update required").font(.headline)
-                    Text("A newer version is needed to run safely.")
-                        .font(.footnote).multilineTextAlignment(.center)
-                    Button("Check for update") {
-                        Task { await model.checkForUpdateNatively() }
-                    }
-                    if let error = model.runtimeError {
-                        Text(error).font(.caption2).foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                    }
-                }
-                .padding()
+    func optimisticBool(_ nodeId: Int) -> Bool? {
+        optimistic.bool(nodeId)
+    }
+
+    func optimisticInt(_ nodeId: Int) -> Int? {
+        optimistic.int(nodeId)
+    }
+
+    func optimisticDouble(_ nodeId: Int) -> Double? {
+        optimistic.double(nodeId)
+    }
+
+    func optimisticString(_ nodeId: Int) -> String? {
+        optimistic.string(nodeId)
+    }
+
+    #if DEBUG
+    private static let devBundleURL = URL(string: "http://127.0.0.1:8788/bundle.js")!
+    private var devTask: Task<Void, Never>?
+    private var lastDevBundle: String?
+
+    private func startDevReload() {
+        guard devTask == nil else { return }
+        devTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                await self?.pollDevServer()
             }
         }
     }
 
-    /// The watch UI. Embed this in your @main App's scene; ship bundle.js as a
-    /// resource. `appGroupId` enables shared widget/Storage state (optional); `ota`
-    /// configures signed-update verification + anti-rollback (CR-4 / CR-17).
-    /// `useJSCallBridge` selects the Swift→JS bridge (CR-5): the default `JS_Call`
-    /// path or, set to `false`, the legacy eval path — set it per launch (e.g. a
-    /// random bucket) to A/B them on-device before the eval path is retired.
-    public struct ReactWatchRootView: View {
-        @StateObject private var model: ReactWatchModel
-        @Environment(\.scenePhase) private var scenePhase
+    private func pollDevServer() async {
+        var request = URLRequest(url: Self.devBundleURL)
+        request.timeoutInterval = 1.5
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        guard let (data, _) = try? await URLSession.shared.data(for: request),
+            let code = String(data: data, encoding: .utf8),
+            !code.isEmpty, code != lastDevBundle
+        else { return }
+        let isFirstFetch = lastDevBundle == nil
+        lastDevBundle = code
+        if !isFirstFetch {
+            boot(devCode: code)
+        }
+    }
+    #endif
+}
 
-        public init(
-            appGroupId: String? = nil, ota: OTAConfig = .init(),
-            useJSCallBridge: Bool = true
-        ) {
-            _model = StateObject(wrappedValue: ReactWatchModel(
+/// OTA verification + rollback policy for `ReactWatchRootView` (CR-4 / CR-17).
+public struct OTAConfig: Sendable {
+    /// Base64 Ed25519 public key. nil = fail-open: bundles load unsigned with a
+    /// loud warning. Set it to enforce signed updates + anti-rollback.
+    public var publicKeyBase64: String?
+    /// `.hard` refuses to boot a bundle older than the newest applied (protects
+    /// the db from stale JS); `.soft` runs it and lets the app prompt to update.
+    public var gate: OTAGate
+    /// Compatibility version of the bundle shipped in the app binary. Bump it in
+    /// lockstep with the shipped bundle, only on a breaking change (db schema /
+    /// wire contract); it anchors the anti-rollback boot decision.
+    public var shippedVersion: Int
+    /// Update manifest endpoint (`{version, bundle, signature}`). Lets the hard
+    /// gate's "Check for update" recover natively — re-fetching a current bundle
+    /// when stale JS is blocked and the JS app isn't running to fetch. HTTPS.
+    public var manifestURL: String?
+
+    public init(
+        publicKeyBase64: String? = nil, gate: OTAGate = .soft,
+        shippedVersion: Int = 1, manifestURL: String? = nil
+    ) {
+        self.publicKeyBase64 = publicKeyBase64
+        self.gate = gate
+        self.shippedVersion = shippedVersion
+        self.manifestURL = manifestURL
+    }
+}
+
+/// Shown by the hard update gate (CR-17) when stale JS is refused, so it never
+/// runs against a newer-schema db. Native, because the JS app isn't booted in
+/// this state; recovery (re-fetching a current bundle) is wired separately.
+private struct UpdateRequiredView: View {
+    @EnvironmentObject private var model: ReactWatchModel
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle").font(.title2)
+                Text("Update required").font(.headline)
+                Text("A newer version is needed to run safely.")
+                    .font(.footnote).multilineTextAlignment(.center)
+                Button("Check for update") {
+                    Task { await model.checkForUpdateNatively() }
+                }
+                if let error = model.runtimeError {
+                    Text(error).font(.caption2).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+/// The watch UI. Embed this in your @main App's scene; ship bundle.js as a
+/// resource. `appGroupId` enables shared widget/Storage state (optional); `ota`
+/// configures signed-update verification + anti-rollback (CR-4 / CR-17).
+/// `useJSCallBridge` selects the Swift→JS bridge (CR-5): the default `JS_Call`
+/// path or, set to `false`, the legacy eval path — set it per launch (e.g. a
+/// random bucket) to A/B them on-device before the eval path is retired.
+public struct ReactWatchRootView: View {
+    @StateObject private var model: ReactWatchModel
+    @Environment(\.scenePhase) private var scenePhase
+
+    public init(
+        appGroupId: String? = nil, ota: OTAConfig = .init(),
+        useJSCallBridge: Bool = true
+    ) {
+        _model = StateObject(
+            wrappedValue: ReactWatchModel(
                 appGroupId: appGroupId, ota: ota, useJSCallBridge: useJSCallBridge
             ))
-        }
+    }
 
-        public var body: some View {
-            Group {
-                if model.updateRequired {
-                    UpdateRequiredView()
-                } else if let root = model.root {
-                    // Screens own their scrolling (ScrollView/List nodes).
-                    NodeView(node: root)
-                } else if let error = model.startupError {
-                    ScrollView {
-                        Text(error).font(.footnote).foregroundStyle(.red)
-                    }
-                } else {
-                    ProgressView()
+    public var body: some View {
+        Group {
+            if model.updateRequired {
+                UpdateRequiredView()
+            } else if let root = model.root {
+                // Screens own their scrolling (ScrollView/List nodes).
+                NodeView(node: root)
+            } else if let error = model.startupError {
+                ScrollView {
+                    Text(error).font(.footnote).foregroundStyle(.red)
                 }
+            } else {
+                ProgressView()
             }
-            .overlay(alignment: .bottom) {
-                if let error = model.runtimeError {
-                    ScrollView {
-                        Text(error)
-                            .font(.footnote.monospaced())
-                            .multilineTextAlignment(.leading)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(6)
-                    }
-                    .frame(maxHeight: 120)
-                    .background(.red.opacity(0.85), in: .rect(cornerRadius: 8))
-                    .onTapGesture { model.runtimeError = nil }
+        }
+        .overlay(alignment: .bottom) {
+            if let error = model.runtimeError {
+                ScrollView {
+                    Text(error)
+                        .font(.footnote.monospaced())
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(6)
                 }
+                .frame(maxHeight: 120)
+                .background(.red.opacity(0.85), in: .rect(cornerRadius: 8))
+                .onTapGesture { model.runtimeError = nil }
             }
-            .environmentObject(model)
-            .onAppear { model.start() }
-            .onChange(of: scenePhase) { _, phase in
-                model.pushNativeEvent("scenePhase", payload: ["phase": "\(phase)"])
-            }
-            .onOpenURL { url in
-                model.pushNativeEvent("openURL", payload: ["url": url.absoluteString])
-            }
+        }
+        .environmentObject(model)
+        .onAppear { model.start() }
+        .onChange(of: scenePhase) { _, phase in
+            model.pushNativeEvent("scenePhase", payload: ["phase": "\(phase)"])
+        }
+        .onOpenURL { url in
+            model.pushNativeEvent("openURL", payload: ["url": url.absoluteString])
         }
     }
+}
 #endif

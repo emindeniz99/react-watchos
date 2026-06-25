@@ -33,12 +33,13 @@ final class RuntimeSmokeTests: XCTestCase {
 
         // JS builds a wire tree and hands it to the native commit bridge,
         // exactly as the React reconciler does at runtime.
-        try runtime.evaluate(#"""
-        __host.commit(JSON.stringify({
-          v: 1, seq: 0,
-          root: { id: 1, type: "Text", props: { text: "hi from JS" }, children: [] }
-        }))
-        """#)
+        try runtime.evaluate(
+            #"""
+            __host.commit(JSON.stringify({
+              v: 1, seq: 0,
+              root: { id: 1, type: "Text", props: { text: "hi from JS" }, children: [] }
+            }))
+            """#)
 
         let json = try XCTUnwrap(committed, "the commit bridge never fired")
         let tree = try JSONDecoder().decode(RNTree.self, from: Data(json.utf8))
@@ -105,15 +106,16 @@ final class RuntimeSmokeTests: XCTestCase {
         let runtime = try JSRuntime()
         var committed: String?
         runtime.onCommit = { committed = $0 }
-        try runtime.evaluate(#"""
-        globalThis.__dispatchEvent = (nodeId, event, _payload, seq) => {
-          __host.commit(JSON.stringify({
-            v: 1, seq: seq ?? 0,
-            root: { id: nodeId, type: event, props: {}, children: [] }
-          }));
-          return true;
-        };
-        """#)
+        try runtime.evaluate(
+            #"""
+            globalThis.__dispatchEvent = (nodeId, event, _payload, seq) => {
+              __host.commit(JSON.stringify({
+                v: 1, seq: seq ?? 0,
+                root: { id: nodeId, type: event, props: {}, children: [] }
+              }));
+              return true;
+            };
+            """#)
 
         // Beyond 2^32 — an Int32 cast would wrap this to a small positive id.
         let big = 5_000_000_000
@@ -134,16 +136,17 @@ final class RuntimeSmokeTests: XCTestCase {
             runtime.onCommit = { committed = $0 }
             // A fake __dispatchEvent that echoes its args back through the
             // commit bridge, so we can assert the call delivered them.
-            try runtime.evaluate(#"""
-            globalThis.__dispatchEvent = (nodeId, event, payloadJson) => {
-              __host.commit(JSON.stringify({
-                v: 1, seq: 0,
-                root: { id: nodeId, type: event,
-                        props: JSON.parse(payloadJson || "{}"), children: [] }
-              }));
-              return true;
-            };
-            """#)
+            try runtime.evaluate(
+                #"""
+                globalThis.__dispatchEvent = (nodeId, event, payloadJson) => {
+                  __host.commit(JSON.stringify({
+                    v: 1, seq: 0,
+                    root: { id: nodeId, type: event,
+                            props: JSON.parse(payloadJson || "{}"), children: [] }
+                  }));
+                  return true;
+                };
+                """#)
 
             runtime.dispatchEvent(nodeId: 7, event: "Text", payload: ["text": "hi"])
 
@@ -171,10 +174,11 @@ final class RuntimeSmokeTests: XCTestCase {
         for useJSCall in [true, false] {
             let runtime = try JSRuntime()
             runtime.useJSCallBridge = useJSCall
-            try runtime.evaluate(#"""
-            globalThis.__handleIntent = (name) => name === "go";
-            globalThis.__renderWidgets = (ms) => JSON.stringify({ at: ms });
-            """#)
+            try runtime.evaluate(
+                #"""
+                globalThis.__handleIntent = (name) => name === "go";
+                globalThis.__renderWidgets = (ms) => JSON.stringify({ at: ms });
+                """#)
             let path = useJSCall ? "JS_Call" : "eval"
             XCTAssertTrue(runtime.callReturningBool("__handleIntent", "go"), "\(path)")
             XCTAssertFalse(runtime.callReturningBool("__handleIntent", "stop"), "\(path)")
@@ -212,12 +216,13 @@ final class RuntimeSmokeTests: XCTestCase {
         // Handler attached while the promise is still pending (the common
         // fetch().catch() shape): the rejection is handled, so nothing must
         // surface. Guards the tracker against crying wolf on normal code.
-        try runtime.evaluate(#"""
-        var rejectIt;
-        const p = new Promise((_resolve, reject) => { rejectIt = reject; });
-        p.catch(() => {});
-        rejectIt(new Error("handled"));
-        """#)
+        try runtime.evaluate(
+            #"""
+            var rejectIt;
+            const p = new Promise((_resolve, reject) => { rejectIt = reject; });
+            p.catch(() => {});
+            rejectIt(new Error("handled"));
+            """#)
 
         XCTAssertNil(reported, "a caught rejection must not surface: \(reported ?? "")")
     }

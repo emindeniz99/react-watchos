@@ -54,9 +54,10 @@ struct ShoppingTimelineProvider: AppIntentTimelineProvider {
         let payload = newestPayload(
             WidgetStore.load(), IntentRuntime.renderFreshTimelines()
         )
-        guard let timeline = payload?.widgets[key(for: configuration)]?[
-            familyKey(context.family)
-        ],
+        guard
+            let timeline = payload?.widgets[key(for: configuration)]?[
+                familyKey(context.family)
+            ],
             !timeline.entries.isEmpty
         else {
             return Timeline(entries: [placeholder(in: context)], policy: .atEnd)
@@ -128,7 +129,7 @@ struct ShoppingWidget: Widget {
             .accessoryCircular,
             .accessoryCorner,
             .accessoryRectangular,
-            .accessoryInline
+            .accessoryInline,
         ])
     }
 }

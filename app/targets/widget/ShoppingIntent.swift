@@ -33,9 +33,9 @@ enum ShoppingData {
 
     static func lists() -> [(id: String, name: String)] {
         guard let json = string(forKey: "shopping.lists"),
-              let lists = try? JSONDecoder().decode(
-                  [StoredShoppingList].self, from: Data(json.utf8)
-              )
+            let lists = try? JSONDecoder().decode(
+                [StoredShoppingList].self, from: Data(json.utf8)
+            )
         else { return [] }
         return lists.map { ($0.id, $0.name) }
     }
@@ -44,7 +44,7 @@ enum ShoppingData {
     /// or null.
     static func featuredId() -> String? {
         guard let json = string(forKey: "shopping.featuredListId"),
-              let id = try? JSONDecoder().decode(String?.self, from: Data(json.utf8))
+            let id = try? JSONDecoder().decode(String?.self, from: Data(json.utf8))
         else { return nil }
         return id
     }

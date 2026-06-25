@@ -18,7 +18,7 @@ public enum RNStyle {
     public static let namedColors: Set<String> = [
         "red", "orange", "yellow", "green", "mint", "teal", "cyan", "blue",
         "indigo", "purple", "pink", "brown", "white", "gray", "black",
-        "primary", "secondary"
+        "primary", "secondary",
     ]
 
     /// Resolves a `color` prop: a known name, or `#RRGGBB`/`#RRGGBBAA` hex.

@@ -37,7 +37,7 @@ struct ReactTimelineProvider: TimelineProvider {
         let fresh = IntentRuntime.renderFreshTimelines()
         let payload = newestPayload(stored, fresh)
         guard let timeline = payload?.widgets[kind]?[familyKey(context.family)],
-              !timeline.entries.isEmpty
+            !timeline.entries.isEmpty
         else {
             completion(Timeline(entries: [placeholder(in: context)], policy: .atEnd))
             return
@@ -78,7 +78,7 @@ struct ReactTimelineProvider: TimelineProvider {
         // end-of-day state for future-dated daypart timelines — CX-016).
         guard
             let entries = WidgetStore.load()?
-            .widgets[kind]?[familyKey(context.family)]?.entries,
+                .widgets[kind]?[familyKey(context.family)]?.entries,
             let index = WidgetSnapshot.currentIndex(
                 dates: entries.map(\.entryDate), now: .now
             )
@@ -130,7 +130,7 @@ struct HydrationWidget: Widget {
             .accessoryCircular,
             .accessoryCorner,
             .accessoryRectangular,
-            .accessoryInline
+            .accessoryInline,
         ])
     }
 }
