@@ -76,6 +76,12 @@ public final class JSRuntime {
         }
         JS_SetContextOpaque(ctx, Unmanaged.passUnretained(self).toOpaque())
         installHostObject()
+        // Surface unhandled promise rejections. drainJobs only sees a thrown
+        // *job* (status < 0); a bare rejection — a rejected fetch/generateText
+        // or an async handler with no .catch — never throws at the job level,
+        // it only notifies this tracker. Without it those async failures
+        // vanish, the same fail-loud gap drainJobs had.
+        JS_SetHostPromiseRejectionTracker(rt, promiseRejectionTracker, nil)
     }
 
     deinit {
@@ -283,20 +289,38 @@ public final class JSRuntime {
 
     private func drainJobs() {
         var ctx: OpaquePointer?
-        while JS_ExecutePendingJob(runtime, &ctx) > 0 {}
+        // JS_ExecutePendingJob returns >0 when a job ran, 0 when the queue is
+        // empty, and <0 when a job threw (an unhandled promise rejection, an
+        // async handler that throws, a rejected fetch/generateText). On <0 the
+        // exception is left pending on the context: read and surface it via
+        // onError instead of silently dropping it — otherwise async failures
+        // vanish, contradicting the runtime's fail-loud contract. Keep
+        // draining afterwards so one bad job doesn't stall the rest of the
+        // microtask queue (takeExceptionMessage clears the pending exception).
+        while true {
+            let status = JS_ExecutePendingJob(runtime, &ctx)
+            if status == 0 { break }
+            if status < 0 { onError?(takeExceptionMessage()) }
+        }
     }
 
     private func takeExceptionMessage() -> String {
         let exception = JS_GetException(context)
         defer { JS_FreeValue(context, exception) }
+        return describe(exception)
+    }
+
+    /// Formats a JS value — a thrown exception or a rejection reason — as
+    /// "message\nstack" the dev overlay expects.
+    private func describe(_ value: JSValue) -> String {
         var message = "unknown JS exception"
-        if let cString = JS_ToCString(context, exception) {
+        if let cString = JS_ToCString(context, value) {
             message = String(cString: cString)
             JS_FreeCString(context, cString)
         }
         // Append the JS stack (QuickJS exposes it on the error object) so
         // the dev overlay shows where it threw, not just the message.
-        let stackVal = JS_GetPropertyStr(context, exception, "stack")
+        let stackVal = JS_GetPropertyStr(context, value, "stack")
         if let stackC = JS_ToCString(context, stackVal) {
             let stack = String(cString: stackC)
             if !stack.isEmpty { message += "\n" + stack }
@@ -304,6 +328,13 @@ public final class JSRuntime {
         }
         JS_FreeValue(context, stackVal)
         return message
+    }
+
+    /// Routes an unhandled promise rejection to onError. "Possibly" because
+    /// quickjs-ng fires the tracker eagerly; a late .catch sends the matching
+    /// is_handled callback we ignore in promiseRejectionTracker.
+    fileprivate func reportUnhandledRejection(_ reason: JSValue) {
+        onError?("Possibly unhandled promise rejection: " + describe(reason))
     }
 
     private func jsStringLiteral(_ value: String) -> String {
@@ -323,6 +354,18 @@ public final class JSRuntime {
 
 // @convention(c) callbacks cannot capture state; the owning JSRuntime is
 // recovered through the context opaque pointer.
+
+// quickjs-ng calls this whenever a promise's rejection-handled state changes.
+// We act only on the "no handler" edge (isHandled == false); the matching
+// isHandled == true callback (a late .catch) is ignored. Report-only, like
+// quickjs-ng's own CLI tracker.
+private func promiseRejectionTracker(
+    ctx: OpaquePointer?, promise: JSValue, reason: JSValue,
+    isHandled: Bool, opaque: UnsafeMutableRawPointer?
+) {
+    guard !isHandled, let runtime = JSRuntime.from(context: ctx) else { return }
+    runtime.reportUnhandledRejection(reason)
+}
 
 private func hostCommit(
     ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,

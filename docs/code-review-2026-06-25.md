@@ -48,7 +48,7 @@ Plan:
 
 ## Correctness
 
-- [ ] **CR-1 — `drainJobs()` silently swallows async JS errors.** `P0`
+- [x] **CR-1 — `drainJobs()` silently swallows async JS errors.** `P0`
   [`JSRuntime.swift:284`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L284)
   ```swift
   while JS_ExecutePendingJob(runtime, &ctx) > 0 {}
@@ -62,6 +62,11 @@ Plan:
   `WatchRoot.flush()` rethrow); the async hole is not.
   **Fix:** check for `< 0`, route `takeExceptionMessage()` to `onError`,
   and/or install `JS_SetHostPromiseRejectionTracker`. Independent of PR #26.
+  **Done (2026-06-25):** `drainJobs()` now reports the `< 0` (a job threw)
+  return and keeps draining; *and* `JS_SetHostPromiseRejectionTracker` was
+  installed, because a bare unhandled rejection (rejected `fetch`/
+  `generateText`) never throws at the job level — it only notifies the
+  tracker. Both halves were needed. Covered by **CR-16**.
 
 - [ ] **CR-2 — Orphaned doc-comment in `JSRuntime.swift`.** `cosmetic`
   On `main`,
@@ -188,9 +193,14 @@ Plan:
   silently. **Fix:** `swift test` against a faked `CBCentralManager`-shaped
   protocol seam (Linux-runnable if abstracted).
 
-- [ ] **CR-16 — Add a test for async-error surfacing.** `P2`
+- [x] **CR-16 — Add a test for async-error surfacing.** `P2`
   Once CR-1 lands, pin that a throwing microtask / rejected promise
   reaches `onError` (currently nothing surfaces it, so nothing tests it).
+  **Done (2026-06-25):** landed with CR-1 in `RuntimeSmokeTests` — a
+  throwing `queueMicrotask` (drain path) and an unhandled `Promise.reject`
+  (tracker path) both reach `onError`, and a rejection caught while pending
+  does *not* (guards the tracker against false positives). Verified on the
+  watchOS simulator (`xcodebuild test -scheme ReactWatchHost-Package`).
 
 ---
 

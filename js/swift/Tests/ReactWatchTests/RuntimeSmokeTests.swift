@@ -37,4 +37,55 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertEqual(root.type, "Text")
         XCTAssertEqual(root.string("text"), "hi from JS")
     }
+
+    // CR-1 / CR-16: async failures must reach onError, not vanish. Before the
+    // fix, drainJobs() looped on JS_ExecutePendingJob > 0, ignoring the < 0
+    // "a job threw" return, and no promise-rejection tracker was installed —
+    // so a throwing microtask or an unhandled rejection was silently dropped.
+
+    func testThrowingMicrotaskReachesOnError() throws {
+        let runtime = try JSRuntime()
+        var reported: String?
+        runtime.onError = { reported = $0 }
+
+        // The throw fires inside a microtask drained by drainJobs(), not at
+        // top level (which already rethrew) — exactly the swallowed path.
+        try runtime.evaluate(
+            #"queueMicrotask(() => { throw new Error("microtask boom"); });"#)
+
+        let message = try XCTUnwrap(reported, "throwing microtask never surfaced")
+        XCTAssertTrue(message.contains("microtask boom"), "got: \(message)")
+    }
+
+    func testUnhandledRejectionReachesOnError() throws {
+        let runtime = try JSRuntime()
+        var reported: String?
+        runtime.onError = { reported = $0 }
+
+        // A rejected promise with no .catch — the shape of a rejected fetch or
+        // generateText. Surfaced via the host promise-rejection tracker, since
+        // a bare rejection never throws at the job level.
+        try runtime.evaluate(#"Promise.reject(new Error("rejected boom"));"#)
+
+        let message = try XCTUnwrap(reported, "unhandled rejection never surfaced")
+        XCTAssertTrue(message.contains("rejected boom"), "got: \(message)")
+    }
+
+    func testCaughtRejectionDoesNotReportError() throws {
+        let runtime = try JSRuntime()
+        var reported: String?
+        runtime.onError = { reported = $0 }
+
+        // Handler attached while the promise is still pending (the common
+        // fetch().catch() shape): the rejection is handled, so nothing must
+        // surface. Guards the tracker against crying wolf on normal code.
+        try runtime.evaluate(#"""
+        var rejectIt;
+        const p = new Promise((_resolve, reject) => { rejectIt = reject; });
+        p.catch(() => {});
+        rejectIt(new Error("handled"));
+        """#)
+
+        XCTAssertNil(reported, "a caught rejection must not surface: \(reported ?? "")")
+    }
 }
