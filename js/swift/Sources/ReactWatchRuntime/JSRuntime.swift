@@ -124,6 +124,25 @@ public final class JSRuntime {
         drainJobs()
     }
 
+    /// Compiles `source` to QuickJS bytecode without running it (CR-17), for
+    /// caching an OTA bundle so cold start skips the parser. The bytecode is
+    /// only valid for this exact quickjs-ng version — load it with
+    /// `evaluateBytecode`, which throws on a version mismatch so the caller can
+    /// fall back to parsing the source. nil if `source` doesn't compile.
+    public func compileToBytecode(_ source: String) -> Data? {
+        let compiled = source.withCString { ptr in
+            JS_Eval(context, ptr, strlen(ptr), "bundle.js",
+                    qjs_eval_flag_compile_only())
+        }
+        defer { JS_FreeValue(context, compiled) }
+        if JS_IsException(compiled) { return nil }
+        var size = 0
+        guard let buf = JS_WriteObject(
+            context, &size, compiled, qjs_write_obj_bytecode()) else { return nil }
+        defer { js_free(context, buf) }
+        return Data(bytes: buf, count: size)
+    }
+
     public func dispatchEvent(
         nodeId: Int, event: String, payload: [String: Any]? = nil,
         seq: Int? = nil

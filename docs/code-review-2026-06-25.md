@@ -122,9 +122,11 @@ Plan:
   now carries an optional base64 signature; the host parses it via a pure
   `UpdatePlan` (Linux-tested) and, when `ReactWatchRootView(updatePublicKeyBase64:)`
   is configured, verifies the signature over the bundle bytes with CryptoKit
-  **before persisting** (`saveUpdate`) and **again before evaluating**
-  (`load`, defense-in-depth vs App-Group tampering) — an unsigned or bad bundle
-  is refused and the shipped bundle is used. Per the chosen posture, with **no
+  **before persisting** (`saveUpdate`) — an unsigned or bad bundle
+  is refused and the shipped bundle is used. *(CR-17 update: the original
+  load-time re-verify was replaced by a "verify at save = network boundary,
+  trust the local App Group sandbox" posture, which is what lets `load` run the
+  on-device bytecode cache — see CR-17.)* Per the chosen posture, with **no
   key** configured it stays **fail-open**: the bundle loads but the native side
   logs a loud unverified-bundle warning, so a consumer must opt in to enforce.
   HTTPS is consumer-controlled (the consumer does the fetch) and documented in
@@ -338,9 +340,16 @@ update popup is JS-driven via an `update.required`/`update.available` event.
   a newer-schema db. (Fail-open keeps the simple OTA-if-present path; versions
   are unverified there.) Native re-fetch recovery lands with the remote check.
   45 swift tests green; host builds for watchOS. Done 2026-06-25.
-- [ ] **Compile-on-get bytecode cache** — on a verified save, compile source →
-  bytecode (`JS_Eval` COMPILE_ONLY + `JS_WriteObject`) and cache `ota-bundle.qbc`;
-  `load` prefers the cache, re-verifying the source's signature/version first.
+- [x] **Compile-on-get bytecode cache** — `JSRuntime.compileToBytecode`
+  (`JS_Eval` COMPILE_ONLY + `JS_WriteObject`, via two shim wrappers). On a
+  verified save the source is compiled (in a throwaway runtime, so it's
+  version-matched) and cached as `ota-bundle.qbc`; `load` prefers the cache and
+  falls back to parsing source if it's missing/stale (engine changed). **Threat
+  model refined:** the signature is verified at *save* (the network boundary)
+  and the App Group is a trusted local sandbox, so `load` no longer re-verifies
+  — which is what lets it run the unsigned local bytecode (standard CodePush/EAS
+  posture). Round-trip + bad-source tests in `RuntimeSmokeTests`; 45 + 7 green;
+  host builds for watchOS. Done 2026-06-25.
 - [ ] **Remote freshness check** — launch-time `GET <updateUrl>` →
   `{version, bundleUrl, signature}`; emit `update.available`/`update.required`
   when remote > local (covers the full-reinstall case where local state is gone).

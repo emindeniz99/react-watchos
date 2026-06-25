@@ -71,6 +71,24 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertTrue(message.contains("rejected boom"), "got: \(message)")
     }
 
+    // CR-17: the OTA bytecode cache — compile source to bytecode, then a fresh
+    // runtime runs it without the parser (and rejects bad source).
+    func testCompileToBytecodeRoundTrips() throws {
+        let compiler = try JSRuntime()
+        let bytecode = try XCTUnwrap(
+            compiler.compileToBytecode("globalThis.__x = 41 + 1;"),
+            "valid source should compile")
+
+        let runtime = try JSRuntime()
+        try runtime.evaluateBytecode(bytecode)
+        XCTAssertEqual(runtime.evaluateString("globalThis.__x.toString()"), "42")
+    }
+
+    func testCompileToBytecodeReturnsNilOnSyntaxError() throws {
+        let runtime = try JSRuntime()
+        XCTAssertNil(runtime.compileToBytecode("this is ( not valid"))
+    }
+
     func testCaughtRejectionDoesNotReportError() throws {
         let runtime = try JSRuntime()
         var reported: String?

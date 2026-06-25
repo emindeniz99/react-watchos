@@ -129,6 +129,9 @@ final class ReactWatchModel: ObservableObject {
     /// (compatibility version + base64 Ed25519 signature).
     private var otaBundleURL: URL? { appGroupFile("ota-bundle.js") }
     private var otaMetaURL: URL? { appGroupFile("ota-meta.json") }
+    /// On-device-compiled bytecode cache for the OTA bundle (CR-17), so a cold
+    /// start skips the parser. Derived from the verified source at save time.
+    private var otaBytecodeURL: URL? { appGroupFile("ota-bundle.qbc") }
     private func appGroupFile(_ name: String) -> URL? {
         guard let group = store.appGroupId else { return nil }
         return FileManager.default
@@ -194,6 +197,20 @@ final class ReactWatchModel: ObservableObject {
         if let data = try? JSONEncoder().encode(meta) {
             try? data.write(to: metaURL, options: .atomic)
         }
+        cacheOTABytecode(source: js)
+    }
+
+    /// Compiles the just-verified OTA source to bytecode now (CR-17) so the next
+    /// cold start skips the parser. Compiled in a throwaway runtime — the same
+    /// quickjs-ng, so it's version-matched — to avoid touching the live context;
+    /// on failure the stale cache is dropped and load falls back to the source.
+    private func cacheOTABytecode(source: String) {
+        guard let bcURL = otaBytecodeURL else { return }
+        if let bytecode = (try? JSRuntime())?.compileToBytecode(source) {
+            try? bytecode.write(to: bcURL, options: .atomic)
+        } else {
+            try? FileManager.default.removeItem(at: bcURL)
+        }
     }
 
     private func loadOTAMeta() -> OTAMeta? {
@@ -206,29 +223,7 @@ final class ReactWatchModel: ObservableObject {
     private func dropOTA() {
         if let url = otaBundleURL { try? FileManager.default.removeItem(at: url) }
         if let metaURL = otaMetaURL { try? FileManager.default.removeItem(at: metaURL) }
-    }
-
-    /// Re-checks the persisted OTA bundle's signature over `scheme:version:js`
-    /// before evaluation (CR-4) — defense in depth against App-Group tampering
-    /// between save and launch. With a key set, a missing/invalid signature
-    /// drops the bundle and falls back to the shipped one; with no key it's
-    /// fail-open and warns.
-    private func otaPassesVerification(_ code: String) -> Bool {
-        guard let key = updatePublicKey else {
-            print("[ReactWatch] WARNING: loading OTA bundle WITHOUT signature "
-                + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
-            return true
-        }
-        guard let meta = loadOTAMeta(),
-              let sigB64 = meta.signature, let signature = Data(base64Encoded: sigB64),
-              let message = UpdatePlan(
-                  js: code, version: meta.version, signature: nil).signedMessage(),
-              key.isValidSignature(signature, for: message) else {
-            dropOTA()
-            runtimeError = "OTA bundle signature invalid; using shipped bundle"
-            return false
-        }
-        return true
+        if let bcURL = otaBytecodeURL { try? FileManager.default.removeItem(at: bcURL) }
     }
 
     private struct GenerateRequest: Decodable {
@@ -275,7 +270,7 @@ final class ReactWatchModel: ObservableObject {
         let decision: BootDecision
         if updatePublicKey == nil {
             // Fail-open: versions are unverified, so no anti-rollback — run the
-            // OTA bundle if present (otaCandidate already warned), else shipped.
+            // OTA bundle if present, else shipped.
             decision = candidate != nil ? .runOTA : .runShipped
         } else {
             decision = VersionPolicy.decide(
@@ -288,7 +283,7 @@ final class ReactWatchModel: ObservableObject {
         case .runOTA:
             if let c = candidate {
                 do {
-                    try js.evaluate(c.code)
+                    try evaluateOTA(c.code, into: js)
                     if let v = c.version {
                         store.setOTAHighWater(
                             VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v))
@@ -314,13 +309,31 @@ final class ReactWatchModel: ObservableObject {
         }
     }
 
-    /// The persisted OTA bundle + its version after signature/version
-    /// verification (which warns, not rejects, in fail-open mode). nil if none.
+    /// The persisted OTA bundle + its version. The signature was verified at
+    /// save (the network boundary); the App Group is a trusted local sandbox,
+    /// so load doesn't re-verify — which is what lets it run the unsigned local
+    /// bytecode cache. nil if none.
     private func otaCandidate() -> (code: String, version: Int?)? {
         guard let ota = otaBundleURL,
               let code = try? String(contentsOf: ota, encoding: .utf8),
-              !code.isEmpty, otaPassesVerification(code) else { return nil }
+              !code.isEmpty else { return nil }
         return (code, loadOTAMeta()?.version)
+    }
+
+    /// Runs the OTA bundle, preferring the on-device bytecode cache (no parser);
+    /// falls back to parsing the source if the cache is missing or stale (e.g.
+    /// the embedded quickjs-ng changed in a native release, so the cached
+    /// bytecode no longer loads).
+    private func evaluateOTA(_ source: String, into js: JSRuntime) throws {
+        if let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL) {
+            do {
+                try js.evaluateBytecode(data)
+                return
+            } catch {
+                try? FileManager.default.removeItem(at: bcURL) // stale cache
+            }
+        }
+        try js.evaluate(source)
     }
 
     private func loadShipped(into js: JSRuntime) throws {
