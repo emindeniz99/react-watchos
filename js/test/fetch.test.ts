@@ -176,4 +176,31 @@ describe("fetch shim (QuickJS environment)", () => {
       104, 195, 169,
     ]);
   });
+
+  // CX-021: fetch only speaks http(s) (no base URL to resolve relatives). A
+  // non-http scheme must be rejected with a TypeError and must NOT reach the
+  // host — otherwise a bundle could read `file://` via URLSession.
+  it.each([
+    ["file:///etc/passwd"],
+    ["ftp://host/x"],
+    ["data:text/plain,hi"],
+    ["/relative/path"],
+    [""],
+  ])("rejects non-http(s) URL %j without calling the host", async (url) => {
+    const fetch = g.fetch as (u: unknown) => Promise<unknown>;
+    await expect(fetch(url)).rejects.toBeInstanceOf(TypeError);
+    expect(hostFetch).not.toHaveBeenCalled();
+  });
+
+  it("accepts http(s) case-insensitively (scheme is normalized)", async () => {
+    const fetch = g.fetch as (url: string) => Promise<unknown>;
+    fetch("HTTPS://api.test/x");
+    fetch("Http://api.test/y");
+    expect(hostFetch).toHaveBeenCalledTimes(2);
+    // The original URL string is passed through unchanged (only the scheme
+    // *check* is case-insensitive).
+    expect(JSON.parse(hostFetch.mock.calls[0][1]).url).toBe(
+      "HTTPS://api.test/x",
+    );
+  });
 });

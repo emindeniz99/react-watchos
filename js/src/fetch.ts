@@ -143,6 +143,28 @@ function signalReason(signal: WatchAbortSignal): unknown {
   return signal.reason ?? abortError();
 }
 
+/**
+ * WHATWG fetch only speaks http(s) (it has no base URL here, so a relative URL
+ * can't be resolved either). Reject anything else with a TypeError — the same
+ * failure mode as the spec — so a bundle can't reach `file://` (a local-file
+ * read via URLSession) or another scheme through fetch. The host has no scheme
+ * allowlist of its own, so this is the gate (CX-021).
+ */
+function httpUrlOrThrow(url: unknown): string {
+  if (typeof url !== "string" || url === "") {
+    throw new TypeError("fetch requires a non-empty URL string");
+  }
+  const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(url)?.[1]?.toLowerCase();
+  if (scheme !== "http" && scheme !== "https") {
+    throw new TypeError(
+      scheme
+        ? `fetch: unsupported URL scheme "${scheme}" (only http/https)`
+        : `fetch: URL must be absolute http(s): "${url}"`,
+    );
+  }
+  return url;
+}
+
 /** Decode base64 → bytes. `atob` is a QuickJS global (JS_AddIntrinsicAToB). */
 function base64ToBytes(b64: string): Uint8Array {
   const binary = (globalThis as { atob: (s: string) => string }).atob(b64);
@@ -234,6 +256,13 @@ export function installFetch(g: Global): void {
 
   g.fetch = (url: string, options?: FetchOptions): Promise<unknown> =>
     new Promise((resolve, reject) => {
+      let validUrl: string;
+      try {
+        validUrl = httpUrlOrThrow(url);
+      } catch (error) {
+        reject(error);
+        return;
+      }
       const signal =
         options?.signal ??
         (options?.timeout
@@ -259,7 +288,7 @@ export function installFetch(g: Global): void {
       g.__host?.fetch?.(
         id,
         JSON.stringify({
-          url,
+          url: validUrl,
           method: (options?.method ?? "GET").toUpperCase(),
           headers: new Headers(options?.headers).toJSON(),
           body: options?.body ?? null,
