@@ -114,10 +114,10 @@ final class ReactWatchModel: ObservableObject {
         }
     }
 
-    /// App Group files holding an OTA bundle (js/src/update.ts) + its detached
-    /// Ed25519 signature, if any.
+    /// App Group files holding an OTA bundle (js/src/update.ts) + its metadata
+    /// (compatibility version + base64 Ed25519 signature).
     private var otaBundleURL: URL? { appGroupFile("ota-bundle.js") }
-    private var otaSignatureURL: URL? { appGroupFile("ota-bundle.sig") }
+    private var otaMetaURL: URL? { appGroupFile("ota-meta.json") }
     private func appGroupFile(_ name: String) -> URL? {
         guard let group = store.appGroupId else { return nil }
         return FileManager.default
@@ -125,19 +125,26 @@ final class ReactWatchModel: ObservableObject {
             .appendingPathComponent(name)
     }
 
-    /// Persists an OTA bundle (CR-4). An OTA bundle is arbitrary JS with the
-    /// full host surface, so with a key configured the signature is verified
-    /// over the bundle bytes *before* it's written — an unsigned or bad bundle
-    /// is refused and never evaluated. With no key it's fail-open: persisted
-    /// with a loud warning so an un-updated consumer keeps working.
+    /// Sidecar for the persisted OTA bundle.
+    private struct OTAMeta: Codable {
+        let version: Int?
+        let signature: String? // base64 Ed25519 over UpdatePlan.signedMessage
+    }
+
     /// Ceiling for an OTA bundle. The app parses the whole source through
     /// QuickJS at launch, so a multi-MB bundle risks an out-of-memory kill on a
     /// memory-tight watch (the atomic write also needs ~2x transiently). Reject
     /// past this rather than persist something that can't load.
     private static let maxOTABundleBytes = 3 * 1024 * 1024
 
+    /// Persists an OTA bundle (CR-4 / CR-17). An OTA bundle is arbitrary JS with
+    /// the full host surface, so with a key configured the signature is verified
+    /// over `scheme:version:js` *before* it's written — the version is inside the
+    /// signed bytes, so it can't be relabelled (anti-rollback in `load` can trust
+    /// it). An unsigned or bad bundle is refused. With no key it's fail-open:
+    /// persisted with a loud warning so an un-updated consumer keeps working.
     private func saveUpdate(_ payload: String) {
-        guard let url = otaBundleURL, let sigURL = otaSignatureURL else { return }
+        guard let url = otaBundleURL, let metaURL = otaMetaURL else { return }
         let plan = UpdatePlan(payload: payload)
         let size = plan.js.utf8.count
         guard size <= Self.maxOTABundleBytes else {
@@ -147,34 +154,60 @@ final class ReactWatchModel: ObservableObject {
         }
         if let key = updatePublicKey {
             guard let signature = plan.signature,
-                  key.isValidSignature(signature, for: Data(plan.js.utf8)) else {
-                runtimeError = "OTA update rejected: signature missing or invalid"
+                  let message = plan.signedMessage(),
+                  key.isValidSignature(signature, for: message) else {
+                runtimeError = "OTA update rejected: signature/version missing or invalid"
                 return
             }
-            try? plan.js.write(to: url, atomically: true, encoding: .utf8)
-            try? signature.write(to: sigURL, options: .atomic)
+            persistOTA(js: plan.js, version: plan.version,
+                       signature: signature.base64EncodedString(), url: url, metaURL: metaURL)
         } else {
             print("[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
                 + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
-            try? plan.js.write(to: url, atomically: true, encoding: .utf8)
-            try? FileManager.default.removeItem(at: sigURL) // drop any stale sig
+            persistOTA(js: plan.js, version: plan.version, signature: nil,
+                       url: url, metaURL: metaURL)
         }
     }
 
-    /// Re-checks the persisted OTA bundle's signature before evaluation (CR-4) —
-    /// defense in depth against App-Group tampering between save and launch.
-    /// With a key set, a missing/invalid signature drops the bundle and falls
-    /// back to the shipped one; with no key it's fail-open and warns.
+    private func persistOTA(
+        js: String, version: Int?, signature: String?, url: URL, metaURL: URL
+    ) {
+        guard (try? js.write(to: url, atomically: true, encoding: .utf8)) != nil else { return }
+        let meta = OTAMeta(version: version, signature: signature)
+        if let data = try? JSONEncoder().encode(meta) {
+            try? data.write(to: metaURL, options: .atomic)
+        }
+    }
+
+    private func loadOTAMeta() -> OTAMeta? {
+        guard let metaURL = otaMetaURL, let data = try? Data(contentsOf: metaURL) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(OTAMeta.self, from: data)
+    }
+
+    private func dropOTA() {
+        if let url = otaBundleURL { try? FileManager.default.removeItem(at: url) }
+        if let metaURL = otaMetaURL { try? FileManager.default.removeItem(at: metaURL) }
+    }
+
+    /// Re-checks the persisted OTA bundle's signature over `scheme:version:js`
+    /// before evaluation (CR-4) — defense in depth against App-Group tampering
+    /// between save and launch. With a key set, a missing/invalid signature
+    /// drops the bundle and falls back to the shipped one; with no key it's
+    /// fail-open and warns.
     private func otaPassesVerification(_ code: String) -> Bool {
         guard let key = updatePublicKey else {
             print("[ReactWatch] WARNING: loading OTA bundle WITHOUT signature "
                 + "verification — set updatePublicKeyBase64 to enforce (CR-4).")
             return true
         }
-        guard let sigURL = otaSignatureURL,
-              let signature = try? Data(contentsOf: sigURL),
-              key.isValidSignature(signature, for: Data(code.utf8)) else {
-            if let ota = otaBundleURL { try? FileManager.default.removeItem(at: ota) }
+        guard let meta = loadOTAMeta(),
+              let sigB64 = meta.signature, let signature = Data(base64Encoded: sigB64),
+              let message = UpdatePlan(
+                  js: code, version: meta.version, signature: nil).signedMessage(),
+              key.isValidSignature(signature, for: message) else {
+            dropOTA()
             runtimeError = "OTA bundle signature invalid; using shipped bundle"
             return false
         }

@@ -162,15 +162,18 @@ final class BluetoothUUIDTests: XCTestCase {
 final class UpdatePlanTests: XCTestCase {
     func testParsesSignedPayload() {
         let sig = Data([1, 2, 3, 4])
-        let payload = #"{"js":"globalThis.x=1","signature":"\#(sig.base64EncodedString())"}"#
+        let payload =
+            #"{"js":"globalThis.x=1","version":4,"signature":"\#(sig.base64EncodedString())"}"#
         let plan = UpdatePlan(payload: payload)
         XCTAssertEqual(plan.js, "globalThis.x=1")
+        XCTAssertEqual(plan.version, 4)
         XCTAssertEqual(plan.signature, sig)
     }
 
-    func testUnsignedObjectHasNoSignature() {
+    func testUnsignedObjectHasNoVersionOrSignature() {
         let plan = UpdatePlan(payload: #"{"js":"globalThis.x=1"}"#)
         XCTAssertEqual(plan.js, "globalThis.x=1")
+        XCTAssertNil(plan.version)
         XCTAssertNil(plan.signature)
     }
 
@@ -178,7 +181,16 @@ final class UpdatePlanTests: XCTestCase {
         // A non-JSON payload (legacy/direct caller) is the bundle itself.
         let plan = UpdatePlan(payload: "globalThis.x=1")
         XCTAssertEqual(plan.js, "globalThis.x=1")
+        XCTAssertNil(plan.version)
         XCTAssertNil(plan.signature)
+    }
+
+    func testSignedMessageBindsSchemeVersionAndBundle() {
+        // The version is inside the signed bytes, so it can't be relabelled.
+        let plan = UpdatePlan(js: "code", version: 7, signature: nil)
+        XCTAssertEqual(plan.signedMessage(), Data("v1:7:code".utf8))
+        // No version -> nothing to verify.
+        XCTAssertNil(UpdatePlan(js: "code", version: nil, signature: nil).signedMessage())
     }
 }
 

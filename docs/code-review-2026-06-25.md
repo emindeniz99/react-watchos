@@ -315,8 +315,14 @@ update popup is JS-driven via an `update.required`/`update.available` event.
 - [x] **3 MiB size cap** — `saveUpdate` rejects an oversized bundle before
   persisting (the app parses the whole source through QuickJS at launch, so a
   multi-MB bundle risks an OOM kill). Done 2026-06-25.
-- [ ] **Manifest signing v2** — sign `{scheme, version, sha256(bundle)}` so the
-  version is inside the signed data; wire payload `{version, js, signature}`.
+- [x] **Manifest signing v2** — the signature now covers
+  `"<scheme>:<version>:<js>"` (`UpdatePlan.signedMessage`), so the version is
+  *inside* the signed bytes and can't be relabelled. Wire payload is
+  `{js, version, signature}` (`applyUpdate(js, version?, signature?)`); the
+  persisted sidecar is one `ota-meta.json` (`{version, signature}`). `saveUpdate`
+  verifies over the signed message before persisting; `load` re-verifies over it
+  before evaluating. Tested (`UpdatePlanTests` + `update.ota.test.ts`); host
+  builds for watchOS. Done 2026-06-25.
 - [x] **`VersionPolicy` (ReactWatchSupport, pure + tested)** — `accepts`
   (anti-rollback), `decide` → `runOTA | runShipped | blockForUpdate`, and a
   monotonic `bumpedHighWater`, plus the `OTAGate` enum. `VersionPolicyTests`

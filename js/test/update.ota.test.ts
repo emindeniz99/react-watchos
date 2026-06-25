@@ -15,11 +15,15 @@ describe("OTA applyUpdate", () => {
     );
   });
 
-  it("carries the Ed25519 signature when provided (CR-4)", () => {
+  it("carries the version + Ed25519 signature when provided (CR-4/CR-17)", () => {
     const host = installMockHost();
-    applyUpdate("globalThis.x = 1;", "c2lnbmF0dXJl");
+    applyUpdate("globalThis.x = 1;", 4, "c2lnbmF0dXJl");
     expect(host.saveUpdate).toHaveBeenCalledWith(
-      JSON.stringify({ js: "globalThis.x = 1;", signature: "c2lnbmF0dXJl" }),
+      JSON.stringify({
+        js: "globalThis.x = 1;",
+        version: 4,
+        signature: "c2lnbmF0dXJl",
+      }),
     );
   });
 
