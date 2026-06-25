@@ -3,12 +3,12 @@ import ReactWatchCore
 import ReactWatchRuntime
 import XCTest
 
-// Drives the actual QuickJS embedding (JSRuntime) so the engine and the
-// JS -> Swift `__host` bridge are exercised in Swift. Runs on Linux via
-// `swift test` and — the reason it exists — on the watchOS simulator via
-// `xcodebuild test`, proving the vendored quickjs-ng + Swift host run on the
-// real watch architecture. The C-embed and qjs-CLI smokes cover the engine,
-// but neither runs the Swift JSRuntime class itself.
+/// Drives the actual QuickJS embedding (JSRuntime) so the engine and the
+/// JS -> Swift `__host` bridge are exercised in Swift. Runs on Linux via
+/// `swift test` and — the reason it exists — on the watchOS simulator via
+/// `xcodebuild test`, proving the vendored quickjs-ng + Swift host run on the
+/// real watch architecture. The C-embed and qjs-CLI smokes cover the engine,
+/// but neither runs the Swift JSRuntime class itself.
 final class RuntimeSmokeTests: XCTestCase {
     func testEvaluatesExpressions() throws {
         let runtime = try JSRuntime()
@@ -22,7 +22,8 @@ final class RuntimeSmokeTests: XCTestCase {
     func testEvaluateThrowsOnTopLevelThrow() throws {
         let runtime = try JSRuntime()
         XCTAssertThrowsError(
-            try runtime.evaluate("throw new Error('bad bundle')"))
+            try runtime.evaluate("throw new Error('bad bundle')")
+        )
     }
 
     func testHostCommitReachesSwiftAndDecodes() throws {
@@ -60,7 +61,8 @@ final class RuntimeSmokeTests: XCTestCase {
         // The throw fires inside a microtask drained by drainJobs(), not at
         // top level (which already rethrew) — exactly the swallowed path.
         try runtime.evaluate(
-            #"queueMicrotask(() => { throw new Error("microtask boom"); });"#)
+            #"queueMicrotask(() => { throw new Error("microtask boom"); });"#
+        )
 
         let message = try XCTUnwrap(reported, "throwing microtask never surfaced")
         XCTAssertTrue(message.contains("microtask boom"), "got: \(message)")
@@ -93,7 +95,8 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertTrue(message.contains("plain string reason"), "got: \(message)")
         XCTAssertFalse(
             message.contains("undefined"),
-            "a non-Error reason must not get a bogus stack: \(message)")
+            "a non-Error reason must not get a bogus stack: \(message)"
+        )
     }
 
     // OP-4: int args (nodeId/seq) cross as Int64, so a value beyond 2^31 isn't
@@ -177,7 +180,8 @@ final class RuntimeSmokeTests: XCTestCase {
             XCTAssertFalse(runtime.callReturningBool("__handleIntent", "stop"), "\(path)")
             XCTAssertEqual(
                 runtime.callReturningString("__renderWidgets", 1000),
-                #"{"at":1000}"#, "\(path)")
+                #"{"at":1000}"#, "\(path)"
+            )
         }
     }
 
@@ -187,7 +191,8 @@ final class RuntimeSmokeTests: XCTestCase {
         let compiler = try JSRuntime()
         let bytecode = try XCTUnwrap(
             compiler.compileToBytecode("globalThis.__x = 41 + 1;"),
-            "valid source should compile")
+            "valid source should compile"
+        )
 
         let runtime = try JSRuntime()
         try runtime.evaluateBytecode(bytecode)

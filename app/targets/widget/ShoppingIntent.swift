@@ -34,7 +34,8 @@ enum ShoppingData {
     static func lists() -> [(id: String, name: String)] {
         guard let json = string(forKey: "shopping.lists"),
               let lists = try? JSONDecoder().decode(
-                  [StoredShoppingList].self, from: Data(json.utf8))
+                  [StoredShoppingList].self, from: Data(json.utf8)
+              )
         else { return [] }
         return lists.map { ($0.id, $0.name) }
     }
@@ -65,9 +66,11 @@ struct ShoppingListEntity: AppEntity {
     static var typeDisplayRepresentation: TypeDisplayRepresentation {
         "Shopping List"
     }
+
     var displayRepresentation: DisplayRepresentation {
         DisplayRepresentation(title: "\(name)")
     }
+
     static var defaultQuery = ShoppingListQuery()
 }
 
@@ -85,7 +88,10 @@ struct ShoppingListQuery: EntityQuery {
 }
 
 struct SelectShoppingListIntent: WidgetConfigurationIntent {
-    static var title: LocalizedStringResource { "Shopping List" }
+    static var title: LocalizedStringResource {
+        "Shopping List"
+    }
+
     static var description: IntentDescription {
         IntentDescription("Choose which shopping list this complication shows.")
     }

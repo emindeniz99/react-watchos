@@ -18,7 +18,7 @@ public enum RNStyle {
     public static let namedColors: Set<String> = [
         "red", "orange", "yellow", "green", "mint", "teal", "cyan", "blue",
         "indigo", "purple", "pink", "brown", "white", "gray", "black",
-        "primary", "secondary",
+        "primary", "secondary"
     ]
 
     /// Resolves a `color` prop: a known name, or `#RRGGBB`/`#RRGGBBAA` hex.
@@ -38,7 +38,9 @@ public enum RNStyle {
         let hex = string.dropFirst()
         guard hex.allSatisfy(\.isHexDigit), let bits = UInt32(hex, radix: 16)
         else { return nil }
-        func channel(_ shift: UInt32) -> Double { Double((bits >> shift) & 0xFF) / 255 }
+        func channel(_ shift: UInt32) -> Double {
+            Double((bits >> shift) & 0xFF) / 255
+        }
         switch hex.count {
         case 6: return (channel(16), channel(8), channel(0), 1)
         case 8: return (channel(24), channel(16), channel(8), channel(0))
@@ -67,7 +69,7 @@ public enum RNStyle {
     /// match the app instead of silently ignoring `milliseconds`).
     public static func formatTimer(_ interval: TimeInterval) -> String {
         let totalMs = Int((interval * 1000).rounded(.down))
-        let minutes = totalMs / 60_000
+        let minutes = totalMs / 60000
         let seconds = (totalMs / 1000) % 60
         let millis = totalMs % 1000
         return String(format: "%02d:%02d.%03d", minutes, seconds, millis)

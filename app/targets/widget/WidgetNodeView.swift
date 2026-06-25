@@ -22,7 +22,8 @@ struct WidgetNodeView: View {
         _ content: some View, _ node: RNNode
     ) -> some View {
         if let label = node.string("accessibilityLabel"),
-           let hint = node.string("accessibilityHint") {
+           let hint = node.string("accessibilityHint")
+        {
             content.accessibilityLabel(label).accessibilityHint(hint)
         } else if let label = node.string("accessibilityLabel") {
             content.accessibilityLabel(label)
@@ -50,7 +51,8 @@ struct WidgetNodeView: View {
             // a `source` URL falls back to a symbol; base64 `data` works.
             if let b64 = node.string("data"),
                let data = Data(base64Encoded: b64),
-               let ui = UIImage(data: data) {
+               let ui = UIImage(data: data)
+            {
                 Image(uiImage: ui).resizable().scaledToFit()
                     .frame(width: cgFloat(node, "size"), height: cgFloat(node, "size"))
             } else {
@@ -98,7 +100,7 @@ struct WidgetNodeView: View {
         }
     }
 
-    @ViewBuilder private func children(_ node: RNNode) -> some View {
+    private func children(_ node: RNNode) -> some View {
         ForEach(node.children) { child in
             WidgetNodeView(node: child)
         }
@@ -108,7 +110,7 @@ struct WidgetNodeView: View {
         let min = node.double("min") ?? 0
         let max = node.double("max") ?? 1
         let value = Swift.min(Swift.max(node.double("value") ?? 0, min), max)
-        let base = Gauge(value: value, in: min...max) {
+        let base = Gauge(value: value, in: min ... max) {
             Text(node.string("label") ?? "")
         } currentValueLabel: {
             Text(formatted(value))
@@ -151,16 +153,16 @@ struct WidgetNodeView: View {
         }
     }
 
-    // Auto-updating timer label; valid in widgets (Text(timerInterval:) is
-    // one of the few views WidgetKit ticks without a timeline reload).
+    /// Auto-updating timer label; valid in widgets (Text(timerInterval:) is
+    /// one of the few views WidgetKit ticks without a timeline reload).
     @ViewBuilder private func timerText(_ node: RNNode) -> some View {
         if let until = node.double("until") {
             let end = Date(timeIntervalSince1970: until / 1000)
-            styled(node, Text(timerInterval: Date()...Swift.max(Date(), end),
+            styled(node, Text(timerInterval: Date() ... Swift.max(Date(), end),
                               countsDown: true))
         } else {
             let start = Date(timeIntervalSince1970: (node.double("since") ?? 0) / 1000)
-            styled(node, Text(timerInterval: start...Date.distantFuture,
+            styled(node, Text(timerInterval: start ... Date.distantFuture,
                               countsDown: false))
         }
     }
@@ -180,14 +182,14 @@ struct WidgetNodeView: View {
         node.double(key).map { CGFloat($0) }
     }
 
-    // Shares color parsing (named set + #RRGGBB/#RRGGBBAA hex) with the app
-    // interpreter via RNStyle, so the widget no longer silently lacks hex
-    // colors (CX-018). Only the name -> SwiftUI.Color mapping stays local.
+    /// Shares color parsing (named set + #RRGGBB/#RRGGBBAA hex) with the app
+    /// interpreter via RNStyle, so the widget no longer silently lacks hex
+    /// colors (CX-018). Only the name -> SwiftUI.Color mapping stays local.
     private func color(_ name: String?) -> Color? {
         guard let value = RNStyle.color(name) else { return nil }
         switch value {
-        case .named(let named): return Self.systemColor(named)
-        case .rgba(let r, let g, let b, let a):
+        case let .named(named): return Self.systemColor(named)
+        case let .rgba(r, g, b, a):
             return Color(red: r, green: g, blue: b, opacity: a)
         }
     }

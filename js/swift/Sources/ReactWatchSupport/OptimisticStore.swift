@@ -10,7 +10,9 @@ public struct OptimisticStore: Sendable {
 
     public init() {}
 
-    public var isEmpty: Bool { values.isEmpty }
+    public var isEmpty: Bool {
+        values.isEmpty
+    }
 
     /// Records `value` for `nodeId`, held until a commit acks `seq`.
     public mutating func set(nodeId: Int, seq: Int, value: JSONValue) {
@@ -23,22 +25,22 @@ public struct OptimisticStore: Sendable {
     }
 
     public func bool(_ nodeId: Int) -> Bool? {
-        if case .bool(let value)? = values[nodeId]?.value { return value }
+        if case let .bool(value)? = values[nodeId]?.value { return value }
         return nil
     }
 
     public func int(_ nodeId: Int) -> Int? {
-        if case .number(let value)? = values[nodeId]?.value { return Int(value) }
+        if case let .number(value)? = values[nodeId]?.value { return Int(value) }
         return nil
     }
 
     public func double(_ nodeId: Int) -> Double? {
-        if case .number(let value)? = values[nodeId]?.value { return value }
+        if case let .number(value)? = values[nodeId]?.value { return value }
         return nil
     }
 
     public func string(_ nodeId: Int) -> String? {
-        if case .string(let value)? = values[nodeId]?.value { return value }
+        if case let .string(value)? = values[nodeId]?.value { return value }
         return nil
     }
 }

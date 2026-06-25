@@ -3,10 +3,10 @@ import ReactWatchCore
 import ReactWatchSupport
 import XCTest
 
-// Unit tests for the platform-support logic extracted from the SwiftUI host —
-// the optimistic-controls bookkeeping and the notification trigger math, the
-// parts with real edge cases. These ran "unverified until a Mac" while inline
-// in ReactWatchHost; now they're checked on Linux.
+/// Unit tests for the platform-support logic extracted from the SwiftUI host —
+/// the optimistic-controls bookkeeping and the notification trigger math, the
+/// parts with real edge cases. These ran "unverified until a Mac" while inline
+/// in ReactWatchHost; now they're checked on Linux.
 final class OptimisticStoreTests: XCTestCase {
     func testHoldsValuesByKindUntilAcked() {
         var store = OptimisticStore()
@@ -45,7 +45,8 @@ final class NotificationPlanTests: XCTestCase {
     func testRelativeAfterMs() throws {
         let plan = try XCTUnwrap(NotificationPlan(
             json: #"{"id":"a","title":"T","body":"B","afterMs":30000,"sound":true}"#,
-            now: now))
+            now: now
+        ))
         XCTAssertEqual(plan.id, "a")
         XCTAssertTrue(plan.sound)
         XCTAssertEqual(plan.triggerSeconds, 30, accuracy: 0.001)
@@ -56,7 +57,8 @@ final class NotificationPlanTests: XCTestCase {
         let at = (now.timeIntervalSince1970 + 60) * 1000
         let plan = try XCTUnwrap(NotificationPlan(
             json: #"{"id":"b","title":"T","body":"B","at":\#(at),"afterMs":5000,"sound":false}"#,
-            now: now))
+            now: now
+        ))
         XCTAssertEqual(plan.triggerSeconds, 60, accuracy: 0.001)
     }
 
@@ -64,7 +66,8 @@ final class NotificationPlanTests: XCTestCase {
         let at = (now.timeIntervalSince1970 - 120) * 1000
         let plan = try XCTUnwrap(NotificationPlan(
             json: #"{"id":"c","title":"T","body":"B","at":\#(at),"sound":false}"#,
-            now: now))
+            now: now
+        ))
         XCTAssertTrue(plan.scheduledInPast)
         XCTAssertEqual(plan.triggerSeconds, 1) // never silently in the past
     }
@@ -85,7 +88,8 @@ final class RouteMatcherTests: XCTestCase {
     func testCapturesSingleParam() {
         XCTAssertEqual(
             RouteMatcher.match(pattern: "/list/[id]", route: "/list/42")?.params,
-            ["id": ["42"]])
+            ["id": ["42"]]
+        )
         // [id] is one segment, not a catch-all.
         XCTAssertNil(RouteMatcher.match(pattern: "/list/[id]", route: "/list/42/items"))
         XCTAssertNil(RouteMatcher.match(pattern: "/list/[id]", route: "/list"))
@@ -95,7 +99,8 @@ final class RouteMatcherTests: XCTestCase {
         XCTAssertEqual(
             RouteMatcher.match(pattern: "/shop/[name]/[...rest]", route: "/shop/nike/a/b")?
                 .params,
-            ["name": ["nike"], "rest": ["a", "b"]])
+            ["name": ["nike"], "rest": ["a", "b"]]
+        )
         XCTAssertNil(RouteMatcher.match(pattern: "/shop/[name]/[...rest]", route: "/shop/nike"))
     }
 
@@ -103,19 +108,23 @@ final class RouteMatcherTests: XCTestCase {
         XCTAssertEqual(
             RouteMatcher.match(pattern: "/shop/[name]/[[...rest]]", route: "/shop/nike")?
                 .params,
-            ["name": ["nike"], "rest": []])
+            ["name": ["nike"], "rest": []]
+        )
         XCTAssertEqual(
             RouteMatcher.match(
-                pattern: "/shop/[name]/[[...rest]]", route: "/shop/nike/shoes/running")?
+                pattern: "/shop/[name]/[[...rest]]", route: "/shop/nike/shoes/running"
+            )?
                 .params,
-            ["name": ["nike"], "rest": ["shoes", "running"]])
+            ["name": ["nike"], "rest": ["shoes", "running"]]
+        )
     }
 
     func testBestPicksMostSpecificMatch() {
         // Both patterns match /shop/nike; the concrete one must win.
         let winner = RouteMatcher.best(
             patterns: ["/shop/[name]/[[...rest]]", "/shop/[name]"],
-            route: "/shop/nike")
+            route: "/shop/nike"
+        )
         XCTAssertEqual(winner?.pattern, "/shop/[name]")
         XCTAssertNil(RouteMatcher.best(patterns: ["/list/[id]"], route: "/other"))
     }
@@ -137,13 +146,15 @@ final class BluetoothUUIDTests: XCTestCase {
     func testThirtyTwoBitShortExpands() {
         XCTAssertEqual(
             BluetoothUUID.canonical("12345678"),
-            "12345678-0000-1000-8000-00805F9B34FB")
+            "12345678-0000-1000-8000-00805F9B34FB"
+        )
     }
 
     func testCustom128BitNormalizesCase() {
         XCTAssertEqual(
             BluetoothUUID.canonical("1234abcd-0000-1000-8000-00805f9b0000"),
-            "1234ABCD-0000-1000-8000-00805F9B0000")
+            "1234ABCD-0000-1000-8000-00805F9B0000"
+        )
     }
 
     func testRejectsMalformed() {
@@ -152,7 +163,8 @@ final class BluetoothUUIDTests: XCTestCase {
         XCTAssertNil(BluetoothUUID.canonical("2A3")) // 3 hex: not 4/8/32
         // 32 hex but not in dashed 8-4-4-4-12 form (CBUUID wouldn't accept it).
         XCTAssertNil(BluetoothUUID.canonical(
-            hrm.replacingOccurrences(of: "-", with: "")))
+            hrm.replacingOccurrences(of: "-", with: "")
+        ))
     }
 }
 
@@ -221,23 +233,27 @@ final class VersionPolicyTests: XCTestCase {
     func testRunsOTAWhenCurrent() {
         XCTAssertEqual(
             VersionPolicy.decide(otaVersion: 5, highWater: 5, shippedVersion: 3, gate: .soft),
-            .runOTA)
+            .runOTA
+        )
     }
 
     func testFallsBackToShippedWhenNoOTA() {
         XCTAssertEqual(
             VersionPolicy.decide(otaVersion: nil, highWater: 3, shippedVersion: 3, gate: .hard),
-            .runShipped)
+            .runShipped
+        )
     }
 
     func testStaleShippedSoftRunsHardBlocks() {
         // We once ran v5 (highWater) but only a v3 shipped bundle is available.
         XCTAssertEqual(
             VersionPolicy.decide(otaVersion: nil, highWater: 5, shippedVersion: 3, gate: .soft),
-            .runShipped)
+            .runShipped
+        )
         XCTAssertEqual(
             VersionPolicy.decide(otaVersion: nil, highWater: 5, shippedVersion: 3, gate: .hard),
-            .blockForUpdate)
+            .blockForUpdate
+        )
     }
 
     func testRejectedDowngradeOTAIsNotRun() {
@@ -245,7 +261,8 @@ final class VersionPolicyTests: XCTestCase {
         // shipped decides.
         XCTAssertEqual(
             VersionPolicy.decide(otaVersion: 2, highWater: 5, shippedVersion: 6, gate: .hard),
-            .runShipped)
+            .runShipped
+        )
     }
 
     func testHighWaterIsMonotonic() {
@@ -265,7 +282,7 @@ final class BleSessionTests: XCTestCase {
 
         XCTAssertEqual(s.takePendingWrites(), [
             .init(characteristic: "A", value: "1", confirm: nil),
-            .init(characteristic: "B", value: "2", confirm: true),
+            .init(characteristic: "B", value: "2", confirm: true)
         ])
         // Taken exactly once — discovery must not replay the same writes twice.
         XCTAssertTrue(s.pendingWrites.isEmpty)
@@ -317,8 +334,10 @@ final class CapabilityGateTests: XCTestCase {
                 bundleBridgeProtocol: 1,
                 bundleFeatures: ["storage", "network"],
                 nativeBridgeProtocol: 1,
-                nativeFeatures: HostFeatures.watch),
-            .accept)
+                nativeFeatures: HostFeatures.watch
+            ),
+            .accept
+        )
     }
 
     func testRejectsWhenAFeatureIsMissing() {
@@ -328,8 +347,10 @@ final class CapabilityGateTests: XCTestCase {
                 bundleBridgeProtocol: 1,
                 bundleFeatures: ["storage", "network"],
                 nativeBridgeProtocol: 1,
-                nativeFeatures: HostFeatures.widget),
-            .updateAppRequired(missing: ["network"]))
+                nativeFeatures: HostFeatures.widget
+            ),
+            .updateAppRequired(missing: ["network"])
+        )
     }
 
     func testRejectsWhenBundleNeedsANewerBridgeProtocol() {
@@ -338,13 +359,15 @@ final class CapabilityGateTests: XCTestCase {
                 bundleBridgeProtocol: 2,
                 bundleFeatures: ["storage"],
                 nativeBridgeProtocol: 1,
-                nativeFeatures: HostFeatures.watch))
+                nativeFeatures: HostFeatures.watch
+            )
+        )
     }
 }
 
-// SD-2 / CX-018: the styling logic shared by both interpreters lives here so it
-// can't drift. These pin the behaviors the widget had lost (hex colors) and the
-// formatting both sides must agree on.
+/// SD-2 / CX-018: the styling logic shared by both interpreters lives here so it
+/// can't drift. These pin the behaviors the widget had lost (hex colors) and the
+/// formatting both sides must agree on.
 final class RNStyleTests: XCTestCase {
     func testNamedColor() {
         XCTAssertEqual(RNStyle.color("green"), .named("green"))
@@ -352,10 +375,12 @@ final class RNStyleTests: XCTestCase {
 
     func testHexColor6And8Digits() {
         XCTAssertEqual(
-            RNStyle.color("#FF8000"), .rgba(r: 1, g: 128.0 / 255, b: 0, a: 1))
+            RNStyle.color("#FF8000"), .rgba(r: 1, g: 128.0 / 255, b: 0, a: 1)
+        )
         XCTAssertEqual(
             RNStyle.color("#00000080"),
-            .rgba(r: 0, g: 0, b: 0, a: 128.0 / 255))
+            .rgba(r: 0, g: 0, b: 0, a: 128.0 / 255)
+        )
     }
 
     func testUnknownColorIsNil() {
@@ -384,25 +409,30 @@ final class RNStyleTests: XCTestCase {
 // CX-016: snapshots must show the entry applicable *now*, not the last
 // (future-dated) one.
 final class WidgetSnapshotTests: XCTestCase {
-    private func date(_ s: TimeInterval) -> Date { Date(timeIntervalSince1970: s) }
+    private func date(_ s: TimeInterval) -> Date {
+        Date(timeIntervalSince1970: s)
+    }
 
     func testPicksLatestEntryAtOrBeforeNow() {
         let dates = [date(0), date(100), date(200), date(300)]
         // now = 250 → the 200 entry (index 2), not the future 300 (.last).
         XCTAssertEqual(
-            WidgetSnapshot.currentIndex(dates: dates, now: date(250)), 2)
+            WidgetSnapshot.currentIndex(dates: dates, now: date(250)), 2
+        )
     }
 
     func testAllFuturePicksEarliest() {
         let dates = [date(300), date(100), date(200)]
         XCTAssertEqual(
-            WidgetSnapshot.currentIndex(dates: dates, now: date(50)), 1)
+            WidgetSnapshot.currentIndex(dates: dates, now: date(50)), 1
+        )
     }
 
     func testExactNowIsIncluded() {
         let dates = [date(100), date(200)]
         XCTAssertEqual(
-            WidgetSnapshot.currentIndex(dates: dates, now: date(200)), 1)
+            WidgetSnapshot.currentIndex(dates: dates, now: date(200)), 1
+        )
     }
 
     func testEmptyIsNil() {
@@ -415,9 +445,11 @@ final class WidgetSnapshotTests: XCTestCase {
 final class ContentHashTests: XCTestCase {
     func testDeterministicAndDistinct() {
         XCTAssertEqual(
-            ContentHash.of("globalThis.x=1"), ContentHash.of("globalThis.x=1"))
+            ContentHash.of("globalThis.x=1"), ContentHash.of("globalThis.x=1")
+        )
         XCTAssertNotEqual(
-            ContentHash.of("globalThis.x=1"), ContentHash.of("globalThis.x=2"))
+            ContentHash.of("globalThis.x=1"), ContentHash.of("globalThis.x=2")
+        )
         XCTAssertFalse(ContentHash.of("").isEmpty)
     }
 
@@ -426,21 +458,25 @@ final class ContentHashTests: XCTestCase {
     // overload for the same bytes (one FNV-1a core).
     func testDataOverloadDistinctAndMatchesStringForSameBytes() {
         XCTAssertEqual(
-            ContentHash.of(Data([1, 2, 3])), ContentHash.of(Data([1, 2, 3])))
+            ContentHash.of(Data([1, 2, 3])), ContentHash.of(Data([1, 2, 3]))
+        )
         XCTAssertNotEqual(
-            ContentHash.of(Data([1, 2, 3])), ContentHash.of(Data([1, 2, 4])))
+            ContentHash.of(Data([1, 2, 3])), ContentHash.of(Data([1, 2, 4]))
+        )
         XCTAssertEqual(
-            ContentHash.of(Data("abc".utf8)), ContentHash.of("abc"))
+            ContentHash.of(Data("abc".utf8)), ContentHash.of("abc")
+        )
     }
 }
 
-// ARCH-04 atomic apply: the active-bundle record is one Codable unit, so source
-// and version/signature/bytecodeHash always land together — JSON round-trips
-// without losing the optional fields.
+/// ARCH-04 atomic apply: the active-bundle record is one Codable unit, so source
+/// and version/signature/bytecodeHash always land together — JSON round-trips
+/// without losing the optional fields.
 final class OTARecordTests: XCTestCase {
     func testRoundTripsAllFields() throws {
         let record = OTARecord(
-            js: "globalThis.x=1", version: 7, signature: "sig==", bytecodeHash: "abcd")
+            js: "globalThis.x=1", version: 7, signature: "sig==", bytecodeHash: "abcd"
+        )
         let data = try JSONEncoder().encode(record)
         XCTAssertEqual(try JSONDecoder().decode(OTARecord.self, from: data), record)
     }
@@ -478,7 +514,8 @@ final class SharedWidgetStoreTests: XCTestCase {
     func testBootAttemptsDefaultZeroAndRoundTrip() {
         XCTAssertEqual(
             store.otaBootAttempts(), 0,
-            "fresh install must not look like a crash loop")
+            "fresh install must not look like a crash loop"
+        )
         store.setOTABootAttempts(2)
         XCTAssertEqual(store.otaBootAttempts(), 2)
         store.setOTABootAttempts(0) // healthy commit resets

@@ -2,15 +2,17 @@ import Foundation
 import ReactWatchCore
 import XCTest
 
-// Decodes real serializer output (Fixtures/*.json, produced by the JS
-// contract-fixture test) with the codegen'd ReactWatchCore models and asserts
-// the JS<->Swift wire contract — in actual Swift, on Linux, via `swift test`.
+/// Decodes real serializer output (Fixtures/*.json, produced by the JS
+/// contract-fixture test) with the codegen'd ReactWatchCore models and asserts
+/// the JS<->Swift wire contract — in actual Swift, on Linux, via `swift test`.
 final class WireContractTests: XCTestCase {
     private func fixture(_ name: String) throws -> Data {
         let url = try XCTUnwrap(
             Bundle.module.url(
-                forResource: name, withExtension: "json", subdirectory: "Fixtures"),
-            "missing fixture \(name).json")
+                forResource: name, withExtension: "json", subdirectory: "Fixtures"
+            ),
+            "missing fixture \(name).json"
+        )
         return try Data(contentsOf: url)
     }
 
@@ -52,7 +54,8 @@ final class WireContractTests: XCTestCase {
 
     func testPublishWidgetsDecodes() throws {
         let payload = try JSONDecoder().decode(
-            PublishedWidgets.self, from: fixture("widgets"))
+            PublishedWidgets.self, from: fixture("widgets")
+        )
         XCTAssertEqual(payload.v, 1)
 
         let stopwatch = try XCTUnwrap(payload.widgets["stopwatch"])

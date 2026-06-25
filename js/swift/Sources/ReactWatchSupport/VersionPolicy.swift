@@ -1,12 +1,12 @@
-/// Decides what the watch boots, given OTA versioning state. Pure logic, so the
-/// anti-rollback + stale-state rules are unit-tested off-device; the host wires
-/// it to persistence (high-water mark) and CryptoKit (signature) — the trust
-/// root, since the JS is itself OTA-replaceable.
-///
-/// The version is a *compatibility* integer the developer bumps only on a
-/// breaking change (db schema / wire contract). Anti-rollback refuses anything
-/// below the high-water mark, so an older bundle can never run against a
-/// newer-schema db — which is the whole point of the hard gate.
+// Decides what the watch boots, given OTA versioning state. Pure logic, so the
+// anti-rollback + stale-state rules are unit-tested off-device; the host wires
+// it to persistence (high-water mark) and CryptoKit (signature) — the trust
+// root, since the JS is itself OTA-replaceable.
+//
+// The version is a *compatibility* integer the developer bumps only on a
+// breaking change (db schema / wire contract). Anti-rollback refuses anything
+// below the high-water mark, so an older bundle can never run against a
+// newer-schema db — which is the whole point of the hard gate.
 
 /// How aggressively to refuse stale JS. `soft` runs the best available bundle
 /// and lets the app show an "update available" prompt; `hard` refuses to boot

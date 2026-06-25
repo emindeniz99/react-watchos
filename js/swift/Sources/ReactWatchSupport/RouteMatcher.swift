@@ -31,7 +31,7 @@ public struct RouteMatcher {
             switch segment {
             case let .catchAll(name, optional):
                 let rest = Array(parts[min(i, parts.count)...])
-                if !optional && rest.isEmpty { return nil }
+                if !optional, rest.isEmpty { return nil }
                 params[name] = rest
                 return Match(params: params, score: score - 1)
             case let .literal(value):
@@ -69,15 +69,17 @@ public struct RouteMatcher {
 
     private static func parse(_ pattern: String) -> [Segment] {
         segments(of: pattern).map { raw in
-            if raw.hasPrefix("[[...") && raw.hasSuffix("]]") {
+            if raw.hasPrefix("[[..."), raw.hasSuffix("]]") {
                 return .catchAll(
-                    name: String(raw.dropFirst(5).dropLast(2)), optional: true)
+                    name: String(raw.dropFirst(5).dropLast(2)), optional: true
+                )
             }
-            if raw.hasPrefix("[...") && raw.hasSuffix("]") {
+            if raw.hasPrefix("[..."), raw.hasSuffix("]") {
                 return .catchAll(
-                    name: String(raw.dropFirst(4).dropLast(1)), optional: false)
+                    name: String(raw.dropFirst(4).dropLast(1)), optional: false
+                )
             }
-            if raw.hasPrefix("[") && raw.hasSuffix("]") {
+            if raw.hasPrefix("["), raw.hasSuffix("]") {
                 return .param(String(raw.dropFirst().dropLast()))
             }
             return .literal(raw)

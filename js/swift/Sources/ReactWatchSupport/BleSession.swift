@@ -32,7 +32,9 @@ public struct BleSession: Sendable {
 
     /// User asked to connect — clear the deliberate-disconnect latch so a
     /// later unexpected drop auto-reconnects.
-    public mutating func beginConnect() { userInitiatedDisconnect = false }
+    public mutating func beginConnect() {
+        userInitiatedDisconnect = false
+    }
 
     /// User asked to disconnect — latch it and forget what we wanted, so the
     /// next connect doesn't silently resurrect stale subscriptions or queued
@@ -48,7 +50,8 @@ public struct BleSession: Sendable {
         characteristic: String, value: String, confirm: Bool?
     ) {
         pendingWrites.append(
-            .init(characteristic: characteristic, value: value, confirm: confirm))
+            .init(characteristic: characteristic, value: value, confirm: confirm)
+        )
     }
 
     /// Take and clear the queued writes to replay once discovery completes.
@@ -63,5 +66,7 @@ public struct BleSession: Sendable {
     }
 
     /// Whether an unexpected drop (range/power) should auto-reconnect.
-    public var shouldAutoReconnect: Bool { !userInitiatedDisconnect }
+    public var shouldAutoReconnect: Bool {
+        !userInitiatedDisconnect
+    }
 }

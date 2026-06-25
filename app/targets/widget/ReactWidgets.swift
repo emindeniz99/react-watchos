@@ -1,14 +1,14 @@
+import AppIntents
 import ReactWatchCore
 import ReactWatchSupport
-import AppIntents
 import SwiftUI
 import WidgetKit
 
-/// React-authored complications, Smart Stack widgets, and controls. The
-/// watch app (or this extension's own QuickJS, for control intents and
-/// stale refreshes) renders timelines with React and persists them to the
-/// App Group; the providers below only decode and display.
-/// NOTE: untested until built with Xcode on macOS.
+// React-authored complications, Smart Stack widgets, and controls. The
+// watch app (or this extension's own QuickJS, for control intents and
+// stale refreshes) renders timelines with React and persists them to the
+// App Group; the providers below only decode and display.
+// NOTE: untested until built with Xcode on macOS.
 
 struct ReactEntry: TimelineEntry {
     let date: Date
@@ -21,7 +21,7 @@ struct ReactTimelineProvider: TimelineProvider {
     /// Must match the `kind` registered on the JS side.
     let kind: String
 
-    func placeholder(in context: Context) -> ReactEntry {
+    func placeholder(in _: Context) -> ReactEntry {
         ReactEntry(date: .now, node: nil, url: nil, relevance: nil)
     }
 
@@ -37,7 +37,8 @@ struct ReactTimelineProvider: TimelineProvider {
         let fresh = IntentRuntime.renderFreshTimelines()
         let payload = newestPayload(stored, fresh)
         guard let timeline = payload?.widgets[kind]?[familyKey(context.family)],
-              !timeline.entries.isEmpty else {
+              !timeline.entries.isEmpty
+        else {
             completion(Timeline(entries: [placeholder(in: context)], policy: .atEnd))
             return
         }
@@ -66,8 +67,10 @@ struct ReactTimelineProvider: TimelineProvider {
             relevance: published.relevance.map {
                 TimelineEntryRelevance(
                     score: Float($0.score),
-                    duration: ($0.durationMs ?? 0) / 1000)
-            })
+                    duration: ($0.durationMs ?? 0) / 1000
+                )
+            }
+        )
     }
 
     private func latestEntry(for context: Context) -> ReactEntry? {
@@ -75,9 +78,10 @@ struct ReactTimelineProvider: TimelineProvider {
         // end-of-day state for future-dated daypart timelines — CX-016).
         guard
             let entries = WidgetStore.load()?
-                .widgets[kind]?[familyKey(context.family)]?.entries,
+            .widgets[kind]?[familyKey(context.family)]?.entries,
             let index = WidgetSnapshot.currentIndex(
-                dates: entries.map(\.entryDate), now: .now)
+                dates: entries.map(\.entryDate), now: .now
+            )
         else { return nil }
         return entry(from: entries[index])
     }
@@ -126,7 +130,7 @@ struct HydrationWidget: Widget {
             .accessoryCircular,
             .accessoryCorner,
             .accessoryRectangular,
-            .accessoryInline,
+            .accessoryInline
         ])
     }
 }
@@ -167,8 +171,8 @@ struct AddGlassIntent: AppIntent {
 
 @available(watchOS 26.0, *)
 struct AddGlassControl: ControlWidget {
-    // Computed (not static let) so republished React metadata is picked
-    // up on every render instead of being frozen at process start.
+    /// Computed (not static let) so republished React metadata is picked
+    /// up on every render instead of being frozen at process start.
     private var metadata: PublishedControl? {
         WidgetStore.load()?.controls?["hydration.addGlass"]
     }
@@ -178,7 +182,8 @@ struct AddGlassControl: ControlWidget {
             ControlWidgetButton(action: AddGlassIntent()) {
                 Label(
                     metadata?.label ?? "Add Glass",
-                    systemImage: metadata?.systemName ?? "drop.fill")
+                    systemImage: metadata?.systemName ?? "drop.fill"
+                )
             }
         }
         .displayName("Add Glass")

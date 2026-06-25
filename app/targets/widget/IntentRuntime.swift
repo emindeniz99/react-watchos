@@ -40,7 +40,8 @@ final class IntentRuntime {
         js.onSetItem = { [store] key, value in store.setItem(key, value) }
         do {
             try js.evaluate(
-                "globalThis.__entrypoint = \"intent\"", filename: "entry.js")
+                "globalThis.__entrypoint = \"intent\"", filename: "entry.js"
+            )
             try loadBundle()
         } catch {
             return nil
@@ -51,7 +52,8 @@ final class IntentRuntime {
         // Prefer precompiled bytecode (faster cold start in the short-lived
         // extension), fall back to parsing bundle.js.
         if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
-           let data = try? Data(contentsOf: qbc) {
+           let data = try? Data(contentsOf: qbc)
+        {
             do {
                 try js.evaluateBytecode(data)
                 return
@@ -60,7 +62,8 @@ final class IntentRuntime {
             }
         }
         guard let url = Bundle.main.url(forResource: "bundle", withExtension: "js"),
-              let code = try? String(contentsOf: url, encoding: .utf8) else {
+              let code = try? String(contentsOf: url, encoding: .utf8)
+        else {
             throw JSRuntime.JSError.exception("bundle missing — run `npm run build`")
         }
         try js.evaluate(code)
@@ -92,7 +95,9 @@ final class IntentRuntime {
         let ms = now.timeIntervalSince1970 * 1000
         guard let json = runtime.js.callReturningString("__renderWidgets", ms),
               let payload = try? JSONDecoder().decode(
-                  PublishedWidgets.self, from: Data(json.utf8)) else {
+                  PublishedWidgets.self, from: Data(json.utf8)
+              )
+        else {
             return nil
         }
         runtime.store.save(json)

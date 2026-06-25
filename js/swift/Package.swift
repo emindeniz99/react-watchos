@@ -27,15 +27,15 @@ import PackageDescription
 // gets the real host for watchOS.
 
 #if os(macOS)
-let includeAppleHost = true
+    let includeAppleHost = true
 #else
-let includeAppleHost = false
+    let includeAppleHost = false
 #endif
 
 var products: [Product] = [
     .library(name: "ReactWatchCore", targets: ["ReactWatchCore"]),
     .library(name: "ReactWatchSupport", targets: ["ReactWatchSupport"]),
-    .library(name: "ReactWatchRuntime", targets: ["ReactWatchRuntime"]),
+    .library(name: "ReactWatchRuntime", targets: ["ReactWatchRuntime"])
 ]
 
 var targets: [Target] = [
@@ -53,7 +53,7 @@ var targets: [Target] = [
         name: "ReactWatchTests",
         dependencies: ["ReactWatchCore", "ReactWatchSupport", "ReactWatchRuntime"],
         resources: [.copy("Fixtures")]
-    ),
+    )
 ]
 
 if includeAppleHost {
@@ -63,7 +63,7 @@ if includeAppleHost {
             name: "ReactWatchHost",
             dependencies: [
                 "CQuickJS", "ReactWatchCore", "ReactWatchSupport",
-                "ReactWatchRuntime",
+                "ReactWatchRuntime"
             ]
         )
     )

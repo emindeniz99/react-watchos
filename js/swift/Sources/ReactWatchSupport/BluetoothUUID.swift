@@ -22,8 +22,8 @@ public enum BluetoothUUID {
             return "\(hex)\(baseSuffix)"
         case (32, 36): // full 128-bit, canonical dashed form
             let c = Array(hex)
-            return "\(String(c[0..<8]))-\(String(c[8..<12]))-\(String(c[12..<16]))"
-                + "-\(String(c[16..<20]))-\(String(c[20..<32]))"
+            return "\(String(c[0 ..< 8]))-\(String(c[8 ..< 12]))-\(String(c[12 ..< 16]))"
+                + "-\(String(c[16 ..< 20]))-\(String(c[20 ..< 32]))"
         default:
             return nil
         }

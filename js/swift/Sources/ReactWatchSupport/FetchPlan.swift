@@ -1,6 +1,6 @@
 import Foundation
 #if canImport(FoundationNetworking)
-import FoundationNetworking // URLRequest/HTTPURLResponse split out on Linux
+    import FoundationNetworking // URLRequest/HTTPURLResponse split out on Linux
 #endif
 
 /// Decodes a js/src/fetch.ts request into a `URLRequest`. The host just hands
@@ -22,7 +22,8 @@ public struct FetchPlan: Sendable {
         // Require an absolute URL with a scheme. (URL(string:"") is nil on
         // Apple but non-nil on Linux, so check the scheme explicitly.)
         guard let payload = try? JSONDecoder().decode(
-            Payload.self, from: Data(json.utf8)),
+            Payload.self, from: Data(json.utf8)
+        ),
             let parsed = URL(string: payload.url),
             parsed.scheme != nil else { return nil }
         var request = URLRequest(url: parsed)
@@ -85,7 +86,7 @@ public enum FetchResponse {
             "url": url,
             "body": body,
             "bodyEncoding": bodyEncoding,
-            "headers": headers,
+            "headers": headers
         ]
         return (try? JSONSerialization.data(withJSONObject: payload))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"

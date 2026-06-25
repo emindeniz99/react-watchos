@@ -16,6 +16,7 @@ enum WidgetStore {
         guard let json = UserDefaults(suiteName: appGroupId)?
             .string(forKey: payloadKey) else { return nil }
         return try? JSONDecoder().decode(
-            PublishedWidgets.self, from: Data(json.utf8))
+            PublishedWidgets.self, from: Data(json.utf8)
+        )
     }
 }

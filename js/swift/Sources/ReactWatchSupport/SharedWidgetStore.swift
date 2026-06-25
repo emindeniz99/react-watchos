@@ -33,10 +33,10 @@ public struct SharedWidgetStore: Sendable {
         defaults?.set(value, forKey: Self.storagePrefix + key)
     }
 
-    // OTA anti-rollback high-water mark (CR-17). Kept in the *same* App Group as
-    // Storage so the version record and the db share fate: if the db survives,
-    // so does the mark; if one is wiped (uninstall), so is the other — the db
-    // can never be "ahead" of a reset mark. `integer(forKey:)` is 0 when unset.
+    /// OTA anti-rollback high-water mark (CR-17). Kept in the *same* App Group as
+    /// Storage so the version record and the db share fate: if the db survives,
+    /// so does the mark; if one is wiped (uninstall), so is the other — the db
+    /// can never be "ahead" of a reset mark. `integer(forKey:)` is 0 when unset.
     public static let otaHighWaterKey = "react.ota.highWater"
 
     public func otaHighWater() -> Int {
@@ -47,12 +47,12 @@ public struct SharedWidgetStore: Sendable {
         defaults?.set(version, forKey: Self.otaHighWaterKey)
     }
 
-    // OTA crash-loop guard (ARCH-04): boots that ran the OTA bundle but never
-    // reached a healthy first commit. Incremented before evaluating the bundle
-    // and reset to 0 on the first commit (host) — so a *native* crash on boot
-    // (which kills the process before the JS-throw fallback can run) leaves the
-    // count standing, and enough such boots roll the bundle back. Same App Group
-    // as the bundle, so they share fate on uninstall. 0 when unset.
+    /// OTA crash-loop guard (ARCH-04): boots that ran the OTA bundle but never
+    /// reached a healthy first commit. Incremented before evaluating the bundle
+    /// and reset to 0 on the first commit (host) — so a *native* crash on boot
+    /// (which kills the process before the JS-throw fallback can run) leaves the
+    /// count standing, and enough such boots roll the bundle back. Same App Group
+    /// as the bundle, so they share fate on uninstall. 0 when unset.
     public static let otaBootAttemptsKey = "react.ota.bootAttempts"
 
     public func otaBootAttempts() -> Int {

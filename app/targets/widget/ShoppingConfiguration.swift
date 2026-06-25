@@ -4,20 +4,20 @@ import ReactWatchCore
 import SwiftUI
 import WidgetKit
 
-/// Configurable shopping complication: the user picks WHICH list to show while
-/// editing the watch face (WidgetKit `AppIntentConfiguration`). The picker's
-/// options and the rendered content both come from JS — the lists live in App
-/// Group storage (written by demo/shoppingStore.ts), and React renders one
-/// timeline per list under the key "shopping/<id>". This Swift layer only reads
-/// the JS-owned data and selects the configured key; it authors no UI or data.
-/// The configuration intent + entity/query live in ShoppingIntent.swift (shared
-/// with the watch app target so WidgetKit can resolve the intent).
-/// NOTE: untested until built with Xcode on macOS (WidgetKit + AppIntents).
+// Configurable shopping complication: the user picks WHICH list to show while
+// editing the watch face (WidgetKit `AppIntentConfiguration`). The picker's
+// options and the rendered content both come from JS — the lists live in App
+// Group storage (written by demo/shoppingStore.ts), and React renders one
+// timeline per list under the key "shopping/<id>". This Swift layer only reads
+// the JS-owned data and selects the configured key; it authors no UI or data.
+// The configuration intent + entity/query live in ShoppingIntent.swift (shared
+// with the watch app target so WidgetKit can resolve the intent).
+// NOTE: untested until built with Xcode on macOS (WidgetKit + AppIntents).
 
 // MARK: - Timeline provider (renders the configured list's React timeline)
 
 struct ShoppingTimelineProvider: AppIntentTimelineProvider {
-    func placeholder(in context: Context) -> ReactEntry {
+    func placeholder(in _: Context) -> ReactEntry {
         ReactEntry(date: .now, node: nil, url: nil, relevance: nil)
     }
 
@@ -28,7 +28,8 @@ struct ShoppingTimelineProvider: AppIntentTimelineProvider {
         guard !lists.isEmpty else {
             return [
                 AppIntentRecommendation(
-                    intent: SelectShoppingListIntent(), description: Text("Shopping"))
+                    intent: SelectShoppingListIntent(), description: Text("Shopping")
+                )
             ]
         }
         return lists.map { list in
@@ -51,10 +52,13 @@ struct ShoppingTimelineProvider: AppIntentTimelineProvider {
         // Prefer a fresh React render (runs here via QuickJS); fall back to the
         // payload the app last published — same policy as ReactTimelineProvider.
         let payload = newestPayload(
-            WidgetStore.load(), IntentRuntime.renderFreshTimelines())
+            WidgetStore.load(), IntentRuntime.renderFreshTimelines()
+        )
         guard let timeline = payload?.widgets[key(for: configuration)]?[
-                  familyKey(context.family)],
-              !timeline.entries.isEmpty else {
+            familyKey(context.family)
+        ],
+            !timeline.entries.isEmpty
+        else {
             return Timeline(entries: [placeholder(in: context)], policy: .atEnd)
         }
         let entries = timeline.entries.map(reactEntry(from:))
@@ -84,8 +88,10 @@ struct ShoppingTimelineProvider: AppIntentTimelineProvider {
             relevance: published.relevance.map {
                 TimelineEntryRelevance(
                     score: Float($0.score),
-                    duration: ($0.durationMs ?? 0) / 1000)
-            })
+                    duration: ($0.durationMs ?? 0) / 1000
+                )
+            }
+        )
     }
 
     private func newestPayload(
@@ -122,7 +128,7 @@ struct ShoppingWidget: Widget {
             .accessoryCircular,
             .accessoryCorner,
             .accessoryRectangular,
-            .accessoryInline,
+            .accessoryInline
         ])
     }
 }

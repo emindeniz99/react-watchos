@@ -151,7 +151,8 @@ public final class JSRuntime {
         if JS_IsException(compiled) { return nil }
         var size = 0
         guard let buf = JS_WriteObject(
-            context, &size, compiled, qjs_write_obj_bytecode()) else { return nil }
+            context, &size, compiled, qjs_write_obj_bytecode()
+        ) else { return nil }
         defer { js_free(context, buf) }
         return Data(bytes: buf, count: size)
     }
@@ -161,7 +162,7 @@ public final class JSRuntime {
         seq: Int? = nil
     ) {
         var args: [JSArg] = [
-            .int(nodeId), .string(event), .jsonOrUndefined(jsonString(payload)),
+            .int(nodeId), .string(event), .jsonOrUndefined(jsonString(payload))
         ]
         if let seq { args.append(.int(seq)) }
         bridgeCall("__dispatchEvent", args, filename: "dispatch.js")
@@ -226,7 +227,8 @@ public final class JSRuntime {
         defer { JS_FreeValue(context, result) }
         drainJobs()
         guard !JS_IsException(result),
-              let cString = JS_ToCString(context, result) else {
+              let cString = JS_ToCString(context, result)
+        else {
             onError?(takeExceptionMessage())
             return nil
         }
@@ -237,7 +239,7 @@ public final class JSRuntime {
     private func evaluateReportingErrors(_ code: String, filename: String) {
         do {
             try evaluate(code, filename: filename)
-        } catch JSError.exception(let message) {
+        } catch let JSError.exception(message) {
             onError?(message)
         } catch {
             onError?(String(describing: error))
@@ -279,20 +281,20 @@ public final class JSRuntime {
         // Int64, not Int32: nodeId/seq are monotonic and a long session could
         // exceed 2^31 — truncating would wrap an id and mis-route an event/ack
         // (OP-4). JS represents it exactly up to 2^53.
-        case .int(let n): return JS_NewInt64(context, Int64(n))
-        case .double(let d): return JS_NewFloat64(context, d)
-        case .string(let s): return JS_NewString(context, s)
-        case .jsonOrUndefined(let s):
-            return s.map { JS_NewString(context, $0) } ?? qjs_undefined()
+        case let .int(n): JS_NewInt64(context, Int64(n))
+        case let .double(d): JS_NewFloat64(context, d)
+        case let .string(s): JS_NewString(context, s)
+        case let .jsonOrUndefined(s):
+            s.map { JS_NewString(context, $0) } ?? qjs_undefined()
         }
     }
 
     private func renderArg(_ arg: JSArg) -> String {
         switch arg {
-        case .int(let n): return "\(n)"
-        case .double(let d): return "\(d)"
-        case .string(let s): return jsStringLiteral(s)
-        case .jsonOrUndefined(let s): return s.map(jsStringLiteral) ?? "undefined"
+        case let .int(n): "\(n)"
+        case let .double(d): "\(d)"
+        case let .string(s): jsStringLiteral(s)
+        case let .jsonOrUndefined(s): s.map(jsStringLiteral) ?? "undefined"
         }
     }
 
@@ -398,15 +400,18 @@ public final class JSRuntime {
         JS_SetPropertyStr(
             context, host, "requestNotificationPermission",
             JS_NewCFunction(context, hostRequestNotificationPermission,
-                            "requestNotificationPermission", 0))
+                            "requestNotificationPermission", 0)
+        )
         JS_SetPropertyStr(
             context, host, "scheduleNotification",
             JS_NewCFunction(context, hostScheduleNotification,
-                            "scheduleNotification", 1))
+                            "scheduleNotification", 1)
+        )
         JS_SetPropertyStr(
             context, host, "cancelNotification",
             JS_NewCFunction(context, hostCancelNotification,
-                            "cancelNotification", 1))
+                            "cancelNotification", 1)
+        )
         JS_SetPropertyStr(context, host, "sendToPhone",
                           JS_NewCFunction(context, hostSendToPhone, "sendToPhone", 1))
         JS_SetPropertyStr(context, host, "fetch",
@@ -432,12 +437,13 @@ public final class JSRuntime {
     private func scheduleTimer(id: Int32, milliseconds: Double) {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
-            self.pendingTimers[id] = nil
-            self.bridgeCall("__fireTimer", [.int(Int(id))], filename: "timer.js")
+            pendingTimers[id] = nil
+            bridgeCall("__fireTimer", [.int(Int(id))], filename: "timer.js")
         }
         pendingTimers[id] = work
         DispatchQueue.main.asyncAfter(
-            deadline: .now() + milliseconds / 1000.0, execute: work)
+            deadline: .now() + milliseconds / 1000.0, execute: work
+        )
     }
 
     private func cancelTimer(id: Int32) {
@@ -502,7 +508,8 @@ public final class JSRuntime {
 
     private func jsStringLiteral(_ value: String) -> String {
         let data = (try? JSONSerialization.data(
-            withJSONObject: [value])) ?? Data("[\"\"]".utf8)
+            withJSONObject: [value]
+        )) ?? Data("[\"\"]".utf8)
         let array = String(data: data, encoding: .utf8) ?? "[\"\"]"
         return String(array.dropFirst().dropLast())
     }
@@ -518,24 +525,25 @@ public final class JSRuntime {
 // @convention(c) callbacks cannot capture state; the owning JSRuntime is
 // recovered through the context opaque pointer.
 
-// quickjs-ng calls this whenever a promise's rejection-handled state changes.
-// We act only on the "no handler" edge (isHandled == false); the matching
-// isHandled == true callback (a late .catch) is ignored. Report-only, like
-// quickjs-ng's own CLI tracker.
+/// quickjs-ng calls this whenever a promise's rejection-handled state changes.
+/// We act only on the "no handler" edge (isHandled == false); the matching
+/// isHandled == true callback (a late .catch) is ignored. Report-only, like
+/// quickjs-ng's own CLI tracker.
 private func promiseRejectionTracker(
-    ctx: OpaquePointer?, promise: JSValue, reason: JSValue,
-    isHandled: Bool, opaque: UnsafeMutableRawPointer?
+    ctx: OpaquePointer?, promise _: JSValue, reason: JSValue,
+    isHandled: Bool, opaque _: UnsafeMutableRawPointer?
 ) {
     guard !isHandled, let runtime = JSRuntime.from(context: ctx) else { return }
     runtime.reportUnhandledRejection(reason)
 }
 
 private func hostCommit(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0]) {
+       let cString = JS_ToCString(ctx, argv[0])
+    {
         runtime.handleCommitFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
@@ -543,7 +551,7 @@ private func hostCommit(
 }
 
 private func hostLog(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let argv, argc >= 1, let cString = JS_ToCString(ctx, argv[0]) {
@@ -554,11 +562,12 @@ private func hostLog(
 }
 
 private func hostPublishWidgets(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0]) {
+       let cString = JS_ToCString(ctx, argv[0])
+    {
         runtime.handlePublishWidgetsFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
@@ -566,11 +575,12 @@ private func hostPublishWidgets(
 }
 
 private func hostPlayHaptic(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0]) {
+       let cString = JS_ToCString(ctx, argv[0])
+    {
         runtime.playHapticFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
@@ -578,19 +588,20 @@ private func hostPlayHaptic(
 }
 
 private func hostRequestNotificationPermission(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
+    ctx: OpaquePointer?, thisVal _: JSValue, argc _: Int32,
+    argv _: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     JSRuntime.from(context: ctx)?.requestNotificationPermissionFromC()
     return qjs_undefined()
 }
 
 private func hostScheduleNotification(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0]) {
+       let cString = JS_ToCString(ctx, argv[0])
+    {
         runtime.scheduleNotificationFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
@@ -598,11 +609,12 @@ private func hostScheduleNotification(
 }
 
 private func hostCancelNotification(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0]) {
+       let cString = JS_ToCString(ctx, argv[0])
+    {
         runtime.cancelNotificationFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
@@ -610,11 +622,12 @@ private func hostCancelNotification(
 }
 
 private func hostSendToPhone(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0]) {
+       let cString = JS_ToCString(ctx, argv[0])
+    {
         runtime.sendToPhoneFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
@@ -622,11 +635,12 @@ private func hostSendToPhone(
 }
 
 private func hostFetch(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-       let cString = JS_ToCString(ctx, argv[1]) {
+       let cString = JS_ToCString(ctx, argv[1])
+    {
         var id: Int32 = 0
         JS_ToInt32(ctx, &id, argv[0])
         runtime.fetchFromC(Int(id), String(cString: cString))
@@ -636,11 +650,12 @@ private func hostFetch(
 }
 
 private func hostBle(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0]) {
+       let cString = JS_ToCString(ctx, argv[0])
+    {
         runtime.bleFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
@@ -648,11 +663,12 @@ private func hostBle(
 }
 
 private func hostSensor(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-       let cString = JS_ToCString(ctx, argv[0]) {
+       let cString = JS_ToCString(ctx, argv[0])
+    {
         runtime.sensorFromC(String(cString: cString))
         JS_FreeCString(ctx, cString)
     }
@@ -660,11 +676,12 @@ private func hostSensor(
 }
 
 private func hostSaveUpdate(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-       let cString = JS_ToCString(ctx, argv[1]) {
+       let cString = JS_ToCString(ctx, argv[1])
+    {
         var id: Int32 = 0
         JS_ToInt32(ctx, &id, argv[0])
         runtime.saveUpdateFromC(Int(id), String(cString: cString))
@@ -674,11 +691,12 @@ private func hostSaveUpdate(
 }
 
 private func hostGenerate(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-       let cString = JS_ToCString(ctx, argv[1]) {
+       let cString = JS_ToCString(ctx, argv[1])
+    {
         var id: Int32 = 0
         JS_ToInt32(ctx, &id, argv[0])
         runtime.generateFromC(Int(id), String(cString: cString))
@@ -688,7 +706,7 @@ private func hostGenerate(
 }
 
 private func hostAbortFetch(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1 {
@@ -700,7 +718,7 @@ private func hostAbortFetch(
 }
 
 private func hostGetItem(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
@@ -712,12 +730,13 @@ private func hostGetItem(
 }
 
 private func hostSetItem(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
        let keyC = JS_ToCString(ctx, argv[0]),
-       let valueC = JS_ToCString(ctx, argv[1]) {
+       let valueC = JS_ToCString(ctx, argv[1])
+    {
         runtime.setItemFromC(String(cString: keyC), String(cString: valueC))
         JS_FreeCString(ctx, keyC)
         JS_FreeCString(ctx, valueC)
@@ -726,7 +745,7 @@ private func hostSetItem(
 }
 
 private func hostSetTimer(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2 {
@@ -740,7 +759,7 @@ private func hostSetTimer(
 }
 
 private func hostClearTimer(
-    ctx: OpaquePointer?, thisVal: JSValue, argc: Int32,
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
     if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1 {
@@ -752,39 +771,58 @@ private func hostClearTimer(
 }
 
 extension JSRuntime {
-    fileprivate func handleCommitFromC(_ json: String) { handleCommit(json) }
+    fileprivate func handleCommitFromC(_ json: String) {
+        handleCommit(json)
+    }
+
     fileprivate func handlePublishWidgetsFromC(_ json: String) {
         onPublishWidgets?(json)
     }
-    fileprivate func getItemFromC(_ key: String) -> String? { onGetItem?(key) }
-    fileprivate func playHapticFromC(_ type: String) { onPlayHaptic?(type) }
+
+    fileprivate func getItemFromC(_ key: String) -> String? {
+        onGetItem?(key)
+    }
+
+    fileprivate func playHapticFromC(_ type: String) {
+        onPlayHaptic?(type)
+    }
+
     fileprivate func requestNotificationPermissionFromC() {
         onRequestNotificationPermission?()
     }
+
     fileprivate func scheduleNotificationFromC(_ json: String) {
         onScheduleNotification?(json)
     }
+
     fileprivate func cancelNotificationFromC(_ id: String) {
         onCancelNotification?(id)
     }
+
     fileprivate func sendToPhoneFromC(_ json: String) {
         onSendToPhone?(json)
     }
+
     fileprivate func fetchFromC(_ id: Int, _ json: String) {
         onFetch?(id, json)
     }
+
     fileprivate func abortFetchFromC(_ id: Int) {
         onAbortFetch?(id)
     }
+
     fileprivate func bleFromC(_ json: String) {
         onBle?(json)
     }
+
     fileprivate func sensorFromC(_ json: String) {
         onSensor?(json)
     }
+
     fileprivate func saveUpdateFromC(_ id: Int, _ json: String) {
         onSaveUpdate?(id, json)
     }
+
     fileprivate func generateFromC(_ id: Int, _ json: String) {
         onGenerate?(id, json)
     }
@@ -794,14 +832,20 @@ extension JSRuntime {
     public func resolveGenerate(id: Int, text: String) {
         bridgeCall("__resolveGenerate", [.int(id), .string(text)], filename: "ai.js")
     }
+
     public func rejectGenerate(id: Int, message: String) {
         bridgeCall("__rejectGenerate", [.int(id), .string(message)], filename: "ai.js")
     }
+
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)
     }
+
     fileprivate func scheduleTimerFromC(id: Int32, milliseconds: Double) {
         scheduleTimer(id: id, milliseconds: milliseconds)
     }
-    fileprivate func cancelTimerFromC(id: Int32) { cancelTimer(id: id) }
+
+    fileprivate func cancelTimerFromC(id: Int32) {
+        cancelTimer(id: id)
+    }
 }
