@@ -350,10 +350,15 @@ update popup is JS-driven via an `update.required`/`update.available` event.
   — which is what lets it run the unsigned local bytecode (standard CodePush/EAS
   posture). Round-trip + bad-source tests in `RuntimeSmokeTests`; 45 + 7 green;
   host builds for watchOS. Done 2026-06-25.
-- [ ] **Remote freshness check** — launch-time `GET <updateUrl>` →
-  `{version, bundleUrl, signature}`; emit `update.available`/`update.required`
-  when remote > local (covers the full-reinstall case where local state is gone).
-  *(Endpoint shape to be confirmed.)*
+- [x] **Remote freshness check** — manifest `GET <updateUrl>` →
+  `{version, bundle, signature}` (emitted by `build.mjs` into `dist/`, served by
+  the existing dev server). **JS/soft path:** `checkForUpdate` /
+  `fetchAndApplyUpdate` (the demo's OTA screen uses them). **Native hard path:**
+  `OTAConfig.manifestURL` + `model.checkForUpdateNatively()` re-fetches the
+  manifest+bundle, stages it through the verified `saveUpdate` gate, and reboots
+  — so a hard-gated, JS-not-running device recovers from `UpdateRequiredView`'s
+  "Check for update" button (covers the lost-OTA / reinstall case). 47 swift +
+  189 JS tests green; host builds for watchOS. Done 2026-06-25.
 
 Sequencing: OTA core (cap → manifest v2 → VersionPolicy → high-water → hard
 gate) → compile-cache → remote check → then **CR-5** (`-s ours` merge of #26 +

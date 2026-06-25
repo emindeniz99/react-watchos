@@ -64,6 +64,7 @@ final class ReactWatchModel: ObservableObject {
     private let updatePublicKey: Curve25519.Signing.PublicKey?
     private let updateGate: OTAGate
     private let shippedBundleVersion: Int
+    private let updateManifestURL: String?
 
     init(appGroupId: String?, ota: OTAConfig = .init()) {
         store = SharedWidgetStore(appGroupId: appGroupId)
@@ -72,6 +73,7 @@ final class ReactWatchModel: ObservableObject {
             .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
         updateGate = ota.gate
         shippedBundleVersion = ota.shippedVersion
+        updateManifestURL = ota.manifestURL
     }
 
     func start() {
@@ -157,27 +159,30 @@ final class ReactWatchModel: ObservableObject {
     /// signed bytes, so it can't be relabelled (anti-rollback in `load` can trust
     /// it). An unsigned or bad bundle is refused. With no key it's fail-open:
     /// persisted with a loud warning so an un-updated consumer keeps working.
-    private func saveUpdate(_ payload: String) {
-        guard let url = otaBundleURL, let metaURL = otaMetaURL else { return }
+    /// Returns whether the bundle was accepted + persisted (false = rejected,
+    /// with `runtimeError` set) — the native recovery path reboots only on true.
+    @discardableResult
+    private func saveUpdate(_ payload: String) -> Bool {
+        guard let url = otaBundleURL, let metaURL = otaMetaURL else { return false }
         let plan = UpdatePlan(payload: payload)
         let size = plan.js.utf8.count
         guard size <= Self.maxOTABundleBytes else {
             runtimeError = "OTA update rejected: bundle is \(size) bytes, over the "
                 + "\(Self.maxOTABundleBytes)-byte limit"
-            return
+            return false
         }
         if let key = updatePublicKey {
             guard let signature = plan.signature, let version = plan.version,
                   let message = plan.signedMessage(),
                   key.isValidSignature(signature, for: message) else {
                 runtimeError = "OTA update rejected: signature/version missing or invalid"
-                return
+                return false
             }
             let highWater = store.otaHighWater()
             guard VersionPolicy.accepts(incoming: version, highWater: highWater) else {
                 runtimeError = "OTA update rejected: version \(version) is older than the "
                     + "installed \(highWater) (downgrade blocked)"
-                return
+                return false
             }
             persistOTA(js: plan.js, version: version,
                        signature: signature.base64EncodedString(), url: url, metaURL: metaURL)
@@ -187,6 +192,7 @@ final class ReactWatchModel: ObservableObject {
             persistOTA(js: plan.js, version: plan.version, signature: nil,
                        url: url, metaURL: metaURL)
         }
+        return true
     }
 
     private func persistOTA(
@@ -224,6 +230,46 @@ final class ReactWatchModel: ObservableObject {
         if let url = otaBundleURL { try? FileManager.default.removeItem(at: url) }
         if let metaURL = otaMetaURL { try? FileManager.default.removeItem(at: metaURL) }
         if let bcURL = otaBytecodeURL { try? FileManager.default.removeItem(at: bcURL) }
+    }
+
+    /// Remote manifest served at `OTAConfig.manifestURL` ({version, bundle,
+    /// signature}); `bundle` is absolute or relative to the manifest URL.
+    private struct RemoteManifest: Decodable {
+        let version: Int
+        let bundle: String
+        let signature: String?
+    }
+
+    /// Native OTA recovery for the hard gate (CR-17): when stale JS is blocked
+    /// the JS app isn't running to fetch an update, so fetch the manifest +
+    /// bundle natively, stage it through the same verified `saveUpdate` gate,
+    /// and reboot to apply. Used by `UpdateRequiredView`'s button.
+    func checkForUpdateNatively() async {
+        guard let urlString = updateManifestURL, let url = URL(string: urlString) else {
+            runtimeError = "no update URL configured"
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            let manifest = try JSONDecoder().decode(RemoteManifest.self, from: data)
+            guard let bundleURL = URL(string: manifest.bundle, relativeTo: url) else {
+                runtimeError = "update manifest has no bundle URL"
+                return
+            }
+            let (jsData, _) = try await URLSession.shared.data(from: bundleURL)
+            guard let js = String(data: jsData, encoding: .utf8) else {
+                runtimeError = "update bundle was not UTF-8 text"
+                return
+            }
+            var payload: [String: Any] = ["js": js, "version": manifest.version]
+            if let signature = manifest.signature { payload["signature"] = signature }
+            guard let payloadData = try? JSONSerialization.data(withJSONObject: payload),
+                  let payloadString = String(data: payloadData, encoding: .utf8),
+                  saveUpdate(payloadString) else { return }
+            boot() // re-load; the staged bundle (>= high-water) now runs
+        } catch {
+            runtimeError = "update check failed: \(error.localizedDescription)"
+        }
     }
 
     private struct GenerateRequest: Decodable {
@@ -395,7 +441,7 @@ final class ReactWatchModel: ObservableObject {
         js.onAbortFetch = { [weak self] id in self?.abortFetch(id: id) }
         js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
         js.onSensor = { [weak self] json in self?.sensors.handleOp(json) }
-        js.onSaveUpdate = { [weak self] code in self?.saveUpdate(code) }
+        js.onSaveUpdate = { [weak self] code in _ = self?.saveUpdate(code) }
         js.onGenerate = { [weak self] id, reqJson in
             self?.generate(id: id, requestJson: reqJson)
         }
@@ -597,13 +643,19 @@ public struct OTAConfig: Sendable {
     /// lockstep with the shipped bundle, only on a breaking change (db schema /
     /// wire contract); it anchors the anti-rollback boot decision.
     public var shippedVersion: Int
+    /// Update manifest endpoint (`{version, bundle, signature}`). Lets the hard
+    /// gate's "Check for update" recover natively — re-fetching a current bundle
+    /// when stale JS is blocked and the JS app isn't running to fetch. HTTPS.
+    public var manifestURL: String?
 
     public init(
-        publicKeyBase64: String? = nil, gate: OTAGate = .soft, shippedVersion: Int = 1
+        publicKeyBase64: String? = nil, gate: OTAGate = .soft,
+        shippedVersion: Int = 1, manifestURL: String? = nil
     ) {
         self.publicKeyBase64 = publicKeyBase64
         self.gate = gate
         self.shippedVersion = shippedVersion
+        self.manifestURL = manifestURL
     }
 }
 
@@ -611,14 +663,22 @@ public struct OTAConfig: Sendable {
 /// runs against a newer-schema db. Native, because the JS app isn't booted in
 /// this state; recovery (re-fetching a current bundle) is wired separately.
 private struct UpdateRequiredView: View {
+    @EnvironmentObject private var model: ReactWatchModel
+
     var body: some View {
         ScrollView {
             VStack(spacing: 6) {
                 Image(systemName: "arrow.down.circle").font(.title2)
                 Text("Update required").font(.headline)
-                Text("A newer version is needed to run safely. "
-                    + "Open the app with a connection to update.")
+                Text("A newer version is needed to run safely.")
                     .font(.footnote).multilineTextAlignment(.center)
+                Button("Check for update") {
+                    Task { await model.checkForUpdateNatively() }
+                }
+                if let error = model.runtimeError {
+                    Text(error).font(.caption2).foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
             }
             .padding()
         }
