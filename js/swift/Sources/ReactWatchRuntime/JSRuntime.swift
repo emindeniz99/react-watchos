@@ -261,7 +261,10 @@ public final class JSRuntime {
 
     private func makeValue(_ arg: JSArg) -> JSValue {
         switch arg {
-        case .int(let n): return JS_NewInt32(context, Int32(truncatingIfNeeded: n))
+        // Int64, not Int32: nodeId/seq are monotonic and a long session could
+        // exceed 2^31 — truncating would wrap an id and mis-route an event/ack
+        // (OP-4). JS represents it exactly up to 2^53.
+        case .int(let n): return JS_NewInt64(context, Int64(n))
         case .double(let d): return JS_NewFloat64(context, d)
         case .string(let s): return JS_NewString(context, s)
         case .jsonOrUndefined(let s):

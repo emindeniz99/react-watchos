@@ -87,6 +87,31 @@ final class RuntimeSmokeTests: XCTestCase {
             "a non-Error reason must not get a bogus stack: \(message)")
     }
 
+    // OP-4: int args (nodeId/seq) cross as Int64, so a value beyond 2^31 isn't
+    // truncated/wrapped on the way into JS.
+    func testLargeIntArgIsNotTruncated() throws {
+        let runtime = try JSRuntime()
+        var committed: String?
+        runtime.onCommit = { committed = $0 }
+        try runtime.evaluate(#"""
+        globalThis.__dispatchEvent = (nodeId, event, _payload, seq) => {
+          __host.commit(JSON.stringify({
+            v: 1, seq: seq ?? 0,
+            root: { id: nodeId, type: event, props: {}, children: [] }
+          }));
+          return true;
+        };
+        """#)
+
+        // Beyond 2^32 — an Int32 cast would wrap this to a small positive id.
+        let big = 5_000_000_000
+        runtime.dispatchEvent(nodeId: big, event: "Text", seq: 0)
+
+        let json = try XCTUnwrap(committed, "dispatch did not commit")
+        let tree = try JSONDecoder().decode(RNTree.self, from: Data(json.utf8))
+        XCTAssertEqual(tree.root?.id, big, "large nodeId was truncated")
+    }
+
     // CR-5: the Swift->JS bridge must deliver identical args whether it uses
     // JS_Call (new) or the eval-string path (legacy) — they're A/B-switchable.
     func testDispatchEventEquivalentAcrossBridgePaths() throws {
