@@ -421,3 +421,45 @@ final class ContentHashTests: XCTestCase {
         XCTAssertFalse(ContentHash.of("").isEmpty)
     }
 }
+
+// ARCH-04: the OTA boot-attempt counter (crash-loop guard) and high-water mark
+// must round-trip through the App Group. A throwaway suite keeps the real one
+// clean; default (unset) reads must be 0 so a fresh install isn't mistaken for
+// a crash loop.
+final class SharedWidgetStoreTests: XCTestCase {
+    private var suite: String!
+    private var store: SharedWidgetStore!
+
+    override func setUp() {
+        super.setUp()
+        suite = "test.react.store.\(UUID().uuidString)"
+        store = SharedWidgetStore(appGroupId: suite)
+    }
+
+    override func tearDown() {
+        UserDefaults().removePersistentDomain(forName: suite)
+        super.tearDown()
+    }
+
+    func testBootAttemptsDefaultZeroAndRoundTrip() {
+        XCTAssertEqual(
+            store.otaBootAttempts(), 0,
+            "fresh install must not look like a crash loop")
+        store.setOTABootAttempts(2)
+        XCTAssertEqual(store.otaBootAttempts(), 2)
+        store.setOTABootAttempts(0) // healthy commit resets
+        XCTAssertEqual(store.otaBootAttempts(), 0)
+    }
+
+    func testHighWaterDefaultZeroAndRoundTrip() {
+        XCTAssertEqual(store.otaHighWater(), 0)
+        store.setOTAHighWater(7)
+        XCTAssertEqual(store.otaHighWater(), 7)
+    }
+
+    func testNilAppGroupIsInertNotCrashing() {
+        let none = SharedWidgetStore(appGroupId: nil)
+        none.setOTABootAttempts(5) // no-op without a group
+        XCTAssertEqual(none.otaBootAttempts(), 0)
+    }
+}

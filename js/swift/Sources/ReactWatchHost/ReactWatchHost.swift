@@ -368,6 +368,10 @@ final class ReactWatchModel: ObservableObject {
         runtime?.rejectGenerate(id: id, message: "on-device AI unavailable")
     }
 
+    /// How many times the OTA bundle may boot without reaching a healthy commit
+    /// before it's rolled back to shipped (ARCH-04 crash-loop guard).
+    private static let maxOTABootAttempts = 3
+
     private func load(into js: JSRuntime) throws {
         let candidate = otaCandidate()
         let decision: BootDecision
@@ -385,16 +389,32 @@ final class ReactWatchModel: ObservableObject {
         switch decision {
         case .runOTA:
             if let c = candidate {
-                do {
-                    try evaluateOTA(c.code, into: js)
-                    if let v = c.version {
-                        store.setOTAHighWater(
-                            VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v))
-                    }
-                    return
-                } catch {
+                // Crash-loop rollback (ARCH-04): the JS-throw path is caught
+                // below, but a *native* crash on boot (QuickJS OOM, a Swift trap
+                // in a host callback) kills the process before that catch — a
+                // bundle that does so bricks every launch. otaBootAttempts counts
+                // boots that haven't reached a healthy commit (which resets it);
+                // once it hits the cap, drop the bundle and fall back to shipped.
+                if store.otaBootAttempts() >= Self.maxOTABootAttempts {
                     dropOTA()
-                    runtimeError = "OTA bundle failed, using shipped bundle: \(error)"
+                    store.setOTABootAttempts(0)
+                    runtimeError =
+                        "OTA bundle rolled back: failed to boot "
+                        + "\(Self.maxOTABootAttempts)× — using shipped bundle"
+                } else {
+                    store.setOTABootAttempts(store.otaBootAttempts() + 1)
+                    do {
+                        try evaluateOTA(c.code, into: js)
+                        if let v = c.version {
+                            store.setOTAHighWater(
+                                VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v))
+                        }
+                        return
+                    } catch {
+                        dropOTA()
+                        store.setOTABootAttempts(0)
+                        runtimeError = "OTA bundle failed, using shipped bundle: \(error)"
+                    }
                 }
             }
         case .blockForUpdate:
@@ -492,6 +512,12 @@ final class ReactWatchModel: ObservableObject {
                         return
                     }
                     self.root = tree.root
+                    // A committed tree means the bundle booted healthily — clear
+                    // the crash-loop counter so only *boot* failures accumulate
+                    // (ARCH-04). Idempotent; after the first reset it's a no-op.
+                    if self.store.otaBootAttempts() != 0 {
+                        self.store.setOTABootAttempts(0)
+                    }
                     if tree.seq > self.ackedSeq {
                         self.ackedSeq = tree.seq
                         self.optimistic.ack(throughSeq: tree.seq)

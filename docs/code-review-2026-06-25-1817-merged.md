@@ -49,7 +49,8 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
 - [~] **ARCH-04** (transactional OTA state machine):
   - [x] slice 1 / **OP-1** — bytecode cache keyed to a source `ContentHash` in `OTAMeta`; `evaluateOTA` trusts the `.qbc` only on a hash match, so a crash mid-apply or a stale cache can't run old code as if it were this bundle. +1 test (swift 70), watchOS BUILD SUCCEEDED.
   - [x] slice 2 — **read-only validation**: `persistOTA` evals the candidate in a throwaway runtime (host callbacks nil → no-op commit/setItem/publish) and refuses to persist a bundle that throws on load, so a bad bundle is never saved and can't partially mutate storage during the check. +1 test (swift 71), watchOS BUILD SUCCEEDED.
-  - [ ] remaining — atomic staged apply (+ previous known-good for rollback), crash-loop boot rollback, signing keyId/rotation.
+  - [x] slice 3 — **crash-loop boot rollback**: `SharedWidgetStore.otaBootAttempts` counts boots that ran the OTA bundle but never reached a healthy commit; `load()` increments before eval and rolls the bundle back (drop + shipped) once it hits `maxOTABootAttempts` (3); `onCommit` resets the counter on the first committed tree. Catches the *native*-crash case the JS-throw fallback can't (process dies before the catch). +3 store tests (swift 74), watchOS BUILD SUCCEEDED. Counter/decision are unit-verified; the rollback *trigger* (an actual native boot crash) is compile-verified only — needs an on-device crash scenario to exercise end-to-end.
+  - [ ] remaining — atomic staged apply (stage to temp + previous known-good dir, swap on validate) so a failed apply can't leave a half-written bundle; signing keyId/rotation.
 - [ ] Remaining host: CX-017 (relevantContexts → WidgetKit relevance), **ARCH-03** (app/widget bundle split).
 
 ### Verdict legend

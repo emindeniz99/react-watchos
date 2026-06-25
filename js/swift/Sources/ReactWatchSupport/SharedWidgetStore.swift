@@ -46,4 +46,20 @@ public struct SharedWidgetStore: Sendable {
     public func setOTAHighWater(_ version: Int) {
         defaults?.set(version, forKey: Self.otaHighWaterKey)
     }
+
+    // OTA crash-loop guard (ARCH-04): boots that ran the OTA bundle but never
+    // reached a healthy first commit. Incremented before evaluating the bundle
+    // and reset to 0 on the first commit (host) — so a *native* crash on boot
+    // (which kills the process before the JS-throw fallback can run) leaves the
+    // count standing, and enough such boots roll the bundle back. Same App Group
+    // as the bundle, so they share fate on uninstall. 0 when unset.
+    public static let otaBootAttemptsKey = "react.ota.bootAttempts"
+
+    public func otaBootAttempts() -> Int {
+        defaults?.integer(forKey: Self.otaBootAttemptsKey) ?? 0
+    }
+
+    public func setOTABootAttempts(_ count: Int) {
+        defaults?.set(count, forKey: Self.otaBootAttemptsKey)
+    }
 }
