@@ -327,3 +327,42 @@ final class CapabilityGateTests: XCTestCase {
                 nativeFeatures: HostFeatures.watch))
     }
 }
+
+// SD-2 / CX-018: the styling logic shared by both interpreters lives here so it
+// can't drift. These pin the behaviors the widget had lost (hex colors) and the
+// formatting both sides must agree on.
+final class RNStyleTests: XCTestCase {
+    func testNamedColor() {
+        XCTAssertEqual(RNStyle.color("green"), .named("green"))
+    }
+
+    func testHexColor6And8Digits() {
+        XCTAssertEqual(
+            RNStyle.color("#FF8000"), .rgba(r: 1, g: 128.0 / 255, b: 0, a: 1))
+        XCTAssertEqual(
+            RNStyle.color("#00000080"),
+            .rgba(r: 0, g: 0, b: 0, a: 128.0 / 255))
+    }
+
+    func testUnknownColorIsNil() {
+        XCTAssertNil(RNStyle.color("chartreuse"))
+        XCTAssertNil(RNStyle.color("#12")) // wrong length
+        XCTAssertNil(RNStyle.color(nil))
+    }
+
+    func testFontStyleParsingFallsBackToBody() {
+        XCTAssertEqual(RNStyle.fontStyle("title2"), .title2)
+        XCTAssertEqual(RNStyle.fontStyle("nonsense"), .body)
+        XCTAssertEqual(RNStyle.fontStyle(nil), .body)
+    }
+
+    func testFormatValueIntegerVsDecimal() {
+        XCTAssertEqual(RNStyle.formatValue(3), "3")
+        XCTAssertEqual(RNStyle.formatValue(3.5), "3.5")
+    }
+
+    func testFormatTimer() {
+        XCTAssertEqual(RNStyle.formatTimer(0), "00:00.000")
+        XCTAssertEqual(RNStyle.formatTimer(65.25), "01:05.250")
+    }
+}
