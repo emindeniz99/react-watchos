@@ -24,13 +24,14 @@ genuine "fail loud" ethos in several places. The items below are
 refinement, not rework. The highest-value standalone fix is **CR-1**
 (async JS errors are silently swallowed).
 
-## Decision: PR #6 (`claude/hopeful-volta-vigrf7`) will NOT be merged
+## Decision: PR #26 (`claude/rn-watchos-js-call-bridge`) will NOT be merged
 
-We are **not merging** the open `JS_Call` bridge branch. Every issue
-below — including the eval-string → `JS_Call` bridge refactor (CR-5) and
-the orphaned doc-comment (CR-2) — is solved **directly on `main`**. The
-`claude/hopeful-volta-vigrf7` branch is kept only as a reference
-implementation for the bridge work.
+We are **not merging** the open `JS_Call` bridge branch (PR #26
+supersedes the earlier #6 / `claude/hopeful-volta-vigrf7`, now deleted).
+Every issue below — including the eval-string → `JS_Call` bridge refactor
+(CR-5) and the orphaned doc-comment (CR-2) — is solved **directly on
+`main`**. The `claude/rn-watchos-js-call-bridge` branch is kept only as a
+reference implementation for the bridge work.
 
 Plan:
 
@@ -60,7 +61,7 @@ Plan:
   Synchronous paths are covered (`evaluateReportingErrors`,
   `WatchRoot.flush()` rethrow); the async hole is not.
   **Fix:** check for `< 0`, route `takeExceptionMessage()` to `onError`,
-  and/or install `JS_SetHostPromiseRejectionTracker`. Independent of PR #6.
+  and/or install `JS_SetHostPromiseRejectionTracker`. Independent of PR #26.
 
 - [ ] **CR-2 — Orphaned doc-comment in `JSRuntime.swift`.** `cosmetic`
   On `main`,
@@ -69,7 +70,7 @@ Plan:
   the fetch comment); the real `pushNativeEvent` (line 155) has no doc.
   **Fix on main:** move the `pushNativeEvent` doc block down to its
   function and restore `resolveFetch`'s own comment — a ~4-line move.
-  (PR #6's rewrite happens to fix this too, but we're not merging it.)
+  (PR #26's rewrite happens to fix this too, but we're not merging it.)
 
 - [ ] **CR-3 — `OptimisticTextField` doesn't use the optimistic store.**
   `P2`
@@ -107,7 +108,7 @@ Plan:
   JSON-encoding) but per-call compiled and "code-from-runtime-data" shaped.
   **Fix on main:** re-implement the bridge with direct `JS_Call` on cached
   globals, behind the A/B flag (see Decision); the
-  `claude/hopeful-volta-vigrf7` branch is the reference. Also cover the
+  `claude/rn-watchos-js-call-bridge` branch is the reference. Also cover the
   **widget extension's** `evaluateBool`/`evaluateString`
   ([`:169`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L169),
   [`:184`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L184))
