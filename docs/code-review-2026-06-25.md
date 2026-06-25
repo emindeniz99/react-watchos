@@ -24,21 +24,24 @@ genuine "fail loud" ethos in several places. The items below are
 refinement, not rework. The highest-value standalone fix is **CR-1**
 (async JS errors are silently swallowed).
 
-## Decision: PR #6 (`claude/hopeful-volta-vigrf7`) is deferred
+## Decision: PR #6 (`claude/hopeful-volta-vigrf7`) will NOT be merged
 
-The open refactor that replaces the eval-string bridge with direct
-`JS_Call` (PR #6 / branch `claude/hopeful-volta-vigrf7`) is **not merged
-yet, by decision**. Plan:
+We are **not merging** the open `JS_Call` bridge branch. Every issue
+below — including the eval-string → `JS_Call` bridge refactor (CR-5) and
+the orphaned doc-comment (CR-2) — is solved **directly on `main`**. The
+`claude/hopeful-volta-vigrf7` branch is kept only as a reference
+implementation for the bridge work.
 
-1. First fix the repo's standalone issues below (CR-1, CR-4, CR-6, CR-8…)
-   so `main` is clean on its own merits.
-2. Then bring in the `JS_Call` bridge **behind an A/B feature flag**, so
-   the old eval-string path and the new path can be compared on-device
-   before the old one is removed. The refactor is broad (Swift bridge +
-   the `index.ts` payload contract), and the worry is regressions that
-   only surface on a real watch — the flag de-risks that.
+Plan:
 
-PR #6 already resolves CR-2 and the bulk of CR-5; both are tagged below.
+1. First fix the standalone issues below (CR-1, CR-4, CR-6, CR-8…) so
+   `main` is clean on its own merits.
+2. Then re-implement the eval-string → `JS_Call` bridge on `main`
+   **behind an A/B feature flag** (CR-5), so the old and new paths can be
+   compared on-device before the old one is removed. The refactor is
+   broad (Swift bridge + the `index.ts` payload contract) and the worry
+   is regressions that only surface on a real watch — the flag de-risks
+   that.
 
 ---
 
@@ -59,14 +62,14 @@ PR #6 already resolves CR-2 and the bulk of CR-5; both are tagged below.
   **Fix:** check for `< 0`, route `takeExceptionMessage()` to `onError`,
   and/or install `JS_SetHostPromiseRejectionTracker`. Independent of PR #6.
 
-- [x] **CR-2 — Orphaned doc-comment in `JSRuntime.swift`.** `cosmetic`
+- [ ] **CR-2 — Orphaned doc-comment in `JSRuntime.swift`.** `cosmetic`
   On `main`,
   [`JSRuntime.swift:138-142`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L138)
   the `pushNativeEvent` doc block sits above `resolveFetch` (fused with
   the fetch comment); the real `pushNativeEvent` (line 155) has no doc.
-  **Resolved by PR #6** — its rewrite reorders these and reattaches the
-  comments. No separate fix needed; verify when #6 lands. (If we want
-  `main` clean before then, it's a 4-line move.)
+  **Fix on main:** move the `pushNativeEvent` doc block down to its
+  function and restore `resolveFetch`'s own comment — a ~4-line move.
+  (PR #6's rewrite happens to fix this too, but we're not merging it.)
 
 - [ ] **CR-3 — `OptimisticTextField` doesn't use the optimistic store.**
   `P2`
@@ -102,12 +105,14 @@ PR #6 already resolves CR-2 and the bulk of CR-5; both are tagged below.
   `dispatchEvent`/`pushNativeEvent`/`resolveFetch` build JS source and
   `JS_Eval` it. Currently *safe* (every value goes through `jsStringLiteral`
   JSON-encoding) but per-call compiled and "code-from-runtime-data" shaped.
-  **Mostly resolved by PR #6** (the `JS_Call` refactor). Remaining after
-  #6: make sure the **widget extension's** `evaluateBool`/`evaluateString`
+  **Fix on main:** re-implement the bridge with direct `JS_Call` on cached
+  globals, behind the A/B flag (see Decision); the
+  `claude/hopeful-volta-vigrf7` branch is the reference. Also cover the
+  **widget extension's** `evaluateBool`/`evaluateString`
   ([`:169`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L169),
   [`:184`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift#L184))
-  intent-dispatch path gets the same `JS_Call` treatment, so the eval
-  surface is gone consistently, not just on the watch app.
+  intent-dispatch path so the eval surface is gone consistently, not just
+  on the watch app.
 
 ## Performance
 
@@ -197,7 +202,8 @@ PR #6 already resolves CR-2 and the bulk of CR-5; both are tagged below.
 5. **CR-3 / CR-10 / CR-15** — TextField consistency, BLE lookup, bridge
    tests.
 6. **CR-11 / CR-12 / CR-13 / CR-9** — DX polish.
-7. Then land **PR #6** behind the A/B flag (closes CR-2, most of CR-5).
+7. Then re-implement the **`JS_Call` bridge on `main`** behind the A/B
+   flag (CR-5); the CR-2 doc-comment falls out of that same area.
 
 See [roadmap.md](./roadmap.md) for the forward feature plan; this file is
 the correctness/cleanup backlog from the 2026-06-25 pass.
