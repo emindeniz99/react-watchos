@@ -25,6 +25,10 @@ Both must be gated, in both directions.
    error, never a raw crash).
 4. **Two-sided gate:** upper = capability, lower = anti-rollback.
 
+> **Pre-release:** nothing has shipped or been built. Prefer clean breaking
+> changes over compat layers — no scheme-version migrations, no "tolerates old
+> payload" branches. Formats can just *be* what they should be.
+
 ## Version fields (and how they map to today's)
 
 | Field | Lives in | Role | Today |
@@ -87,11 +91,10 @@ round-trip needed; it's a constant for the process lifetime.
 ## Signing change
 
 Bind both version fields into the signed bytes so neither can be relabelled to
-sneak past the gate:
-
-- scheme `v1:<version>:<js>` → **`v2:<releaseId>:<minHostApi>:<js>`**
-  (`UpdatePlan.signedMessage`, `ota-sign.mjs`, `OTASigningInteropTests` updated
-  in lockstep).
+sneak past the gate. **No scheme migration** (pre-release): just change the one
+format in place to **`v1:<releaseId>:<minHostApi>:<js>`** — update
+`UpdatePlan.signedMessage`, `ota-sign.mjs`, and `OTASigningInteropTests`
+together. Don't add a `v2`/compat path for a format nobody has signed yet.
 
 ## Runtime guard (defense-in-depth)
 
@@ -125,9 +128,31 @@ missed (dynamic use) and turns it into a clean, surfaced error.
 - Atomic apply: fault-injection at each write boundary leaves the prior version intact.
 - Widget gate: blocked bundle ⇒ no App-Group writes.
 
+## Future axis — data-schema gate (design for it now, build it later)
+
+No DB today, but one may come. When it does, add a **third gate axis** mirroring
+the capability gate on the data side, so the version model never needs reworking:
+
+- On-disk **`dataSchemaVersion`** — highest schema the stored data has been
+  migrated to (monotonic; advanced by a JS-owned migration that runs on boot).
+- Each bundle declares the **data-schema range** it supports
+  (`[minDataSchema, maxDataSchema]`).
+- **Lower gate on the data axis:** refuse a bundle whose `maxDataSchema <
+  dataSchemaVersion` — JS too *old* for the data on disk (the original "old
+  code, new data" corruption you care about). When the bundle is *newer*
+  (`minDataSchema > dataSchemaVersion`), run forward migrations on boot before
+  mounting.
+- Slots beside the existing axes — `releaseId` (freshness/rollback),
+  `hostApiVersion`/`minHostApi` (capability), `dataSchemaVersion`/`[min,max]`
+  (data) — all through one `VersionPolicy.decide`.
+
+**To not paint ourselves in now:** make the active-bundle record an extensible
+**struct** (not bare ints), so adding `dataSchemaVersion` later is purely
+additive. That's the only thing we must get right today.
+
 ## Deferred / explicitly out of scope
 
-- Real data store + migrations — only if a persistent schema appears later.
+- Implementing the data axis above — no DB exists yet; just leave room for it.
 - Per-capability *partial* degrade (run the bundle but disable just the missing
   capability) — rejected; the owner chose hard "update the app", simpler + safer.
 

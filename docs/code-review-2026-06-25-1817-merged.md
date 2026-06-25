@@ -34,9 +34,9 @@ Design-level calls from the [system-design review](./system-design-review-2026-0
 |----|----------|----------|--------|
 | **SD-3** | Native-capability compatibility gate (upper = min-native, lower = anti-rollback) | CX-004, CX-007 | [design ready](./design-ota-capability-gate-2026-06-25-1847.md) |
 | **SD-4** | OTA = one state machine + single active-bundle record shared by app+widget | CX-004/005/006/007/025 | [design ready](./design-ota-capability-gate-2026-06-25-1847.md) |
-| **SD-2** | One shared SwiftUI interpreter for app + widget | CX-018, CX-024 (CX-015/017 ride along) | planned |
-| **SD-1** | Typed command/result channel for fallible native ops | CX-005, CX-022 | planned |
-| **SD-6** | Schema = single source for wire + bridge + component contract | CX-023, CX-024 | planned |
+| **SD-2** | One shared SwiftUI interpreter for app + widget | CX-018, CX-024 (CX-015/017 ride along) | [design ready](./design-shared-interpreter-2026-06-25-1855.md) |
+| **SD-1** | Typed command/result channel for fallible native ops | CX-005, CX-022 | [design ready](./design-typed-bridge-codegen-2026-06-25-1855.md) |
+| **SD-6** | Schema = single source for wire + bridge + component contract | CX-023, CX-024 | [design ready](./design-typed-bridge-codegen-2026-06-25-1855.md) |
 | **SD-5** | Enforce (+ later isolate) the JS thread | CX-008, OP-2 | with Phase 1 |
 
 ### SD-3 — capability compatibility gate (the `fetchX` problem) ← top priority
