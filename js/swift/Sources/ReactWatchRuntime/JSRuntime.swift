@@ -35,8 +35,10 @@ public final class JSRuntime {
     /// WKHapticType name from js/src/haptics.ts.
     public var onPlayHaptic: ((String) -> Void)?
 
-    /// Local notifications (js/src/notifications.ts).
-    public var onRequestNotificationPermission: (() -> Void)?
+    /// Local notifications (js/src/notifications.ts). Permission is fallible —
+    /// settle with resolveNotificationPermission/rejectNotificationPermission on
+    /// the main thread (CX-022).
+    public var onRequestNotificationPermission: ((Int) -> Void)?
     public var onScheduleNotification: ((String) -> Void)?
     public var onCancelNotification: ((String) -> Void)?
 
@@ -201,6 +203,20 @@ public final class JSRuntime {
         bridgeCall(
             "__rejectSaveUpdate", [.int(id), .string(errorJson)],
             filename: "update.js")
+    }
+
+    /// Settles a requestNotificationPermission Promise with the authorization
+    /// status string (CX-022). Call on the main thread.
+    public func resolveNotificationPermission(id: Int, status: String) {
+        bridgeCall(
+            "__resolveNotificationPermission", [.int(id), .string(status)],
+            filename: "notifications.js")
+    }
+
+    public func rejectNotificationPermission(id: Int, message: String) {
+        bridgeCall(
+            "__rejectNotificationPermission", [.int(id), .string(message)],
+            filename: "notifications.js")
     }
 
     /// Pushes a named native event into JS at urgent priority (runSync), so
@@ -419,7 +435,7 @@ public final class JSRuntime {
             context, host, "requestNotificationPermission",
             JS_NewCFunction(
                 context, hostRequestNotificationPermission,
-                "requestNotificationPermission", 0)
+                "requestNotificationPermission", 1)
         )
         JS_SetPropertyStr(
             context, host, "scheduleNotification",
@@ -617,10 +633,14 @@ private func hostPlayHaptic(
 }
 
 private func hostRequestNotificationPermission(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc _: Int32,
-    argv _: UnsafeMutablePointer<JSValue>?
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
 ) -> JSValue {
-    JSRuntime.from(context: ctx)?.requestNotificationPermissionFromC()
+    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1 {
+        var id: Int32 = 0
+        JS_ToInt32(ctx, &id, argv[0])
+        runtime.requestNotificationPermissionFromC(Int(id))
+    }
     return qjs_undefined()
 }
 
@@ -817,8 +837,8 @@ extension JSRuntime {
         onPlayHaptic?(type)
     }
 
-    fileprivate func requestNotificationPermissionFromC() {
-        onRequestNotificationPermission?()
+    fileprivate func requestNotificationPermissionFromC(_ id: Int) {
+        onRequestNotificationPermission?(id)
     }
 
     fileprivate func scheduleNotificationFromC(_ json: String) {

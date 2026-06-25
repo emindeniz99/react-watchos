@@ -207,6 +207,20 @@ final class ReactWatchModel: ObservableObject {
         }
     }
 
+    /// Maps UNAuthorizationStatus to the JS NotificationPermission string
+    /// (js/src/notifications.ts). `.ephemeral` (App Clips, not watch) is treated
+    /// as granted; anything unknown is reported as unavailable.
+    private static func permissionStatus(_ status: UNAuthorizationStatus) -> String {
+        switch status {
+        case .authorized: "granted"
+        case .denied: "denied"
+        case .notDetermined: "notDetermined"
+        case .provisional: "provisional"
+        case .ephemeral: "granted"
+        @unknown default: "unavailable"
+        }
+    }
+
     /// JSON-encodes a {code, message} reject payload, escaping safely.
     private static func errorJSON(code: String, message: String) -> String {
         (try? JSONSerialization.data(
@@ -628,10 +642,29 @@ final class ReactWatchModel: ObservableObject {
                 }
             WKInterfaceDevice.current().play(haptic)
         }
-        js.onRequestNotificationPermission = {
-            UNUserNotificationCenter.current().requestAuthorization(
-                options: [.alert, .sound]
-            ) { _, _ in }
+        js.onRequestNotificationPermission = { [weak self] id in
+            guard let self else { return }
+            let gen = self.generation
+            let center = UNUserNotificationCenter.current()
+            center.requestAuthorization(options: [.alert, .sound]) { [weak self] _, error in
+                if let error {
+                    DispatchQueue.main.async {
+                        guard let self, gen == self.generation else { return }
+                        self.runtime?.rejectNotificationPermission(
+                            id: id, message: error.localizedDescription)
+                    }
+                    return
+                }
+                // Resolve from the real authorizationStatus, not the granted Bool:
+                // `.provisional` silently returns granted == true (CX-022).
+                center.getNotificationSettings { settings in
+                    let status = Self.permissionStatus(settings.authorizationStatus)
+                    DispatchQueue.main.async {
+                        guard let self, gen == self.generation else { return }
+                        self.runtime?.resolveNotificationPermission(id: id, status: status)
+                    }
+                }
+            }
         }
         js.onScheduleNotification = { [weak self] json in
             self?.scheduleNotification(json)

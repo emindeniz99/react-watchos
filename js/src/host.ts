@@ -50,7 +50,13 @@ export interface QuickJSHostGlobal {
   /** WKInterfaceDevice haptics. */
   playHaptic?(type: string): void;
   /** Local notifications (UNUserNotificationCenter). */
-  requestNotificationPermission?(): void;
+  /**
+   * Asks for notification permission; settles via __resolveNotificationPermission
+   * (id, status) / __rejectNotificationPermission (id, message) so JS learns the
+   * real authorization status — not just a Bool, which can't tell `.provisional`
+   * (silently granted) from a full grant (CX-022).
+   */
+  requestNotificationPermission?(id: number): void;
   scheduleNotification?(payloadJson: string): void;
   cancelNotification?(id: string): void;
   /** WatchConnectivity: send a message to the paired iPhone. */

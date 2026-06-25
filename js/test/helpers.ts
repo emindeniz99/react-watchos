@@ -18,7 +18,18 @@ export function installMockHost() {
     getItem: vi.fn((_key: string): string | null => null),
     setItem: vi.fn(),
     playHaptic: vi.fn(),
-    requestNotificationPermission: vi.fn(),
+    // Mirror native: settle the requestNotificationPermission Promise as granted
+    // (CX-022). Tests wanting another status call __resolve/__reject directly.
+    requestNotificationPermission: vi.fn((id: number) => {
+      (
+        globalThis as {
+          __resolveNotificationPermission?: (
+            id: number,
+            status: string,
+          ) => void;
+        }
+      ).__resolveNotificationPermission?.(id, "granted");
+    }),
     scheduleNotification: vi.fn(),
     cancelNotification: vi.fn(),
     sendToPhone: vi.fn(),

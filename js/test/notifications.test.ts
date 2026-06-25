@@ -41,19 +41,52 @@ describe("notifications", () => {
     expect(payload.sound).toBe(false);
   });
 
-  it("forwards permission requests and cancellations to the host", () => {
+  it("forwards permission requests and cancellations to the host", async () => {
     const host = installMockHost();
-    requestNotificationPermission();
+    const status = await requestNotificationPermission();
     cancelNotification("hydration.reminder");
     expect(host.requestNotificationPermission).toHaveBeenCalledTimes(1);
+    expect(status).toBe("granted");
     expect(host.cancelNotification).toHaveBeenCalledWith("hydration.reminder");
   });
 
-  it("is a no-op without a notification-capable host", () => {
+  // CX-022: the real authorization status reaches JS (not a Bool that can't tell
+  // provisional from full grant), and a native error rejects rather than vanishing.
+  it("resolves the native authorization status", async () => {
+    const host = installMockHost();
+    host.requestNotificationPermission.mockImplementation((id: number) => {
+      (
+        globalThis as {
+          __resolveNotificationPermission?: (
+            id: number,
+            status: string,
+          ) => void;
+        }
+      ).__resolveNotificationPermission?.(id, "provisional");
+    });
+    expect(await requestNotificationPermission()).toBe("provisional");
+  });
+
+  it("rejects when the native request errors", async () => {
+    const host = installMockHost();
+    host.requestNotificationPermission.mockImplementation((id: number) => {
+      (
+        globalThis as {
+          __rejectNotificationPermission?: (
+            id: number,
+            message: string,
+          ) => void;
+        }
+      ).__rejectNotificationPermission?.(id, "boom");
+    });
+    await expect(requestNotificationPermission()).rejects.toThrow("boom");
+  });
+
+  it("resolves 'unavailable' without a notification-capable host", async () => {
     expect(() =>
       scheduleNotification({ title: "x", afterMs: 1000 }),
     ).not.toThrow();
-    expect(() => requestNotificationPermission()).not.toThrow();
+    expect(await requestNotificationPermission()).toBe("unavailable");
     expect(() => cancelNotification("x")).not.toThrow();
   });
 });

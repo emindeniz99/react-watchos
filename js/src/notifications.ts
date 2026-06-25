@@ -21,9 +21,68 @@ export interface NotificationRequest {
 
 let nextId = 1;
 
-/** Ask the user for notification permission (first call shows the prompt). */
-export function requestNotificationPermission(): void {
-  getHost()?.requestNotificationPermission?.();
+/**
+ * The watch's notification authorization status (CX-022). Mirrors
+ * UNAuthorizationStatus: `provisional` is granted-but-quiet (no prompt was
+ * shown), distinct from a full `granted`; `notDetermined` means you may still
+ * prompt; `unavailable` = no notification-capable host (tests/widget) or the
+ * request errored upstream.
+ */
+export type NotificationPermission =
+  | "granted"
+  | "denied"
+  | "notDetermined"
+  | "provisional"
+  | "unavailable";
+
+let nextPermissionId = 1;
+const pendingPermissions = new Map<
+  number,
+  {
+    resolve: (status: NotificationPermission) => void;
+    reject: (e: unknown) => void;
+  }
+>();
+
+/** Installs the host->JS settle globals for permission requests (CX-022).
+ *  Idempotent; called lazily so the globals exist before the host replies. */
+function installNotificationBridge(): void {
+  const g = globalThis as {
+    __resolveNotificationPermission?: (id: number, status: string) => void;
+    __rejectNotificationPermission?: (id: number, message: string) => void;
+  };
+  if (g.__resolveNotificationPermission) return;
+  g.__resolveNotificationPermission = (id, status) => {
+    const p = pendingPermissions.get(id);
+    if (!p) return;
+    pendingPermissions.delete(id);
+    p.resolve(status as NotificationPermission);
+  };
+  g.__rejectNotificationPermission = (id, message) => {
+    const p = pendingPermissions.get(id);
+    if (!p) return;
+    pendingPermissions.delete(id);
+    p.reject(new Error(message || "notification permission request failed"));
+  };
+}
+
+/**
+ * Asks the user for notification permission (first call shows the prompt) and
+ * resolves the resulting authorization status (CX-022). Rejects only if the
+ * native request errors; resolves `"unavailable"` when there's no
+ * notification-capable host.
+ */
+export function requestNotificationPermission(): Promise<NotificationPermission> {
+  const host = getHost();
+  if (!host?.requestNotificationPermission) {
+    return Promise.resolve("unavailable");
+  }
+  installNotificationBridge();
+  return new Promise((resolve, reject) => {
+    const id = nextPermissionId++;
+    pendingPermissions.set(id, { resolve, reject });
+    host.requestNotificationPermission?.(id);
+  });
 }
 
 /** Schedules a local notification; returns its id for cancelNotification. */
