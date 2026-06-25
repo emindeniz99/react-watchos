@@ -1,4 +1,5 @@
 import ReactWatchCore
+import ReactWatchSupport
 import AppIntents
 import SwiftUI
 import WidgetKit
@@ -70,8 +71,15 @@ struct ReactTimelineProvider: TimelineProvider {
     }
 
     private func latestEntry(for context: Context) -> ReactEntry? {
-        WidgetStore.load()?.widgets[kind]?[familyKey(context.family)]?
-            .entries.last.map { entry(from: $0) }
+        // The entry applicable *now*, not `.entries.last` (which showed the
+        // end-of-day state for future-dated daypart timelines — CX-016).
+        guard
+            let entries = WidgetStore.load()?
+                .widgets[kind]?[familyKey(context.family)]?.entries,
+            let index = WidgetSnapshot.currentIndex(
+                dates: entries.map(\.entryDate), now: .now)
+        else { return nil }
+        return entry(from: entries[index])
     }
 
     private func newestPayload(

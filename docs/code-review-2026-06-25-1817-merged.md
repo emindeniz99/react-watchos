@@ -41,7 +41,7 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
   - [x] slice 2a — `NodeView` resolves color/font/format via `RNStyle` (deleted duplicate `hexColor`). Verified: `xcodebuild -scheme ReactWatchHost -destination watchOS Sim` = BUILD SUCCEEDED.
   - [x] slice 2b — `WidgetNodeView` resolves via `RNStyle` too → **gains hex colors + monospacedDigit** (the actual CX-018 drift). Verified: `xcodebuild -scheme "React Watch Widgets"` = BUILD SUCCEEDED.
   - Note: full one-file unification (RenderContext/adapter, ARCH-10) is a further optional refactor; the drift itself is gone since both interpreters share `RNStyle`. (timer-ms stays intentionally degraded in widgets — WidgetKit can't tick at 50ms.)
-- [~] CX-016 — pure `WidgetSnapshot.currentIndex` (latest entry ≤ now, else earliest) in Support, +4 tests, `swift test` 67 green. **Remaining (Xcode):** `ReactTimelineProvider.latestEntry` calls it instead of `.entries.last`.
+- [x] CX-016 — pure `WidgetSnapshot.currentIndex` (latest entry ≤ now, else earliest) in Support (+4 tests, `swift test` 67); `ReactTimelineProvider.latestEntry` now uses it instead of `.entries.last`. Verified: `xcodebuild -scheme "React Watch Widgets"` = BUILD SUCCEEDED.
 - [ ] CX-015 (Map camera — SwiftUI), CX-017 (relevantContexts — WidgetKit API): host/Xcode. SD-1/SD-6 bridge+codegen (CX-022/023/024)
 - [ ] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5
 - [ ] Host/UI-only items needing Xcode verification: CX-009, OP-3, OP-6 (write + flag)
