@@ -27,8 +27,8 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
 
 - [x] **CX-001** — npm `files` allowlist + MIT LICENSE. `npm pack` 293 MB → 0.55 MB / 88 files.
 - [x] **CX-014** — sensor streams reference-counted (start 0→1, stop 1→0; idempotent cleanup). +3 tests, suite 192 green.
-- [ ] **CX-019** — inspector poll `.catch` (JS, verifiable) ← **next**
-- [ ] **OP-5** — `describe()` non-Error rejection (Swift/Runtime, verifiable)
+- [x] **CX-019** — inspector poll `.catch` + stop/restart (`stopInspector`). +1 test, suite 193 green.
+- [ ] **OP-5** — `describe()` non-Error rejection (Swift/Runtime, verifiable) ← **next**
 - [ ] **OP-4** — `JS_NewInt64` for seq (Swift/Runtime, verifiable)
 - [ ] **CX-010** — handlerless/throwing events: renderer ack-in-finally is JS-verifiable; the read-only-control half is host (Xcode)
 - [ ] **Foundation** ARCH-01 (feature manifest schema/codegen — verifiable) → ARCH-03 (app/widget bundles) → ARCH-04 (transactional OTA); absorbs CX-002/CX-003/CX-004/CX-007

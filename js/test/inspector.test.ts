@@ -1,7 +1,12 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { captureLog, inspectorSnapshot } from "../src/index";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  captureLog,
+  inspectorSnapshot,
+  startInspector,
+  stopInspector,
+} from "../src/index";
 
 afterEach(() => {
   delete (globalThis as Record<string, unknown>).__inspect;
@@ -53,6 +58,54 @@ describe("inspector server", () => {
       expect(html).toContain("react-native-watchos inspector");
     } finally {
       server.kill();
+    }
+  });
+});
+
+// CX-019: an offline inspector server must not produce a rejection every poll
+// (the runtime's promise-rejection tracker would turn that into a once-a-second
+// dev-overlay banner), and the poll must be stoppable + restartable.
+describe("inspector polling (CX-019)", () => {
+  it("swallows offline poll errors and supports stop + restart", async () => {
+    (globalThis as { __inspect?: () => unknown }).__inspect = () => ({
+      commits: 0,
+      tree: null,
+    });
+    // Holder (not a bare `let`) so the closure assignment is visible to TS.
+    const captured: { tick?: () => void } = {};
+    const clearInterval = vi.fn();
+    const fetchUrls: string[] = [];
+    vi.stubGlobal("setInterval", (fn: () => void) => {
+      captured.tick = fn;
+      return 1;
+    });
+    vi.stubGlobal("clearInterval", clearInterval);
+    vi.stubGlobal("fetch", (url: string) => {
+      fetchUrls.push(url);
+      return Promise.reject(new Error("offline"));
+    });
+    try {
+      const stop = startInspector({ url: "http://a/snapshot", intervalMs: 10 });
+      expect(typeof stop).toBe("function");
+      captured.tick?.(); // one poll against an offline server
+      await Promise.resolve(); // flush — an uncaught rejection would fail the test
+      expect(fetchUrls).toEqual(["http://a/snapshot"]);
+
+      stop();
+      expect(clearInterval).toHaveBeenCalledTimes(1);
+
+      stopInspector(); // idempotent when already stopped
+      const stop2 = startInspector({
+        url: "http://b/snapshot",
+        intervalMs: 10,
+      });
+      captured.tick?.();
+      await Promise.resolve();
+      expect(fetchUrls).toContain("http://b/snapshot");
+      stop2();
+    } finally {
+      vi.unstubAllGlobals();
+      delete (globalThis as Record<string, unknown>).__inspect;
     }
   });
 });

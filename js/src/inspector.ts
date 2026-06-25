@@ -11,6 +11,8 @@
 const logs: string[] = [];
 const MAX_LOGS = 200;
 let started = false;
+let teed = false;
+let stopFn: (() => void) | null = null;
 
 export function captureLog(line: string): void {
   logs.push(line);
@@ -36,32 +38,54 @@ export interface InspectorOptions {
   intervalMs?: number;
 }
 
-export function startInspector(options: InspectorOptions): void {
-  if (started) return;
+export function startInspector(options: InspectorOptions): () => void {
+  // Already running: hand back the existing stop so a caller can still stop it.
+  if (started) return stopFn ?? (() => {});
   started = true;
 
-  // Tee console.log into the ring buffer (still forwards to the host).
-  const original = (globalThis.console?.log ?? (() => {})) as (
-    ...args: unknown[]
-  ) => void;
-  globalThis.console = {
-    ...globalThis.console,
-    log: (...args: unknown[]) => {
-      captureLog(args.map(String).join(" "));
-      original(...args);
-    },
-  };
+  // Tee console.log into the ring buffer once (a restart must not re-wrap an
+  // already-wrapped console).
+  if (!teed) {
+    teed = true;
+    const original = (globalThis.console?.log ?? (() => {})) as (
+      ...args: unknown[]
+    ) => void;
+    globalThis.console = {
+      ...globalThis.console,
+      log: (...args: unknown[]) => {
+        captureLog(args.map(String).join(" "));
+        original(...args);
+      },
+    };
+  }
 
   const g = globalThis as {
-    setInterval?: (fn: () => void, ms: number) => unknown;
+    setInterval?: (fn: () => void, ms: number) => number;
+    clearInterval?: (id: number) => void;
     fetch?: (url: string, init: unknown) => Promise<unknown>;
   };
-  g.setInterval?.(() => {
+  const interval = g.setInterval?.(() => {
     const body = JSON.stringify(inspectorSnapshot());
+    // Swallow network errors: when the inspector server isn't running, each
+    // poll would otherwise reject and — via the runtime's promise-rejection
+    // tracker — spam the dev overlay every interval.
     g.fetch?.(options.url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body,
-    });
+    })?.catch?.(() => {});
   }, options.intervalMs ?? 1000);
+
+  stopFn = () => {
+    if (interval !== undefined) g.clearInterval?.(interval);
+    started = false;
+    stopFn = null;
+  };
+  return stopFn;
+}
+
+/** Stops the running inspector poll (if any). Safe to call repeatedly; a later
+ *  startInspector restarts it (optionally with changed options). */
+export function stopInspector(): void {
+  stopFn?.();
 }

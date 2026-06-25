@@ -89,7 +89,12 @@ export type {
 } from "./host";
 export { getHost, MemoryHost } from "./host";
 export type { InspectorOptions } from "./inspector";
-export { captureLog, inspectorSnapshot, startInspector } from "./inspector";
+export {
+  captureLog,
+  inspectorSnapshot,
+  startInspector,
+  stopInspector,
+} from "./inspector";
 export type { IntentHandler } from "./intents";
 export {
   handleIntent,
