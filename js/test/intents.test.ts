@@ -2,11 +2,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   handleIntent,
   registerIntent,
+  Storage,
   unregisterAllIntents,
 } from "../src/index";
+import { installMockHost } from "./helpers";
 
 afterEach(() => {
   unregisterAllIntents();
+  delete (globalThis as Record<string, unknown>).__host;
 });
 
 describe("intents", () => {
@@ -36,5 +39,42 @@ describe("intents", () => {
     ).__handleIntent;
     expect(dispatch?.("fromNative")).toBe(true);
     expect(handler).toHaveBeenCalled();
+  });
+});
+
+// Glance-style auto-reload: the framework, not the handler, reloads the widget
+// when persisted state changes — so an Action-button tap can never silently
+// no-op because the author forgot to publishWidgets(), and a no-op intent never
+// spends the WidgetKit reload budget.
+describe("intent auto-reload", () => {
+  it("reloads the widget when the handler changed Storage — without it calling publishWidgets()", () => {
+    const host = installMockHost();
+    // Note: the handler does NOT call publishWidgets(); the storage write is the
+    // reload signal. This is the footgun being removed.
+    registerIntent("addGlass", () => {
+      Storage.set("hydration.glasses", 3);
+    });
+    handleIntent("addGlass");
+    expect(host.publishWidgets).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT reload a no-op intent (read-only handler) — protects the reload budget", () => {
+    const host = installMockHost();
+    registerIntent("peek", () => {
+      Storage.getString("hydration.glasses"); // read only, no write
+    });
+    handleIntent("peek");
+    expect(host.publishWidgets).not.toHaveBeenCalled();
+  });
+
+  it("coalesces multiple writes in one handler into a single reload", () => {
+    const host = installMockHost();
+    registerIntent("bulk", () => {
+      Storage.set("a", 1);
+      Storage.set("b", 2);
+      Storage.set("c", 3);
+    });
+    handleIntent("bulk");
+    expect(host.publishWidgets).toHaveBeenCalledTimes(1);
   });
 });

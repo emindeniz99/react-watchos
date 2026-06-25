@@ -9,6 +9,19 @@ import { getHost } from "./host";
 
 const memoryFallback = new Map<string, string>();
 
+// Monotonic count of writes through Storage. The intent runtime samples it
+// around a handler to auto-reload widgets only when persisted state actually
+// changed (so a no-op intent doesn't spend the WidgetKit reload budget) — see
+// handleIntent. Not part of the public API.
+let writeCount = 0;
+
+/** How many writes Storage has seen. Used by the intent runtime's
+ *  dirty-tracking; callers shouldn't depend on the absolute value, only on
+ *  whether it changed across a handler. */
+export function storageWrites(): number {
+  return writeCount;
+}
+
 export const Storage = {
   getString(key: string): string | null {
     const h = getHost();
@@ -17,6 +30,7 @@ export const Storage = {
   },
 
   setString(key: string, value: string): void {
+    writeCount += 1;
     const h = getHost();
     if (h?.setItem) h.setItem(key, value);
     else memoryFallback.set(key, value);
