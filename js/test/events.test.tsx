@@ -250,4 +250,56 @@ describe("events", () => {
     const text = host.lastCommit!.root!;
     expect(root.dispatchEvent({ nodeId: text.id, event: "press" })).toBe(false);
   });
+
+  // CX-010: a native control dispatches optimistically with a seq and holds its
+  // local value until React acks that seq. So *every* seq'd event must commit
+  // an ack — even with no handler, an unknown node, or a throwing handler —
+  // or the control is stranded (or rolled back) forever. Events without a seq
+  // (above) keep the old behavior: no spurious commit.
+  it("acks the seq for a handlerless control so it can't be stranded (CX-010)", () => {
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Text>static</Text>);
+    const text = host.lastCommit!.root!;
+    const before = host.commits.length;
+    expect(
+      root.dispatchEvent({ nodeId: text.id, event: "press", seq: 5 }),
+    ).toBe(false);
+    expect(host.commits.length).toBe(before + 1);
+    expect(host.lastCommit!.seq).toBe(5);
+  });
+
+  it("acks the seq for an unknown/stale node id (CX-010)", () => {
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Text>static</Text>);
+    const before = host.commits.length;
+    expect(root.dispatchEvent({ nodeId: 9999, event: "press", seq: 8 })).toBe(
+      false,
+    );
+    expect(host.commits.length).toBe(before + 1);
+    expect(host.lastCommit!.seq).toBe(8);
+  });
+
+  it("acks (rolls back) and still rethrows when a handler throws (CX-010)", () => {
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <Button
+        onPress={() => {
+          throw new Error("handler boom");
+        }}
+      >
+        <Text>tap</Text>
+      </Button>,
+    );
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    const before = host.commits.length;
+    expect(() =>
+      root.dispatchEvent({ nodeId: button.id, event: "press", seq: 11 }),
+    ).toThrow("handler boom");
+    // The seq was acked (rollback) before the error propagated.
+    expect(host.commits.length).toBe(before + 1);
+    expect(host.lastCommit!.seq).toBe(11);
+  });
 });

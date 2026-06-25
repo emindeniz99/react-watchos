@@ -268,28 +268,40 @@ export class WatchRoot {
     return { commits: this.commitCount, tree: serializeTree(this.container) };
   }
 
-  /** Entry point for native interaction events. Returns false for unknown/stale nodes. */
+  /**
+   * Entry point for native interaction events. Returns false for unknown/stale
+   * nodes or events with no handler — but ALWAYS acks the seq (CX-010), so an
+   * optimistic native control is released/rolled back, never stranded. The
+   * cases that used to strand: no handler (early return before the ack), and a
+   * throwing handler (the ack path was skipped). Both now ack in a `finally`;
+   * a handler's exception still propagates afterwards.
+   */
   dispatchEvent(event: WatchEvent): boolean {
     const instance = this.container.instances.get(event.nodeId);
-    if (!instance) return false;
     if (event.seq !== undefined && event.seq > this.container.lastSeq) {
       this.container.lastSeq = event.seq;
     }
     const commitsBefore = this.commitCount;
     const previousPriority = currentUpdatePriority;
     currentUpdatePriority = DiscreteEventPriority;
+    let handled = false;
     try {
-      if (!dispatchToInstance(instance, event)) return false;
+      if (instance) handled = dispatchToInstance(instance, event);
     } finally {
       currentUpdatePriority = previousPriority;
+      // Settle even if there was no handler or it threw: flush any queued
+      // state, then guarantee the ack. A no-op/absent/throwing handler that
+      // produced no commit still owes native the seq, or the optimistic control
+      // holds its local value forever.
+      try {
+        this.flush();
+      } finally {
+        if (event.seq !== undefined && this.commitCount === commitsBefore) {
+          this.container.onCommit();
+        }
+      }
     }
-    this.flush();
-    // A handler that causes no re-render still owes native the seq ack,
-    // or optimistic controls would hold their local value forever.
-    if (event.seq !== undefined && this.commitCount === commitsBefore) {
-      this.container.onCommit();
-    }
-    return true;
+    return handled;
   }
 
   /**
