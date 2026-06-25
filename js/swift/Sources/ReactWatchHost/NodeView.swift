@@ -2,10 +2,29 @@
 // file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
 #if os(watchOS)
 import MapKit
+import os
 import ReactWatchCore
 import ReactWatchSupport
 import SwiftUI
 import UIKit
+
+/// Logs each unsupported node type once. The SwiftUI body re-renders, so logging
+/// on every pass would flood; an unknown type means a newer JS bundle reached an
+/// older interpreter. We still skip the node (degrade gracefully, keep rendering
+/// siblings) but make it diagnosable instead of a silent no-op.
+private let interpreterLog = Logger(
+    subsystem: "com.emindeniz99.reactwatch", category: "interpreter")
+private let loggedUnsupportedTypes = OSAllocatedUnfairLock(initialState: Set<String>())
+
+private func unsupportedNode(_ type: String) -> some View {
+    let isNew = loggedUnsupportedTypes.withLock { $0.insert(type).inserted }
+    if isNew {
+        interpreterLog.error(
+            "tried to render unsupported node type '\(type, privacy: .public)' — skipped; rebuild the bundle or update the app"
+        )
+    }
+    return EmptyView()
+}
 
 /// Interprets the serialized React tree as SwiftUI views. One case per
 /// primitive in js/src/components.ts.
@@ -131,8 +150,9 @@ struct NodeView: View {
             mapView
         default:
             // Unknown node type: skip it but keep rendering siblings, so a
-            // newer JS bundle degrades gracefully on an older interpreter.
-            EmptyView()
+            // newer JS bundle degrades gracefully on an older interpreter — and
+            // log it (once per type) so the skip isn't silent.
+            unsupportedNode(node.type)
         }
     }
 

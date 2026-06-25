@@ -2,6 +2,25 @@ import ReactWatchCore
 import ReactWatchSupport
 import SwiftUI
 import UIKit
+import os
+
+/// Logs each unsupported widget node type once (the body re-renders, so a raw
+/// log would flood). An unknown type means a newer JS bundle reached an older
+/// widget interpreter; we skip it to degrade gracefully but make it diagnosable.
+private let widgetInterpreterLog = Logger(
+    subsystem: "com.emindeniz99.reactwatch", category: "widget-interpreter")
+private let loggedUnsupportedWidgetTypes = OSAllocatedUnfairLock(
+    initialState: Set<String>())
+
+private func unsupportedWidgetNode(_ type: String) -> some View {
+    let isNew = loggedUnsupportedWidgetTypes.withLock { $0.insert(type).inserted }
+    if isNew {
+        widgetInterpreterLog.error(
+            "tried to render unsupported widget node type '\(type, privacy: .public)' — skipped; rebuild the bundle or update the app"
+        )
+    }
+    return EmptyView()
+}
 
 /// Non-interactive interpreter for React-rendered widget trees. Same node
 /// vocabulary as the watch app's NodeView, minus events (WidgetKit views
@@ -97,7 +116,9 @@ struct WidgetNodeView: View {
         case "Picker":
             Text(pickerSummary(node))
         default:
-            EmptyView()
+            // Unknown node type: skip it (graceful degradation) but log it once
+            // per type so the skip isn't silent.
+            unsupportedWidgetNode(node.type)
         }
     }
 
