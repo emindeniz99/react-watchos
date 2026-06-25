@@ -63,6 +63,8 @@
     "dev": "node scripts/dev.mjs",
     "inspector": "node scripts/inspector.mjs",
     "build:bytecode": "sh ../tools/qjs-compile/run.sh",
+    "ota:keygen": "node scripts/ota-keygen.mjs",
+    "ota:sign": "node scripts/ota-sign.mjs",
     "check:size": "node scripts/check-size.mjs",
     "codegen": "node codegen/generate.mjs",
     "test": "vitest run",

@@ -367,6 +367,12 @@ update popup is JS-driven via an `update.required`/`update.available` event.
   — so a hard-gated, JS-not-running device recovers from `UpdateRequiredView`'s
   "Check for update" button (covers the lost-OTA / reinstall case). 47 swift +
   189 JS tests green; host builds for watchOS. Done 2026-06-25.
+- [x] **Signing tooling + docs** — `npm run ota:keygen` (generate the Ed25519
+  keypair) and `npm run ota:sign` (sign `"v1:<version>:<bundle>"` with
+  `OTA_SIGNING_KEY` and fill `dist/manifest.json`, a publish-time step kept out
+  of `build` so the key never touches a dev build). Node↔CryptoKit interop is
+  locked by `OTASigningInteropTests`. See [ota-signing.md](./ota-signing.md).
+  Done 2026-06-25.
 
 Sequencing: OTA core (cap → manifest v2 → VersionPolicy → high-water → hard
 gate) → compile-cache → remote check → then **CR-5** (`-s ours` merge of #26 +
