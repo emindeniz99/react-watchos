@@ -37,7 +37,13 @@ What is **not** ready:
    The biggest is that the *widget extension* is completely ungated: it keeps
    running the binary's old JS and writing the shared App Group store even
    after the app moves to a new OTA bundle.
-3. **An advertised feature (`generateText`) cannot run on watchOS** (CX-002).
+3. **`generateText` has the wrong availability gate** (CX-002). Foundation
+   Models *is* on watchOS — **27.0+ (beta)**, via `SystemLanguageModel`,
+   verified against Apple's docs — but the code gates on `#available(watchOS
+   26.0, *)`, so it won't compile against the watchOS 27 SDK (`LanguageModelSession`
+   is annotated 27.0+) and silently rejects when built with an older one. A real
+   feature with a version bug, **not** the dead API Codex (and my first pass)
+   assumed.
 
 Everything else is correctness/cleanup that can follow.
 
@@ -113,7 +119,7 @@ my independent assessment, not Codex's.
 | CX | My assessment | Note |
 |----|---------------|------|
 | **CX-001** packaging ships `swift/.build` | **Confirmed, P0** | [package.json:57](../js/package.json) `files:["swift"]`; no `license`. ~hours. |
-| **CX-002** Foundation Models unreachable | **Confirmed, P0 (decision)** | [ReactWatchHost.swift:291](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift); `maxTokens` in [ai.ts:35](../js/src/ai.ts) but absent from `GenerateRequest`. |
+| **CX-002** Foundation Models gate wrong | **Reclassified — fixable, not "remove"** | FM *is* on watchOS 27.0+ (beta) via `SystemLanguageModel` (verified vs Apple docs). Bug: gate is `#available(watchOS 26.0, *)` ([ReactWatchHost.swift:292](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift)) — must be 27.0; the branch only compiles with the watchOS 27 SDK; `maxTokens` ([ai.ts:35](../js/src/ai.ts)) still unimplemented; add a capability query. |
 | **CX-003** malformed key → fail-open | **Confirmed, P0** | [ReactWatchHost.swift:73](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift); silently selects the unsigned branch at :192. Undermines the hard gate you opted into. |
 | **CX-004** widget runs stale JS post-OTA | **Confirmed, P0-for-you** | [IntentRuntime.swift:50](../app/targets/widget/IntentRuntime.swift) loads only `Bundle.main`; its handlers write the shared store. *This is the db-corruption hole.* |
 | **CX-005** `applyUpdate` reports success early | **Confirmed** | [update.ts:29](../js/src/update.ts),:85 — `void`/version returned before native accepts. |
@@ -179,23 +185,28 @@ gaps defeat it today, in priority order:
 
 ---
 
-## Decisions I need from you
+## Decisions (resolved 2026-06-25)
 
-1. **Foundation Models (CX-002):** remove `generateText` / mark it
-   experimental + queryable + implement `maxTokens` / redesign as a configured
-   provider (phone-relay or HTTP). *My pick: mark experimental + queryable +
-   maxTokens* — smallest honest change that unblocks release; provider redesign
-   is a feature, do it later.
-2. **Widget-under-OTA (CX-004):** shared verified loader (principled, more
-   work) vs. block-widget-mutation-when-OTA-active (interim). *My pick: build
-   the shared loader* (the engine is already shared); ship the block-mutation
-   gate first if you want safety landed in a day.
-3. **Version model (CX-007):** confirm splitting compatibility-version from a
-   release id. *My pick: yes.*
-4. **fetch (CX-021):** keep `fetch`, document the subset, allowlist `http(s)`
-   (my pick) vs. rename to `watchFetch` vs. chase WHATWG (don't).
-5. **CI (CX-013):** confirm **skip** — it conflicts with your disabled-Actions
-   decision.
+1. **Foundation Models (CX-002): fix it properly, keep it.** The owner pointed
+   out FM is on watchOS — verified: **watchOS 27.0+ (beta)** via
+   `SystemLanguageModel`. So: change the gate to `#available(watchOS 27.0, *)`,
+   keep `#if canImport(FoundationModels)` so older-SDK builds still compile
+   (feature simply unavailable), implement `maxTokens`
+   (`GenerationOptions.maximumResponseTokens`), add a capability query
+   (`SystemLanguageModel.default.availability`) so JS can detect availability,
+   and document the watchOS-27-SDK build requirement. Private Cloud Compute
+   (larger context) is a later enhancement, not required now.
+2. **Widget-under-OTA (CX-004): shared verified loader.** One version-aware,
+   signature-checked loader used by both app and widget; the widget honors the
+   same high-water + hard gate and never mutates storage when blocked.
+3. **Version model (CX-007): split gate + release id.** The monotonic integer
+   stays the compatibility/rollback gate (bump only on breaking); add a separate
+   release id (content hash or build number) for freshness; JS reads native's
+   active state instead of compile-time `BUNDLE_VERSION`.
+4. **fetch (CX-021): tighten toward WHATWG.** Add `clone`, body-used state,
+   credentials/cache/redirect handling, and allowlist `http(s)` schemes. (Owner
+   chose full compat over the smaller documented-subset option.)
+5. **CI (CX-013): skip.** Conflicts with the standing disabled-Actions decision.
 
 ---
 
@@ -205,8 +216,11 @@ Phases are ordered by risk-reduction-per-effort. CX-013 is intentionally
 excluded; CX-028 is done.
 
 **Phase 0 — unblock publishing (hours).**
-CX-001 (explicit `files` allowlist + `LICENSE` + `license` field), CX-003
-(fail-closed key), and the CX-002 decision.
+CX-001 (explicit `files` allowlist + `LICENSE` + `license` field) and CX-003
+(fail-closed key). CX-002 (correct the gate to `watchOS 27.0`, implement
+`maxTokens`, add a capability query) rides here too — but compiling/verifying
+the Foundation Models branch needs the watchOS 27 SDK (Xcode 27 beta), so it can
+land code-complete now and be device-verified when that SDK is in use.
 
 **Phase 1 — runtime safety (contained, mostly mechanical).**
 CX-009 (reject mismatched tree before mutating root/ack), CX-010 (guarantee an
@@ -234,7 +248,8 @@ Info.plist or a documented prebuild executable), CX-020 (turn the Expo example
 into a clean-room consumer that dogfoods the plugin).
 
 **Phase 5 — maintainability.**
-CX-021 (document fetch subset + allowlist schemes), CX-022 (typed native
+CX-021 (tighten fetch toward WHATWG — `clone`, body-used state,
+credentials/cache/redirect, + allowlist `http(s)` schemes), CX-022 (typed native
 result/error channel), CX-023 (generate the host bridge from the schema),
 CX-026 (de-dup intent sources), CX-027 (split docs into verified-status vs.
 roadmap, link "shipped" claims to test/build evidence).
