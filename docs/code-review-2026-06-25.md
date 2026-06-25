@@ -77,7 +77,7 @@ Plan:
   function and restore `resolveFetch`'s own comment — a ~4-line move.
   (PR #26's rewrite happens to fix this too, but we're not merging it.)
 
-- [ ] **CR-3 — `OptimisticTextField` doesn't use the optimistic store.**
+- [x] **CR-3 — `OptimisticTextField` doesn't use the optimistic store.**
   `P2`
   [`NodeView.swift:559`](../js/swift/Sources/ReactWatchHost/NodeView.swift#L559)
   Every other input control keeps its in-flight value in
@@ -87,6 +87,15 @@ Plan:
   resets the text. Likely tolerable because watch text entry is modal —
   **fix or document** the inconsistency inline next to the comment that
   promises the opposite.
+  **Done (2026-06-25): documented (the "fix" would be wrong here).** The JS
+  `TextFieldProps.onChange` contract fires on *commit*, not per keystroke,
+  because watchOS text entry is modal (full-screen dictation/Scribble/QWERTY).
+  So there's no in-flight value to preserve across a view-identity change —
+  editing happens in the modal, not the list — and the optimistic store
+  (built for *continuous* controls) doesn't apply; forcing it would only add
+  a per-keystroke dispatch that breaks the modal contract. Renamed the
+  misleading `OptimisticTextField` → `ModalTextField` and documented the
+  deliberate `@State` choice inline.
 
 ## Security
 

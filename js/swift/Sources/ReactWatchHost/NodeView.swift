@@ -72,7 +72,7 @@ struct NodeView: View {
         case "NavigationRoute":
             NavigationRouteDestination(node: node)
         case "TextField":
-            OptimisticTextField(node: node)
+            ModalTextField(node: node)
         case "Picker":
             Picker(node.string("label") ?? "", selection: pickerBinding) {
                 let options = node.stringArray("options") ?? []
@@ -559,7 +559,16 @@ private struct MissingNavigationRoute: View {
 
 /// watchOS text input is modal (dictation/scribble/QWERTY); the value
 /// dispatches to React on commit, with a local copy while editing.
-private struct OptimisticTextField: View {
+/// Text entry on watchOS is modal — the system takes over full-screen
+/// (dictation / Scribble / QWERTY) and hands back one committed string — so
+/// the JS `TextFieldProps.onChange` contract fires on commit, not per
+/// keystroke. That's why this deliberately uses view-local `@State` rather
+/// than the model-keyed optimistic store the *continuous* controls (Toggle /
+/// Slider / Stepper) use: there's no in-flight value to preserve across a
+/// SwiftUI view-identity change, because editing happens in the modal, not in
+/// the list that might reorder underneath. Optimistic bookkeeping would only
+/// add a per-keystroke dispatch that contradicts the modal contract.
+private struct ModalTextField: View {
     let node: RNNode
     @EnvironmentObject private var model: ReactWatchModel
     @State private var text: String = ""
