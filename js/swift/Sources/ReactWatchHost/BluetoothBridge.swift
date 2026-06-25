@@ -1,3 +1,6 @@
+// watchOS-only host (WatchKit/UIKit/HealthKit/SwiftUI). The #if compiles this
+// file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
+#if os(watchOS)
 import CoreBluetooth
 import Foundation
 
@@ -209,3 +212,4 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         onNotify?(characteristic.uuid.uuidString, value)
     }
 }
+#endif

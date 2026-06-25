@@ -1,3 +1,6 @@
+// watchOS-only host (WatchKit/UIKit/HealthKit/SwiftUI). The #if compiles this
+// file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
+#if os(watchOS)
 import CoreLocation
 import CoreMotion
 import Foundation
@@ -143,3 +146,4 @@ extension SensorBridge: HKLiveWorkoutBuilderDelegate {
 
     func workoutBuilderDidCollectEvent(_ builder: HKLiveWorkoutBuilder) {}
 }
+#endif

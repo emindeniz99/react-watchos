@@ -1,3 +1,6 @@
+// watchOS-only host (WatchKit/UIKit/HealthKit/SwiftUI). The #if compiles this
+// file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
+#if os(watchOS)
 import Foundation
 import WatchConnectivity
 
@@ -60,3 +63,4 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         error: Error?
     ) {}
 }
+#endif

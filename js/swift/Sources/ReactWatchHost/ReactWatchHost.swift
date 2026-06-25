@@ -1,3 +1,6 @@
+// watchOS-only host (WatchKit/UIKit/HealthKit/SwiftUI). The #if compiles this
+// file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
+#if os(watchOS)
 import ReactWatchCore
 import ReactWatchRuntime
 import ReactWatchSupport
@@ -455,3 +458,4 @@ public struct ReactWatchRootView: View {
         }
     }
 }
+#endif
