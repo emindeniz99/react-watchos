@@ -41,11 +41,15 @@ widget builds where touched):
   `QuickJSHostGlobal` + Swift `HostBridge` + C trampolines + install table); all
   17 trampolines verified through a real JSRuntime in `HostBridgeTests.swift`
   (done with the owner awake, the chosen "generate typed trampolines" shape).
+- **CX-012/DX-2 + DX-3 + CX-020** (the prebuild group, owner-greenlit + done with
+  the build loop). `react-native-watchos prebuild` = one command (expo prebuild +
+  SwiftPM link + Info.plist merge), so no hand-wired `postprebuild`;
+  `react-native-watchos scaffold` generates the watch `@main` Swift glue; the
+  expo example now dogfoods the plugin (clean-room consumer). All three verified
+  by real `prebuild -p ios --clean` runs (demo + example) — SwiftPM products
+  linked, Info.plist keys merged.
 
-Held deliberately (NOT done blind — reasons in each row/note):
-- **CX-012/DX-2, CX-020, DX-3** (prebuild group) — needs the full
-  prebuild→pods→build loop; CX-012 couples to apple-targets' internal beta mod
-  (precise blocker + recommended fix documented below).
+Held deliberately:
 - **CX-013** — skip (deliberate).
 
 - [x] **CX-001** — npm `files` allowlist + MIT LICENSE. `npm pack` 293 MB → 0.55 MB / 88 files.
@@ -69,8 +73,9 @@ Held deliberately (NOT done blind — reasons in each row/note):
 - [~] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5 — partial:
   - [x] **CX-011** (`widget:false` convergence) — see its verdict row.
   - [x] **DX-6** (typed connectivity contract) — `defineMessages<T>()` wraps `sendToPhone`/`onPhoneMessage` into typed `send`/`on` over one shared `T` (`{ type, payload }` envelope, `on` dispatches by type). +2 tests (JS 232). The both-sides *example* (iPhone companion using the same contract) still needs the companion app + a device.
-  - [ ] remaining: **CX-012/DX-2** (own linking+plist in-plugin — large, re-architects the prebuild lifecycle), **CX-020/DX-1** (example dogfoods the plugin + READMEs), **DX-3** (scaffolder), **DX-4/DX-7** (packaging tarball + smoke), Phase 5 — a deliberate DX workstream, not blind overnight pieces.
-    - **CX-012/DX-2 — precise blocker (confirmed 2026-06-26, prebuild now authorized):** `@bacons/apple-targets@4.0.7` injects its targets through its **own** base mod `withXcodeProjectBetaBaseMod` + `withXcodeProjectBeta` (`build/with-bacons-xcode.js`), a *separate* pbxproj base mod from Expo's standard `withXcodeProject` (modName `xcodeproj`) that this plugin uses in step 3. The two base mods have independent read-modify-write cycles over the `.pbxproj`, and the standard one runs before apple-targets' beta mod has added the targets — which is exactly why the targets "don't exist yet" at link time and links are deferred to the post-prebuild script. **Two ways forward, both deliberate (need the full prebuild→pods→build loop to verify, so NOT shipped blind overnight):** (a) hook apple-targets' *internal* `withXcodeProjectBeta` (register our linking mod after theirs in the SAME beta base mod) — works in-prebuild but couples to a `beta`/internal API that can change; (b) ship a **documented prebuild executable** (`npx react-native-watchos prebuild` = `expo prebuild` + the existing `link-swift-package`/`merge-target-infoplist` steps) — clean, no internals coupling, the CX-012 row's explicit "(or a documented prebuild executable)" option, but changes the consumer's command from `expo prebuild`. Recommendation: (b) — robust + decoupled. Left for an interactive session because verifying either requires regenerating + building the example's native project (long loop, can leave it half-broken on a failed iteration).
+  - [x] **CX-012/DX-2 + DX-3 + CX-020 — DONE** (prebuild group). Chose the documented-executable route for CX-012: a `react-native-watchos` CLI whose `prebuild` runs `expo prebuild` + the SwiftPM link + the Info.plist merge in ONE command (no hand-wired `postprebuild`), rather than coupling to apple-targets' internal beta mod. `react-native-watchos scaffold` (DX-3) generates the watch `@main` Swift glue from the plugin's resolved app.json config (the one bit the plugin can't generate). CX-020: the expo example now uses the `react-native-watchos` plugin + scaffold + wrapper (clean-room consumer); dropped its `"type":"module"` so the plugin's CJS target-config loads, README rewritten, generated target files gitignored to match the demo. Verified by real `prebuild -p ios --clean` on both the demo and the example: SwiftPM products linked into the targets, Info.plist keys merged. +2 scaffold tests (JS 248).
+  - [ ] remaining: **DX-1** (minimal-app README `file:` vs `workspace:*`), **DX-4/DX-7** (packaging tarball + smoke), Phase 5 — separate DX polish.
+    - **CX-012/DX-2 — RESOLVED via option (b)** (the precise blocker, confirmed 2026-06-26): `@bacons/apple-targets@4.0.7` injects its targets through its **own** base mod `withXcodeProjectBetaBaseMod`, separate from Expo's standard `xcodeproj` base mod, which runs before apple-targets has added the targets — so an in-prebuild plugin mod can't reliably link them. Two routes were possible: (a) hook apple-targets' internal `withXcodeProjectBeta` (fragile, couples to a beta API); (b) a **documented prebuild executable**. **Shipped (b):** `react-native-watchos prebuild` = `expo prebuild` + `link-swift-package` + `merge-target-infoplist` in one command — robust, no internals coupling. Verified with the real prebuild loop on the demo + example.
 - [x] Host fixes (written + **verified on a watchOS build** — Xcode is available here): **CX-009** (reject a wire-mismatched commit before it reaches the interpreter or advances the ack), **OP-3** (cap app QuickJS heap at 64 MB), **OP-6** (stable Map annotation id).
 - [x] CX-015 — Map `latitude`/`longitude`/`span` props now drive `Map(initialPosition: .region(...))` (were ignored); `.automatic` fits annotations when absent. Verified on watchOS build.
 - [~] **ARCH-04** (transactional OTA state machine):
@@ -304,8 +309,8 @@ Assert main-thread on the JS settle calls (OP-2) + generation token on reload (C
 | # | ID | Problem | Verdict | Evidence | Fix | Eff |
 |---|----|---------|---------|----------|-----|-----|
 | 22 | CX-011 | Plugin doesn't remove stale `expo-target.config.js` on `widget:false` | ✅ **DONE** | was: only added under `if(opts.widget)`, no removal | `widget:false` now converges: `removeGeneratedTargetConfigFile` drops the **marker-gated** (`// AUTO-GENERATED`) widget config so apple-targets stops discovering it (never deletes a hand-authored file or the Swift glue), and `withEasAppExtensions` reconciles by removing a previously-added widget EAS entry. +4 tests (EAS reconcile + temp-dir removal: marker / no-marker / absent). JS 230, biome clean. | M |
-| 23 | CX-012 | Not a true one-line integration (needs `postprebuild` for link/Info.plist) | ✅ REAL | [plugin/index.js](../js/plugin/index.js) defers linking + plist merge | Own linking + plist in one ordered plugin (or a documented prebuild executable); add `entry` option | L |
-| 24 | CX-020 | Expo example doesn't dogfood the package's plugin | ✅ REAL | [examples/expo-watch-app/app.json:14](../examples/expo-watch-app/app.json) lists only `@bacons/apple-targets`; README refs old paths; minimal-app README says `file:` vs `workspace:*` | Make the example a clean-room consumer of the config plugin; fix READMEs | M |
+| 23 | CX-012 | Not a true one-line integration (needs `postprebuild` for link/Info.plist) | ✅ **DONE** | was: consumers hand-wired a `postprebuild` script | Shipped the documented-executable option: a `react-native-watchos` CLI whose `prebuild` runs `expo prebuild` + the SwiftPM link + the Info.plist merge in one command. Chose it over hooking apple-targets' internal beta mod (fragile). The demo + example both use it; verified end-to-end by real `prebuild -p ios --clean` (products linked, plist merged). | L |
+| 24 | CX-020 | Expo example doesn't dogfood the package's plugin | ✅ **DONE** | was: app.json listed only `@bacons/apple-targets`; README told you to copy the Swift host from the reference app | The expo example now uses the `react-native-watchos` plugin (not raw apple-targets), its watch `@main` glue is `react-native-watchos scaffold`-generated, and prebuild is the one-command `react-native-watchos prebuild`. README rewritten to that flow; generated target files gitignored (matching the demo). Verified by a real `prebuild -p ios --clean`: ReactWatchHost linked, Info.plist merged. (minimal-app README `file:`→`workspace:*` = DX-1, separate.) | M |
 
 ## Phase 5 — Maintainability & API surface
 
