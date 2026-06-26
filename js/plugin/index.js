@@ -112,6 +112,20 @@ function ensureTargetConfigFile(projectRoot, dir, configObject) {
   if (current !== next) fs.writeFileSync(file, next);
 }
 
+// Removes a target's generated expo-target.config.js when the option that
+// created it is turned off (CX-011), so toggling e.g. `widget:false` converges
+// instead of leaving a stale target apple-targets keeps discovering. Marker-
+// gated: only deletes a file we generated (the AUTO-GENERATED banner), never a
+// consumer's hand-authored one, and leaves the folder's Swift glue untouched.
+// Returns true if it removed a file.
+function removeGeneratedTargetConfigFile(projectRoot, dir) {
+  const file = path.join(projectRoot, "targets", dir, "expo-target.config.js");
+  if (!fs.existsSync(file)) return false;
+  if (!fs.readFileSync(file, "utf8").startsWith("// AUTO-GENERATED")) return false;
+  fs.rmSync(file);
+  return true;
+}
+
 // apple-targets keys its target directory by FOLDER name (it globs the folder,
 // derives the pbxproj target from `name`). Keep the demo's folder names so
 // existing Swift glue keeps working.
@@ -167,6 +181,14 @@ function withEasAppExtensions(config, opts) {
         "com.apple.security.application-groups": [opts.appGroup],
       },
     });
+  } else {
+    // Reconcile when the widget is turned off (CX-011): drop a previously-added
+    // widget extension so EAS doesn't keep provisioning a target that no longer
+    // exists.
+    const i = ios.appExtensions.findIndex(
+      (e) => e.targetName === opts.widgetName,
+    );
+    if (i >= 0) ios.appExtensions.splice(i, 1);
   }
   return config;
 }
@@ -196,6 +218,10 @@ const withReactWatch = (config, options) => {
           WIDGET_DIR,
           widgetTargetConfig(opts),
         );
+      } else {
+        // Converge when the widget is turned off (CX-011): drop the generated
+        // widget target config so apple-targets stops discovering it.
+        removeGeneratedTargetConfigFile(projectRoot, WIDGET_DIR);
       }
 
       // 2. Let apple-targets discover + inject the targets (its proven,
@@ -246,6 +272,7 @@ const withReactWatch = (config, options) => {
 withReactWatch.resolveOptions = resolveOptions;
 withReactWatch.targetProductsFor = targetProductsFor;
 withReactWatch.withEasAppExtensions = withEasAppExtensions;
+withReactWatch.removeGeneratedTargetConfigFile = removeGeneratedTargetConfigFile;
 withReactWatch.WATCH_DIR = WATCH_DIR;
 withReactWatch.WIDGET_DIR = WIDGET_DIR;
 

@@ -259,7 +259,7 @@ Assert main-thread on the JS settle calls (OP-2) + generation token on reload (C
 
 | # | ID | Problem | Verdict | Evidence | Fix | Eff |
 |---|----|---------|---------|----------|-----|-----|
-| 22 | CX-011 | Plugin doesn't remove stale `expo-target.config.js` on `widget:false` | ✅ REAL | [plugin/index.js](../js/plugin/index.js) only adds under `if(opts.widget)`; no removal | Track plugin-owned files/EAS entries; reconcile add/update/rename/remove (marker-gated) | M |
+| 22 | CX-011 | Plugin doesn't remove stale `expo-target.config.js` on `widget:false` | ✅ **DONE** | was: only added under `if(opts.widget)`, no removal | `widget:false` now converges: `removeGeneratedTargetConfigFile` drops the **marker-gated** (`// AUTO-GENERATED`) widget config so apple-targets stops discovering it (never deletes a hand-authored file or the Swift glue), and `withEasAppExtensions` reconciles by removing a previously-added widget EAS entry. +4 tests (EAS reconcile + temp-dir removal: marker / no-marker / absent). JS 230, biome clean. | M |
 | 23 | CX-012 | Not a true one-line integration (needs `postprebuild` for link/Info.plist) | ✅ REAL | [plugin/index.js](../js/plugin/index.js) defers linking + plist merge | Own linking + plist in one ordered plugin (or a documented prebuild executable); add `entry` option | L |
 | 24 | CX-020 | Expo example doesn't dogfood the package's plugin | ✅ REAL | [examples/expo-watch-app/app.json:14](../examples/expo-watch-app/app.json) lists only `@bacons/apple-targets`; README refs old paths; minimal-app README says `file:` vs `workspace:*` | Make the example a clean-room consumer of the config plugin; fix READMEs | M |
 
