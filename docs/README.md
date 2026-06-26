@@ -65,6 +65,9 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   ARCH-02 explicit capability contract. Criterion #4 (no raw `__host` in app
   code) **done + CI-guarded**; flags the side-effect soundness hole that the
   declared-contract/marker design (criteria #1–3, 5) must handle.
+- [design-ble-result-reporting.md](./design-ble-result-reporting.md) —
+  CX-022 BLE connect/write result reporting. Spec ready; **device-gated** (no
+  simulator Bluetooth radio), so deliberately not shipped blind.
 
 ## Reference / background
 
