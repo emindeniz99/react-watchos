@@ -19,7 +19,11 @@
 // Exported as the defaults the plugin derives from its `name` option; callers
 // pass the resolved map (with the consumer's watch/widget names) explicitly.
 const HOST_PRODUCTS = ["ReactWatchHost"];
-const WIDGET_PRODUCTS = ["ReactWatchCore", "ReactWatchSupport", "ReactWatchRuntime"];
+// ReactWatchWidget brings the WidgetKit infra (node interpreter, timeline
+// providers, the extension's QuickJS runtime) and transitively links
+// Core/Support/Runtime; Core is also linked directly so the consumer's
+// configurable provider can name the published relevance-context type.
+const WIDGET_PRODUCTS = ["ReactWatchWidget", "ReactWatchCore"];
 
 /** Ensures an ISA section exists in the pbxproj object graph. */
 function section(objects, isa) {

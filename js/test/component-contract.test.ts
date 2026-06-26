@@ -18,7 +18,7 @@ const appInterpreter = join(
 );
 const widgetInterpreter = join(
   jsRoot,
-  "../app/targets/widget/WidgetNodeView.swift",
+  "swift/Sources/ReactWatchWidget/ReactWidgetView.swift",
 );
 
 /** PascalCase string literals in a `case … :` label — the primitive type names.

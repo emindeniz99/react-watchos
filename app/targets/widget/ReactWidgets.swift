@@ -1,176 +1,22 @@
 import AppIntents
-import CoreLocation
-import ReactWatchCore
-import ReactWatchSupport
-import RelevanceKit
+import ReactWatchWidget
 import SwiftUI
 import WidgetKit
 
-// React-authored complications, Smart Stack widgets, and controls. The
-// watch app (or this extension's own QuickJS, for control intents and
-// stale refreshes) renders timelines with React and persists them to the
-// App Group; the providers below only decode and display.
+// This app's React-authored complications, Smart Stack widgets, and controls.
+// The generic machinery — the React node interpreter, the timeline providers,
+// the extension's QuickJS runtime, the relevance/control helpers — lives in the
+// ReactWatchWidget package. This file only declares WHICH widgets exist (their
+// `kind`, display name, and supported families) and the demo's one control; the
+// timelines and views come from the package, parameterized by our App Group.
 // NOTE: untested until built with Xcode on macOS.
-
-struct ReactEntry: TimelineEntry {
-    let date: Date
-    let node: RNNode?
-    let url: URL?
-    let relevance: TimelineEntryRelevance?
-}
-
-struct ReactTimelineProvider: TimelineProvider {
-    /// Must match the `kind` registered on the JS side.
-    let kind: String
-
-    func placeholder(in _: Context) -> ReactEntry {
-        ReactEntry(date: .now, node: nil, url: nil, relevance: nil)
-    }
-
-    func getSnapshot(in context: Context, completion: @escaping (ReactEntry) -> Void) {
-        completion(latestEntry(for: context) ?? placeholder(in: context))
-    }
-
-    func getTimeline(in context: Context, completion: @escaping (Timeline<ReactEntry>) -> Void) {
-        // Prefer a fresh React render (runs in this process via QuickJS,
-        // ~6MB measured, well under the widget budget); fall back to the
-        // payload the app last published.
-        let stored = WidgetStore.load()
-        let fresh = IntentRuntime.renderFreshTimelines()
-        let payload = newestPayload(stored, fresh)
-        guard let timeline = payload?.widgets[kind]?[familyKey(context.family)],
-            !timeline.entries.isEmpty
-        else {
-            completion(Timeline(entries: [placeholder(in: context)], policy: .atEnd))
-            return
-        }
-        let entries = timeline.entries.map { entry(from: $0) }
-        let policy: TimelineReloadPolicy =
-            timeline.reloadAfterDate.map { .after($0) } ?? .atEnd
-        // Per-entry relevance score (in `entry`) is the Smart Stack *ranking*
-        // signal; the *predictive* date/location surfacing comes from
-        // `relevance()` below (CX-017).
-        completion(Timeline(entries: entries, policy: policy))
-    }
-
-    /// Maps React's published date/location hints (`relevantContexts`) to
-    /// RelevanceKit so the Smart Stack surfaces this widget at the right
-    /// time/place (CX-017) — the predictive complement to the per-entry
-    /// `TimelineEntryRelevance` ranking. watchOS 11+ (the `relevance()` hook +
-    /// RelevanceKit, which is watchOS-only and a no-op elsewhere); earlier
-    /// versions use the default empty relevance. The mapping compiles + is
-    /// shape-checked here, but whether the Smart Stack actually surfaces it is
-    /// device-verified only.
-    @available(watchOS 11.0, *)
-    func relevance() async -> WidgetRelevance<Void> {
-        let attributes = relevantContexts.compactMap {
-            reactRelevantContext(from: $0).map {
-                WidgetRelevanceAttribute<Void>(context: $0)
-            }
-        }
-        return WidgetRelevance(attributes)
-    }
-
-    /// Date/location relevance hints published from React (js/src/widgets.ts).
-    var relevantContexts: [PublishedRelevantContext] {
-        reactRelevantContexts(forKind: kind)
-    }
-
-    private func entry(from published: PublishedEntry) -> ReactEntry {
-        ReactEntry(
-            date: published.entryDate,
-            node: published.tree,
-            url: published.url.flatMap(URL.init(string:)),
-            relevance: published.relevance.map {
-                TimelineEntryRelevance(
-                    score: Float($0.score),
-                    duration: ($0.durationMs ?? 0) / 1000
-                )
-            }
-        )
-    }
-
-    private func latestEntry(for context: Context) -> ReactEntry? {
-        // The entry applicable *now*, not `.entries.last` (which showed the
-        // end-of-day state for future-dated daypart timelines — CX-016).
-        guard
-            let entries = WidgetStore.load()?
-                .widgets[kind]?[familyKey(context.family)]?.entries,
-            let index = WidgetSnapshot.currentIndex(
-                dates: entries.map(\.entryDate), now: .now
-            )
-        else { return nil }
-        return entry(from: entries[index])
-    }
-
-    private func newestPayload(
-        _ first: PublishedWidgets?,
-        _ second: PublishedWidgets?
-    ) -> PublishedWidgets? {
-        guard let first else { return second }
-        guard let second else { return first }
-        return second.publishedAt >= first.publishedAt ? second : first
-    }
-
-    private func familyKey(_ family: WidgetFamily) -> String {
-        switch family {
-        case .accessoryCircular: "accessoryCircular"
-        case .accessoryRectangular: "accessoryRectangular"
-        case .accessoryInline: "accessoryInline"
-        case .accessoryCorner: "accessoryCorner"
-        default: "accessoryCircular"
-        }
-    }
-}
-
-/// Maps a React-published relevance hint to a RelevanceKit context: a circular
-/// region when coordinates are present (default 100 m), else a date; both nil
-/// drops the hint. Shared by the static (Void) and configurable (intent)
-/// providers (CX-017).
-@available(watchOS 11.0, *)
-func reactRelevantContext(from ctx: PublishedRelevantContext) -> RelevantContext? {
-    if let lat = ctx.latitude, let lon = ctx.longitude {
-        return .location(
-            CLCircularRegion(
-                center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                radius: ctx.radius ?? 100,
-                identifier: "react-relevance-\(lat),\(lon)"
-            )
-        )
-    }
-    if let date = ctx.date {
-        return .date(Date(timeIntervalSince1970: date / 1000))
-    }
-    return nil
-}
-
-/// The relevance hints published for a widget `kind`, from whichever family
-/// carries them (relevance is per-kind, not per-family).
-func reactRelevantContexts(forKind kind: String) -> [PublishedRelevantContext] {
-    guard let families = WidgetStore.load()?.widgets[kind] else { return [] }
-    for timeline in families.values {
-        if let contexts = timeline.relevantContexts, !contexts.isEmpty {
-            return contexts
-        }
-    }
-    return []
-}
-
-@ViewBuilder func reactWidgetView(_ entry: ReactEntry) -> some View {
-    let view = WidgetNodeView(node: entry.node)
-        .containerBackground(.clear, for: .widget)
-    if let url = entry.url {
-        view.widgetURL(url)
-    } else {
-        view
-    }
-}
 
 struct HydrationWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(
             kind: "hydration",
-            provider: ReactTimelineProvider(kind: "hydration")
+            provider: ReactTimelineProvider(
+                kind: "hydration", appGroupId: WidgetStore.appGroupId)
         ) { entry in
             reactWidgetView(entry)
         }
@@ -195,7 +41,8 @@ struct DaypartWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(
             kind: "daypart",
-            provider: ReactTimelineProvider(kind: "daypart")
+            provider: ReactTimelineProvider(
+                kind: "daypart", appGroupId: WidgetStore.appGroupId)
         ) { entry in
             reactWidgetView(entry)
         }
@@ -214,7 +61,8 @@ struct AddGlassIntent: AppIntent {
     static let description = IntentDescription("Log a glass of water.")
 
     func perform() async throws -> some IntentResult {
-        IntentRuntime.handle(intent: "addGlass")
+        WidgetIntentRuntime.handle(
+            intent: "addGlass", appGroupId: WidgetStore.appGroupId)
         return .result()
     }
 }
@@ -223,8 +71,9 @@ struct AddGlassIntent: AppIntent {
 struct AddGlassControl: ControlWidget {
     /// Computed (not static let) so republished React metadata is picked
     /// up on every render instead of being frozen at process start.
-    private var metadata: PublishedControl? {
-        WidgetStore.load()?.controls?["hydration.addGlass"]
+    private var metadata: (label: String, systemName: String?)? {
+        reactControlMetadata(
+            "hydration.addGlass", appGroupId: WidgetStore.appGroupId)
     }
 
     var body: some ControlWidgetConfiguration {
