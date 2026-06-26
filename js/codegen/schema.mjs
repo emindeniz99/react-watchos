@@ -268,6 +268,12 @@ export const hostMethods = [
   { name: "abortFetch", targets: ["watch"], feature: "network", since: 1 },
   { name: "ble", targets: ["watch"], feature: "bluetooth", since: 1 },
   { name: "sensor", targets: ["watch"], feature: "sensors", since: 1 },
-  { name: "saveUpdate", targets: ["watch"], feature: "ota", since: 1, via: "invoke" },
+  {
+    name: "saveUpdate",
+    targets: ["watch"],
+    feature: "ota",
+    since: 1,
+    via: "invoke",
+  },
   { name: "generate", targets: ["watch"], feature: "ai", since: 1 },
 ];

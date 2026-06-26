@@ -75,7 +75,10 @@ describe("notifications", () => {
         globalThis as {
           __rejectInvoke?: (id: number, errorJson: string) => void;
         }
-      ).__rejectInvoke?.(id, JSON.stringify({ code: "INTERNAL", message: "boom" }));
+      ).__rejectInvoke?.(
+        id,
+        JSON.stringify({ code: "INTERNAL", message: "boom" }),
+      );
     });
     await expect(requestNotificationPermission()).rejects.toThrow("boom");
   });

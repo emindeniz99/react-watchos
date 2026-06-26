@@ -44,7 +44,9 @@ export type NotificationPermission =
  */
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   try {
-    return await invoke<NotificationPermission>("requestNotificationPermission");
+    return await invoke<NotificationPermission>(
+      "requestNotificationPermission",
+    );
   } catch (error) {
     if ((error as InvokeError).code === "UNAVAILABLE") return "unavailable";
     throw error;

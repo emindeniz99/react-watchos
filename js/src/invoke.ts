@@ -85,7 +85,10 @@ export function invoke<T = unknown>(
   const host = getHost();
   if (!host?.invoke) {
     return Promise.reject(
-      invokeError("UNAVAILABLE", `host.invoke unavailable (cannot call ${method})`),
+      invokeError(
+        "UNAVAILABLE",
+        `host.invoke unavailable (cannot call ${method})`,
+      ),
     );
   }
   installInvokeBridge();

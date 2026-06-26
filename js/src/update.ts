@@ -1,4 +1,4 @@
-import { invoke, type InvokeError } from "./invoke";
+import { type InvokeError, invoke } from "./invoke";
 
 /**
  * Over-the-air UI updates. The dev live-reload (DEBUG) and this production
