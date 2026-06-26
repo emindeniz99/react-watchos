@@ -3,7 +3,7 @@
 // non-zero if the committed output is stale (used by the drift test).
 
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -53,6 +53,164 @@ const featuresFor = (target) =>
         .map((m) => m.feature),
     ),
   ].sort();
+
+// --- Host bridge (CX-023) --------------------------------------------------
+// The synchronous `__host` surface is generated end-to-end from the method
+// signatures: the TS `QuickJSHostGlobal`, the Swift `HostBridge` callbacks, the
+// C trampolines, and the install table. `via: "invoke"` methods are routed
+// through the generic channel, so they're not part of this surface.
+
+/** Methods installed as direct host functions (everything not via invoke). */
+const directMethods = hostMethods.filter((m) => m.via !== "invoke");
+
+const SWIFT_ARG = { string: "String", int: "Int", double: "Double" };
+const SWIFT_RET = { void: "Void", "string?": "String?", int: "Int" };
+const TS_ARG = { string: "string", int: "number", double: "number" };
+const TS_RET = { void: "void", "string?": "string | null", int: "number" };
+
+const argsOf = (m) => m.args ?? [];
+const retOf = (m) => m.returns ?? "void";
+/** C trampoline name for a method, lowerCamelCase (swift-format requires it). */
+const trampoline = (m) => `host${m.name[0].toUpperCase()}${m.name.slice(1)}`;
+
+/** Swift closure type for a method, e.g. `((String, Int) -> Int)`. */
+function swiftClosureType(m) {
+  const params = argsOf(m)
+    .map((a) => SWIFT_ARG[a.type])
+    .join(", ");
+  return `((${params}) -> ${SWIFT_RET[retOf(m)]})`;
+}
+
+/** One generated C trampoline: recover the runtime, marshal args by type, call
+ *  the bridge closure, marshal the return. @convention(c) can't capture, so the
+ *  runtime is recovered from the context opaque pointer. */
+function swiftTrampoline(m) {
+  const args = argsOf(m);
+  const ret = retOf(m);
+  const fail =
+    ret === "string?"
+      ? "qjs_null()"
+      : ret === "int"
+        ? "JS_NewInt32(ctx, 0)"
+        : "qjs_undefined()";
+  const guard = [
+    "let runtime = JSRuntime.from(context: ctx)",
+    "let argv",
+    `argc >= ${args.length}`,
+    ...args
+      .map((a, i) => [a, i])
+      .filter(([a]) => a.type === "string")
+      .map(([, i]) => `let arg${i}Cstr = JS_ToCString(ctx, argv[${i}])`),
+  ].join(", ");
+
+  const body = [];
+  for (const [a, i] of args.map((a, i) => [a, i])) {
+    if (a.type === "string")
+      body.push(`let arg${i} = String(cString: arg${i}Cstr)`);
+  }
+  for (const [a, i] of args.map((a, i) => [a, i])) {
+    if (a.type === "string") body.push(`JS_FreeCString(ctx, arg${i}Cstr)`);
+  }
+  for (const [a, i] of args.map((a, i) => [a, i])) {
+    if (a.type === "int") {
+      body.push(
+        `var arg${i}: Int32 = 0`,
+        `JS_ToInt32(ctx, &arg${i}, argv[${i}])`,
+      );
+    } else if (a.type === "double") {
+      body.push(
+        `var arg${i}: Double = 0`,
+        `JS_ToFloat64(ctx, &arg${i}, argv[${i}])`,
+      );
+    }
+  }
+  const callArgs = args
+    .map((a, i) => (a.type === "int" ? `Int(arg${i})` : `arg${i}`))
+    .join(", ");
+  const call = `runtime.bridge.${m.name}?(${callArgs})`;
+  if (ret === "void") {
+    body.push(call, "return qjs_undefined()");
+  } else if (ret === "int") {
+    body.push(
+      `let result = ${call} ?? 0`,
+      "return JS_NewInt32(ctx, Int32(result))",
+    );
+  } else {
+    body.push(`guard let result = ${call} else { return qjs_null() }`);
+    body.push("return JS_NewString(ctx, result)");
+  }
+
+  return [
+    `private func ${trampoline(m)}(`,
+    "    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,",
+    "    argv: UnsafeMutablePointer<JSValue>?",
+    ") -> JSValue {",
+    `    guard ${guard}`,
+    `    else { return ${fail} }`,
+    ...body.map((l) => `    ${l}`),
+    "}",
+  ].join("\n");
+}
+
+function hostBridgeSwift() {
+  const fields = directMethods.map(
+    (m) => `    public var ${m.name}: ${swiftClosureType(m)}?`,
+  );
+  const installs = directMethods.map(
+    (m) =>
+      `        JS_SetPropertyStr(\n            context, host, "${m.name}",\n            JS_NewCFunction(context, ${trampoline(m)}, "${m.name}", ${argsOf(m).length}))`,
+  );
+  return `${[
+    banner(),
+    "import CQuickJS",
+    "",
+    "/// Every synchronous `__host` callback the JS bridge dispatches to. The",
+    "/// embedding host (ReactWatchHost / IntentRuntime) sets the feature closures;",
+    "/// JSRuntime sets the infra ones (setTimer/clearTimer/log) to internal",
+    '/// defaults. `via: "invoke"` methods are NOT here — they go through the',
+    "/// generic invoke channel.",
+    "public struct HostBridge {",
+    ...fields,
+    "",
+    "    public init() {}",
+    "}",
+    "",
+    "extension JSRuntime {",
+    "    /// Installs every generated host function onto the `__host` object.",
+    "    func installHostBridge(into host: JSValue, context: OpaquePointer) {",
+    ...installs,
+    "    }",
+    "}",
+    "",
+    "// @convention(c) trampolines: no captures, so each recovers its JSRuntime",
+    "// from the context opaque pointer, marshals the args, and dispatches.",
+    "",
+    ...directMethods.map(swiftTrampoline).flatMap((t) => [t, ""]),
+  ]
+    .join("\n")
+    .trimEnd()}\n`;
+}
+
+/** The TS `QuickJSHostGlobal` interface — the raw string/number bridge JS sees. */
+function quickJSHostGlobalTS() {
+  const lines = [
+    "/** Raw globals installed by the host before the bundle is evaluated",
+    " *  (generated from the schema's direct methods). Strings/numbers cross the C",
+    ' *  boundary; commit/event payloads are JSON strings. `via:"invoke"` methods',
+    " *  are routed through `invoke`, not installed here. */",
+    "export interface QuickJSHostGlobal {",
+  ];
+  for (const m of directMethods) {
+    if (m.doc) lines.push(`  /** ${m.doc} */`);
+    const params = argsOf(m)
+      .map((a) => `${a.name}: ${TS_ARG[a.type]}`)
+      .join(", ");
+    const opt = m.tsRequired ? "" : "?";
+    lines.push(`  ${m.name}${opt}(${params}): ${TS_RET[retOf(m)]};`);
+  }
+  lines.push("}");
+  return lines.join("\n");
+}
 
 // --- Swift -----------------------------------------------------------------
 
@@ -241,6 +399,8 @@ function tsModel() {
     " *  how the widget interpreter supports it (full | degraded). Both Swift",
     " *  interpreters are drift-tested against this. */",
     `export const COMPONENTS = ${JSON.stringify(components)} as const;`,
+    "",
+    quickJSHostGlobalTS(),
   );
   return `${parts.join("\n")}\n`;
 }
@@ -249,6 +409,10 @@ function tsModel() {
 
 const outputs = [
   ["swift/Sources/ReactWatchCore/WireModel.swift", swiftModel()],
+  [
+    "swift/Sources/ReactWatchRuntime/Generated/HostBridge.swift",
+    hostBridgeSwift(),
+  ],
   ["src/generated/wire.ts", tsModel()],
 ];
 
@@ -271,6 +435,7 @@ for (const [rel, content] of outputs) {
       stale += 1;
     }
   } else {
+    mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, final);
     console.log(`wrote ${rel}`);
   }

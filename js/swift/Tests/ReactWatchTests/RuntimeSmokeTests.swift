@@ -29,7 +29,7 @@ final class RuntimeSmokeTests: XCTestCase {
     func testHostCommitReachesSwiftAndDecodes() throws {
         let runtime = try JSRuntime()
         var committed: String?
-        runtime.onCommit = { committed = $0 }
+        runtime.bridge.commit = { committed = $0 }
 
         // JS builds a wire tree and hands it to the native commit bridge,
         // exactly as the React reconciler does at runtime.
@@ -105,7 +105,7 @@ final class RuntimeSmokeTests: XCTestCase {
     func testLargeIntArgIsNotTruncated() throws {
         let runtime = try JSRuntime()
         var committed: String?
-        runtime.onCommit = { committed = $0 }
+        runtime.bridge.commit = { committed = $0 }
         try runtime.evaluate(
             #"""
             globalThis.__dispatchEvent = (nodeId, event, _payload, seq) => {
@@ -133,7 +133,7 @@ final class RuntimeSmokeTests: XCTestCase {
             let runtime = try JSRuntime()
             runtime.useJSCallBridge = useJSCall
             var committed: String?
-            runtime.onCommit = { committed = $0 }
+            runtime.bridge.commit = { committed = $0 }
             // A fake __dispatchEvent that echoes its args back through the
             // commit bridge, so we can assert the call delivered them.
             try runtime.evaluate(

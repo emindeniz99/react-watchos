@@ -199,18 +199,53 @@ export const tsOnly = [
  * bridgeProtocol and isn't separately gateable. `since` is the bridgeProtocol
  * version a method first shipped in — the build derives a bundle's required
  * `minBridgeProtocol`/feature set from the methods it actually uses.
+ *
+ * `args`/`returns` are the method SIGNATURE (CX-023): the codegen generates the
+ * whole synchronous bridge from them — the TS `QuickJSHostGlobal` interface, the
+ * Swift `HostBridge` callbacks, the C trampolines, and the install table — so the
+ * bridge is single-source and can't be hand-mis-wired. Arg/return types are
+ * `string` | `int` | `double` (plus the `string?` nullable return for getItem).
+ * Only DIRECT methods carry them; `via: "invoke"` methods are routed through the
+ * generic invoke channel, not installed as host functions, so they have none.
+ * `tsRequired` marks a method the JS assumes is always present when `__host`
+ * exists (commit/log/setTimer) — non-optional in the generated TS interface.
  */
 export const hostMethods = [
   // The widget runtime installs commit as a defensive no-op (intent mode
   // must not mount UI), so both runtimes install it.
-  { name: "commit", targets: ["watch", "widget"], feature: "core", since: 1 },
-  { name: "log", targets: ["watch", "widget"], feature: "core", since: 1 },
-  { name: "setTimer", targets: ["watch", "widget"], feature: "core", since: 1 },
+  {
+    name: "commit",
+    targets: ["watch", "widget"],
+    feature: "core",
+    since: 1,
+    tsRequired: true,
+    args: [{ name: "treeJson", type: "string" }],
+  },
+  {
+    name: "log",
+    targets: ["watch", "widget"],
+    feature: "core",
+    since: 1,
+    tsRequired: true,
+    args: [{ name: "message", type: "string" }],
+  },
+  {
+    name: "setTimer",
+    targets: ["watch", "widget"],
+    feature: "core",
+    since: 1,
+    tsRequired: true,
+    args: [
+      { name: "id", type: "int" },
+      { name: "ms", type: "double" },
+    ],
+  },
   {
     name: "clearTimer",
     targets: ["watch", "widget"],
     feature: "core",
     since: 1,
+    args: [{ name: "id", type: "int" }],
   },
   // The generic request/response channel (SD-1): fallible ops tagged
   // `via: "invoke"` below are NOT installed as their own host functions — they're
@@ -218,24 +253,44 @@ export const hostMethods = [
   // __resolveInvoke/__rejectInvoke. They keep their own `feature` (so the ARCH-01
   // capability set is unchanged); they're just routed through one channel instead
   // of a per-op global pair.
-  { name: "invoke", targets: ["watch", "widget"], feature: "core", since: 1 },
+  {
+    name: "invoke",
+    targets: ["watch", "widget"],
+    feature: "core",
+    since: 1,
+    doc: "Generic request/response channel for fallible ops (SD-1); settles via __resolveInvoke(id, resultJson) / __rejectInvoke(id, errorJson).",
+    args: [
+      { name: "id", type: "int" },
+      { name: "method", type: "string" },
+      { name: "payloadJson", type: "string" },
+    ],
+  },
   {
     name: "publishWidgets",
     targets: ["watch", "widget"],
     feature: "widgets",
     since: 1,
+    doc: "Persists rendered widget timelines and reloads WidgetKit.",
+    args: [{ name: "payloadJson", type: "string" }],
   },
   {
     name: "getItem",
     targets: ["watch", "widget"],
     feature: "storage",
     since: 1,
+    doc: "App Group UserDefaults, shared between app and widget extension.",
+    args: [{ name: "key", type: "string" }],
+    returns: "string?",
   },
   {
     name: "setItem",
     targets: ["watch", "widget"],
     feature: "storage",
     since: 1,
+    args: [
+      { name: "key", type: "string" },
+      { name: "value", type: "string" },
+    ],
   },
   // Cross-process-atomic integer counters (ARCH-05): a clamped read-modify-write
   // that get/set can't do atomically across the app + widget-extension. Same
@@ -245,14 +300,30 @@ export const hostMethods = [
     targets: ["watch", "widget"],
     feature: "storage",
     since: 1,
+    doc: "Cross-process-atomic integer counters (ARCH-05): counterAdd does a clamped read-modify-write get/set can't do atomically across processes.",
+    args: [{ name: "key", type: "string" }],
+    returns: "int",
   },
   {
     name: "counterAdd",
     targets: ["watch", "widget"],
     feature: "storage",
     since: 1,
+    args: [
+      { name: "key", type: "string" },
+      { name: "delta", type: "int" },
+      { name: "min", type: "int" },
+      { name: "max", type: "int" },
+    ],
+    returns: "int",
   },
-  { name: "playHaptic", targets: ["watch"], feature: "haptics", since: 1 },
+  {
+    name: "playHaptic",
+    targets: ["watch"],
+    feature: "haptics",
+    since: 1,
+    args: [{ name: "type", type: "string" }],
+  },
   {
     name: "requestNotificationPermission",
     targets: ["watch"],
@@ -272,6 +343,7 @@ export const hostMethods = [
     targets: ["watch"],
     feature: "notifications",
     since: 1,
+    args: [{ name: "id", type: "string" }],
   },
   {
     name: "sendToPhone",
@@ -280,10 +352,37 @@ export const hostMethods = [
     since: 1,
     via: "invoke",
   },
-  { name: "fetch", targets: ["watch"], feature: "network", since: 1 },
-  { name: "abortFetch", targets: ["watch"], feature: "network", since: 1 },
-  { name: "ble", targets: ["watch"], feature: "bluetooth", since: 1 },
-  { name: "sensor", targets: ["watch"], feature: "sensors", since: 1 },
+  {
+    name: "fetch",
+    targets: ["watch"],
+    feature: "network",
+    since: 1,
+    args: [
+      { name: "id", type: "int" },
+      { name: "requestJson", type: "string" },
+    ],
+  },
+  {
+    name: "abortFetch",
+    targets: ["watch"],
+    feature: "network",
+    since: 1,
+    args: [{ name: "id", type: "int" }],
+  },
+  {
+    name: "ble",
+    targets: ["watch"],
+    feature: "bluetooth",
+    since: 1,
+    args: [{ name: "json", type: "string" }],
+  },
+  {
+    name: "sensor",
+    targets: ["watch"],
+    feature: "sensors",
+    since: 1,
+    args: [{ name: "json", type: "string" }],
+  },
   {
     name: "saveUpdate",
     targets: ["watch"],
@@ -291,7 +390,16 @@ export const hostMethods = [
     since: 1,
     via: "invoke",
   },
-  { name: "generate", targets: ["watch"], feature: "ai", since: 1 },
+  {
+    name: "generate",
+    targets: ["watch"],
+    feature: "ai",
+    since: 1,
+    args: [
+      { name: "id", type: "int" },
+      { name: "requestJson", type: "string" },
+    ],
+  },
   // Runtime "can this watch run on-device AI now?" query (CX-002), distinct from
   // the build-time `ai` feature: a watch on the right OS may still be unable
   // (model not downloaded / Apple Intelligence off). Routed via invoke.

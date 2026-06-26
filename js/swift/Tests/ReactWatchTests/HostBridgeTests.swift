@@ -1,0 +1,168 @@
+import ReactWatchCore
+import ReactWatchRuntime
+import XCTest
+
+/// CX-023: every GENERATED host trampoline is exercised through a real JSRuntime
+/// (real quickjs-ng + the generated C marshaling) — args in, and for the methods
+/// that return a value, the value back out across the boundary. A codegen bug in
+/// the arg/return marshaling can't slip past "it compiles": this is the per-method
+/// guarantee. Runs on Linux/macOS via `swift test` and on the watchOS sim.
+final class HostBridgeTests: XCTestCase {
+    // MARK: - void, string arg(s)
+
+    func testStringArgVoidTrampolinesReceiveTheArg() throws {
+        let r = try JSRuntime()
+        var commit: String?
+        var log: String?
+        var publish: String?
+        var haptic: String?
+        var cancel: String?
+        var ble: String?
+        var sensor: String?
+        r.bridge.commit = { commit = $0 }
+        r.bridge.log = { log = $0 }
+        r.bridge.publishWidgets = { publish = $0 }
+        r.bridge.playHaptic = { haptic = $0 }
+        r.bridge.cancelNotification = { cancel = $0 }
+        r.bridge.ble = { ble = $0 }
+        r.bridge.sensor = { sensor = $0 }
+        try r.evaluate(
+            #"""
+            __host.commit("C");
+            __host.log("L");
+            __host.publishWidgets("P");
+            __host.playHaptic("H");
+            __host.cancelNotification("N");
+            __host.ble("B");
+            __host.sensor("S");
+            """#)
+        XCTAssertEqual(commit, "C")
+        XCTAssertEqual(log, "L")
+        XCTAssertEqual(publish, "P")
+        XCTAssertEqual(haptic, "H")
+        XCTAssertEqual(cancel, "N")
+        XCTAssertEqual(ble, "B")
+        XCTAssertEqual(sensor, "S")
+    }
+
+    func testSetItemReceivesBothStrings() throws {
+        let r = try JSRuntime()
+        var pair: (String, String)?
+        r.bridge.setItem = { pair = ($0, $1) }
+        try r.evaluate(#"__host.setItem("k", "v")"#)
+        XCTAssertEqual(pair?.0, "k")
+        XCTAssertEqual(pair?.1, "v")
+    }
+
+    // MARK: - void, numeric arg(s) — coercion across the boundary
+
+    func testIntArgTrampolines() throws {
+        let r = try JSRuntime()
+        var cleared: Int?
+        var aborted: Int?
+        r.bridge.clearTimer = { cleared = $0 }
+        r.bridge.abortFetch = { aborted = $0 }
+        try r.evaluate("__host.clearTimer(11); __host.abortFetch(22)")
+        XCTAssertEqual(cleared, 11)
+        XCTAssertEqual(aborted, 22)
+    }
+
+    func testSetTimerReceivesIntAndDouble() throws {
+        let r = try JSRuntime()
+        var got: (Int, Double)?
+        r.bridge.setTimer = { got = ($0, $1) }
+        try r.evaluate("__host.setTimer(7, 250.5)")
+        XCTAssertEqual(got?.0, 7)
+        XCTAssertEqual(got?.1 ?? 0, 250.5, accuracy: 0.0001)
+    }
+
+    // MARK: - void, mixed (int, string...) — ORDER matters
+
+    func testMixedArgTrampolinesPreserveOrder() throws {
+        let r = try JSRuntime()
+        var invoke: (Int, String, String)?
+        var fetch: (Int, String)?
+        var generate: (Int, String)?
+        r.bridge.invoke = { invoke = ($0, $1, $2) }
+        r.bridge.fetch = { fetch = ($0, $1) }
+        r.bridge.generate = { generate = ($0, $1) }
+        try r.evaluate(
+            #"""
+            __host.invoke(1, "method", "payload");
+            __host.fetch(2, "req");
+            __host.generate(3, "gen");
+            """#)
+        XCTAssertEqual(invoke?.0, 1)
+        XCTAssertEqual(invoke?.1, "method")
+        XCTAssertEqual(invoke?.2, "payload")
+        XCTAssertEqual(fetch?.0, 2)
+        XCTAssertEqual(fetch?.1, "req")
+        XCTAssertEqual(generate?.0, 3)
+        XCTAssertEqual(generate?.1, "gen")
+    }
+
+    // MARK: - returning methods — the VALUE must cross back to JS
+
+    func testGetItemReturnsTheStringToJS() throws {
+        let r = try JSRuntime()
+        var capturedKey: String?
+        r.bridge.getItem = { key in
+            capturedKey = key
+            return "value:\(key)"
+        }
+        // The returned string is what JS sees back from __host.getItem.
+        XCTAssertEqual(r.evaluateString(#"__host.getItem("theKey")"#), "value:theKey")
+        XCTAssertEqual(capturedKey, "theKey")
+    }
+
+    func testGetItemNilBecomesNullInJS() throws {
+        let r = try JSRuntime()
+        r.bridge.getItem = { _ in nil }
+        // nil -> JS null (not the string "null"); String(null) proves it.
+        XCTAssertEqual(r.evaluateString(#"String(__host.getItem("x") === null)"#), "true")
+    }
+
+    func testCounterGetReturnsIntToJS() throws {
+        let r = try JSRuntime()
+        var capturedKey: String?
+        r.bridge.counterGet = { key in
+            capturedKey = key
+            return 42
+        }
+        XCTAssertEqual(r.evaluateString(#"String(__host.counterGet("g"))"#), "42")
+        XCTAssertEqual(capturedKey, "g")
+    }
+
+    func testCounterAddReceivesAllArgsAndReturnsInt() throws {
+        let r = try JSRuntime()
+        var got: (String, Int, Int, Int)?
+        r.bridge.counterAdd = { key, delta, lo, hi in
+            got = (key, delta, lo, hi)
+            return 99
+        }
+        XCTAssertEqual(
+            r.evaluateString(#"String(__host.counterAdd("c", 3, 0, 8))"#), "99")
+        XCTAssertEqual(got?.0, "c")
+        XCTAssertEqual(got?.1, 3)
+        XCTAssertEqual(got?.2, 0)
+        XCTAssertEqual(got?.3, 8)
+    }
+
+    // MARK: - install completeness
+
+    func testEveryDirectMethodIsInstalledOnHost() throws {
+        let r = try JSRuntime()
+        // The generated install table must put a function at each name.
+        for name in [
+            "commit", "log", "setTimer", "clearTimer", "invoke", "publishWidgets",
+            "getItem", "setItem", "counterGet", "counterAdd", "playHaptic",
+            "cancelNotification", "fetch", "abortFetch", "ble", "sensor", "generate",
+        ] {
+            XCTAssertTrue(
+                r.evaluateBool("typeof __host.\(name) === 'function'"),
+                "__host.\(name) is not installed")
+        }
+        // A via-invoke method is NOT a direct host function (routed through invoke).
+        XCTAssertTrue(r.evaluateBool("typeof __host.saveUpdate === 'undefined'"))
+    }
+}

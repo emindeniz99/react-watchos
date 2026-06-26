@@ -18,14 +18,15 @@ describe("codegen", () => {
     ).not.toThrow();
   });
 
-  it("the Swift runtime installs exactly the schema's direct host methods", () => {
-    // One embedding now: ReactWatchRuntime.JSRuntime serves both the watch app
-    // and the widget extension (IntentRuntime reuses it), so it must install
-    // every DIRECT host method the schema declares. `via:"invoke"` methods are
-    // routed through the generic invoke channel, not installed as their own host
-    // functions (SD-1), so they're excluded here. Cross-checks codegen <-> Swift.
+  it("the generated install table covers exactly the schema's direct host methods", () => {
+    // The host bridge is generated (CX-023): the install table lives in the
+    // generated HostBridge.swift, so it must install every DIRECT host method the
+    // schema declares. `via:"invoke"` methods are routed through the generic
+    // invoke channel, not installed as their own host functions (SD-1), so
+    // they're excluded. This guards the GENERATOR's output (the drift test guards
+    // that the committed file matches; HostBridgeTests.swift proves each works).
     const src = readFileSync(
-      join(swiftRoot, "Sources/ReactWatchRuntime/JSRuntime.swift"),
+      join(swiftRoot, "Sources/ReactWatchRuntime/Generated/HostBridge.swift"),
       "utf8",
     );
     const installed = new Set<string>();

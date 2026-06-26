@@ -1,13 +1,16 @@
 // The wire contract is generated from codegen/schema.mjs into one place;
 // the Swift models (Generated/WireModel.swift) are generated from the same
-// schema, so the two sides cannot drift.
+// schema, so the two sides cannot drift. `QuickJSHostGlobal` (the raw `__host`
+// surface) is generated too (CX-023) — from the same host-method signatures
+// that produce the Swift `HostBridge` + C trampolines + install table.
 export type {
+  QuickJSHostGlobal,
   SerializedNode,
   SerializedTree,
   WatchEvent,
 } from "./generated/wire";
 
-import type { SerializedTree } from "./generated/wire";
+import type { QuickJSHostGlobal, SerializedTree } from "./generated/wire";
 
 /** Where committed trees go. Swift provides this via the `__host` global. */
 export interface HostBridge {
@@ -31,51 +34,6 @@ export class MemoryHost implements HostBridge {
   get lastCommit(): SerializedTree | undefined {
     return this.commits[this.commits.length - 1];
   }
-}
-
-/**
- * Raw globals installed by JSRuntime.swift before the bundle is evaluated.
- * Strings cross the C boundary, so commit/event payloads are JSON strings.
- */
-export interface QuickJSHostGlobal {
-  commit(treeJson: string): void;
-  log(message: string): void;
-  setTimer(id: number, ms: number): void;
-  clearTimer?(id: number): void;
-  /** Persists rendered widget timelines and reloads WidgetKit. */
-  publishWidgets?(payloadJson: string): void;
-  /** App Group UserDefaults, shared between app and widget extension. */
-  getItem?(key: string): string | null;
-  setItem?(key: string, value: string): void;
-  /**
-   * Cross-process-atomic integer counters (ARCH-05). `counterAdd` does a clamped
-   * read-modify-write under a file-coordination claim and returns the new value,
-   * so the app and the widget extension can increment the same counter without
-   * losing updates (which plain getItem+setItem can't guarantee across processes).
-   */
-  counterGet?(key: string): number;
-  counterAdd?(key: string, delta: number, min: number, max: number): number;
-  /** WKInterfaceDevice haptics. */
-  playHaptic?(type: string): void;
-  /**
-   * Generic request/response channel for fallible ops (SD-1); settles via
-   * __resolveInvoke(id, resultJson) / __rejectInvoke(id, errorJson). Routes
-   * saveUpdate + requestNotificationPermission (see js/src/invoke.ts).
-   */
-  invoke?(id: number, method: string, payloadJson: string): void;
-  /** Local notifications (UNUserNotificationCenter). */
-  scheduleNotification?(payloadJson: string): void;
-  cancelNotification?(id: string): void;
-  /** Async HTTP via URLSession; settles via __resolveFetch/__rejectFetch. */
-  fetch?(id: number, requestJson: string): void;
-  /** Cancel an in-flight fetch by id (AbortController/timeout). */
-  abortFetch?(id: number): void;
-  /** CoreBluetooth central ops: { op, ... }. Events arrive as native pushes. */
-  ble?(json: string): void;
-  /** Sensor streams (HealthKit/CoreMotion): { op, kind }. Readings push back. */
-  sensor?(json: string): void;
-  /** On-device LLM (Foundation Models); settles via __resolveGenerate/__rejectGenerate. */
-  generate?(id: number, requestJson: string): void;
 }
 
 /** The native bridge installed by JSRuntime/IntentRuntime, if present. */

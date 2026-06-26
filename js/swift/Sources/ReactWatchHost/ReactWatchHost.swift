@@ -834,7 +834,7 @@ final class ReactWatchModel: ObservableObject {
         // (OP-3). Generous vs the widget's 16MB — the app has the full UI tree.
         let js = try JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
         js.useJSCallBridge = useJSCallBridge  // CR-5 A/B selector
-        js.onCommit = { [weak self] json in
+        js.bridge.commit = { [weak self] json in
             self?.decodeQueue.async {
                 let decoded = try? JSONDecoder().decode(
                     RNTree.self, from: Data(json.utf8)
@@ -879,32 +879,32 @@ final class ReactWatchModel: ObservableObject {
                 }
             }
         }
-        js.onPublishWidgets = { [store] json in
+        js.bridge.publishWidgets = { [store] json in
             store.save(json)
             WidgetCenter.shared.reloadAllTimelines()
         }
-        js.onGetItem = { [store] in store.getItem($0) }
-        js.onSetItem = { [store] in store.setItem($0, $1) }
-        js.onCounterGet = { [counters] in counters.value(forKey: $0) }
-        js.onCounterAdd = { [counters] key, delta, min, max in
+        js.bridge.getItem = { [store] in store.getItem($0) }
+        js.bridge.setItem = { [store] in store.setItem($0, $1) }
+        js.bridge.counterGet = { [counters] in counters.value(forKey: $0) }
+        js.bridge.counterAdd = { [counters] key, delta, min, max in
             counters.add(delta, toKey: key, min: min, max: max)
         }
-        js.onFetch = { [weak self] id, reqJson in
+        js.bridge.fetch = { [weak self] id, reqJson in
             self?.performFetch(id: id, requestJson: reqJson)
         }
-        js.onAbortFetch = { [weak self] id in self?.abortFetch(id: id) }
-        js.onBle = { [weak self] json in self?.bluetooth.handleOp(json) }
-        js.onSensor = { [weak self] json in self?.sensors.handleOp(json) }
-        js.onInvoke = { [weak self] id, method, payload in
+        js.bridge.abortFetch = { [weak self] id in self?.abortFetch(id: id) }
+        js.bridge.ble = { [weak self] json in self?.bluetooth.handleOp(json) }
+        js.bridge.sensor = { [weak self] json in self?.sensors.handleOp(json) }
+        js.bridge.invoke = { [weak self] id, method, payload in
             self?.handleInvoke(id: id, method: method, payload: payload)
         }
-        js.onGenerate = { [weak self] id, reqJson in
+        js.bridge.generate = { [weak self] id, reqJson in
             self?.generate(id: id, requestJson: reqJson)
         }
         js.onError = { [weak self] message in
             DispatchQueue.main.async { self?.runtimeError = message }
         }
-        js.onPlayHaptic = { type in
+        js.bridge.playHaptic = { type in
             let haptic: WKHapticType =
                 switch type {
                 case "success": .success
@@ -919,7 +919,7 @@ final class ReactWatchModel: ObservableObject {
                 }
             WKInterfaceDevice.current().play(haptic)
         }
-        js.onCancelNotification = { id in
+        js.bridge.cancelNotification = { id in
             UNUserNotificationCenter.current()
                 .removePendingNotificationRequests(withIdentifiers: [id])
         }

@@ -82,3 +82,31 @@ export const HOST_FEATURES = {"watch":["ai","bluetooth","connectivity","core","h
  *  how the widget interpreter supports it (full | degraded). Both Swift
  *  interpreters are drift-tested against this. */
 export const COMPONENTS = [{"name":"VStack","widget":"full"},{"name":"HStack","widget":"full"},{"name":"ZStack","widget":"full"},{"name":"ScrollView","widget":"degraded"},{"name":"List","widget":"degraded"},{"name":"TabView","widget":"degraded"},{"name":"Spacer","widget":"full"},{"name":"Divider","widget":"full"},{"name":"Text","widget":"full"},{"name":"TimerText","widget":"full"},{"name":"Image","widget":"full"},{"name":"Map","widget":"degraded"},{"name":"Gauge","widget":"full"},{"name":"ProgressView","widget":"full"},{"name":"Button","widget":"degraded"},{"name":"Toggle","widget":"degraded"},{"name":"Slider","widget":"degraded"},{"name":"Stepper","widget":"degraded"},{"name":"Picker","widget":"degraded"},{"name":"DatePicker","widget":"degraded"},{"name":"TextField","widget":"degraded"},{"name":"CrownRotation","widget":"degraded"},{"name":"NavigationStack","widget":"degraded"},{"name":"NavigationLink","widget":"degraded"},{"name":"NavigationRoute","widget":"degraded"}] as const;
+
+/** Raw globals installed by the host before the bundle is evaluated
+ *  (generated from the schema's direct methods). Strings/numbers cross the C
+ *  boundary; commit/event payloads are JSON strings. `via:"invoke"` methods
+ *  are routed through `invoke`, not installed here. */
+export interface QuickJSHostGlobal {
+  commit(treeJson: string): void;
+  log(message: string): void;
+  setTimer(id: number, ms: number): void;
+  clearTimer?(id: number): void;
+  /** Generic request/response channel for fallible ops (SD-1); settles via __resolveInvoke(id, resultJson) / __rejectInvoke(id, errorJson). */
+  invoke?(id: number, method: string, payloadJson: string): void;
+  /** Persists rendered widget timelines and reloads WidgetKit. */
+  publishWidgets?(payloadJson: string): void;
+  /** App Group UserDefaults, shared between app and widget extension. */
+  getItem?(key: string): string | null;
+  setItem?(key: string, value: string): void;
+  /** Cross-process-atomic integer counters (ARCH-05): counterAdd does a clamped read-modify-write get/set can't do atomically across processes. */
+  counterGet?(key: string): number;
+  counterAdd?(key: string, delta: number, min: number, max: number): number;
+  playHaptic?(type: string): void;
+  cancelNotification?(id: string): void;
+  fetch?(id: number, requestJson: string): void;
+  abortFetch?(id: number): void;
+  ble?(json: string): void;
+  sensor?(json: string): void;
+  generate?(id: number, requestJson: string): void;
+}

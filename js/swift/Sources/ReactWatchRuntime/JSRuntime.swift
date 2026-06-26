@@ -17,55 +17,18 @@ public final class JSRuntime {
         case exception(String)
     }
 
-    /// Called with the raw JSON tree string on every React commit.
-    public var onCommit: ((String) -> Void)?
+    /// Every synchronous `__host` callback, GENERATED from codegen/schema.mjs
+    /// (CX-023): the embedding host sets the feature closures (commit,
+    /// publishWidgets, getItem/setItem, counters, playHaptic, invoke,
+    /// cancelNotification, fetch/abortFetch, ble, sensor, generate); JSRuntime
+    /// sets the infra ones (setTimer/clearTimer/log) to internal defaults in
+    /// `installHostObject`. The generated C trampolines dispatch into this.
+    public var bridge = HostBridge()
 
-    /// Called with the rendered widget-timelines payload whenever JS calls
-    /// __host.publishWidgets (persist + WidgetCenter reload).
-    public var onPublishWidgets: ((String) -> Void)?
-
-    /// Key/value storage bridge (App Group UserDefaults).
-    public var onGetItem: ((String) -> String?)?
-    public var onSetItem: ((String, String) -> Void)?
-
-    /// Cross-process-atomic integer counters (ARCH-05). Distinct from get/set
-    /// because UserDefaults can't do an atomic cross-process read-modify-write;
-    /// `onCounterAdd` performs the whole clamp-and-add under a file-coordination
-    /// claim and returns the new value. Both the app and the widget extension
-    /// increment the same counter, so a plain get+set loses concurrent updates.
-    public var onCounterGet: ((String) -> Int)?
-    public var onCounterAdd: ((String, Int, Int, Int) -> Int)?
-
-    /// Non-fatal JS exceptions (event handlers, timers). Without this,
-    /// runtime errors after startup would be silently swallowed.
+    /// Non-fatal JS exceptions (event handlers, timers) — reported to the host,
+    /// not called FROM JS, so it isn't part of the generated `__host` surface.
+    /// Without this, runtime errors after startup would be silently swallowed.
     public var onError: ((String) -> Void)?
-
-    /// WKHapticType name from js/src/haptics.ts.
-    public var onPlayHaptic: ((String) -> Void)?
-
-    /// Generic request/response channel (SD-1): (id, method, payloadJson).
-    /// Fallible ops route through here and settle with resolveInvoke/rejectInvoke
-    /// on the main thread, instead of a host method + global pair per op.
-    public var onInvoke: ((Int, String, String) -> Void)?
-
-    /// Local notifications (js/src/notifications.ts). scheduleNotification is
-    /// routed through the generic invoke channel (SD-1); cancel stays direct
-    /// (fire-and-forget, no result).
-    public var onCancelNotification: ((String) -> Void)?
-
-    /// Async HTTP request (js/src/fetch.ts). Settle with
-    /// resolveFetch/rejectFetch on the main thread.
-    public var onFetch: ((Int, String) -> Void)?
-    /// Cancel an in-flight fetch by id.
-    public var onAbortFetch: ((Int) -> Void)?
-
-    /// CoreBluetooth op channel (js/src/bluetooth.ts): { op, ... }.
-    public var onBle: ((String) -> Void)?
-    /// Sensor op channel (js/src/sensors.ts): { op, kind }.
-    public var onSensor: ((String) -> Void)?
-    /// On-device LLM generate (js/src/ai.ts). Settle with
-    /// resolveGenerate/rejectGenerate on the main thread.
-    public var onGenerate: ((Int, String) -> Void)?
 
     private let runtime: OpaquePointer
     private let context: OpaquePointer
@@ -419,67 +382,19 @@ public final class JSRuntime {
         let global = JS_GetGlobalObject(context)
         defer { JS_FreeValue(context, global) }
 
+        // Infra callbacks the runtime owns, not the embedding host: timer
+        // scheduling + logging. Set before the bundle runs; a host may override.
+        bridge.setTimer = { [weak self] id, ms in
+            self?.scheduleTimer(id: Int32(id), milliseconds: ms)
+        }
+        bridge.clearTimer = { [weak self] id in self?.cancelTimer(id: Int32(id)) }
+        bridge.log = { print("[js]", $0) }
+
         let host = JS_NewObject(context)
-        JS_SetPropertyStr(
-            context, host, "commit",
-            JS_NewCFunction(context, hostCommit, "commit", 1))
-        JS_SetPropertyStr(
-            context, host, "log",
-            JS_NewCFunction(context, hostLog, "log", 1))
-        JS_SetPropertyStr(
-            context, host, "setTimer",
-            JS_NewCFunction(context, hostSetTimer, "setTimer", 2))
-        JS_SetPropertyStr(
-            context, host, "clearTimer",
-            JS_NewCFunction(context, hostClearTimer, "clearTimer", 1))
-        JS_SetPropertyStr(
-            context, host, "publishWidgets",
-            JS_NewCFunction(context, hostPublishWidgets, "publishWidgets", 1))
-        JS_SetPropertyStr(
-            context, host, "getItem",
-            JS_NewCFunction(context, hostGetItem, "getItem", 1))
-        JS_SetPropertyStr(
-            context, host, "setItem",
-            JS_NewCFunction(context, hostSetItem, "setItem", 2))
-        JS_SetPropertyStr(
-            context, host, "counterGet",
-            JS_NewCFunction(context, hostCounterGet, "counterGet", 1))
-        JS_SetPropertyStr(
-            context, host, "counterAdd",
-            JS_NewCFunction(context, hostCounterAdd, "counterAdd", 4))
-        JS_SetPropertyStr(
-            context, host, "playHaptic",
-            JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
-        JS_SetPropertyStr(
-            context, host, "invoke",
-            JS_NewCFunction(context, hostInvoke, "invoke", 3))
-        JS_SetPropertyStr(
-            context, host, "cancelNotification",
-            JS_NewCFunction(
-                context, hostCancelNotification,
-                "cancelNotification", 1)
-        )
-        JS_SetPropertyStr(
-            context, host, "fetch",
-            JS_NewCFunction(context, hostFetch, "fetch", 2))
-        JS_SetPropertyStr(
-            context, host, "abortFetch",
-            JS_NewCFunction(context, hostAbortFetch, "abortFetch", 1))
-        JS_SetPropertyStr(
-            context, host, "ble",
-            JS_NewCFunction(context, hostBle, "ble", 1))
-        JS_SetPropertyStr(
-            context, host, "sensor",
-            JS_NewCFunction(context, hostSensor, "sensor", 1))
-        JS_SetPropertyStr(
-            context, host, "generate",
-            JS_NewCFunction(context, hostGenerate, "generate", 2))
+        // Every direct host function is installed from the schema (CX-023).
+        installHostBridge(into: host, context: context)
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
-    }
-
-    private func handleCommit(_ json: String) {
-        onCommit?(json)
     }
 
     private func scheduleTimer(id: Int32, milliseconds: Double) {
@@ -563,7 +478,7 @@ public final class JSRuntime {
         return String(array.dropFirst().dropLast())
     }
 
-    fileprivate static func from(context: OpaquePointer?) -> JSRuntime? {
+    static func from(context: OpaquePointer?) -> JSRuntime? {
         guard let context, let opaque = JS_GetContextOpaque(context) else {
             return nil
         }
@@ -586,287 +501,12 @@ private func promiseRejectionTracker(
     runtime.reportUnhandledRejection(reason)
 }
 
-private func hostCommit(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let cString = JS_ToCString(ctx, argv[0])
-    {
-        runtime.handleCommitFromC(String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostLog(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let argv, argc >= 1, let cString = JS_ToCString(ctx, argv[0]) {
-        print("[js]", String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostPublishWidgets(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let cString = JS_ToCString(ctx, argv[0])
-    {
-        runtime.handlePublishWidgetsFromC(String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostPlayHaptic(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let cString = JS_ToCString(ctx, argv[0])
-    {
-        runtime.playHapticFromC(String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostInvoke(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 3,
-        let method = JS_ToCString(ctx, argv[1]),
-        let payload = JS_ToCString(ctx, argv[2])
-    {
-        var id: Int32 = 0
-        JS_ToInt32(ctx, &id, argv[0])
-        runtime.invokeFromC(Int(id), String(cString: method), String(cString: payload))
-        JS_FreeCString(ctx, method)
-        JS_FreeCString(ctx, payload)
-    }
-    return qjs_undefined()
-}
-
-private func hostCancelNotification(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let cString = JS_ToCString(ctx, argv[0])
-    {
-        runtime.cancelNotificationFromC(String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostFetch(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-        let cString = JS_ToCString(ctx, argv[1])
-    {
-        var id: Int32 = 0
-        JS_ToInt32(ctx, &id, argv[0])
-        runtime.fetchFromC(Int(id), String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostBle(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let cString = JS_ToCString(ctx, argv[0])
-    {
-        runtime.bleFromC(String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostSensor(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let cString = JS_ToCString(ctx, argv[0])
-    {
-        runtime.sensorFromC(String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostGenerate(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-        let cString = JS_ToCString(ctx, argv[1])
-    {
-        var id: Int32 = 0
-        JS_ToInt32(ctx, &id, argv[0])
-        runtime.generateFromC(Int(id), String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
-private func hostAbortFetch(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1 {
-        var id: Int32 = 0
-        JS_ToInt32(ctx, &id, argv[0])
-        runtime.abortFetchFromC(Int(id))
-    }
-    return qjs_undefined()
-}
-
-private func hostGetItem(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let keyC = JS_ToCString(ctx, argv[0])
-    else { return qjs_null() }
-    let key = String(cString: keyC)
-    JS_FreeCString(ctx, keyC)
-    guard let value = runtime.getItemFromC(key) else { return qjs_null() }
-    return JS_NewString(ctx, value)
-}
-
-private func hostSetItem(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2,
-        let keyC = JS_ToCString(ctx, argv[0]),
-        let valueC = JS_ToCString(ctx, argv[1])
-    {
-        runtime.setItemFromC(String(cString: keyC), String(cString: valueC))
-        JS_FreeCString(ctx, keyC)
-        JS_FreeCString(ctx, valueC)
-    }
-    return qjs_undefined()
-}
-
-private func hostCounterGet(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let keyC = JS_ToCString(ctx, argv[0])
-    else { return JS_NewInt32(ctx, 0) }
-    let key = String(cString: keyC)
-    JS_FreeCString(ctx, keyC)
-    return JS_NewInt32(ctx, Int32(runtime.counterGetFromC(key)))
-}
-
-private func hostCounterAdd(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 4,
-        let keyC = JS_ToCString(ctx, argv[0])
-    else { return JS_NewInt32(ctx, 0) }
-    let key = String(cString: keyC)
-    JS_FreeCString(ctx, keyC)
-    var delta: Int32 = 0
-    var minV: Int32 = 0
-    var maxV: Int32 = 0
-    JS_ToInt32(ctx, &delta, argv[1])
-    JS_ToInt32(ctx, &minV, argv[2])
-    JS_ToInt32(ctx, &maxV, argv[3])
-    let result = runtime.counterAddFromC(
-        key, Int(delta), Int(minV), Int(maxV))
-    return JS_NewInt32(ctx, Int32(result))
-}
-
-private func hostSetTimer(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 2 {
-        var id: Int32 = 0
-        var ms: Double = 0
-        JS_ToInt32(ctx, &id, argv[0])
-        JS_ToFloat64(ctx, &ms, argv[1])
-        runtime.scheduleTimerFromC(id: id, milliseconds: ms)
-    }
-    return qjs_undefined()
-}
-
-private func hostClearTimer(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1 {
-        var id: Int32 = 0
-        JS_ToInt32(ctx, &id, argv[0])
-        runtime.cancelTimerFromC(id: id)
-    }
-    return qjs_undefined()
-}
+// MARK: - Swift -> JS settle (generate)
 
 extension JSRuntime {
-    fileprivate func handleCommitFromC(_ json: String) {
-        handleCommit(json)
-    }
-
-    fileprivate func handlePublishWidgetsFromC(_ json: String) {
-        onPublishWidgets?(json)
-    }
-
-    fileprivate func getItemFromC(_ key: String) -> String? {
-        onGetItem?(key)
-    }
-
-    fileprivate func playHapticFromC(_ type: String) {
-        onPlayHaptic?(type)
-    }
-
-    fileprivate func invokeFromC(_ id: Int, _ method: String, _ payload: String) {
-        onInvoke?(id, method, payload)
-    }
-
-    fileprivate func cancelNotificationFromC(_ id: String) {
-        onCancelNotification?(id)
-    }
-
-    fileprivate func fetchFromC(_ id: Int, _ json: String) {
-        onFetch?(id, json)
-    }
-
-    fileprivate func abortFetchFromC(_ id: Int) {
-        onAbortFetch?(id)
-    }
-
-    fileprivate func bleFromC(_ json: String) {
-        onBle?(json)
-    }
-
-    fileprivate func sensorFromC(_ json: String) {
-        onSensor?(json)
-    }
-
-    fileprivate func generateFromC(_ id: Int, _ json: String) {
-        onGenerate?(id, json)
-    }
-
     /// Settles a generateText Promise on the main thread (where the context
-    /// lives).
+    /// lives). resolve/reject are Swift -> JS, so they aren't part of the
+    /// generated JS -> Swift `__host` bridge.
     public func resolveGenerate(id: Int, text: String) {
         assertMainThread()
         bridgeCall("__resolveGenerate", [.int(id), .string(text)], filename: "ai.js")
@@ -875,29 +515,5 @@ extension JSRuntime {
     public func rejectGenerate(id: Int, message: String) {
         assertMainThread()
         bridgeCall("__rejectGenerate", [.int(id), .string(message)], filename: "ai.js")
-    }
-
-    fileprivate func setItemFromC(_ key: String, _ value: String) {
-        onSetItem?(key, value)
-    }
-
-    fileprivate func counterGetFromC(_ key: String) -> Int {
-        onCounterGet?(key) ?? 0
-    }
-
-    fileprivate func counterAddFromC(
-        _ key: String, _ delta: Int, _ min: Int, _ max: Int
-    ) -> Int {
-        // No counter bridge wired (shouldn't happen on a real host): return the
-        // floor so the JS clamp invariant still holds.
-        onCounterAdd?(key, delta, min, max) ?? min
-    }
-
-    fileprivate func scheduleTimerFromC(id: Int32, milliseconds: Double) {
-        scheduleTimer(id: id, milliseconds: milliseconds)
-    }
-
-    fileprivate func cancelTimerFromC(id: Int32) {
-        cancelTimer(id: id)
     }
 }

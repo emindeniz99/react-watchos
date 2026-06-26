@@ -34,16 +34,16 @@ final class IntentRuntime {
         }
         self.js = js
         // The intent entrypoint must not mount UI; ignore any commit.
-        js.onCommit = { _ in }
-        js.onPublishWidgets = { [store] json in
+        js.bridge.commit = { _ in }
+        js.bridge.publishWidgets = { [store] json in
             store.save(json)
             IntentRuntime.invalidateCache()
             WidgetCenter.shared.reloadAllTimelines()
         }
-        js.onGetItem = { [store] key in store.getItem(key) }
-        js.onSetItem = { [store] key, value in store.setItem(key, value) }
-        js.onCounterGet = { [counters] key in counters.value(forKey: key) }
-        js.onCounterAdd = { [counters] key, delta, min, max in
+        js.bridge.getItem = { [store] key in store.getItem(key) }
+        js.bridge.setItem = { [store] key, value in store.setItem(key, value) }
+        js.bridge.counterGet = { [counters] key in counters.value(forKey: key) }
+        js.bridge.counterAdd = { [counters] key, delta, min, max in
             counters.add(delta, toKey: key, min: min, max: max)
         }
         do {
