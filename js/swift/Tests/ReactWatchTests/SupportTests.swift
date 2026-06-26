@@ -295,6 +295,67 @@ final class VersionPolicyTests: XCTestCase {
         XCTAssertEqual(VersionPolicy.bumpedHighWater(5, booted: 7), 7)
         XCTAssertEqual(VersionPolicy.bumpedHighWater(7, booted: 5), 7)  // never decreases
     }
+
+    // ARCH-04: crash-loop recovery prefers a previously-healthy OTA over shipped,
+    // but never one that would break anti-rollback.
+    func testNoKnownGoodDropsToShipped() {
+        XCTAssertEqual(
+            VersionPolicy.crashLoopRecovery(
+                hasKnownGood: false, knownGoodMatchesActive: false,
+                knownGoodVersion: nil, highWater: 5, shippedVersion: 3,
+                gate: .hard, enforcing: true),
+            .dropToShipped
+        )
+    }
+
+    func testRollsBackToSameVersionKnownGood() {
+        // The common case: a non-breaking fix (same version, CX-025 releaseId)
+        // crash-loops → roll back to the previous healthy build, not shipped.
+        XCTAssertEqual(
+            VersionPolicy.crashLoopRecovery(
+                hasKnownGood: true, knownGoodMatchesActive: false,
+                knownGoodVersion: 5, highWater: 5, shippedVersion: 3,
+                gate: .hard, enforcing: true),
+            .rollBackToKnownGood
+        )
+    }
+
+    func testDoesNotRollBackToAnAntiRollbackViolatingKnownGood() {
+        // The failing bundle was a newer SCHEMA (v6, now the high-water); the
+        // known-good is v5 — running it over the v6 db is exactly what
+        // anti-rollback forbids, so drop to shipped (the hard gate then applies).
+        XCTAssertEqual(
+            VersionPolicy.crashLoopRecovery(
+                hasKnownGood: true, knownGoodMatchesActive: false,
+                knownGoodVersion: 5, highWater: 6, shippedVersion: 3,
+                gate: .hard, enforcing: true),
+            .dropToShipped
+        )
+    }
+
+    func testKnownGoodMatchingTheFailingBundleDropsToShipped() {
+        // The snapshot IS the bundle that just crash-looped (promoted healthy
+        // once, later broke) — rolling back to it would loop.
+        XCTAssertEqual(
+            VersionPolicy.crashLoopRecovery(
+                hasKnownGood: true, knownGoodMatchesActive: true,
+                knownGoodVersion: 5, highWater: 5, shippedVersion: 3,
+                gate: .hard, enforcing: true),
+            .dropToShipped
+        )
+    }
+
+    func testFailOpenRollsBackWithoutAVersionGate() {
+        // No keys configured → versions unverified, no anti-rollback; any
+        // differing known-good is a valid restore target.
+        XCTAssertEqual(
+            VersionPolicy.crashLoopRecovery(
+                hasKnownGood: true, knownGoodMatchesActive: false,
+                knownGoodVersion: nil, highWater: 0, shippedVersion: 1,
+                gate: .soft, enforcing: false),
+            .rollBackToKnownGood
+        )
+    }
 }
 
 // CR-15: the BLE bridge's connection bookkeeping (the write-replay queue, the

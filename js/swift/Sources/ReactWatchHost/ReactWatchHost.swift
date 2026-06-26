@@ -197,6 +197,17 @@ final class ReactWatchModel: ObservableObject {
         appGroupFile("ota-bundle.qbc")
     }
 
+    /// Previous-known-good OTA snapshot (ARCH-04): the last OTA record that
+    /// reached a healthy commit, kept so a crash-looping bundle can roll back to
+    /// a build that worked on this device instead of all the way to shipped.
+    private var otaKnownGoodURL: URL? { appGroupFile("ota-bundle.good.json") }
+    private var otaKnownGoodBytecodeURL: URL? { appGroupFile("ota-bundle.good.qbc") }
+
+    /// The OTA record this launch actually booted (nil = running shipped). Set in
+    /// `load`; read in the first-healthy-commit handler to promote it to the
+    /// known-good snapshot.
+    private var bootedOTARecord: OTARecord?
+
     private func appGroupFile(_ name: String) -> URL? {
         guard let group = store.appGroupId else { return nil }
         return FileManager.default
@@ -477,6 +488,55 @@ final class ReactWatchModel: ObservableObject {
         if let bcURL = otaBytecodeURL { try? FileManager.default.removeItem(at: bcURL) }
     }
 
+    private func loadKnownGoodRecord() -> OTARecord? {
+        guard let url = otaKnownGoodURL, let data = try? Data(contentsOf: url)
+        else { return nil }
+        return try? JSONDecoder().decode(OTARecord.self, from: data)
+    }
+
+    /// Snapshot the active OTA bundle as the known-good rollback target (ARCH-04),
+    /// called on the first healthy commit. Idempotent: skips the write when the
+    /// snapshot already equals the active record, so repeated boots don't churn.
+    private func promoteToKnownGood(_ record: OTARecord) {
+        guard let url = otaKnownGoodURL else { return }
+        if loadKnownGoodRecord() == record { return }
+        guard let data = try? JSONEncoder().encode(record),
+            (try? data.write(to: url, options: .atomic)) != nil
+        else { return }
+        // Carry the bytecode too so the rollback boot also skips the parser; a
+        // missing/failed copy just means the restored bundle parses its source.
+        copyFile(from: otaBytecodeURL, to: otaKnownGoodBytecodeURL)
+    }
+
+    /// Restore the known-good snapshot as the active OTA bundle (ARCH-04
+    /// crash-loop rollback). Returns the restored record so the caller can boot
+    /// it this launch, or nil if there was nothing to restore.
+    private func restoreKnownGood() -> OTARecord? {
+        guard let good = loadKnownGoodRecord(), let activeURL = otaRecordURL,
+            let data = try? JSONEncoder().encode(good),
+            (try? data.write(to: activeURL, options: .atomic)) != nil
+        else { return nil }
+        copyFile(from: otaKnownGoodBytecodeURL, to: otaBytecodeURL)
+        return good
+    }
+
+    private func dropKnownGood() {
+        if let url = otaKnownGoodURL { try? FileManager.default.removeItem(at: url) }
+        if let bc = otaKnownGoodBytecodeURL {
+            try? FileManager.default.removeItem(at: bc)
+        }
+    }
+
+    /// Replace `dst` with a copy of `src` (best-effort); removes `dst` first so
+    /// the copy can't fail on an existing file, and clears a stale `dst` when
+    /// `src` is absent (so bytecode never outlives its record).
+    private func copyFile(from src: URL?, to dst: URL?) {
+        guard let dst else { return }
+        try? FileManager.default.removeItem(at: dst)
+        guard let src, FileManager.default.fileExists(atPath: src.path) else { return }
+        try? FileManager.default.copyItem(at: src, to: dst)
+    }
+
     /// Remote manifest served at `OTAConfig.manifestURL` ({version, bundle,
     /// signature}); `bundle` is absolute or relative to the manifest URL.
     private struct RemoteManifest: Decodable {
@@ -622,17 +682,55 @@ final class ReactWatchModel: ObservableObject {
                 // in a host callback) kills the process before that catch — a
                 // bundle that does so bricks every launch. otaBootAttempts counts
                 // boots that haven't reached a healthy commit (which resets it);
-                // once it hits the cap, drop the bundle and fall back to shipped.
+                // once it hits the cap, roll back — to a previously-healthy OTA if
+                // there is one (and it doesn't break anti-rollback), else shipped.
                 if store.otaBootAttempts() >= Self.maxOTABootAttempts {
-                    dropOTA()
-                    store.setOTABootAttempts(0)
-                    runtimeError =
-                        "OTA bundle rolled back: failed to boot "
-                        + "\(Self.maxOTABootAttempts)× — using shipped bundle"
+                    let knownGood = loadKnownGoodRecord()
+                    let recovery = VersionPolicy.crashLoopRecovery(
+                        hasKnownGood: knownGood != nil,
+                        knownGoodMatchesActive: knownGood == c,
+                        knownGoodVersion: knownGood?.version,
+                        highWater: store.otaHighWater(),
+                        shippedVersion: shippedBundleVersion,
+                        gate: updateGate,
+                        enforcing: updateKeyState != .disabled
+                    )
+                    if recovery == .rollBackToKnownGood, let good = restoreKnownGood() {
+                        // This launch is the restored bundle's first boot attempt;
+                        // if it ALSO crash-loops, next time knownGood == active →
+                        // dropToShipped (so the rollback can't loop forever).
+                        store.setOTABootAttempts(1)
+                        do {
+                            try evaluateOTA(good, into: js)
+                            bootedOTARecord = good
+                            if let v = good.version {
+                                store.setOTAHighWater(
+                                    VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v))
+                            }
+                            runtimeError =
+                                "OTA bundle crash-looped — rolled back to the "
+                                + "previous working bundle"
+                            return
+                        } catch {
+                            dropOTA()
+                            dropKnownGood()
+                            store.setOTABootAttempts(0)
+                            runtimeError =
+                                "OTA rollback bundle also failed, using shipped: \(error)"
+                        }
+                    } else {
+                        dropOTA()
+                        dropKnownGood()
+                        store.setOTABootAttempts(0)
+                        runtimeError =
+                            "OTA bundle rolled back: failed to boot "
+                            + "\(Self.maxOTABootAttempts)× — using shipped bundle"
+                    }
                 } else {
                     store.setOTABootAttempts(store.otaBootAttempts() + 1)
                     do {
                         try evaluateOTA(c, into: js)
+                        bootedOTARecord = c
                         if let v = c.version {
                             store.setOTAHighWater(
                                 VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v)
@@ -767,6 +865,12 @@ final class ReactWatchModel: ObservableObject {
                     // (ARCH-04). Idempotent; after the first reset it's a no-op.
                     if self.store.otaBootAttempts() != 0 {
                         self.store.setOTABootAttempts(0)
+                        // First healthy commit this launch: snapshot the running
+                        // OTA bundle as the known-good rollback target (no-op when
+                        // running shipped, or when the snapshot already matches).
+                        if let booted = self.bootedOTARecord {
+                            self.promoteToKnownGood(booted)
+                        }
                     }
                     if tree.seq > self.ackedSeq {
                         self.ackedSeq = tree.seq

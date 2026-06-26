@@ -28,6 +28,16 @@ public enum BootDecision: Sendable, Equatable {
     case blockForUpdate
 }
 
+/// Where to land when the active OTA bundle has crash-looped (ARCH-04): prefer a
+/// previously-HEALTHY OTA bundle over dropping all the way to shipped — but only
+/// when that known-good still satisfies anti-rollback.
+public enum CrashLoopRecovery: Sendable, Equatable {
+    /// Restore the known-good snapshot as the active bundle and boot it.
+    case rollBackToKnownGood
+    /// No usable known-good — drop the OTA and boot the shipped bundle.
+    case dropToShipped
+}
+
 public enum VersionPolicy {
     /// Whether `saveUpdate` may accept an incoming bundle. Anti-rollback: never
     /// below the high-water mark. Equal is allowed — non-breaking updates share
@@ -57,5 +67,35 @@ public enum VersionPolicy {
     /// The new high-water after successfully booting `booted`. Monotonic.
     public static func bumpedHighWater(_ highWater: Int, booted: Int) -> Int {
         max(highWater, booted)
+    }
+
+    /// What to do when the active OTA bundle has failed to reach a healthy boot
+    /// the maximum number of times (ARCH-04 crash-loop guard). Prefer rolling
+    /// back to a previously-HEALTHY OTA bundle (a strong "this ran fine on this
+    /// device" signal) over dropping to the older shipped bundle — but never to a
+    /// known-good that would violate anti-rollback (running old code against a
+    /// newer-schema db), so an enforced rollback reuses `decide`.
+    ///
+    /// - `knownGoodMatchesActive`: the snapshot IS the bundle that just failed
+    ///   (it booted healthy once, was promoted, then later crash-looped — e.g. an
+    ///   OS update broke it). Rolling back to it would loop, so drop to shipped.
+    /// - `enforcing`: keys are configured (anti-rollback is live). When false
+    ///   (fail-open, no keys → versions unverified), there's no rollback gate, so
+    ///   any differing known-good is a valid restore target.
+    public static func crashLoopRecovery(
+        hasKnownGood: Bool,
+        knownGoodMatchesActive: Bool,
+        knownGoodVersion: Int?,
+        highWater: Int,
+        shippedVersion: Int,
+        gate: OTAGate,
+        enforcing: Bool
+    ) -> CrashLoopRecovery {
+        guard hasKnownGood, !knownGoodMatchesActive else { return .dropToShipped }
+        if !enforcing { return .rollBackToKnownGood }
+        return decide(
+            otaVersion: knownGoodVersion, highWater: highWater,
+            shippedVersion: shippedVersion, gate: gate
+        ) == .runOTA ? .rollBackToKnownGood : .dropToShipped
     }
 }
