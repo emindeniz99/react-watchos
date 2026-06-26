@@ -1,16 +1,9 @@
-import {
-  copyFileSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  statSync,
-  writeFileSync,
-} from "node:fs";
+import { copyFileSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { build } from "esbuild";
 import { bridgeProtocol, hostMethods } from "../codegen/schema.mjs";
+import { writeOTAManifest } from "../esbuild/manifest.mjs";
 import { buildOptions, bundleVersion, root, targets } from "./config.mjs";
-import { contentHash } from "./contentHash.mjs";
 import { unprovidedFeatures } from "./releaseContract.mjs";
 
 // `npm run build -- --minify` (or MINIFY=1) roughly halves the bundle;
@@ -54,36 +47,17 @@ for (const target of targets) {
 // OTA manifest (CR-17): the freshness check fetches this. It ships the APP
 // bundle (the app is what runs OTA); `bundle` is relative so it resolves against
 // wherever the manifest is served (the dev server serves dist/ statically, so
-// /manifest.json + /bundle.js). `signature` is null here — sign
-// "v1:<kid>:<version>:<bundle>" at publish time with your Ed25519 key and fill
-// it in; unsigned bundles load only in fail-open.
-//
-// `releaseId` (CX-025) is the content hash of the app bundle — the *freshness*
-// signal, distinct from `version` (the rollback gate). It's how a non-breaking
-// fix (same `version`, different content) is detected as an available update;
-// it matches the host's `__bundleReleaseId` for the same bytes.
-//
-// `requiredFeatures`/`minBridgeProtocol` (ARCH-02) are the app bundle's declared
-// capability contract: checkForUpdate/fetchAndApplyUpdate read them to refuse
-// applying a bundle this binary can't run (OTA can't add native code) — stamped
-// here so the publisher doesn't hand-pass them.
-const releaseId = contentHash(readFileSync(targets[0].outfile, "utf8"));
-writeFileSync(
-  join(root, "dist/manifest.json"),
-  `${JSON.stringify(
-    {
-      version: bundleVersion,
-      bundle: "bundle.js",
-      signature: null,
-      releaseId,
-      requiredFeatures: targets[0].requiredFeatures,
-      minBridgeProtocol: bridgeProtocol,
-    },
-    null,
-    2,
-  )}\n`,
-);
+// /manifest.json + /bundle.js). `signature` is null here — sign at publish time
+// with `ota:sign`. Uses the SAME published helper a consumer's build uses
+// (react-native-watchos/manifest): it computes `releaseId` (CX-025 freshness)
+// and stamps `requiredFeatures`/`minBridgeProtocol` (ARCH-02 capability gate).
+const manifest = writeOTAManifest({
+  distDir: join(root, "dist"),
+  version: bundleVersion,
+  requiredFeatures: targets[0].requiredFeatures,
+  minBridgeProtocol: bridgeProtocol,
+});
 console.log(
-  `manifest: version ${bundleVersion}, releaseId ${releaseId}, ` +
-    `features [${targets[0].requiredFeatures.join(", ")}]`,
+  `manifest: version ${manifest.version}, releaseId ${manifest.releaseId}, ` +
+    `features [${manifest.requiredFeatures.join(", ")}]`,
 );

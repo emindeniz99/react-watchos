@@ -39,6 +39,10 @@
       "types": "./esbuild/preset.d.mts",
       "default": "./esbuild/preset.mjs"
     },
+    "./manifest": {
+      "types": "./esbuild/manifest.d.mts",
+      "default": "./esbuild/manifest.mjs"
+    },
     "./testing": {
       "source": "./src/testing.ts",
       "types": "./src/testing.ts",
