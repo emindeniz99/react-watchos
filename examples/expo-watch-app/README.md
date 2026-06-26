@@ -5,22 +5,27 @@ An **Expo / React Native iPhone app that adds a watch feature** powered by
 start) a normal Expo app, and bolt on a watch target whose UI is React running
 on the watch.
 
-Two halves:
+Three halves:
 
 - **iPhone app** (`App.tsx`, `index.js`, `app.json`) — ordinary Expo/RN. Uses
   `react-native-watch-connectivity` to talk to the watch.
-- **Watch UI** (`watch-ui/`) — React on the `react-native-watchos` engine,
-  bundled by [`scripts/build-watch.mjs`](./scripts/build-watch.mjs) (the shared
-  build preset) into the watch target's `assets/bundle.js`.
+- **Watch UI** (`watch-ui/App.tsx` → `watch-ui/entry.tsx`) — React on the
+  `react-native-watchos` engine, bundled by
+  [`scripts/build-watch.mjs`](./scripts/build-watch.mjs) (the shared build
+  preset) into the watch target's `assets/bundle.js`.
+- **Widget** (`watch-ui/widget.entry.tsx`) — a React-rendered complication, a
+  second bundle ([`scripts/build-widget.mjs`](./scripts/build-widget.mjs)) the
+  watch widget extension evaluates. See [Widget](#widget-a-react-complication).
 
 ## What's verifiable on Linux (and in CI)
 
 The watch UI is pure JS, so it's fully checkable without a Mac:
 
 ```bash
-pnpm --filter expo-watch-app typecheck    # watch-ui + build script + test
+pnpm --filter expo-watch-app typecheck    # watch-ui + build scripts + test
 pnpm --filter expo-watch-app test         # runApp + MemoryHost + /testing
 pnpm --filter expo-watch-app build:watch  # -> targets/watch/assets/bundle.js
+pnpm --filter expo-watch-app build:widget # -> targets/widget/assets/bundle.js
 ```
 
 It consumes the renderer through the pnpm workspace (`"react-native-watchos":
@@ -35,23 +40,26 @@ whole integration:
 
 ```jsonc
 // app.json
-"plugins": [["react-native-watchos", { "name": "Expo Watch", "widget": false }]]
+"plugins": [["react-native-watchos", { "name": "Expo Watch", "widget": true }]]
 ```
 
-During `expo prebuild` the plugin generates `targets/watch/expo-target.config.js`,
-**links the `ReactWatchHost` SwiftPM product into the watch target, and merges
-the target `Info.plist`** — automatically, no `postprebuild` and no manual "Add
-Package Dependencies…" in Xcode. The one piece it can't generate — the watch
-app's `@main` Swift entry — is scaffolded for you:
+During `expo prebuild` the plugin generates each target's
+`expo-target.config.js`, **links the SwiftPM products** (the watch target →
+`ReactWatchHost`; the widget target → `ReactWatchWidget` + `ReactWatchCore`)
+**and merges the target `Info.plist`s** — automatically, no `postprebuild` and
+no manual "Add Package Dependencies…" in Xcode. The pieces it can't generate —
+each target's `@main` Swift entry — are scaffolded for you:
 
 ```bash
 npx react-native-watchos scaffold   # -> targets/watch/WatchApp.swift
+                                     #    targets/widget/ReactWidgets.swift
 ```
 
-`WatchApp.swift` is just a thin consumer of the package (embeds
-`ReactWatchRootView` with your App Group); it's the only committed Swift file —
-the generated `expo-target.config.js` / `Info.plist` / entitlements are not
-committed (see `.gitignore`).
+`WatchApp.swift` (embeds `ReactWatchRootView`) and `ReactWidgets.swift` (a
+`@main WidgetBundle` whose widgets render through `ReactTimelineProvider` +
+`reactWidgetView`) are thin consumers of the package — the only committed Swift
+files. The generated `expo-target.config.js` / `Info.plist` / entitlements are
+not committed (see `.gitignore`).
 
 ## Building the actual watch app (macOS 15+, Xcode 16+)
 
@@ -60,14 +68,37 @@ pnpm --filter expo-watch-app prebuild   # build the watch bundle, then `expo pre
 # open ios/, select the watch scheme, run on a watchOS simulator
 ```
 
-`prebuild` builds the watch JS bundle and runs `expo prebuild` — plain Expo; the
-`react-native-watchos` plugin does the SwiftPM link + the `Info.plist` merge as
-part of prebuild itself (it hooks apple-targets' own xcode mod). The native
-runtime (the QuickJS engine, the `NodeView` interpreter, the bridges) is the
-`swift/` SwiftPM package. Add App Group / usage-description keys for the native
-capabilities your watch UI calls via the plugin's `infoPlist` option (see the
-renderer README and `docs/extending.md`). The Linux CI builds the package's
-engine/core/runtime; the SwiftUI host + this Xcode wiring are the macOS gate.
+`prebuild` builds both JS bundles (watch + widget) and runs `expo prebuild` —
+plain Expo; the `react-native-watchos` plugin does the SwiftPM link + the
+`Info.plist` merge as part of prebuild itself (it hooks apple-targets' own xcode
+mod). The native runtime (the QuickJS engine, the `NodeView` interpreter, the
+bridges) is the `swift/` SwiftPM package. Add App Group / usage-description keys
+for the native capabilities your watch UI calls via the plugin's `infoPlist`
+option (see the renderer README and `docs/extending.md`). The Linux CI builds
+the package's engine/core/runtime; the SwiftUI host + this Xcode wiring are the
+macOS gate.
+
+## Widget (a React complication)
+
+This example enables the widget target (`"widget": true` above), so it shows the
+full widget path a consumer writes — which is small, because the WidgetKit
+machinery lives in the `ReactWatchWidget` package:
+
+- **JS** — [`watch-ui/widget.entry.tsx`](./watch-ui/widget.entry.tsx) calls
+  `registerWidget({ kind: "example", … })` and renders a React tree. It's a
+  *second* bundle (no `runApp`), so the widget extension process stays small.
+  Built by `build:widget` → `targets/widget/assets/bundle.js`.
+- **Swift** — `npx react-native-watchos scaffold` generated
+  [`targets/widget/ReactWidgets.swift`](./targets/widget/ReactWidgets.swift): a
+  `@main WidgetBundle` whose `ExampleWidget` (same `kind`) renders through the
+  package's `ReactTimelineProvider` + `reactWidgetView`. That's the whole Swift
+  side — no interpreter, no timeline plumbing, no per-widget QuickJS code.
+
+`expo prebuild` links `ReactWatchWidget` + `ReactWatchCore` into the widget
+target automatically (the prebuild log prints the linked products). For a
+configurable widget (a picker on the watch face) write your own
+`AppIntentTimelineProvider` on the package's `reactTimeline`/`reactSnapshotEntry`
+helpers — see the demo (`app/targets/widget`).
 
 ## Over-the-air updates (the "Check for update" button)
 

@@ -14,7 +14,7 @@
         "react-native-watchos",
         {
           "name": "Expo Watch",
-          "widget": false,
+          "widget": true,
           "healthKit": false,
           "deploymentTarget": "11.0"
         }

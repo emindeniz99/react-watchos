@@ -6,10 +6,11 @@
   "main": "index.js",
   "scripts": {
     "build:watch": "node scripts/build-watch.mjs",
+    "build:widget": "node scripts/build-widget.mjs",
     "ota:serve": "node scripts/serve-ota.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prebuild": "pnpm build:watch && expo prebuild -p ios --clean"
+    "prebuild": "pnpm build:watch && pnpm build:widget && expo prebuild -p ios --clean"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
