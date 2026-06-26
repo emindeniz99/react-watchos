@@ -17,19 +17,21 @@ What it demonstrates (and what the demo doesn't):
 ## JS side (works on Linux/macOS)
 
 ```bash
-npm install        # installs react + the renderer via the file: dependency
-npm run typecheck
-npm test           # runApp + MemoryHost + /testing query helpers
-npm run build      # dist/bundle.js (the IIFE the watch target evaluates)
+pnpm install       # installs react + the renderer via the workspace dependency
+pnpm typecheck
+pnpm test          # runApp + MemoryHost + /testing query helpers
+pnpm build         # dist/bundle.js (the IIFE the watch target evaluates)
 ```
 
-`package.json` pulls the renderer in with a workspace-style file dependency:
+`package.json` pulls the renderer in with a pnpm workspace dependency (a
+non-workspace consumer would use a registry version, or `file:`/`link:` to a
+local checkout):
 
 ```json
 "dependencies": {
   "react": "^19.2.0",
   "react-reconciler": "0.33.0",
-  "react-native-watchos": "file:../../js"
+  "react-native-watchos": "workspace:*"
 }
 ```
 
