@@ -206,6 +206,8 @@ final class ReactWatchModel: ObservableObject {
             sendToPhone(id: id, payload: payload)
         case "scheduleNotification":
             scheduleNotification(id: id, payload: payload)
+        case "aiAvailability":
+            aiAvailability(id: id)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -500,6 +502,21 @@ final class ReactWatchModel: ObservableObject {
         /// Optional cap on the model's response length (GenerationOptions
         /// .maximumResponseTokens), from js/src/ai.ts GenerateOptions.maxTokens.
         let maxTokens: Int?
+    }
+
+    /// Resolves the invoke with whether on-device AI can run now (CX-002):
+    /// `SystemLanguageModel.default.isAvailable` on watchOS 27+, else `false`.
+    /// On an older SDK FoundationModels isn't in the watch SDK, so this compiles
+    /// to the `false` fallthrough — building the real query needs Xcode 27.
+    private func aiAvailability(id: Int) {
+        #if canImport(FoundationModels)
+        if #available(watchOS 27.0, *) {
+            let available = SystemLanguageModel.default.isAvailable
+            runtime?.resolveInvoke(id: id, resultJson: available ? "true" : "false")
+            return
+        }
+        #endif
+        runtime?.resolveInvoke(id: id, resultJson: "false")
     }
 
     /// On-device text generation via Foundation Models (js/src/ai.ts).

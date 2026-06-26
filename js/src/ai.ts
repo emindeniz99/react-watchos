@@ -1,4 +1,5 @@
 import { getHost } from "./host";
+import { invoke } from "./invoke";
 
 /**
  * On-device AI via Apple's Foundation Models framework — the ~3B-parameter
@@ -39,6 +40,23 @@ export interface GenerateOptions {
   maxTokens?: number;
   /** Optional system instructions for the session. */
   instructions?: string;
+}
+
+/**
+ * Whether on-device AI can actually run on this watch right now (CX-002) —
+ * a runtime check, distinct from whether the build exposes the `ai` capability.
+ * It can be false even on watchOS 27+ (the model isn't downloaded, Apple
+ * Intelligence is off, or the device isn't eligible). Use it to show/hide an AI
+ * feature without making a throwaway `generateText` call. Resolves `false`
+ * (never rejects) when there's no AI-capable host (tests/Node/widget) or the OS
+ * is below watchOS 27.
+ */
+export async function isOnDeviceAIAvailable(): Promise<boolean> {
+  try {
+    return (await invoke<boolean>("aiAvailability")) === true;
+  } catch {
+    return false;
+  }
 }
 
 /** Generates text with the on-device model. Rejects if AI is unavailable. */

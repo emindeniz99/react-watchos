@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { generateText } from "../src/index";
+import { generateText, isOnDeviceAIAvailable } from "../src/index";
 import { installMockHost } from "./helpers";
 
 const g = globalThis as Record<string, unknown>;
@@ -44,5 +44,22 @@ describe("on-device AI (generateText)", () => {
 
   it("rejects when on-device AI is unavailable", async () => {
     await expect(generateText("hi")).rejects.toThrow(/unavailable/);
+  });
+
+  // CX-002 capability query: a runtime availability check (distinct from the
+  // build-time `ai` feature) so UIs can show/hide AI without a throwaway call.
+  it("isOnDeviceAIAvailable resolves false without an AI-capable host", async () => {
+    expect(await isOnDeviceAIAvailable()).toBe(false);
+  });
+
+  it("isOnDeviceAIAvailable resolves the host's answer", async () => {
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number, method: string) => {
+      const g = globalThis as {
+        __resolveInvoke?: (id: number, resultJson: string) => void;
+      };
+      if (method === "aiAvailability") g.__resolveInvoke?.(id, "true");
+    });
+    expect(await isOnDeviceAIAvailable()).toBe(true);
   });
 });

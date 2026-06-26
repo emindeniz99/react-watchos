@@ -277,4 +277,14 @@ export const hostMethods = [
     via: "invoke",
   },
   { name: "generate", targets: ["watch"], feature: "ai", since: 1 },
+  // Runtime "can this watch run on-device AI now?" query (CX-002), distinct from
+  // the build-time `ai` feature: a watch on the right OS may still be unable
+  // (model not downloaded / Apple Intelligence off). Routed via invoke.
+  {
+    name: "aiAvailability",
+    targets: ["watch"],
+    feature: "ai",
+    since: 1,
+    via: "invoke",
+  },
 ];
