@@ -627,6 +627,42 @@ final class SharedWidgetStoreTests: XCTestCase {
         none.setOTABootAttempts(5)  // no-op without a group
         XCTAssertEqual(none.otaBootAttempts(), 0)
     }
+
+    // The save↔load contract the widget extension depends on: the watch app
+    // writes React-published timelines with `save`, and the extension's
+    // TimelineProviders read them back with `loadPublishedWidgets`. If the
+    // decoder drifted from what the app writes, every widget would silently fall
+    // back to the placeholder — so pin the round-trip. The package's
+    // ReactWatchWidget providers build entirely on this.
+    func testLoadPublishedWidgetsRoundTrips() {
+        XCTAssertNil(
+            store.loadPublishedWidgets(), "an unpublished store has no payload")
+
+        // The exact JSON shape the JS side publishes (js/src/widgets.ts).
+        let json = """
+            {"v":1,"publishedAt":1000,
+             "widgets":{"hydration":{"accessoryCircular":{
+               "entries":[{"date":2000,"tree":null,"url":null,"relevance":null}],
+               "reloadAfter":null,"relevantContexts":null}}},
+             "controls":{"hydration.addGlass":
+               {"intent":"addGlass","label":"Add Glass","systemName":"drop.fill"}}}
+            """
+        store.save(json)
+
+        let loaded = store.loadPublishedWidgets()
+        XCTAssertEqual(loaded?.v, 1)
+        XCTAssertEqual(
+            loaded?.widgets["hydration"]?["accessoryCircular"]?.entries.count, 1)
+        XCTAssertEqual(
+            loaded?.controls?["hydration.addGlass"]?.label, "Add Glass")
+        XCTAssertEqual(
+            loaded?.controls?["hydration.addGlass"]?.systemName, "drop.fill")
+    }
+
+    func testLoadIgnoresGarbage() {
+        store.save("not json")
+        XCTAssertNil(store.loadPublishedWidgets(), "undecodable payload is nil")
+    }
 }
 
 // CX-003: a configured-but-malformed signing key must not silently degrade to

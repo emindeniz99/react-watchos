@@ -1,4 +1,5 @@
 import Foundation
+import ReactWatchCore
 
 /// App Group storage shared with the widget extension (targets/widget). The
 /// app writes React-rendered timelines here; the extension reads them in its
@@ -23,6 +24,19 @@ public struct SharedWidgetStore: Sendable {
 
     public func save(_ payloadJson: String) {
         defaults?.set(payloadJson, forKey: Self.payloadKey)
+    }
+
+    /// Decode the React-published widget timelines the app last saved (the
+    /// inverse of `save`). The widget extension's TimelineProviders read this to
+    /// render without a process running. nil if nothing's been published yet or
+    /// the stored JSON doesn't decode. Foundation+Core only, so it's
+    /// unit-tested on Linux alongside `save`.
+    public func loadPublishedWidgets() -> PublishedWidgets? {
+        guard let json = defaults?.string(forKey: Self.payloadKey) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(
+            PublishedWidgets.self, from: Data(json.utf8))
     }
 
     public func getItem(_ key: String) -> String? {
