@@ -567,3 +567,34 @@ final class SharedWidgetStoreTests: XCTestCase {
         XCTAssertEqual(none.otaBootAttempts(), 0)
     }
 }
+
+// CX-003: a configured-but-malformed signing key must not silently degrade to
+// fail-open. The pure classifier keeps the three states distinct; the host wires
+// `.misconfigured` to "refuse all OTA loudly" and `.disabled` to fail-open.
+final class OTAKeyStateTests: XCTestCase {
+    func testNoKeysConfiguredIsDisabled() {
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 0, validCount: 0), .disabled)
+    }
+
+    func testAllKeysValidEnforces() {
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 2, validCount: 2), .enforced)
+    }
+
+    func testSomeValidStillEnforces() {
+        // A partially-bad keyset still enforces on its valid keys (the bad one is
+        // dropped + warned) — only an ALL-bad keyset is misconfigured.
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 2, validCount: 1), .enforced)
+    }
+
+    func testConfiguredButNoneValidIsMisconfigured() {
+        // The CX-003 trap: keys were set (enforcement intended) but every one
+        // failed to decode — must be fail-closed, NOT the same as `.disabled`.
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 1, validCount: 0), .misconfigured)
+        XCTAssertNotEqual(
+            OTAKeyState.classify(configuredCount: 1, validCount: 0), .disabled)
+    }
+}

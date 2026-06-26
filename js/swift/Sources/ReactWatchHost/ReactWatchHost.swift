@@ -70,6 +70,8 @@ final class ReactWatchModel: ObservableObject {
     /// `shippedBundleVersion` is the compatibility version of the bundle in the
     /// app binary, used for the anti-rollback boot decision.
     private let updatePublicKeys: [String: Curve25519.Signing.PublicKey]
+    /// Whether signing is disabled / enforced / misconfigured (CX-003).
+    private let updateKeyState: OTAKeyState
     private let updateGate: OTAGate
     private let shippedBundleVersion: Int
     private let updateManifestURL: String?
@@ -78,9 +80,20 @@ final class ReactWatchModel: ObservableObject {
 
     init(appGroupId: String?, ota: OTAConfig = .init(), useJSCallBridge: Bool = true) {
         store = SharedWidgetStore(appGroupId: appGroupId)
-        updatePublicKeys = ota.signerPublicKeys.compactMapValues {
+        let keys = ota.signerPublicKeys.compactMapValues {
             Data(base64Encoded: $0)
                 .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
+        }
+        updatePublicKeys = keys
+        // CX-003: distinguish "no keys" (fail-open) from "keys configured but all
+        // malformed" (fail CLOSED) — a base64 typo must not silently disable
+        // signature enforcement the developer opted into.
+        updateKeyState = OTAKeyState.classify(
+            configuredCount: ota.signerPublicKeys.count, validCount: keys.count)
+        if keys.count < ota.signerPublicKeys.count {
+            print(
+                "[ReactWatch] WARNING: \(ota.signerPublicKeys.count - keys.count) OTA "
+                    + "signing key(s) failed to decode and were dropped (CX-003).")
         }
         updateGate = ota.gate
         shippedBundleVersion = ota.shippedVersion
@@ -351,7 +364,16 @@ final class ReactWatchModel: ObservableObject {
                 + "lacks (\(missing.joined(separator: ", "))) — update the app"
             return false
         }
-        if !updatePublicKeys.isEmpty {
+        // CX-003: keys were configured but none decoded — the developer opted
+        // into enforcement but misconfigured it. Refuse loudly; never fall
+        // through to the fail-open branch below.
+        if updateKeyState == .misconfigured {
+            runtimeError =
+                "OTA update rejected: signing keys are misconfigured (every "
+                + "configured key failed to decode) — fix OTAConfig.signerPublicKeys"
+            return false
+        }
+        if updateKeyState == .enforced {
             // Fail closed on an unknown key id (CX-007): an attacker-supplied
             // `keyId` can only ever resolve to a key in the baked-in map — never
             // outside the pinned trust set (the JWT `kid`-confusion lesson). The
@@ -575,9 +597,11 @@ final class ReactWatchModel: ObservableObject {
     private func load(into js: JSRuntime) throws {
         let candidate = otaCandidate()
         let decision: BootDecision =
-            if updatePublicKeys.isEmpty {
-                // Fail-open: versions are unverified, so no anti-rollback — run the
-                // OTA bundle if present, else shipped.
+            if updateKeyState == .disabled {
+                // Fail-open ONLY when no keys are configured (CX-003): versions are
+                // unverified, so no anti-rollback — run the OTA bundle if present,
+                // else shipped. A misconfigured keyset still enforces anti-rollback
+                // here (and saveUpdate refuses new unsigned bundles).
                 candidate != nil ? .runOTA : .runShipped
             } else {
                 VersionPolicy.decide(
@@ -628,7 +652,7 @@ final class ReactWatchModel: ObservableObject {
             break
         }
         try loadShipped(into: js)
-        if !updatePublicKeys.isEmpty {
+        if updateKeyState != .disabled {
             store.setOTAHighWater(
                 VersionPolicy.bumpedHighWater(
                     store.otaHighWater(),
