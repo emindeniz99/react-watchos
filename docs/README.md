@@ -61,6 +61,10 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   SD-2 (refined by ARCH-10: core + adapters).
 - [design-typed-bridge-codegen-2026-06-25-1855.md](./design-typed-bridge-codegen-2026-06-25-1855.md) —
   SD-1/SD-6 (refined by ARCH-11: generated typed envelopes).
+- [design-arch-02-capability-contract.md](./design-arch-02-capability-contract.md) —
+  ARCH-02 explicit capability contract. Criterion #4 (no raw `__host` in app
+  code) **done + CI-guarded**; flags the side-effect soundness hole that the
+  declared-contract/marker design (criteria #1–3, 5) must handle.
 
 ## Reference / background
 
