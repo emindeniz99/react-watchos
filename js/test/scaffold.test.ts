@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 
 // DX-3: the scaffolder's pure template logic (CommonJS, loaded by the CLI).
 const require = createRequire(import.meta.url);
-const { structName, watchAppSwift } = require("../plugin/scaffold.cjs");
+const { structName, widgetStructName, watchAppSwift, widgetBundleSwift } =
+  require("../plugin/scaffold.cjs");
 
 describe("scaffold (DX-3)", () => {
   it("derives a valid Swift struct name from the target name", () => {
@@ -26,5 +27,26 @@ describe("scaffold (DX-3)", () => {
     expect(src).toContain(
       'ReactWatchRootView(appGroupId: "group.com.example.expowatch")',
     );
+  });
+
+  it("derives the widget bundle struct name from the target name", () => {
+    expect(widgetStructName("React Watch")).toBe("ReactWatchWidgets");
+    expect(widgetStructName("Expo Watch")).toBe("ExpoWatchWidgets");
+    expect(widgetStructName("")).toBe("ReactWatchWidgets");
+  });
+
+  it("generates a @main WidgetBundle that consumes ReactWatchWidget", () => {
+    const src = widgetBundleSwift({
+      name: "Expo Watch",
+      appGroupId: "group.com.example.expowatch",
+    });
+    expect(src).toContain("import ReactWatchWidget");
+    expect(src).toContain("@main");
+    expect(src).toContain("struct ExpoWatchWidgets: WidgetBundle {");
+    // Renders through the package provider/view, threading the App Group.
+    expect(src).toContain(
+      'ReactTimelineProvider(kind: kind, appGroupId: "group.com.example.expowatch")',
+    );
+    expect(src).toContain("reactWidgetView(entry)");
   });
 });

@@ -92,6 +92,48 @@ function ListScreen() {
 }
 ```
 
+### Widgets (complications, Smart Stack, controls)
+
+Widgets are React too: the watch app renders timelines ahead of time and
+publishes them to the shared App Group; the widget extension renders the stored
+tree natively. A widget is **two bundles** (the app UI and the widget) — the
+widget bundle registers widgets/intents and never mounts UI, so the extension
+process stays small.
+
+**1. Widget JS entry** (`widget.entry.tsx`) — `registerWidget`, no `runApp`:
+
+```tsx
+import { registerWidget, VStack, Text } from "react-native-watchos";
+
+registerWidget({
+  kind: "example", // matches the Swift widget's `kind`
+  families: ["accessoryRectangular", "accessoryCircular"],
+  render: ({ now }) => ({
+    entries: [{ date: now, view: <VStack><Text bold>Hi</Text></VStack> }],
+  }),
+});
+```
+
+**2. Build it** with the same preset as the watch bundle, to the widget target's
+asset (a second `watchBuildOptions` call with the widget entry/outfile):
+
+```js
+import { watchBuildOptions } from "react-native-watchos/build";
+await build(watchBuildOptions({
+  entry: "widget.entry.tsx",
+  outfile: "targets/widget/assets/bundle.js",
+}));
+```
+
+**3. Swift glue** — `npx react-native-watchos scaffold` generates
+`targets/widget/ReactWidgets.swift` (a `@main WidgetBundle` whose widgets render
+through the package's `ReactTimelineProvider` + `reactWidgetView`). Enable the
+widget target in the plugin (`["react-native-watchos", { "widget": true }]`);
+`expo prebuild` then links the `ReactWatchWidget` SwiftPM module automatically.
+Configurable widgets (a picker on the watch face) write their own
+`AppIntentTimelineProvider` on the package's `reactTimeline`/`reactSnapshotEntry`
+helpers — see the demo (`app/targets/widget`).
+
 ### Subpath exports
 
 - `react-native-watchos/build` — `watchBuildOptions({ entry, outfile })`, the
