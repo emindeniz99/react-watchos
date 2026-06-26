@@ -8,12 +8,32 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 import { build } from "esbuild";
+import { bridgeProtocol, hostMethods } from "../codegen/schema.mjs";
 import { buildOptions, bundleVersion, root, targets } from "./config.mjs";
 import { contentHash } from "./contentHash.mjs";
+import { unprovidedFeatures } from "./releaseContract.mjs";
 
 // `npm run build -- --minify` (or MINIFY=1) roughly halves the bundle;
 // unminified keeps watch-side stack traces readable during development.
 const minify = process.argv.includes("--minify") || !!process.env.MINIFY;
+
+// Validate the declared capability contract (ARCH-02) before building: a bundle
+// must not declare a feature its target's native binary can't provide (a typo,
+// or e.g. "network" on the widget target). Fail loud — a wrong contract would
+// ship a manifest that mis-gates OTA.
+for (const target of targets) {
+  const missing = unprovidedFeatures(
+    target.requiredFeatures,
+    hostMethods,
+    target.schemaTarget,
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `[build] ${target.name} bundle declares features its ${target.schemaTarget} ` +
+        `binary can't provide: ${missing.join(", ")} (see scripts/config.mjs)`,
+    );
+  }
+}
 
 // Build each target's bundle (ARCH-03: app + widget) and ship it to its target.
 for (const target of targets) {
@@ -42,9 +62,28 @@ for (const target of targets) {
 // signal, distinct from `version` (the rollback gate). It's how a non-breaking
 // fix (same `version`, different content) is detected as an available update;
 // it matches the host's `__bundleReleaseId` for the same bytes.
+//
+// `requiredFeatures`/`minBridgeProtocol` (ARCH-02) are the app bundle's declared
+// capability contract: checkForUpdate/fetchAndApplyUpdate read them to refuse
+// applying a bundle this binary can't run (OTA can't add native code) — stamped
+// here so the publisher doesn't hand-pass them.
 const releaseId = contentHash(readFileSync(targets[0].outfile, "utf8"));
 writeFileSync(
   join(root, "dist/manifest.json"),
-  `${JSON.stringify({ version: bundleVersion, bundle: "bundle.js", signature: null, releaseId }, null, 2)}\n`,
+  `${JSON.stringify(
+    {
+      version: bundleVersion,
+      bundle: "bundle.js",
+      signature: null,
+      releaseId,
+      requiredFeatures: targets[0].requiredFeatures,
+      minBridgeProtocol: bridgeProtocol,
+    },
+    null,
+    2,
+  )}\n`,
 );
-console.log(`manifest: version ${bundleVersion}, releaseId ${releaseId}`);
+console.log(
+  `manifest: version ${bundleVersion}, releaseId ${releaseId}, ` +
+    `features [${targets[0].requiredFeatures.join(", ")}]`,
+);

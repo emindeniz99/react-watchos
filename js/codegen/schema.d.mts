@@ -8,6 +8,8 @@ export interface HostMethod {
   via?: "invoke";
 }
 export const hostMethods: HostMethod[];
+/** Host bridge protocol version (ARCH-01), stamped into the OTA manifest. */
+export const bridgeProtocol: number;
 export interface Component {
   name: string;
   widget: "full" | "degraded";

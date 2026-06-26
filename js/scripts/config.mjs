@@ -12,20 +12,45 @@ export const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 // URL are unchanged; each bundle still lands as `bundle.js` in its target's
 // asset dir, so the native side (which loads the resource named "bundle") needs
 // no change.
+// `requiredFeatures` is the bundle's declared capability contract (ARCH-02): the
+// native features it needs, so the build can stamp them into the OTA manifest and
+// the ARCH-01 gate refuses to apply a bundle a binary can't run — no hand-passing
+// at applyUpdate time. `schemaTarget` maps each bundle to its native target so
+// the build can check `declared ⊆ what that binary provides` (codegen/schema.mjs
+// `hostMethods`). Keep these in sync with the features the entry actually uses
+// (under-declaring isn't caught automatically — see releaseContract.mjs).
 export const targets = [
   {
     name: "app",
+    schemaTarget: "watch",
     entry: join(root, "demo/app.entry.tsx"),
     outfile: join(root, "dist/bundle.js"),
     asset: join(root, "../app/targets/watch/assets/bundle.js"),
     budgetKB: 200,
+    // The demo app exercises everything except sensors: storage, widgets,
+    // haptics, BLE, on-device AI, OTA (fetchAndApplyUpdate → network + ota),
+    // phone connectivity, notifications.
+    requiredFeatures: [
+      "storage",
+      "widgets",
+      "haptics",
+      "bluetooth",
+      "ai",
+      "network",
+      "ota",
+      "connectivity",
+      "notifications",
+    ],
   },
   {
     name: "widget",
+    schemaTarget: "widget",
     entry: join(root, "demo/widget.entry.tsx"),
     outfile: join(root, "dist/widget.bundle.js"),
     asset: join(root, "../app/targets/widget/assets/bundle.js"),
     budgetKB: 160,
+    // The widget bundle only reads/writes shared state and publishes timelines.
+    requiredFeatures: ["storage", "widgets"],
   },
 ];
 
