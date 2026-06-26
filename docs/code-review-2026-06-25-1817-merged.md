@@ -25,6 +25,27 @@ on-device (Xcode) verification rather than ground out blind. Done-ness is also i
 Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Support`
 (`swift test`). NOT in-loop: `ReactWatchHost`/widget UI, target wiring (Xcode).
 
+### Session 2026-06-26 (overnight) — shipped + remaining
+
+Shipped this batch (each its own commit, all suites green, watchOS host +
+widget builds where touched):
+- **CX-025** — OTA freshness on content-hash `releaseId` (same-version fixes ship).
+- **ARCH-05** — atomic cross-process counter (`CoordinatedCounterStore` +
+  `Storage.counterAdd`); fixes the hydration-counter lost-update between app and
+  widget extension. (Root cause refined: the racer is the counter, not
+  `shoppingStore` — that's single-writer.)
+- **ARCH-04 slice 5** — previous-known-good OTA rollback (gate-respecting).
+- **ARCH-02** — declared capability contract: `requiredFeatures` in build config,
+  validated `⊆ provided` + stamped into the manifest (sound half).
+
+Held deliberately (NOT done blind — reasons in each row/note):
+- **CX-023** (full bridge codegen) — drift already test-guarded; needs a schema
+  arg-type extension + risky C-trampoline generation → interactive + device.
+- **CX-012/DX-2, CX-020, DX-3** (prebuild group) — needs the full
+  prebuild→pods→build loop; CX-012 couples to apple-targets' internal beta mod
+  (precise blocker + recommended fix documented below).
+- **CX-013** — skip (deliberate).
+
 - [x] **CX-001** — npm `files` allowlist + MIT LICENSE. `npm pack` 293 MB → 0.55 MB / 88 files.
 - [x] **CX-014** — sensor streams reference-counted (start 0→1, stop 1→0; idempotent cleanup). +3 tests, suite 192 green.
 - [x] **CX-019** — inspector poll `.catch` + stop/restart (`stopInspector`). +1 test, suite 193 green.
@@ -289,7 +310,7 @@ Assert main-thread on the JS settle calls (OP-2) + generation token on reload (C
 |---|----|---------|---------|----------|-----|-----|
 | 25 | CX-021 | Global `fetch` not WHATWG (re-readable body, URL-string only, no clone/credentials/redirect; non-http accepted) — yet header claims "WHATWG-aligned" | ✅ REAL | [fetch.ts:205](../js/src/fetch.ts) re-readable; :235 string-only; no `clone`; FetchPlan no scheme allowlist | **Tighten toward WHATWG:** Request input, body-used state, `clone`, credentials/cache/redirect, allowlist `http(s)` | L |
 | 26 | CX-022 | Native ops fail silently (BLE/sensor/perm/connectivity/storage) | ✅ REAL | e.g. notif permission dropped `{ _, _ in }` [ReactWatchHost.swift:471](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift); BLE/connectivity fire-and-forget | Typed native result/error channel; commands that can fail return promises / correlated events | L |
-| 27 | CX-023 | Host bridge hand-duplicated though a `hostMethods` manifest exists | ✅ REAL | manifest [schema.mjs:148](../js/codegen/schema.mjs) only *test-checked* ([codegen.test.ts:5](../js/test/codegen.test.ts)); install hand-written [JSRuntime.swift:359](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift) | Generate `QuickJSHostGlobal` + Swift props + C callbacks + install table from the schema | L |
+| 27 | CX-023 | Host bridge hand-duplicated though a `hostMethods` manifest exists | ✅ REAL → **deliberately deferred** | manifest [schema.mjs](../js/codegen/schema.mjs) only *test-checked* ([codegen.test.ts:5](../js/test/codegen.test.ts)); install hand-written [JSRuntime.swift](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift) | Generate `QuickJSHostGlobal` + Swift props + C callbacks + install table from the schema. **Decision (2026-06-26, greenlit but held):** the drift bug this targets is already closed by the cross-check test (`codegen.test.ts` asserts the Swift install set == schema's direct methods AND every `via:"invoke"` is routed) — so this is a *maintenance-ergonomics* change, not a correctness fix. Doing it needs the schema to first encode every method's **arg types + return type** (it only has name/targets/feature/since/via today), then generate C trampolines whose marshaling (`JS_ToCString`+free, int/double coercion, string-or-null vs int returns, argc guards) must exactly match the proven hand-written ones. The C-trampoline half is the only high-value part (the TS type / install table are mechanical) and it's the riskiest to do blind — a subtle marshaling bug compiles fine and only shows at runtime, and several methods (fetch/ble/sensor/generate) aren't covered by the qjs-smoke net. Best done interactively with full device verification, not ground out overnight. (Adding counterGet/counterAdd by hand this session was the cost being measured — 5 edit sites — but the cross-check test made it safe.) | L |
 | 28 | CX-026 | `ShoppingIntent.swift` duplicated across watch & widget targets | 🩹 **guarded** | `diff` of the two files → **identical** | Drift risk closed by `target-source-drift.test` (fails if the two copies differ — both targets must compile the AppIntent). Full single-source dedup (shared pbxproj target membership) needs a prebuild to verify, so it's deferred to that pass; the guard keeps it correct meanwhile. | S |
 | 29 | CX-027 | Docs mix current/plan/"shipped" (e.g. on-watch AI, relevantContexts) | ✅ REAL | claims scattered across `roadmap.md`/`publishing.md`/`README.md` + 3 review docs; FM "shipped" vs CX-002; CX-017 | Split `status.md` (verified) vs `roadmap.md` (future); link "shipped" claims to test/build evidence | M |
 
