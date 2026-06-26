@@ -50,6 +50,7 @@ const pkg = require("../package.json");
  *   scheme?: string,
  *   watchBundleSuffix?: string,
  *   widgetBundleSuffix?: string,
+ *   independent?: boolean,
  *   infoPlist?: Record<string, unknown>,
  * }} ReactWatchOptions */
 
@@ -77,6 +78,12 @@ function resolveOptions(config, options) {
     scheme: o.scheme ?? "reactwatch",
     watchBundleSuffix: o.watchBundleSuffix ?? ".watch",
     widgetBundleSuffix: o.widgetBundleSuffix ?? ".watch.widgets",
+    // Standalone-first (the framework's premise: the watch app runs without the
+    // iPhone). Sets WKRunsIndependentlyOfCompanionApp on the watch target.
+    // CAUTION: independence is IRREVERSIBLE once a build with it is uploaded to
+    // the App Store — set `independent: false` for a companion-dependent watch
+    // app BEFORE your first upload (see docs/publishing.md).
+    independent: o.independent ?? true,
     bundleIdentifier,
     infoPlist: o.infoPlist ?? {},
   };

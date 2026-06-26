@@ -246,6 +246,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     scheme: "reactwatch",
     watchBundleSuffix: ".watch",
     widgetBundleSuffix: ".watch.widgets",
+    independent: true,
     bundleIdentifier: "com.emindeniz99.reactwatch",
     infoPlist: {},
   };
@@ -302,6 +303,13 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(c.infoPlist.Custom).toBe("x");
   });
 
+  it("omits WKRunsIndependentlyOfCompanionApp for a companion-dependent watch app", () => {
+    // independent: false => the key is absent (Apple's absent == dependent), so
+    // the plugin never silently makes the irreversible standalone choice.
+    const c = watchTargetConfig({ ...demoOpts, independent: false });
+    expect("WKRunsIndependentlyOfCompanionApp" in c.infoPlist).toBe(false);
+  });
+
   it("widget config matches the demo's values", () => {
     const c = widgetTargetConfig(demoOpts);
     expect(c).toEqual({
@@ -333,6 +341,7 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
     expect(o.widgetBundleSuffix).toBe(".watch.widgets");
     expect(o.widget).toBe(true);
     expect(o.healthKit).toBe(true);
+    expect(o.independent).toBe(true); // standalone-first default
   });
 
   it("respects overrides and a custom name flows to the widget name", () => {
@@ -341,12 +350,14 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
       appGroup: "group.custom",
       widget: false,
       healthKit: false,
+      independent: false,
     });
     expect(o.name).toBe("My Watch");
     expect(o.widgetName).toBe("My Watch Widgets");
     expect(o.appGroup).toBe("group.custom");
     expect(o.widget).toBe(false);
     expect(o.healthKit).toBe(false);
+    expect(o.independent).toBe(false);
   });
 
   it("throws a clear error when ios.bundleIdentifier is missing", () => {

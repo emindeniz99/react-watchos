@@ -134,8 +134,20 @@ type Options = {
   deploymentTarget?: string;    // default "10.0"
   entry?: string;               // watch JS entry (default "watch/index")
   appleTeamId?: string;         // for EAS / signing scaffolding
+  independent?: boolean;        // standalone watch app (default true); see below
 };
 ```
+
+**`independent` (default `true`).** Sets `WKRunsIndependentlyOfCompanionApp` on
+the watch target, so the app installs and runs without the iPhone — the
+framework's premise. Set it to `false` for a watch app that requires its iOS
+companion (the key is then omitted; Apple treats absent as dependent).
+
+> ⚠️ **Independence is irreversible after your first App Store upload.** Once a
+> build with `WKRunsIndependentlyOfCompanionApp` is uploaded, you can't revert
+> the app to companion-dependent. Decide `independent` **before** your first
+> submission. (This is why the plugin gates the key behind an explicit option
+> instead of always emitting it.)
 
 ## Versioning & the wire contract
 

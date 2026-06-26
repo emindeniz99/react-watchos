@@ -26,9 +26,14 @@ function watchTargetConfig(opts) {
   // OTA. HealthKit/CoreBluetooth/CoreMotion/location usage strings are only
   // included when the matching capability is requested, so a consumer who turns
   // HealthKit off doesn't ship an unused, App-Review-flagged usage string.
+  //
+  // WKRunsIndependentlyOfCompanionApp is set ONLY when `independent` (default
+  // true) — for a companion-dependent watch app the key is omitted (Apple's
+  // absent = dependent). It's gated behind the option, not hard-coded, because
+  // independence can't be reverted after an App Store upload (see index.js).
   const urlName = `${opts.bundleIdentifier}.routes`;
   const infoPlist = {
-    WKRunsIndependentlyOfCompanionApp: true,
+    ...(opts.independent ? { WKRunsIndependentlyOfCompanionApp: true } : {}),
     CFBundleURLTypes: [
       {
         CFBundleURLName: urlName,

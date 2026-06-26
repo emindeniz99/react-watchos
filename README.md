@@ -376,8 +376,11 @@ signing still untested — Rule 12):**
   **ReactWatchSupport** + **ReactWatchRuntime** to the widget. The engine is a Clang module
   (`import CQuickJS`) — no bridging header.
 - Confirm `assets/bundle.js` landed in the watch target's bundle resources.
-- If prebuild didn't apply `WKRunsIndependentlyOfCompanionApp`, add it to
-  the watch target's Info.plist.
+- `WKRunsIndependentlyOfCompanionApp` (standalone watch app) is set by the
+  plugin by default (`independent` option) and applied by the post-prebuild
+  Info.plist merge — for a companion-dependent watch app pass `independent:
+  false`. ⚠️ Independence is irreversible after your first App Store upload, so
+  choose before submitting (see docs/publishing.md).
 - App Groups: both the watch and widget targets must have the
   `group.com.emindeniz99.reactwatch` App Group capability (declared in
   their `expo-target.config.js`; verify under Signing & Capabilities, and
