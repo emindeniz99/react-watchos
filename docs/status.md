@@ -44,16 +44,18 @@ build (②) is the real gate**, and behavioral correctness isn't guaranteed unti
 | Smart Stack **predictive `relevantContexts`** (date/location surfacing) | ⛔ partial | decoded into the wire model but **not applied** to `WidgetRelevance` — watchOS-version-specific API, best done on device (CX-017). Do **not** rely on it. |
 | OTA update channel — signed, anti-rollback, transactional, keyId rotation | ② | heavy logic ① (`UpdatePlan`/`OTARecord`/`VersionPolicy` + Node↔CryptoKit interop in `swift test`); host applies it ②. See [ota-signing.md](./ota-signing.md) |
 | Liquid Glass (`glass`), double-tap (`primaryAction`) | ② | `#available(watchOS 26.0 / 11.0)`-gated; builds ② |
-| **On-device AI** (`generateText` / Foundation Models) | ⛔ **Blocked** | **unreachable today** — gated at `watchOS 26.0` but Foundation Models' `SystemLanguageModel` is **watchOS 27.0+ (beta)**; the fix (gate→27, `maxTokens`, capability query) is unshipped and device-verify waits on **Xcode 27** (CX-002). Treat as *not available*. |
+| **On-device AI** (`generateText` / Foundation Models) | ⛔ **Blocked** (gate fixed) | Gate corrected to **`watchOS 27.0`** (Apple docs: Foundation Models' `LanguageModelSession` is watchOS 27.0+ beta) and `maxTokens` wired to `GenerationOptions.maximumResponseTokens` (CX-002). The FoundationModels block still can't be **built** without the **watchOS 27 SDK (Xcode 27)** — on the current SDK it compiles out and `generateText` rejects "unavailable" — and no stable watchOS 27 device exists yet, so it's not usable by apps. Remaining: a runtime capability query + device-verify, both gated on the SDK. |
 | DevTools | ② note | a **remote inspector** (`startInspector` tees `console.log` + tree snapshots over `fetch`), **not** the official React DevTools — QuickJS has no WebSocket transport |
 | macOS / tvOS targets | — | not built; cross-platform core extraction is a roadmap bet, not current |
 
 ## Two corrected overclaims (the CX-027 trigger)
 
 - **On-device AI is blocked, not shipped.** roadmap.md previously listed it as
-  "shipped (watchOS 26+)". It is implemented but **unreachable** until the
-  `watchOS 27.0` gate fix lands and an Xcode-27 / watchOS-27 build verifies it
-  (CX-002). Until then, apps must not depend on `generateText`.
+  "shipped (watchOS 26+)". The wrong-version gate is now **fixed** (→ `watchOS
+  27.0`, the actual Foundation Models floor) and `maxTokens` is wired, but it
+  stays unreachable until an Xcode-27 / watchOS-27 build can compile and verify
+  the FoundationModels path (CX-002). Until then, apps must not depend on
+  `generateText`.
 - **`relevantContexts` is partial.** Smart Stack relevance **ranking** (sorting
   entries by score) is real (②). The **predictive** surfacing of a widget at a
   date/location from `relevantContexts` is decoded but **not applied** (CX-017).

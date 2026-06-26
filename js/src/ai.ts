@@ -8,6 +8,10 @@ import { getHost } from "./host";
  *
  * Async like fetch: __host.generate(id, requestJson) starts a session;
  * Swift settles it on the main thread via __resolveGenerate/__rejectGenerate.
+ *
+ * Requires watchOS 27+ (Foundation Models reached the watch at 27.0); on older
+ * versions the native side rejects with "on-device AI unavailable", so guard
+ * calls or handle the rejection.
  */
 const pending = new Map<
   number,

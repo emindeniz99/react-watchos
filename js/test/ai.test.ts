@@ -13,13 +13,17 @@ describe("on-device AI (generateText)", () => {
     const host = installMockHost();
     const promise = generateText("Summarize my day", {
       temperature: 0.7,
+      maxTokens: 128,
       instructions: "Be terse.",
     });
     expect(host.generate).toHaveBeenCalledTimes(1);
     const [id, reqJson] = host.generate.mock.calls[0];
+    // maxTokens must reach the request JSON so the native side can cap the
+    // response (GenerationOptions.maximumResponseTokens) — CX-002.
     expect(JSON.parse(reqJson)).toMatchObject({
       prompt: "Summarize my day",
       temperature: 0.7,
+      maxTokens: 128,
       instructions: "Be terse.",
     });
 

@@ -495,6 +495,9 @@ final class ReactWatchModel: ObservableObject {
         let prompt: String
         let instructions: String?
         let temperature: Double?
+        /// Optional cap on the model's response length (GenerationOptions
+        /// .maximumResponseTokens), from js/src/ai.ts GenerateOptions.maxTokens.
+        let maxTokens: Int?
     }
 
     /// On-device text generation via Foundation Models (js/src/ai.ts).
@@ -508,7 +511,13 @@ final class ReactWatchModel: ObservableObject {
             return
         }
         #if canImport(FoundationModels)
-        if #available(watchOS 26.0, *) {
+        // Foundation Models' LanguageModelSession is watchOS 27.0+ (Apple docs;
+        // it's 26.0 on iOS/macOS but only reached the watch at 27.0, in beta) —
+        // the gate was wrongly 26.0 (CX-002). Building this path needs the
+        // watchOS 27 SDK (Xcode 27); on an older SDK FoundationModels isn't in
+        // the watch SDK, so this whole block compiles out and generate() rejects
+        // below with "on-device AI unavailable".
+        if #available(watchOS 27.0, *) {
             let gen = generation
             Task { [weak self] in
                 do {
@@ -517,6 +526,7 @@ final class ReactWatchModel: ObservableObject {
                     )
                     var options = GenerationOptions()
                     if let t = req.temperature { options.temperature = t }
+                    if let max = req.maxTokens { options.maximumResponseTokens = max }
                     let response = try await session.respond(
                         to: req.prompt, options: options
                     )
