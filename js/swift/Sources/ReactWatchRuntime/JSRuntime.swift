@@ -40,8 +40,9 @@ public final class JSRuntime {
     /// on the main thread, instead of a host method + global pair per op.
     public var onInvoke: ((Int, String, String) -> Void)?
 
-    /// Local notifications (js/src/notifications.ts).
-    public var onScheduleNotification: ((String) -> Void)?
+    /// Local notifications (js/src/notifications.ts). scheduleNotification is
+    /// routed through the generic invoke channel (SD-1); cancel stays direct
+    /// (fire-and-forget, no result).
     public var onCancelNotification: ((String) -> Void)?
 
     /// Async HTTP request (js/src/fetch.ts). Settle with
@@ -417,12 +418,6 @@ public final class JSRuntime {
             context, host, "invoke",
             JS_NewCFunction(context, hostInvoke, "invoke", 3))
         JS_SetPropertyStr(
-            context, host, "scheduleNotification",
-            JS_NewCFunction(
-                context, hostScheduleNotification,
-                "scheduleNotification", 1)
-        )
-        JS_SetPropertyStr(
             context, host, "cancelNotification",
             JS_NewCFunction(
                 context, hostCancelNotification,
@@ -622,19 +617,6 @@ private func hostInvoke(
     return qjs_undefined()
 }
 
-private func hostScheduleNotification(
-    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
-    argv: UnsafeMutablePointer<JSValue>?
-) -> JSValue {
-    if let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
-        let cString = JS_ToCString(ctx, argv[0])
-    {
-        runtime.scheduleNotificationFromC(String(cString: cString))
-        JS_FreeCString(ctx, cString)
-    }
-    return qjs_undefined()
-}
-
 private func hostCancelNotification(
     ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -789,10 +771,6 @@ extension JSRuntime {
 
     fileprivate func invokeFromC(_ id: Int, _ method: String, _ payload: String) {
         onInvoke?(id, method, payload)
-    }
-
-    fileprivate func scheduleNotificationFromC(_ json: String) {
-        onScheduleNotification?(json)
     }
 
     fileprivate func cancelNotificationFromC(_ id: String) {

@@ -33,6 +33,8 @@ export function installMockHost() {
         g.__resolveInvoke?.(id, JSON.stringify("granted"));
       } else if (method === "sendToPhone") {
         g.__resolveInvoke?.(id, JSON.stringify({ ok: true }));
+      } else if (method === "scheduleNotification") {
+        g.__resolveInvoke?.(id, "null");
       } else {
         g.__rejectInvoke?.(
           id,
@@ -40,7 +42,6 @@ export function installMockHost() {
         );
       }
     }),
-    scheduleNotification: vi.fn(),
     cancelNotification: vi.fn(),
     fetch: vi.fn(),
     abortFetch: vi.fn(),

@@ -250,6 +250,7 @@ export const hostMethods = [
     targets: ["watch"],
     feature: "notifications",
     since: 1,
+    via: "invoke",
   },
   {
     name: "cancelNotification",

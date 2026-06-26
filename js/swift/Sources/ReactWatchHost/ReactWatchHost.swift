@@ -204,6 +204,8 @@ final class ReactWatchModel: ObservableObject {
             requestNotificationPermission(id: id)
         case "sendToPhone":
             sendToPhone(id: id, payload: payload)
+        case "scheduleNotification":
+            scheduleNotification(id: id, payload: payload)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -750,9 +752,6 @@ final class ReactWatchModel: ObservableObject {
                 }
             WKInterfaceDevice.current().play(haptic)
         }
-        js.onScheduleNotification = { [weak self] json in
-            self?.scheduleNotification(json)
-        }
         js.onCancelNotification = { id in
             UNUserNotificationCenter.current()
                 .removePendingNotificationRequests(withIdentifiers: [id])
@@ -760,16 +759,19 @@ final class ReactWatchModel: ObservableObject {
         return js
     }
 
-    private func scheduleNotification(_ json: String) {
-        // Decode + trigger-time math is ReactWatchSupport.NotificationPlan
-        // (unit-tested on Linux); the host just builds the request from it.
-        guard let plan = NotificationPlan(json: json) else {
-            runtimeError = "bad notification payload"
+    /// Schedules a local notification and settles the invoke (CX-022): a native
+    /// `UNUserNotificationCenter.add` failure rejects so it reaches JS instead of
+    /// vanishing; success resolves. Decode + trigger-time math is
+    /// ReactWatchSupport.NotificationPlan (unit-tested on Linux); the host just
+    /// builds the request. The add callback fires on a background queue, so hop
+    /// to main + generation-guard (CX-008) before settling.
+    private func scheduleNotification(id: Int, payload: String) {
+        guard let plan = NotificationPlan(json: payload) else {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(
+                    code: "INVALID_REQUEST", message: "bad notification payload"))
             return
-        }
-        if plan.scheduledInPast {
-            runtimeError =
-                "notification '\(plan.id)' scheduled in the past; delivering now"
         }
         let content = UNMutableNotificationContent()
         content.title = plan.title
@@ -782,10 +784,17 @@ final class ReactWatchModel: ObservableObject {
                 timeInterval: plan.triggerSeconds, repeats: false
             )
         )
+        let gen = generation
         UNUserNotificationCenter.current().add(request) { [weak self] error in
-            if let error {
-                DispatchQueue.main.async {
-                    self?.runtimeError = "notification: \(error.localizedDescription)"
+            DispatchQueue.main.async {
+                guard let self, gen == self.generation else { return }
+                if let error {
+                    self.runtime?.rejectInvoke(
+                        id: id,
+                        errorJson: Self.errorJSON(
+                            code: "INTERNAL", message: error.localizedDescription))
+                } else {
+                    self.runtime?.resolveInvoke(id: id, resultJson: "null")
                 }
             }
         }

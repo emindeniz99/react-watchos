@@ -134,7 +134,10 @@ export {
   useParams,
   useRoute,
 } from "./navigation";
-export type { NotificationRequest } from "./notifications";
+export type {
+  NotificationRequest,
+  ScheduleNotificationResult,
+} from "./notifications";
 export {
   cancelNotification,
   requestNotificationPermission,
