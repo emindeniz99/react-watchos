@@ -27,49 +27,48 @@ It consumes the renderer through the pnpm workspace (`"react-native-watchos":
 "workspace:*"`), so there is a single React instance and no alias / nodePaths /
 tsconfig-paths glue.
 
+## How the watch target is wired (the config plugin)
+
+This example **dogfoods the package's own config plugin** — `app.json` lists
+`react-native-watchos` (not `@bacons/apple-targets` directly), and that's the
+whole integration:
+
+```jsonc
+// app.json
+"plugins": [["react-native-watchos", { "name": "Expo Watch", "widget": false }]]
+```
+
+The plugin generates `targets/watch/expo-target.config.js` and pre-registers the
+SwiftPM reference during prebuild. The one piece it can't generate — the watch
+app's `@main` Swift entry — is scaffolded for you:
+
+```bash
+npx react-native-watchos scaffold   # -> targets/watch/WatchApp.swift
+```
+
+`WatchApp.swift` is just a thin consumer of the package (embeds
+`ReactWatchRootView` with your App Group); it's the only committed Swift file —
+the generated `expo-target.config.js` / `Info.plist` / entitlements are not
+committed (see `.gitignore`).
+
 ## Building the actual watch app (macOS 15+, Xcode 16+)
 
 ```bash
-pnpm --filter expo-watch-app build:watch   # build the watch JS bundle
-pnpm --filter expo-watch-app prebuild      # expo prebuild -p ios --clean
+pnpm --filter expo-watch-app prebuild   # build the watch bundle, then
+                                        # `react-native-watchos prebuild`
 # open ios/, select the watch scheme, run on a watchOS simulator
 ```
 
-### The Swift host (a SwiftPM package)
-
-The native runtime — the QuickJS engine, the `NodeView` interpreter, the
-bridges — is the **`swift/` SwiftPM package** in this repo. Your watch target
-depends on it and writes ~10 lines:
-
-```swift
-import ReactWatchHost
-import SwiftUI
-
-@main
-struct MyWatchApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ReactWatchRootView(appGroupId: "group.com.example.expowatch")
-        }
-    }
-}
-```
-
-Linking the package happens in the config plugin
-(`app/plugins/with-react-watch-package.js` in the reference app — copy it
-here): during `expo prebuild` it writes the SwiftPM references into the
-generated watch + widget targets. If it didn't apply (it's wrapped so it can
-never fail prebuild), add it by hand in Xcode:
-
-> File ▸ Add Package Dependencies… ▸ Add Local… ▸ select
-> `projects/react-native-watchos/js/swift`, then add **ReactWatchHost** to the
-> watch target (and **ReactWatchCore** + **ReactWatchRuntime** to the widget
-> target if you ship complications).
-
-Then add the App Group / usage-description keys for whatever native
-capabilities your watch UI calls (see the renderer README and
-`docs/extending.md`). The Linux CI builds the package's engine/core/runtime;
-the SwiftUI host and this Xcode wiring are the macOS gate.
+`react-native-watchos prebuild` runs `expo prebuild` and then, in one command,
+links the **ReactWatchHost** SwiftPM product into the watch target and merges
+the target's `Info.plist` (the standalone flag + any usage strings) — no
+hand-wired `postprebuild`, no manual "Add Package Dependencies…" in Xcode. The
+native runtime (the QuickJS engine, the `NodeView` interpreter, the bridges) is
+the `swift/` SwiftPM package; the plugin does the linking. Add App Group /
+usage-description keys for the native capabilities your watch UI calls via the
+plugin's `infoPlist` option (see the renderer README and `docs/extending.md`).
+The Linux CI builds the package's engine/core/runtime; the SwiftUI host + this
+Xcode wiring are the macOS gate.
 
 See [`../minimal-watch-app`](../minimal-watch-app) for the smallest possible
 consumer (watch UI only, no iPhone app).

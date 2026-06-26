@@ -11,9 +11,12 @@
     },
     "plugins": [
       [
-        "@bacons/apple-targets",
+        "react-native-watchos",
         {
-          "appleTeamId": "REPLACE_WITH_YOUR_TEAM_ID"
+          "name": "Expo Watch",
+          "widget": false,
+          "healthKit": false,
+          "deploymentTarget": "11.0"
         }
       ]
     ]
