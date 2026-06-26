@@ -57,6 +57,32 @@ feature-set model supersedes the earlier scalar capability gate).
   verify those locally (see the build/run notes in the renderer README and
   `docs/`).
 
+### macOS build gotchas (these waste hours if you don't know them)
+
+- **Compile the package for the watch SDK (fast, no pods):**
+  `cd js/swift && xcodebuild build -scheme ReactWatchHost-Package -sdk
+  watchsimulator<ver> -destination 'generic/platform=watchOS Simulator'`. This
+  compiles `ReactWatchHost` **and** `ReactWatchWidget` against the real
+  WidgetKit/SwiftUI SDK — the best gate for host/widget changes. `swift build`
+  alone does **not** (those targets are `#if os(watchOS)`, empty off-watchOS).
+- **`pod install` crashing with `Unicode Normalization not appropriate for
+  ASCII-8BIT`** is a Ruby 4.x + CocoaPods 1.16 bug, not your change. Prefix the
+  command with `RUBYOPT="-EUTF-8"` (e.g. `cd app/ios && RUBYOPT=-EUTF-8
+  pod install`). `expo prebuild` runs `pod install` internally, so set it there
+  too if prebuild dies at the pods step.
+- **The widget extension can't be built standalone** — the "React Watch Widgets"
+  scheme only offers iOS destinations at build time (the `.appex` is embedded in
+  the watch app embedded in the iOS app, so it drags in the hermes/RN pod graph,
+  which fails for watchOS with `undefined_arch`). To check that the demo's (or a
+  consumer's) widget Swift compiles against the package **without** the full app
+  build: build the package for watch (above) to a `-derivedDataPath`, then
+  `xcrun --sdk watchsimulator<ver> swiftc -typecheck -parse-as-library -target
+  arm64-apple-watchos10.0-simulator -sdk <sdk> -I <dd>/Build/Products/Debug-watchsimulator
+  -Xcc -fmodule-map-file=js/swift/Sources/CQuickJS/include/module.modulemap
+  -Xcc -Ijs/swift/Sources/CQuickJS/include <files>.swift`. `-parse-as-library`
+  is required (else `@main` errors); the `-Xcc` CQuickJS path is required (else
+  "missing module CQuickJS", pulled in transitively via `ReactWatchRuntime`).
+
 ## Commits
 
 Follow the monorepo convention (Conventional Commits, **mandatory scope**). The
