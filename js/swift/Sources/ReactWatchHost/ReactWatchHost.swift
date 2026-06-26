@@ -675,7 +675,18 @@ final class ReactWatchModel: ObservableObject {
     /// falls back to parsing the source if the cache is missing or stale (e.g.
     /// the embedded quickjs-ng changed in a native release, so the cached
     /// bytecode no longer loads).
+    /// Exposes the loaded bundle's content id to JS (CX-025) so `checkForUpdate`
+    /// can compare it to the server manifest's `releaseId` and detect a
+    /// non-breaking fix that kept the same `version`. The id is FNV-1a hex
+    /// (matching the build's `contentHash`), set BEFORE the bundle runs.
+    private func setBundleReleaseId(_ source: String, into js: JSRuntime) {
+        try? js.evaluate(
+            "globalThis.__bundleReleaseId='\(ContentHash.of(source))';",
+            filename: "release-id.js")
+    }
+
     private func evaluateOTA(_ record: OTARecord, into js: JSRuntime) throws {
+        setBundleReleaseId(record.js, into: js)
         // Trust the cached bytecode only if the blob on disk hashes to what this
         // record was saved with (OP-1): a `.qbc` left by a previous bundle, or a
         // partial write, won't match and is reparsed — so stale bytecode can
@@ -694,6 +705,12 @@ final class ReactWatchModel: ObservableObject {
     }
 
     private func loadShipped(into js: JSRuntime) throws {
+        // Read the source up front for the release id (CX-025), even when the
+        // precompiled bytecode runs below — so JS always learns its content id.
+        let source = Bundle.main.url(forResource: "bundle", withExtension: "js")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        if let source { setBundleReleaseId(source, into: js) }
+
         if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
             let data = try? Data(contentsOf: qbc)
         {
@@ -704,9 +721,7 @@ final class ReactWatchModel: ObservableObject {
                 runtimeError = "bytecode load failed, using bundle.js: \(error)"
             }
         }
-        guard let jsURL = Bundle.main.url(forResource: "bundle", withExtension: "js"),
-            let code = try? String(contentsOf: jsURL, encoding: .utf8)
-        else {
+        guard let code = source else {
             throw JSRuntime.JSError.exception("bundle.js missing — run `npm run build`")
         }
         try js.evaluate(code)

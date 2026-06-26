@@ -1,6 +1,7 @@
 import {
   copyFileSync,
   mkdirSync,
+  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -8,6 +9,7 @@ import {
 import { dirname, join } from "node:path";
 import { build } from "esbuild";
 import { buildOptions, bundleVersion, root, targets } from "./config.mjs";
+import { contentHash } from "./contentHash.mjs";
 
 // `npm run build -- --minify` (or MINIFY=1) roughly halves the bundle;
 // unminified keeps watch-side stack traces readable during development.
@@ -29,14 +31,20 @@ for (const target of targets) {
   rmSync(target.outfile.replace(/\.js$/, ".qbc"), { force: true });
 }
 
-// OTA manifest (CR-17): the freshness check fetches this to compare versions.
-// It ships the APP bundle (the app is what runs OTA); `bundle` is relative so it
-// resolves against wherever the manifest is served (the dev server serves dist/
-// statically, so /manifest.json + /bundle.js). `signature` is null here — sign
-// "v1:<version>:<bundle>" at publish time with your Ed25519 key and fill it in;
-// unsigned bundles load only in fail-open.
+// OTA manifest (CR-17): the freshness check fetches this. It ships the APP
+// bundle (the app is what runs OTA); `bundle` is relative so it resolves against
+// wherever the manifest is served (the dev server serves dist/ statically, so
+// /manifest.json + /bundle.js). `signature` is null here — sign
+// "v1:<kid>:<version>:<bundle>" at publish time with your Ed25519 key and fill
+// it in; unsigned bundles load only in fail-open.
+//
+// `releaseId` (CX-025) is the content hash of the app bundle — the *freshness*
+// signal, distinct from `version` (the rollback gate). It's how a non-breaking
+// fix (same `version`, different content) is detected as an available update;
+// it matches the host's `__bundleReleaseId` for the same bytes.
+const releaseId = contentHash(readFileSync(targets[0].outfile, "utf8"));
 writeFileSync(
   join(root, "dist/manifest.json"),
-  `${JSON.stringify({ version: bundleVersion, bundle: "bundle.js", signature: null }, null, 2)}\n`,
+  `${JSON.stringify({ version: bundleVersion, bundle: "bundle.js", signature: null, releaseId }, null, 2)}\n`,
 );
-console.log(`manifest: version ${bundleVersion}`);
+console.log(`manifest: version ${bundleVersion}, releaseId ${releaseId}`);

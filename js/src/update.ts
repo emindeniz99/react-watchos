@@ -85,8 +85,14 @@ export const BUNDLE_VERSION = Number(process.env.BUNDLE_VERSION ?? "1");
 
 /** The update manifest served by your update endpoint (dist/manifest.json). */
 export interface UpdateManifest {
-  /** Monotonic compatibility version (bumped only on a breaking change). */
+  /** Monotonic compatibility version — the anti-rollback GATE (bumped only on a
+   *  breaking change), not the freshness signal. */
   version: number;
+  /** Content id of the bundle (CX-025): the FRESHNESS signal, distinct from
+   *  `version`. Lets a non-breaking fix (same version, new content) be detected
+   *  as an update. Stamped by the build; matches the host's `__bundleReleaseId`
+   *  for the same bytes. */
+  releaseId?: string;
   /** Bundle URL — absolute (https), or relative to the manifest URL. */
   bundle: string;
   /** base64 Ed25519 signature over "v1:<keyId>:<version>:<bundle-js>". */
@@ -150,9 +156,38 @@ function resolveBundleUrl(manifestUrl: string, bundle: string): string {
   return manifestUrl.replace(/[^/]*$/, "") + bundle;
 }
 
+/** The content id of the bundle currently running, exposed by the host as
+ *  `globalThis.__bundleReleaseId` (CX-025). null under a test/dev host or an
+ *  older binary that doesn't expose it — then freshness falls back to version. */
+function currentReleaseId(): string | null {
+  const id = (globalThis as { __bundleReleaseId?: unknown }).__bundleReleaseId;
+  return typeof id === "string" ? id : null;
+}
+
 /**
- * Fetches the update manifest and compares its version to this bundle's.
- * Use it to drive an "update available" prompt. Always serve over HTTPS.
+ * Whether the manifest's bundle is a newer release than the one running
+ * (CX-025) — the FRESHNESS check, decoupled from the rollback gate. A higher
+ * `version` is always newer; a lower one is a downgrade (never "available").
+ * At the SAME `version`, a differing `releaseId` means a non-breaking fix is
+ * available — the case the old version-only check could never ship. Falls back
+ * to the version compare when releaseId isn't exposed on both sides.
+ */
+function isFresherRelease(manifest: UpdateManifest): boolean {
+  if (manifest.version > BUNDLE_VERSION) return true;
+  if (manifest.version < BUNDLE_VERSION) return false;
+  const current = currentReleaseId();
+  return (
+    manifest.releaseId !== undefined &&
+    current !== null &&
+    manifest.releaseId !== current
+  );
+}
+
+/**
+ * Fetches the update manifest and reports whether a newer release is available.
+ * Freshness keys on the bundle's `releaseId` (CX-025), so a non-breaking fix
+ * with the same compatibility `version` is detected too; a version downgrade is
+ * never reported. Use it to drive an "update available" prompt. Always HTTPS.
  *
  * If the manifest declares `requiredFeatures`/`minBridgeProtocol` that this
  * binary doesn't provide (ARCH-01), the update can't be applied over the air —
@@ -167,7 +202,7 @@ export async function checkForUpdate(manifestUrl: string): Promise<{
   missingCapabilities?: string[];
 }> {
   const manifest = (await (await fetch(manifestUrl)).json()) as UpdateManifest;
-  const isNewer = manifest.version > BUNDLE_VERSION;
+  const isNewer = isFresherRelease(manifest);
   const host = hostCapabilities();
   const missing = isNewer && host ? capabilityGap(manifest, host) : [];
   const appUpdateRequired = missing.length > 0;
@@ -182,9 +217,10 @@ export async function checkForUpdate(manifestUrl: string): Promise<{
 }
 
 /**
- * Fetches the manifest and, if it's newer than this bundle, downloads the
- * bundle and stages it (applyUpdate). Returns the staged version, or null if
- * already up to date — or if the bundle needs a capability this binary lacks
+ * Fetches the manifest and, if it's a fresher release than this bundle
+ * (`releaseId`/version, CX-025), downloads the bundle and stages it
+ * (applyUpdate). Returns the staged version, or null if already up to date —
+ * or if the bundle needs a capability this binary lacks
  * (ARCH-01), in which case it's NOT downloaded (the app must be updated; use
  * checkForUpdate to surface that). The staged update takes effect next launch.
  */
@@ -192,7 +228,7 @@ export async function fetchAndApplyUpdate(
   manifestUrl: string,
 ): Promise<number | null> {
   const manifest = (await (await fetch(manifestUrl)).json()) as UpdateManifest;
-  if (manifest.version <= BUNDLE_VERSION) return null;
+  if (!isFresherRelease(manifest)) return null;
   const host = hostCapabilities();
   if (host && capabilityGap(manifest, host).length > 0) return null;
   const url = resolveBundleUrl(manifestUrl, manifest.bundle);

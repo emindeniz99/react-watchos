@@ -14,6 +14,7 @@ afterEach(() => {
   delete g.fetch;
   delete g.__hostFeatures;
   delete g.__bridgeProtocol;
+  delete g.__bundleReleaseId;
 });
 
 describe("OTA applyUpdate", () => {
@@ -134,6 +135,74 @@ describe("OTA freshness check", () => {
       await fetchAndApplyUpdate("https://x.test/manifest.json"),
     ).toBeNull();
     expect(host.invoke).not.toHaveBeenCalled();
+  });
+});
+
+// CX-025: freshness keys on releaseId (a content id), distinct from the
+// anti-rollback `version` gate — so a non-breaking fix that kept the same
+// version still ships, and a downgrade never reports "available".
+describe("OTA freshness by releaseId (CX-025)", () => {
+  it("flags a same-version bundle with a different releaseId as available", async () => {
+    g.__bundleReleaseId = "aaaa"; // the running bundle's content id
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: BUNDLE_VERSION,
+        bundle: "bundle.js",
+        releaseId: "bbbb", // server published new content, same version
+      }),
+    }));
+    expect(await checkForUpdate("https://x.test/manifest.json")).toEqual({
+      current: BUNDLE_VERSION,
+      latest: BUNDLE_VERSION,
+      updateAvailable: true,
+    });
+  });
+
+  it("reports no update when the releaseId matches (already running it)", async () => {
+    g.__bundleReleaseId = "aaaa";
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: BUNDLE_VERSION,
+        bundle: "bundle.js",
+        releaseId: "aaaa",
+      }),
+    }));
+    expect(
+      (await checkForUpdate("https://x.test/manifest.json")).updateAvailable,
+    ).toBe(false);
+  });
+
+  it("never reports a version downgrade as available, even with a new releaseId", async () => {
+    g.__bundleReleaseId = "aaaa";
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: BUNDLE_VERSION - 1, // older
+        bundle: "bundle.js",
+        releaseId: "zzzz",
+      }),
+    }));
+    expect(
+      (await checkForUpdate("https://x.test/manifest.json")).updateAvailable,
+    ).toBe(false);
+  });
+
+  it("fetchAndApplyUpdate stages a same-version releaseId fix", async () => {
+    const host = installMockHost();
+    g.__bundleReleaseId = "aaaa";
+    g.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        json: async () => ({
+          version: BUNDLE_VERSION,
+          bundle: "bundle.js",
+          releaseId: "bbbb",
+        }),
+      })
+      .mockResolvedValueOnce({ text: async () => "globalThis.x=2;" });
+    expect(await fetchAndApplyUpdate("https://x.test/manifest.json")).toBe(
+      BUNDLE_VERSION,
+    );
+    expect(host.invoke).toHaveBeenCalled();
   });
 });
 
