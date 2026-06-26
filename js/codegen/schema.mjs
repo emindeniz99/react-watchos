@@ -237,6 +237,21 @@ export const hostMethods = [
     feature: "storage",
     since: 1,
   },
+  // Cross-process-atomic integer counters (ARCH-05): a clamped read-modify-write
+  // that get/set can't do atomically across the app + widget-extension. Same
+  // "storage" feature — no new capability, just a safe mutation primitive.
+  {
+    name: "counterGet",
+    targets: ["watch", "widget"],
+    feature: "storage",
+    since: 1,
+  },
+  {
+    name: "counterAdd",
+    targets: ["watch", "widget"],
+    feature: "storage",
+    since: 1,
+  },
   { name: "playHaptic", targets: ["watch"], feature: "haptics", since: 1 },
   {
     name: "requestNotificationPermission",

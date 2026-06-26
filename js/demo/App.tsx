@@ -194,12 +194,14 @@ function CounterScreen() {
  */
 function HydrationScreen() {
   const [glasses, setGlasses] = useState(hydrationStore.glasses);
-  const setAndPublish = (next: number) => {
-    const clamped = Math.max(0, Math.min(hydrationStore.goal, next));
-    hydrationStore.glasses = clamped;
-    setGlasses(clamped);
+  // Atomic add (ARCH-05): the widget extension may increment the same counter,
+  // so we add a delta rather than set an absolute value (which would lose the
+  // extension's update). The returned total is the authoritative new value.
+  const applyDelta = (delta: number) => {
+    const total = hydrationStore.addGlasses(delta);
+    setGlasses(total);
     publishWidgets();
-    if (clamped === hydrationStore.goal) playHaptic("success");
+    if (total === hydrationStore.goal) playHaptic("success");
   };
   const remind = () => {
     requestNotificationPermission();
@@ -221,10 +223,10 @@ function HydrationScreen() {
         style="circular"
       />
       <Text>{`${glasses} of ${hydrationStore.goal} glasses`}</Text>
-      <Button onPress={() => setAndPublish(glasses + 1)}>
+      <Button onPress={() => applyDelta(1)}>
         <Text>Add glass</Text>
       </Button>
-      <Button onPress={() => setAndPublish(0)}>
+      <Button onPress={() => applyDelta(-hydrationStore.goal)}>
         <Text size={12} color="secondary">
           Reset
         </Text>

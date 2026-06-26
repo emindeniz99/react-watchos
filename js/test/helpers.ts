@@ -9,6 +9,9 @@ export { findByText, findByType } from "../src/testing";
  * returns it. Callers must delete `globalThis.__host` in afterEach.
  */
 export function installMockHost() {
+  // Atomic counters (ARCH-05) are backed by a real Map so counterAdd actually
+  // clamps + accumulates, mirroring CoordinatedCounterStore.
+  const counters = new Map<string, number>();
   const host = {
     commit: vi.fn(),
     log: vi.fn(),
@@ -17,6 +20,17 @@ export function installMockHost() {
     publishWidgets: vi.fn(),
     getItem: vi.fn((_key: string): string | null => null),
     setItem: vi.fn(),
+    counterGet: vi.fn((key: string): number => counters.get(key) ?? 0),
+    counterAdd: vi.fn(
+      (key: string, delta: number, min: number, max: number): number => {
+        const next = Math.max(
+          min,
+          Math.min(max, (counters.get(key) ?? 0) + delta),
+        );
+        counters.set(key, next);
+        return next;
+      },
+    ),
     playHaptic: vi.fn(),
     // Generic invoke channel (SD-1): dispatch by method and settle the Promise,
     // mirroring native. saveUpdate accepts, requestNotificationPermission grants;

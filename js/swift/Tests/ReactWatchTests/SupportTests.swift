@@ -598,3 +598,70 @@ final class OTAKeyStateTests: XCTestCase {
             OTAKeyState.classify(configuredCount: 1, validCount: 0), .disabled)
     }
 }
+
+// ARCH-05: the atomic counter that fixes the cross-process lost-update on shared
+// state (the hydration counter is written by both the app and the widget
+// extension). The clamp is pure; the persist/accumulate path is exercised
+// against a temp dir (single-process — the cross-process *atomicity* is the
+// NSFileCoordinator guarantee, verified on-device, not here).
+final class CoordinatedCounterStoreTests: XCTestCase {
+    private func tempStore() -> (CoordinatedCounterStore, URL) {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("counter-tests-\(UUID().uuidString)")
+        return (CoordinatedCounterStore(directory: dir), dir)
+    }
+
+    override func tearDown() {
+        // Each test uses a unique dir; nothing global to reset.
+        super.tearDown()
+    }
+
+    func testUnsetCounterReadsZero() {
+        let (store, dir) = tempStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        XCTAssertEqual(store.value(forKey: "hydration.glasses"), 0)
+    }
+
+    func testAddAccumulatesAndPersists() {
+        let (store, dir) = tempStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        XCTAssertEqual(store.add(1, toKey: "g", min: 0, max: 8), 1)
+        XCTAssertEqual(store.add(1, toKey: "g", min: 0, max: 8), 2)
+        XCTAssertEqual(store.add(1, toKey: "g", min: 0, max: 8), 3)
+        // A fresh store over the same dir reads the persisted value.
+        let reread = CoordinatedCounterStore(directory: dir)
+        XCTAssertEqual(reread.value(forKey: "g"), 3)
+    }
+
+    func testAddClampsAtMax() {
+        let (store, dir) = tempStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        for _ in 0..<20 { store.add(1, toKey: "g", min: 0, max: 8) }
+        XCTAssertEqual(store.value(forKey: "g"), 8)
+    }
+
+    func testNegativeDeltaResetsToFloor() {
+        // How the demo's "Reset" works: a large negative delta clamps to min,
+        // so there's no separate "set" op on the bridge.
+        let (store, dir) = tempStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        store.add(5, toKey: "g", min: 0, max: 8)
+        XCTAssertEqual(store.add(-8, toKey: "g", min: 0, max: 8), 0)
+    }
+
+    func testKeysAreIsolated() {
+        let (store, dir) = tempStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        store.add(3, toKey: "a.b", min: 0, max: 99)
+        store.add(7, toKey: "a/b", min: 0, max: 99)  // distinct after encoding
+        XCTAssertEqual(store.value(forKey: "a.b"), 3)
+        XCTAssertEqual(store.value(forKey: "a/b"), 7)
+    }
+
+    func testNoAppGroupIsANoOp() {
+        // Sharing disabled (nil container) — ops return the floor, never crash.
+        let store = CoordinatedCounterStore(directory: nil)
+        XCTAssertEqual(store.value(forKey: "g"), 0)
+        XCTAssertEqual(store.add(1, toKey: "g", min: 2, max: 8), 2)
+    }
+}

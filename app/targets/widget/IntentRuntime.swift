@@ -22,9 +22,13 @@ import WidgetKit
 final class IntentRuntime {
     private let js: JSRuntime
     private let store: SharedWidgetStore
+    /// Cross-process-atomic counters (ARCH-05): the `addGlass` control runs here,
+    /// in the extension, while the app may be incrementing the same counter.
+    private let counters: CoordinatedCounterStore
 
     init?() {
         store = SharedWidgetStore(appGroupId: WidgetStore.appGroupId)
+        counters = CoordinatedCounterStore(appGroupId: WidgetStore.appGroupId)
         guard let js = try? JSRuntime(memoryLimitBytes: 16 * 1024 * 1024) else {
             return nil
         }
@@ -38,6 +42,10 @@ final class IntentRuntime {
         }
         js.onGetItem = { [store] key in store.getItem(key) }
         js.onSetItem = { [store] key, value in store.setItem(key, value) }
+        js.onCounterGet = { [counters] key in counters.value(forKey: key) }
+        js.onCounterAdd = { [counters] key, delta, min, max in
+            counters.add(delta, toKey: key, min: min, max: max)
+        }
         do {
             try js.evaluate(
                 "globalThis.__entrypoint = \"intent\"", filename: "entry.js"

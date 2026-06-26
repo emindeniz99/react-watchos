@@ -46,6 +46,8 @@ final class ReactWatchModel: ObservableObject {
     /// App Group storage, configured with the consumer's group id at init —
     /// no global mutable state. nil disables widget/Storage sharing.
     private let store: SharedWidgetStore
+    /// Cross-process-atomic counters (ARCH-05), same App Group as `store`.
+    private let counters: CoordinatedCounterStore
     private var runtime: JSRuntime?
     private var nextSeq = 1
     /// Set once after reporting a renderer-vs-runtime wire mismatch.
@@ -80,6 +82,7 @@ final class ReactWatchModel: ObservableObject {
 
     init(appGroupId: String?, ota: OTAConfig = .init(), useJSCallBridge: Bool = true) {
         store = SharedWidgetStore(appGroupId: appGroupId)
+        counters = CoordinatedCounterStore(appGroupId: appGroupId)
         let keys = ota.signerPublicKeys.compactMapValues {
             Data(base64Encoded: $0)
                 .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
@@ -778,6 +781,10 @@ final class ReactWatchModel: ObservableObject {
         }
         js.onGetItem = { [store] in store.getItem($0) }
         js.onSetItem = { [store] in store.setItem($0, $1) }
+        js.onCounterGet = { [counters] in counters.value(forKey: $0) }
+        js.onCounterAdd = { [counters] key, delta, min, max in
+            counters.add(delta, toKey: key, min: min, max: max)
+        }
         js.onFetch = { [weak self] id, reqJson in
             self?.performFetch(id: id, requestJson: reqJson)
         }

@@ -17,8 +17,22 @@ const bundlePath = join(jsRoot, "dist/bundle.js");
 // app bundle — so the intent path runs widget.bundle.js here.
 const widgetBundlePath = join(jsRoot, "dist/widget.bundle.js");
 
+// Atomic-counter mock (ARCH-05), shared by both prelude harnesses: mirrors
+// CoordinatedCounterStore's clamped read-modify-write that JSRuntime.swift
+// installs as counterGet/counterAdd. Declared after "use strict" in each.
+const counterHostMock = `
+const __counters = new Map();
+const __counterGet = (key) => __counters.get(key) ?? 0;
+const __counterAdd = (key, delta, min, max) => {
+  const next = Math.max(min, Math.min(max, (__counters.get(key) ?? 0) + delta));
+  __counters.set(key, next);
+  return next;
+};
+`;
+
 const harnessPrelude = `
 "use strict";
+${counterHostMock}
 const __commits = [];
 const __published = [];
 const __logs = [];
@@ -32,6 +46,8 @@ globalThis.__host = {
     if (i >= 0) __armedTimers.splice(i, 1);
   },
   publishWidgets: (json) => { __published.push(json); },
+  counterGet: __counterGet,
+  counterAdd: __counterAdd,
 };
 `;
 
@@ -116,6 +132,7 @@ print(JSON.stringify({
 // the test fails loud if the widget bundle ever tries to mount UI.
 const intentPrelude = `
 "use strict";
+${counterHostMock}
 const __published = [];
 const __storage = new Map();
 const __armedTimers = [];
@@ -127,6 +144,8 @@ globalThis.__host = {
   publishWidgets: (json) => { __published.push(json); },
   getItem: (key) => __storage.get(key) ?? null,
   setItem: (key, value) => { __storage.set(key, value); },
+  counterGet: __counterGet,
+  counterAdd: __counterAdd,
 };
 `;
 
@@ -139,7 +158,7 @@ const rendered = JSON.parse(globalThis.__renderWidgets(1750000000000));
 print(JSON.stringify({
   handled1, handled2, unknown,
   publishCount: __published.length,
-  storedGlasses: JSON.parse(__storage.get("hydration.glasses")),
+  storedGlasses: __counterGet("hydration.glasses"),
   gauge: last.widgets.hydration.accessoryCircular.entries[0].tree.props.value,
   control: last.controls["hydration.addGlass"],
   daypartEntryCount: last.widgets.daypart.accessoryRectangular.entries.length,

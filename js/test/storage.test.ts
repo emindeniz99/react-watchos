@@ -34,3 +34,34 @@ describe("Storage", () => {
     expect(Storage.get("anything")).toBeNull();
   });
 });
+
+// ARCH-05: counters are a SEPARATE, cross-process-atomic namespace from get/set
+// — they exist precisely because a get+1+set over shared storage loses
+// concurrent updates between the app and the widget extension.
+describe("Storage counters", () => {
+  it("adds and clamps through the in-memory fallback, returning the new value", () => {
+    expect(Storage.counterValue("hydration.glasses")).toBe(0);
+    expect(Storage.counterAdd("hydration.glasses", 1, 0, 8)).toBe(1);
+    expect(Storage.counterAdd("hydration.glasses", 1, 0, 8)).toBe(2);
+    expect(Storage.counterValue("hydration.glasses")).toBe(2);
+    // Clamps at the ceiling, and a big negative delta resets to the floor
+    // (how the demo's "Reset" works — no separate set op).
+    expect(Storage.counterAdd("hydration.glasses", 99, 0, 8)).toBe(8);
+    expect(Storage.counterAdd("hydration.glasses", -100, 0, 8)).toBe(0);
+  });
+
+  it("routes through the host counter bridge when available", () => {
+    const host = installMockHost();
+    expect(Storage.counterAdd("c", 3, 0, 10)).toBe(3);
+    expect(host.counterAdd).toHaveBeenCalledWith("c", 3, 0, 10);
+    expect(Storage.counterValue("c")).toBe(3);
+  });
+
+  it("is a distinct namespace from the JSON KV store", () => {
+    // A counter and a same-named get/set value don't alias each other.
+    Storage.set("x", 5);
+    Storage.counterAdd("x", 2, 0, 99);
+    expect(Storage.get<number>("x")).toBe(5);
+    expect(Storage.counterValue("x")).toBe(2);
+  });
+});

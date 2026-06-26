@@ -8,6 +8,13 @@ import { getHost } from "./host";
  */
 
 const memoryFallback = new Map<string, string>();
+// Counters are a distinct namespace (file-backed on the watch, not the
+// UserDefaults KV) — the fallback mirrors that so tests/Node behave the same.
+const counterFallback = new Map<string, number>();
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
 
 // Monotonic count of writes through Storage. The intent runtime samples it
 // around a handler to auto-reload widgets only when persisted state actually
@@ -50,8 +57,38 @@ export const Storage = {
     this.setString(key, JSON.stringify(value));
   },
 
+  /**
+   * Current value of a cross-process-atomic counter (ARCH-05), 0 when unset.
+   * Counters live in a separate, file-backed namespace from get/set so that
+   * `counterAdd` can do an atomic read-modify-write the app and the widget
+   * extension can share. Use these — not get/set — for any number two processes
+   * increment.
+   */
+  counterValue(key: string): number {
+    const h = getHost();
+    if (h?.counterGet) return h.counterGet(key);
+    return counterFallback.get(key) ?? 0;
+  },
+
+  /**
+   * Atomically add `delta` to a counter, clamp the result to [min, max], persist
+   * it, and return the new value. Cross-process safe on the watch (a file-
+   * coordination claim wraps the whole RMW). Reset-to-floor is a large negative
+   * delta. `writeCount` bumps so the intent runtime's dirty-tracking reloads
+   * widgets, exactly like setItem.
+   */
+  counterAdd(key: string, delta: number, min: number, max: number): number {
+    writeCount += 1;
+    const h = getHost();
+    if (h?.counterAdd) return h.counterAdd(key, delta, min, max);
+    const next = clamp((counterFallback.get(key) ?? 0) + delta, min, max);
+    counterFallback.set(key, next);
+    return next;
+  },
+
   /** Test helper: clears the in-memory fallback only. */
   clearMemoryFallback(): void {
     memoryFallback.clear();
+    counterFallback.clear();
   },
 };

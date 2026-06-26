@@ -47,6 +47,14 @@ export interface QuickJSHostGlobal {
   /** App Group UserDefaults, shared between app and widget extension. */
   getItem?(key: string): string | null;
   setItem?(key: string, value: string): void;
+  /**
+   * Cross-process-atomic integer counters (ARCH-05). `counterAdd` does a clamped
+   * read-modify-write under a file-coordination claim and returns the new value,
+   * so the app and the widget extension can increment the same counter without
+   * losing updates (which plain getItem+setItem can't guarantee across processes).
+   */
+  counterGet?(key: string): number;
+  counterAdd?(key: string, delta: number, min: number, max: number): number;
   /** WKInterfaceDevice haptics. */
   playHaptic?(type: string): void;
   /**

@@ -4,17 +4,30 @@ import { Storage } from "../src/index";
  * Hydration state lives in App Group storage so it is shared by the app,
  * the widget timelines, and the "Add glass" control's intent handler
  * (which runs in the widget extension process).
+ *
+ * The counter is a CROSS-PROCESS-ATOMIC counter (ARCH-05), not a plain
+ * get/set value: the app and the widget extension both increment it, and a
+ * `get + 1 + set` over App Group UserDefaults loses concurrent updates (no
+ * atomic cross-process read-modify-write). `Storage.counterAdd` does the whole
+ * clamped add under a file-coordination claim instead.
  */
 const KEY = "hydration.glasses";
+const GOAL = 8;
 
 export const hydrationStore = {
-  goal: 8,
+  goal: GOAL,
 
   get glasses(): number {
-    return Storage.get<number>(KEY) ?? 0;
+    return Storage.counterValue(KEY);
   },
 
-  set glasses(value: number) {
-    Storage.set(KEY, Math.max(0, Math.min(this.goal, value)));
+  /**
+   * Atomically add `delta` glasses, clamped to [0, goal]; returns the new total.
+   * Used by both the app's "Add glass" button and the widget extension's
+   * `addGlass` control — the two processes that race on this counter. Reset is a
+   * delta that underflows the floor (e.g. `-goal`).
+   */
+  addGlasses(delta: number): number {
+    return Storage.counterAdd(KEY, delta, 0, this.goal);
   },
 };

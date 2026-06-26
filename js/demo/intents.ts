@@ -10,6 +10,8 @@ import { hydrationStore } from "./hydrationStore";
  */
 export function registerDemoIntents(): void {
   registerIntent("addGlass", () => {
-    hydrationStore.glasses += 1;
+    // Atomic cross-process add (ARCH-05): the app may be incrementing the same
+    // counter; a plain get+set here would lose one of the two updates.
+    hydrationStore.addGlasses(1);
   });
 }

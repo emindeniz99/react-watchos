@@ -28,6 +28,14 @@ public final class JSRuntime {
     public var onGetItem: ((String) -> String?)?
     public var onSetItem: ((String, String) -> Void)?
 
+    /// Cross-process-atomic integer counters (ARCH-05). Distinct from get/set
+    /// because UserDefaults can't do an atomic cross-process read-modify-write;
+    /// `onCounterAdd` performs the whole clamp-and-add under a file-coordination
+    /// claim and returns the new value. Both the app and the widget extension
+    /// increment the same counter, so a plain get+set loses concurrent updates.
+    public var onCounterGet: ((String) -> Int)?
+    public var onCounterAdd: ((String, Int, Int, Int) -> Int)?
+
     /// Non-fatal JS exceptions (event handlers, timers). Without this,
     /// runtime errors after startup would be silently swallowed.
     public var onError: ((String) -> Void)?
@@ -434,6 +442,12 @@ public final class JSRuntime {
             context, host, "setItem",
             JS_NewCFunction(context, hostSetItem, "setItem", 2))
         JS_SetPropertyStr(
+            context, host, "counterGet",
+            JS_NewCFunction(context, hostCounterGet, "counterGet", 1))
+        JS_SetPropertyStr(
+            context, host, "counterAdd",
+            JS_NewCFunction(context, hostCounterAdd, "counterAdd", 4))
+        JS_SetPropertyStr(
             context, host, "playHaptic",
             JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
         JS_SetPropertyStr(
@@ -748,6 +762,38 @@ private func hostSetItem(
     return qjs_undefined()
 }
 
+private func hostCounterGet(
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1,
+        let keyC = JS_ToCString(ctx, argv[0])
+    else { return JS_NewInt32(ctx, 0) }
+    let key = String(cString: keyC)
+    JS_FreeCString(ctx, keyC)
+    return JS_NewInt32(ctx, Int32(runtime.counterGetFromC(key)))
+}
+
+private func hostCounterAdd(
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 4,
+        let keyC = JS_ToCString(ctx, argv[0])
+    else { return JS_NewInt32(ctx, 0) }
+    let key = String(cString: keyC)
+    JS_FreeCString(ctx, keyC)
+    var delta: Int32 = 0
+    var minV: Int32 = 0
+    var maxV: Int32 = 0
+    JS_ToInt32(ctx, &delta, argv[1])
+    JS_ToInt32(ctx, &minV, argv[2])
+    JS_ToInt32(ctx, &maxV, argv[3])
+    let result = runtime.counterAddFromC(
+        key, Int(delta), Int(minV), Int(maxV))
+    return JS_NewInt32(ctx, Int32(result))
+}
+
 private func hostSetTimer(
     ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
     argv: UnsafeMutablePointer<JSValue>?
@@ -833,6 +879,18 @@ extension JSRuntime {
 
     fileprivate func setItemFromC(_ key: String, _ value: String) {
         onSetItem?(key, value)
+    }
+
+    fileprivate func counterGetFromC(_ key: String) -> Int {
+        onCounterGet?(key) ?? 0
+    }
+
+    fileprivate func counterAddFromC(
+        _ key: String, _ delta: Int, _ min: Int, _ max: Int
+    ) -> Int {
+        // No counter bridge wired (shouldn't happen on a real host): return the
+        // floor so the JS clamp invariant still holds.
+        onCounterAdd?(key, delta, min, max) ?? min
     }
 
     fileprivate func scheduleTimerFromC(id: Int32, milliseconds: Double) {
