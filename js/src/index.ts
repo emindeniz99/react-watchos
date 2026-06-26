@@ -70,7 +70,9 @@ export {
   VStack,
   ZStack,
 } from "./components";
+export type { MessageContract, TypedMessages } from "./connectivity";
 export {
+  defineMessages,
   onPhoneMessage,
   PHONE_MESSAGE_EVENT,
   sendToPhone,

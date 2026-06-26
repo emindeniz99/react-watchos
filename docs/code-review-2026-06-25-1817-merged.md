@@ -43,7 +43,10 @@ Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Suppor
   - Note: full one-file unification (RenderContext/adapter, ARCH-10) is a further optional refactor; the drift itself is gone since both interpreters share `RNStyle`. (timer-ms stays intentionally degraded in widgets — WidgetKit can't tick at 50ms.)
 - [x] CX-016 — pure `WidgetSnapshot.currentIndex` (latest entry ≤ now, else earliest) in Support (+4 tests, `swift test` 67); `ReactTimelineProvider.latestEntry` now uses it instead of `.entries.last`. Verified: `xcodebuild -scheme "React Watch Widgets"` = BUILD SUCCEEDED.
 - [ ] CX-015 (Map camera — SwiftUI), CX-017 (relevantContexts — WidgetKit API): host/Xcode. SD-1/SD-6 bridge+codegen (CX-022/023/024)
-- [ ] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5
+- [~] Phase 4 DX (CX-011/012/020 + DX-1..7), Phase 5 — partial:
+  - [x] **CX-011** (`widget:false` convergence) — see its verdict row.
+  - [x] **DX-6** (typed connectivity contract) — `defineMessages<T>()` wraps `sendToPhone`/`onPhoneMessage` into typed `send`/`on` over one shared `T` (`{ type, payload }` envelope, `on` dispatches by type). +2 tests (JS 232). The both-sides *example* (iPhone companion using the same contract) still needs the companion app + a device.
+  - [ ] remaining: **CX-012/DX-2** (own linking+plist in-plugin — large, re-architects the prebuild lifecycle), **CX-020/DX-1** (example dogfoods the plugin + READMEs), **DX-3** (scaffolder), **DX-4/DX-7** (packaging tarball + smoke), Phase 5 — a deliberate DX workstream, not blind overnight pieces.
 - [x] Host fixes (written + **verified on a watchOS build** — Xcode is available here): **CX-009** (reject a wire-mismatched commit before it reaches the interpreter or advances the ack), **OP-3** (cap app QuickJS heap at 64 MB), **OP-6** (stable Map annotation id).
 - [x] CX-015 — Map `latitude`/`longitude`/`span` props now drive `Map(initialPosition: .region(...))` (were ignored); `.automatic` fits annotations when absent. Verified on watchOS build.
 - [~] **ARCH-04** (transactional OTA state machine):

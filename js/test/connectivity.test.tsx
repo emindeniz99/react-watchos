@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  defineMessages,
   MemoryHost,
   onPhoneMessage,
   runApp,
@@ -61,5 +62,45 @@ describe("WatchConnectivity bridge", () => {
     await expect(sendToPhone({ x: 1 })).rejects.toMatchObject({
       code: "UNAVAILABLE",
     });
+  });
+
+  // DX-6: the typed message contract — define once, type-checked on both sides.
+  it("defineMessages.send forwards a typed { type, payload } envelope", async () => {
+    const host = installMockHost();
+    const messages = defineMessages<{ togglePlay: { on: boolean } }>();
+    const reply = await messages.send("togglePlay", { on: true });
+    expect(host.invoke).toHaveBeenCalledWith(
+      expect.any(Number),
+      "sendToPhone",
+      JSON.stringify({ type: "togglePlay", payload: { on: true } }),
+    );
+    expect(reply).toEqual({ ok: true });
+  });
+
+  it("defineMessages.on dispatches by type and ignores other messages", () => {
+    const messages = defineMessages<{ sync: { status: string } }>();
+    function View() {
+      const [s, setS] = useState("waiting");
+      useEffect(() => messages.on("sync", (p) => setS(p.status)), []);
+      return <Text>{s}</Text>;
+    }
+    const host = new MemoryHost();
+    runApp(<View />, host);
+    const push = (globalThis as { __pushNativeEvent?: PushFn })
+      .__pushNativeEvent!;
+
+    // A different message name is ignored (no re-render to it).
+    push(
+      "watchConnectivity",
+      JSON.stringify({ type: "other", payload: { status: "nope" } }),
+    );
+    expect(host.lastCommit!.root!.props.text).toBe("waiting");
+
+    // The matching name delivers the typed payload.
+    push(
+      "watchConnectivity",
+      JSON.stringify({ type: "sync", payload: { status: "done" } }),
+    );
+    expect(host.lastCommit!.root!.props.text).toBe("done");
   });
 });
