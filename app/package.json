@@ -5,8 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "expo start",
-    "prebuild": "pnpm --filter react-native-watchos build && pnpm --filter react-native-watchos build:bytecode && expo prebuild -p ios --clean && pnpm postprebuild",
-    "postprebuild": "node -e \"require('react-native-watchos/link-swift-package')\" && node -e \"require('react-native-watchos/merge-target-infoplist')\""
+    "prebuild": "pnpm --filter react-native-watchos build && pnpm --filter react-native-watchos build:bytecode && node node_modules/react-native-watchos/bin/react-native-watchos.cjs prebuild -p ios --clean"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",

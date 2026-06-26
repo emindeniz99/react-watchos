@@ -60,7 +60,8 @@
     "swift/Tests",
     "swift/README.md",
     "LICENSE",
-    "README.md"
+    "README.md",
+    "bin"
   ],
   "scripts": {
     "build": "node scripts/build.mjs",
@@ -88,9 +89,15 @@
     "react-reconciler": "0.33.0"
   },
   "peerDependenciesMeta": {
-    "@bacons/apple-targets": { "optional": true },
-    "@expo/config-plugins": { "optional": true },
-    "expo": { "optional": true }
+    "@bacons/apple-targets": {
+      "optional": true
+    },
+    "@expo/config-plugins": {
+      "optional": true
+    },
+    "expo": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@babel/core": "^8.0.0",
@@ -106,5 +113,8 @@
     "react-reconciler": "0.33.0",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0"
+  },
+  "bin": {
+    "react-native-watchos": "./bin/react-native-watchos.cjs"
   }
 }
