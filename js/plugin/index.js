@@ -5,11 +5,8 @@ const {
   loadAppleTargets,
 } = require("./peerDeps");
 const { watchTargetConfig, widgetTargetConfig } = require("./targetConfig");
-const {
-  wireLocalPackage,
-  HOST_PRODUCTS,
-  WIDGET_PRODUCTS,
-} = require("./wireLocalPackage");
+const { HOST_PRODUCTS, WIDGET_PRODUCTS } = require("./wireLocalPackage");
+const { withReactWatchNativeWiring } = require("./withNativeWiring");
 const { swiftPackageRelativePath } = require("./resolveSwiftPackage");
 
 const pkg = require("../package.json");
@@ -196,8 +193,7 @@ function withEasAppExtensions(config, opts) {
 const withReactWatch = (config, options) => {
   const opts = resolveOptions(config, options);
   const projectRoot = config._internal?.projectRoot ?? process.cwd();
-  const { withXcodeProject, createRunOncePlugin, WarningAggregator } =
-    loadConfigPlugins(projectRoot);
+  const { createRunOncePlugin } = loadConfigPlugins(projectRoot);
   const withAppleTargets = loadAppleTargets(projectRoot);
 
   // The actual plugin work, tagged run-once by name+version (duplicate plugin
@@ -228,34 +224,18 @@ const withReactWatch = (config, options) => {
       //    Phase-1 target creation).
       cfg = withAppleTargets(cfg, { appleTeamId: opts.appleTeamId });
 
-      // 3. Best-effort: pre-register the SwiftPM package reference during
-      //    prebuild. apple-targets adds the native targets via its own base
-      //    mod, written at a point we can't reliably order this mod after — so
-      //    at runtime the targets usually don't exist yet and only the package
-      //    *reference* lands here; the product *links* are applied
-      //    authoritatively after prebuild by the post-prebuild link step (see
-      //    scripts), which reuses the SAME wireLocalPackage. Wrapped so it can
-      //    never fail prebuild.
-      cfg = withXcodeProject(cfg, (c) => {
-        try {
-          // XCLocalSwiftPackageReference.relativePath is relative to the dir
-          // CONTAINING the .xcodeproj — by Expo convention <projectRoot>/ios.
-          const relPath = swiftPackageRelativePath(
-            projectRoot,
-            path.join(projectRoot, "ios"),
-          );
-          wireLocalPackage(c.modResults, {
-            packagePath: relPath,
-            targetProducts: targetProductsFor(opts),
-          });
-        } catch (error) {
-          WarningAggregator.addWarningIOS(
-            "react-native-watchos",
-            "Could not pre-register the SwiftPM host; the post-prebuild link " +
-              `step will still wire it. ${String(error)}`,
-          );
-        }
-        return c;
+      // 3. Link the SwiftPM products + merge the target Info.plists DURING
+      //    prebuild (CX-012), by hooking apple-targets' own xcode base mod and
+      //    running AFTER it has created the targets — so the integration is
+      //    just "add the plugin + `expo prebuild`", no postprebuild step.
+      //    `relativePath` is relative to the dir CONTAINING the .xcodeproj
+      //    (<projectRoot>/ios by Expo convention).
+      cfg = withReactWatchNativeWiring(cfg, {
+        packagePath: swiftPackageRelativePath(
+          projectRoot,
+          path.join(projectRoot, "ios"),
+        ),
+        targetProducts: targetProductsFor(opts),
       });
 
       return cfg;

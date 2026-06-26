@@ -38,8 +38,10 @@ whole integration:
 "plugins": [["react-native-watchos", { "name": "Expo Watch", "widget": false }]]
 ```
 
-The plugin generates `targets/watch/expo-target.config.js` and pre-registers the
-SwiftPM reference during prebuild. The one piece it can't generate — the watch
+During `expo prebuild` the plugin generates `targets/watch/expo-target.config.js`,
+**links the `ReactWatchHost` SwiftPM product into the watch target, and merges
+the target `Info.plist`** — automatically, no `postprebuild` and no manual "Add
+Package Dependencies…" in Xcode. The one piece it can't generate — the watch
 app's `@main` Swift entry — is scaffolded for you:
 
 ```bash
@@ -54,21 +56,18 @@ committed (see `.gitignore`).
 ## Building the actual watch app (macOS 15+, Xcode 16+)
 
 ```bash
-pnpm --filter expo-watch-app prebuild   # build the watch bundle, then
-                                        # `react-native-watchos prebuild`
+pnpm --filter expo-watch-app prebuild   # build the watch bundle, then `expo prebuild`
 # open ios/, select the watch scheme, run on a watchOS simulator
 ```
 
-`react-native-watchos prebuild` runs `expo prebuild` and then, in one command,
-links the **ReactWatchHost** SwiftPM product into the watch target and merges
-the target's `Info.plist` (the standalone flag + any usage strings) — no
-hand-wired `postprebuild`, no manual "Add Package Dependencies…" in Xcode. The
-native runtime (the QuickJS engine, the `NodeView` interpreter, the bridges) is
-the `swift/` SwiftPM package; the plugin does the linking. Add App Group /
-usage-description keys for the native capabilities your watch UI calls via the
-plugin's `infoPlist` option (see the renderer README and `docs/extending.md`).
-The Linux CI builds the package's engine/core/runtime; the SwiftUI host + this
-Xcode wiring are the macOS gate.
+`prebuild` builds the watch JS bundle and runs `expo prebuild` — plain Expo; the
+`react-native-watchos` plugin does the SwiftPM link + the `Info.plist` merge as
+part of prebuild itself (it hooks apple-targets' own xcode mod). The native
+runtime (the QuickJS engine, the `NodeView` interpreter, the bridges) is the
+`swift/` SwiftPM package. Add App Group / usage-description keys for the native
+capabilities your watch UI calls via the plugin's `infoPlist` option (see the
+renderer README and `docs/extending.md`). The Linux CI builds the package's
+engine/core/runtime; the SwiftUI host + this Xcode wiring are the macOS gate.
 
 See [`../minimal-watch-app`](../minimal-watch-app) for the smallest possible
 consumer (watch UI only, no iPhone app).

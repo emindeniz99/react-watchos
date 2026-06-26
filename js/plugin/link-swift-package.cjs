@@ -1,15 +1,13 @@
 #!/usr/bin/env node
-// Authoritatively links the react-native-watchos SwiftPM host products into the
-// generated watch + widget targets, run AFTER `expo prebuild`.
+// Manual fallback for linking the react-native-watchos SwiftPM host products
+// into the generated watch + widget targets.
 //
-// Why a post-prebuild step and not just the config plugin: @bacons/apple-targets
-// injects the watch / widget native targets through its own custom base mod,
-// which writes the pbxproj at a point the plugin's withXcodeProject mod can't
-// reliably order after. So during prebuild the plugin only lands the package
-// *reference*; the targets often don't exist yet, so the product *links* would
-// silently no-op. By the time prebuild has finished, every target is on disk —
-// so we re-open the pbxproj here and apply the links. Idempotent: re-running
-// (or running when already linked) changes nothing.
+// The config plugin now does this DURING `expo prebuild` (plugin/
+// withNativeWiring.js registers its own xcode base mod that runs after
+// @bacons/apple-targets has created the targets), so you normally don't run
+// this. It stays as a manual recovery if the in-prebuild wiring is skipped
+// (it's wrapped to never fail prebuild). Idempotent: re-running (or running
+// when already linked) changes nothing.
 //
 // Reuses the package's own pure logic (wireLocalPackage / resolveSwiftPackage)
 // so there is no duplicated pbxproj surgery. The watch/widget target NAMES and

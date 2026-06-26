@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -23,6 +29,7 @@ const {
 // index.js only requires @expo/config-plugins lazily (inside the plugin fn), so
 // loading the module to test its pure exports works without Expo installed.
 const withReactWatch = require("../plugin/index.js");
+const { mergeTargetInfoPlists } = require("../plugin/withNativeWiring.js");
 
 // ---------------------------------------------------------------------------
 // Minimal fake node-xcode XcodeProject: just the surface wireLocalPackage uses
@@ -499,5 +506,45 @@ describe("removeGeneratedTargetConfigFile (widget:false cleanup, CX-011)", () =>
   it("is a no-op when there's nothing to remove", () => {
     const { root } = stage(); // no file written
     expect(removeGeneratedTargetConfigFile(root, WIDGET_DIR)).toBe(false);
+  });
+});
+
+// CX-012: the in-prebuild Info.plist merge (the plugin runs this from its own
+// xcode base mod). apple-targets writes an empty/extension plist; this merges
+// the target's declared infoPlist into it, preserving existing keys.
+describe("mergeTargetInfoPlists (in-prebuild plist merge)", () => {
+  const emptyPlist =
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n' +
+    '<plist version="1.0">\n<dict>\n<key>NSExtension</key>\n<string>keep-me</string>\n</dict>\n</plist>';
+
+  const stage = (infoPlist: Record<string, unknown>) => {
+    const root = mkdtempSync(join(tmpdir(), "rnw-plist-"));
+    const dir = join(root, "targets", "watch");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "expo-target.config.js"),
+      `module.exports = ${JSON.stringify({ type: "watch", name: "W", infoPlist })};\n`,
+    );
+    writeFileSync(join(dir, "Info.plist"), emptyPlist);
+    return { root, plistPath: join(dir, "Info.plist") };
+  };
+
+  it("merges the declared infoPlist while preserving apple-targets' keys", () => {
+    const { root, plistPath } = stage({
+      WKRunsIndependentlyOfCompanionApp: true,
+      NSBluetoothAlwaysUsageDescription: "Connect to a device.",
+    });
+    expect(mergeTargetInfoPlists(root)).toEqual(["watch"]);
+    const written = readFileSync(plistPath, "utf8");
+    expect(written).toContain("WKRunsIndependentlyOfCompanionApp");
+    expect(written).toContain("NSBluetoothAlwaysUsageDescription");
+    expect(written).toContain("keep-me"); // apple-targets' key survived
+  });
+
+  it("is idempotent (already-merged plist reports no change)", () => {
+    const { root } = stage({ WKRunsIndependentlyOfCompanionApp: true });
+    expect(mergeTargetInfoPlists(root)).toEqual(["watch"]);
+    expect(mergeTargetInfoPlists(root)).toEqual([]);
   });
 });

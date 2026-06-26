@@ -8,7 +8,7 @@
     "build:watch": "node scripts/build-watch.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prebuild": "pnpm build:watch && node node_modules/react-native-watchos/bin/react-native-watchos.cjs prebuild -p ios --clean"
+    "prebuild": "pnpm build:watch && expo prebuild -p ios --clean"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
