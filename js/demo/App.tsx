@@ -415,16 +415,32 @@ function UpdatesScreen() {
 /** Phone <-> watch: shows the last phone message, pings the phone. */
 function ConnectivityScreen() {
   const [last, setLast] = useState("none yet");
+  const [sent, setSent] = useState("");
   useEffect(() => onPhoneMessage((p) => setLast(JSON.stringify(p))), []);
+  // sendToPhone rejects when the phone isn't reachable (CX-022) — handle it so a
+  // ping with no phone shows a status instead of an unhandled rejection.
+  const ping = async () => {
+    try {
+      await sendToPhone({ kind: "ping", at: Date.now() });
+      setSent("sent ✓");
+    } catch {
+      setSent("phone unreachable");
+    }
+  };
   return (
     <VStack spacing={6}>
       <Text bold>From phone:</Text>
       <Text size={12} color="secondary">
         {last}
       </Text>
-      <Button onPress={() => sendToPhone({ kind: "ping", at: Date.now() })}>
+      <Button onPress={ping}>
         <Text>Ping phone</Text>
       </Button>
+      {sent ? (
+        <Text size={12} color="secondary">
+          {sent}
+        </Text>
+      ) : null}
     </VStack>
   );
 }
