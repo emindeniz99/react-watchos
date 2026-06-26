@@ -165,6 +165,7 @@ public final class JSRuntime {
         nodeId: Int, event: String, payload: [String: Any]? = nil,
         seq: Int? = nil
     ) {
+        assertMainThread()
         var args: [JSArg] = [
             .int(nodeId), .string(event), .jsonOrUndefined(jsonString(payload)),
         ]
@@ -172,15 +173,33 @@ public final class JSRuntime {
         bridgeCall("__dispatchEvent", args, filename: "dispatch.js")
     }
 
+    /// QuickJS is single-threaded — every method that touches the JS context
+    /// (the Promise settles, plus the event-push/dispatch calls) MUST run on the
+    /// main thread (OP-2). This DEBUG assertion catches a background-thread call
+    /// (a URLSession/WCSession/CoreBluetooth/Task callback that forgot to hop to
+    /// main) before it corrupts the engine heap; release builds are unaffected.
+    /// `#function` defaults to the *caller*, so the trap names the offending
+    /// method. All current callers were audited on-main (connectivity + sensors
+    /// hop to main explicitly; the BLE central uses `queue: nil` → main; UI /
+    /// scenePhase / openURL run on the SwiftUI main thread).
+    private func assertMainThread(_ caller: StaticString = #function) {
+        assert(
+            Thread.isMainThread,
+            "JSRuntime.\(caller) must be called on the main thread (QuickJS is "
+                + "single-threaded); hop to DispatchQueue.main / MainActor first.")
+    }
+
     /// Settles a JS fetch Promise. MUST be called on the main thread (the
     /// QuickJS context lives there); URLSession completions hop here.
     public func resolveFetch(id: Int, responseJson: String) {
+        assertMainThread()
         bridgeCall(
             "__resolveFetch", [.int(id), .string(responseJson)],
             filename: "fetch.js")
     }
 
     public func rejectFetch(id: Int, message: String) {
+        assertMainThread()
         bridgeCall(
             "__rejectFetch", [.int(id), .string(message)],
             filename: "fetch.js")
@@ -189,6 +208,7 @@ public final class JSRuntime {
     /// Settles a generic invoke Promise (SD-1) with the op's JSON result. Call
     /// on the main thread. resultJson must be valid JSON ("" → undefined in JS).
     public func resolveInvoke(id: Int, resultJson: String) {
+        assertMainThread()
         bridgeCall(
             "__resolveInvoke", [.int(id), .string(resultJson)],
             filename: "invoke.js")
@@ -197,6 +217,7 @@ public final class JSRuntime {
     /// Rejects a generic invoke Promise with a typed reason (errorJson =
     /// {code, message}), so the caller surfaces *why* it failed (SD-1).
     public func rejectInvoke(id: Int, errorJson: String) {
+        assertMainThread()
         bridgeCall(
             "__rejectInvoke", [.int(id), .string(errorJson)],
             filename: "invoke.js")
@@ -206,6 +227,7 @@ public final class JSRuntime {
     /// the resulting UI update commits immediately. Use for non-interaction
     /// state: connectivity, sensors, app lifecycle.
     public func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
+        assertMainThread()
         bridgeCall(
             "__pushNativeEvent",
             [.string(name), .jsonOrUndefined(jsonString(payload))],
@@ -800,10 +822,12 @@ extension JSRuntime {
     /// Settles a generateText Promise on the main thread (where the context
     /// lives).
     public func resolveGenerate(id: Int, text: String) {
+        assertMainThread()
         bridgeCall("__resolveGenerate", [.int(id), .string(text)], filename: "ai.js")
     }
 
     public func rejectGenerate(id: Int, message: String) {
+        assertMainThread()
         bridgeCall("__rejectGenerate", [.int(id), .string(message)], filename: "ai.js")
     }
 
