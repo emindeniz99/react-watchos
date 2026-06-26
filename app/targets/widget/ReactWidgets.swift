@@ -1,6 +1,8 @@
 import AppIntents
+import CoreLocation
 import ReactWatchCore
 import ReactWatchSupport
+import RelevanceKit
 import SwiftUI
 import WidgetKit
 
@@ -45,18 +47,61 @@ struct ReactTimelineProvider: TimelineProvider {
         let entries = timeline.entries.map { entry(from: $0) }
         let policy: TimelineReloadPolicy =
             timeline.reloadAfterDate.map { .after($0) } ?? .atEnd
-        // Per-entry relevance score (above) is the Smart Stack ranking signal.
-        // Date/location `relevantContexts` (decoded into timeline) feed the
-        // Smart Stack's contextual surfacing; the WidgetRelevances mapping is
-        // a watchOS-version-specific API and the remaining native step.
+        // Per-entry relevance score (in `entry`) is the Smart Stack *ranking*
+        // signal; the *predictive* date/location surfacing comes from
+        // `relevance()` below (CX-017).
         completion(Timeline(entries: entries, policy: policy))
     }
 
-    /// Date/location relevance hints published from React (js/src/widgets.ts).
-    /// Available to a future WidgetRelevances/RelevantContext mapping.
+    /// Maps React's published date/location hints (`relevantContexts`) to
+    /// RelevanceKit so the Smart Stack surfaces this widget at the right
+    /// time/place (CX-017) — the predictive complement to the per-entry
+    /// `TimelineEntryRelevance` ranking. watchOS 11+ (the `relevance()` hook +
+    /// RelevanceKit, which is watchOS-only and a no-op elsewhere); earlier
+    /// versions use the default empty relevance. The mapping compiles + is
+    /// shape-checked here, but whether the Smart Stack actually surfaces it is
+    /// device-verified only.
+    @available(watchOS 11.0, *)
+    func relevance() async -> WidgetRelevance<Void> {
+        let attributes = relevantContexts.compactMap {
+            Self.relevantContext(from: $0).map {
+                WidgetRelevanceAttribute<Void>(context: $0)
+            }
+        }
+        return WidgetRelevance(attributes)
+    }
+
+    /// One RelevanceKit context per hint: a circular region when coordinates are
+    /// present (default 100 m), else a date; both nil drops the hint.
+    private static func relevantContext(
+        from ctx: PublishedRelevantContext
+    ) -> RelevantContext? {
+        if let lat = ctx.latitude, let lon = ctx.longitude {
+            return .location(
+                CLCircularRegion(
+                    center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                    radius: ctx.radius ?? 100,
+                    identifier: "react-relevance-\(lat),\(lon)"
+                )
+            )
+        }
+        if let date = ctx.date {
+            return .date(Date(timeIntervalSince1970: date / 1000))
+        }
+        return nil
+    }
+
+    /// Date/location relevance hints published from React (js/src/widgets.ts),
+    /// gathered from whichever family published them (relevance is per-kind, not
+    /// per-family).
     var relevantContexts: [PublishedRelevantContext] {
-        WidgetStore.load()?.widgets[kind]?[familyKey(.accessoryInline)]?
-            .relevantContexts ?? []
+        guard let families = WidgetStore.load()?.widgets[kind] else { return [] }
+        for timeline in families.values {
+            if let contexts = timeline.relevantContexts, !contexts.isEmpty {
+                return contexts
+            }
+        }
+        return []
     }
 
     private func entry(from published: PublishedEntry) -> ReactEntry {
