@@ -70,3 +70,50 @@ describe("packaging contract", () => {
     }
   });
 });
+
+// DX-4: the published tarball must ship what a real `npm i` consumer needs to
+// integrate — the SwiftPM host SOURCES (so the XCLocalSwiftPackageReference
+// resolves from node_modules), the config plugin (incl. the in-prebuild wiring),
+// and the CLI. `npm pack --dry-run` reports the exact file list npm would ship,
+// catching a `files`/.npmignore mistake that "committed to git" alone wouldn't.
+describe("published tarball contents (DX-4)", () => {
+  const packedFiles = (): string[] => {
+    const out = execFileSync("npm", ["pack", "--dry-run", "--json"], {
+      cwd: jsRoot,
+      encoding: "utf8",
+    });
+    const report = JSON.parse(out) as Array<{
+      files?: Array<{ path: string }>;
+    }>;
+    return (report[0]?.files ?? []).map((f) => f.path);
+  };
+
+  it("ships the Swift host sources, the plugin, and the CLI", () => {
+    const files = packedFiles();
+    for (const required of [
+      "swift/Package.swift",
+      "app.plugin.js",
+      "plugin/index.js",
+      "plugin/withNativeWiring.js",
+      "plugin/scaffold.cjs",
+      "bin/react-native-watchos.cjs",
+    ]) {
+      expect(files, `tarball is missing ${required}`).toContain(required);
+    }
+    // The SwiftPM ref resolves to <pkg>/swift, so the Sources must be in the
+    // tarball (not just Package.swift) — at least the host module.
+    const swiftSources = files.filter(
+      (f) => f.startsWith("swift/Sources/") && f.endsWith(".swift"),
+    );
+    expect(swiftSources.length).toBeGreaterThan(0);
+    expect(
+      swiftSources.some((f) => f.includes("ReactWatchHost")),
+      "tarball is missing the ReactWatchHost Swift sources",
+    ).toBe(true);
+  });
+
+  it("does not ship build artifacts (.build) or tests-only noise", () => {
+    const files = packedFiles();
+    expect(files.some((f) => f.includes("swift/.build/"))).toBe(false);
+  });
+});

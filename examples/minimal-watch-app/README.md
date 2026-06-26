@@ -4,6 +4,12 @@ The smallest real app on the **react-native-watchos** engine, built the way an
 *external* consumer builds — installing the package, not reaching into its
 source. Use it as a starting template.
 
+> **Using Expo?** Prefer [`../expo-watch-app`](../expo-watch-app): add the
+> `react-native-watchos` config plugin, run `react-native-watchos scaffold`, and
+> `expo prebuild` generates + links the watch target for you. This minimal
+> example is the **non-Expo** shape — a JS bundle you embed in a hand-wired watch
+> target (the manual steps below).
+
 What it demonstrates (and what the demo doesn't):
 
 - Importing UI + `runApp` from the package: `import { ... } from "react-native-watchos"`.
