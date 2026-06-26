@@ -14,12 +14,15 @@ depends on this package instead of copying the host into their app.
 | `ReactWatchSupport` | Foundation-only platform logic: `SharedWidgetStore`, `OptimisticStore`, `NotificationPlan`, `FetchPlan`/`FetchResponse` (extracted from the host so it's unit-tested) | ✅ |
 | `ReactWatchRuntime` | the QuickJS embedding (`JSRuntime`) — Foundation + `CQuickJS` | ✅ |
 | `ReactWatchHost` | the SwiftUI interpreter, native bridges, and `public ReactWatchRootView(appGroupId:)` | ❌ (Xcode) |
+| `ReactWatchWidget` | the WidgetKit infra: the React node interpreter (`WidgetNodeView` / `reactWidgetView`), the timeline providers (`ReactTimelineProvider`, `reactTimeline`/`reactSnapshotEntry`), the relevance/control helpers, and the extension's QuickJS runtime (`WidgetIntentRuntime`) — all `appGroupId`-threaded | ❌ (Xcode) |
 
-Everything except `ReactWatchHost` is Foundation/C only, so CI `swift build`s the
-package and `swift test` runs the wire-contract + support-logic + QuickJS-engine
-tests on Linux. `ReactWatchHost` pulls in SwiftUI / WatchKit / CoreBluetooth /
-HealthKit, so it's the macOS gate (and the manifest drops it on a non-Apple build
-host).
+Everything except `ReactWatchHost` / `ReactWatchWidget` is Foundation/C only, so
+CI `swift build`s the package and `swift test` runs the wire-contract +
+support-logic + QuickJS-engine tests on Linux. `ReactWatchHost` (SwiftUI /
+WatchKit / CoreBluetooth / HealthKit) and `ReactWatchWidget` (WidgetKit /
+AppIntents / RelevanceKit) are the macOS gate — the manifest drops them on a
+non-Apple build host, and each source is `#if os(watchOS)` so it compiles to an
+empty module off-watchOS while `xcodebuild` builds the real code for the watch.
 
 `swift test` only runs on the host; to run the same tests **inside the watchOS
 simulator** (proving the engine + wire models on the real watch architecture),
