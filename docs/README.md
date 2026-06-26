@@ -68,6 +68,9 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 - [design-ble-result-reporting.md](./design-ble-result-reporting.md) —
   CX-022 BLE connect/write result reporting. Spec ready; **device-gated** (no
   simulator Bluetooth radio), so deliberately not shipped blind.
+- [design-cx-025-release-freshness.md](./design-cx-025-release-freshness.md) —
+  CX-025 OTA `releaseId` (so non-breaking fixes can ship). Core primitive proven
+  (JS FNV-1a == Swift `ContentHash`); spec ready for a focused load-flow pass.
 
 ## Reference / background
 
