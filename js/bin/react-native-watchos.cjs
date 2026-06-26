@@ -13,6 +13,7 @@
 // (see plugin/link-swift-package.cjs for the full why). Both are idempotent.
 
 const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 
 function run(file, args, cwd) {
@@ -41,10 +42,60 @@ function prebuild(expoArgs) {
   run(process.execPath, [path.join(plugin, "merge-target-infoplist.cjs")], projectRoot);
 }
 
+/** Generate the watch app's Swift entry point (the one bit of glue the config
+ *  plugin can't generate), parameterized to match the plugin's resolved config
+ *  read from app.json — so the App Group and name always agree (DX-3). */
+function scaffold(args) {
+  const projectRoot = process.cwd();
+  const force = args.includes("--force");
+  const appJsonPath = path.join(projectRoot, "app.json");
+  if (!fs.existsSync(appJsonPath)) {
+    console.error(`[scaffold] no app.json in ${projectRoot}`);
+    process.exit(1);
+  }
+  const config = JSON.parse(fs.readFileSync(appJsonPath, "utf8")).expo ?? {};
+  const plugin = require("../plugin");
+  const entry = (config.plugins ?? []).find(
+    (p) => (Array.isArray(p) ? p[0] : p) === "react-native-watchos",
+  );
+  if (!entry) {
+    console.error(
+      "[scaffold] add the `react-native-watchos` plugin to app.json first.",
+    );
+    process.exit(1);
+  }
+  const options = Array.isArray(entry) ? (entry[1] ?? {}) : {};
+  const opts = plugin.resolveOptions(config, options);
+
+  const { watchAppSwift } = require("../plugin/scaffold.cjs");
+  const dir = path.join(projectRoot, "targets", plugin.WATCH_DIR);
+  fs.mkdirSync(dir, { recursive: true });
+  const file = path.join(dir, "WatchApp.swift");
+  const rel = path.relative(projectRoot, file);
+  if (fs.existsSync(file) && !force) {
+    console.error(`[scaffold] ${rel} already exists (pass --force to overwrite)`);
+    process.exit(1);
+  }
+  fs.writeFileSync(
+    file,
+    watchAppSwift({ name: opts.name, appGroupId: opts.appGroup }),
+  );
+  console.log(`[scaffold] wrote ${rel} (App Group ${opts.appGroup})`);
+  if (opts.widget) {
+    console.log(
+      "[scaffold] note: widget glue is app-specific — copy the WidgetBundle / " +
+        "providers / intents from the demo (app/targets/widget) and adapt.",
+    );
+  }
+}
+
 const [command, ...rest] = process.argv.slice(2);
 switch (command) {
   case "prebuild":
     prebuild(rest);
+    break;
+  case "scaffold":
+    scaffold(rest);
     break;
   default:
     console.error(
@@ -52,7 +103,10 @@ switch (command) {
         "Usage:\n" +
         "  react-native-watchos prebuild [expo prebuild args]\n" +
         "      Run `expo prebuild`, then link the SwiftPM host + merge the watch\n" +
-        "      target Info.plists — the whole watch native setup in one command.\n",
+        "      target Info.plists — the whole watch native setup in one command.\n" +
+        "  react-native-watchos scaffold [--force]\n" +
+        "      Generate targets/watch/WatchApp.swift (the @main watch App) from\n" +
+        "      your app.json plugin config.\n",
     );
     process.exit(command ? 1 : 0);
 }
