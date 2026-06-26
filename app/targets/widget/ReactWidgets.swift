@@ -64,44 +64,16 @@ struct ReactTimelineProvider: TimelineProvider {
     @available(watchOS 11.0, *)
     func relevance() async -> WidgetRelevance<Void> {
         let attributes = relevantContexts.compactMap {
-            Self.relevantContext(from: $0).map {
+            reactRelevantContext(from: $0).map {
                 WidgetRelevanceAttribute<Void>(context: $0)
             }
         }
         return WidgetRelevance(attributes)
     }
 
-    /// One RelevanceKit context per hint: a circular region when coordinates are
-    /// present (default 100 m), else a date; both nil drops the hint.
-    private static func relevantContext(
-        from ctx: PublishedRelevantContext
-    ) -> RelevantContext? {
-        if let lat = ctx.latitude, let lon = ctx.longitude {
-            return .location(
-                CLCircularRegion(
-                    center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                    radius: ctx.radius ?? 100,
-                    identifier: "react-relevance-\(lat),\(lon)"
-                )
-            )
-        }
-        if let date = ctx.date {
-            return .date(Date(timeIntervalSince1970: date / 1000))
-        }
-        return nil
-    }
-
-    /// Date/location relevance hints published from React (js/src/widgets.ts),
-    /// gathered from whichever family published them (relevance is per-kind, not
-    /// per-family).
+    /// Date/location relevance hints published from React (js/src/widgets.ts).
     var relevantContexts: [PublishedRelevantContext] {
-        guard let families = WidgetStore.load()?.widgets[kind] else { return [] }
-        for timeline in families.values {
-            if let contexts = timeline.relevantContexts, !contexts.isEmpty {
-                return contexts
-            }
-        }
-        return []
+        reactRelevantContexts(forKind: kind)
     }
 
     private func entry(from published: PublishedEntry) -> ReactEntry {
@@ -149,6 +121,39 @@ struct ReactTimelineProvider: TimelineProvider {
         default: "accessoryCircular"
         }
     }
+}
+
+/// Maps a React-published relevance hint to a RelevanceKit context: a circular
+/// region when coordinates are present (default 100 m), else a date; both nil
+/// drops the hint. Shared by the static (Void) and configurable (intent)
+/// providers (CX-017).
+@available(watchOS 11.0, *)
+func reactRelevantContext(from ctx: PublishedRelevantContext) -> RelevantContext? {
+    if let lat = ctx.latitude, let lon = ctx.longitude {
+        return .location(
+            CLCircularRegion(
+                center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                radius: ctx.radius ?? 100,
+                identifier: "react-relevance-\(lat),\(lon)"
+            )
+        )
+    }
+    if let date = ctx.date {
+        return .date(Date(timeIntervalSince1970: date / 1000))
+    }
+    return nil
+}
+
+/// The relevance hints published for a widget `kind`, from whichever family
+/// carries them (relevance is per-kind, not per-family).
+func reactRelevantContexts(forKind kind: String) -> [PublishedRelevantContext] {
+    guard let families = WidgetStore.load()?.widgets[kind] else { return [] }
+    for timeline in families.values {
+        if let contexts = timeline.relevantContexts, !contexts.isEmpty {
+            return contexts
+        }
+    }
+    return []
 }
 
 @ViewBuilder func reactWidgetView(_ entry: ReactEntry) -> some View {

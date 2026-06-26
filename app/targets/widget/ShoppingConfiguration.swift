@@ -1,6 +1,8 @@
 import AppIntents
+import CoreLocation
 import Foundation
 import ReactWatchCore
+import RelevanceKit
 import SwiftUI
 import WidgetKit
 
@@ -66,6 +68,29 @@ struct ShoppingTimelineProvider: AppIntentTimelineProvider {
         let policy: TimelineReloadPolicy =
             timeline.reloadAfterDate.map { .after($0) } ?? .atEnd
         return Timeline(entries: entries, policy: policy)
+    }
+
+    /// Per-list Smart Stack relevance (CX-017): for each shopping list that
+    /// published date/location hints, surface the widget *configured to that
+    /// list* at the right time/place — the configurable-widget counterpart of
+    /// ReactTimelineProvider.relevance(). watchOS 11+; behaviour is device-only.
+    @available(watchOS 11.0, *)
+    func relevance() async -> WidgetRelevance<SelectShoppingListIntent> {
+        var attributes: [WidgetRelevanceAttribute<SelectShoppingListIntent>] = []
+        for list in ShoppingData.lists() {
+            let contexts = reactRelevantContexts(forKind: "shopping/\(list.id)")
+            guard !contexts.isEmpty else { continue }
+            let intent = SelectShoppingListIntent()
+            intent.list = ShoppingListEntity(id: list.id, name: list.name)
+            for ctx in contexts {
+                if let relevant = reactRelevantContext(from: ctx) {
+                    attributes.append(
+                        WidgetRelevanceAttribute(configuration: intent, context: relevant)
+                    )
+                }
+            }
+        }
+        return WidgetRelevance(attributes)
     }
 
     /// The published key for the selected (or default) list.
