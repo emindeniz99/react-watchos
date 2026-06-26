@@ -69,5 +69,40 @@ capabilities your watch UI calls via the plugin's `infoPlist` option (see the
 renderer README and `docs/extending.md`). The Linux CI builds the package's
 engine/core/runtime; the SwiftUI host + this Xcode wiring are the macOS gate.
 
+## Over-the-air updates (the "Check for update" button)
+
+The watch UI ships a **Check for update** button (`watch-ui/App.tsx`) that
+fetches a manifest and stages a fresher JS bundle without a rebuild/resubmit.
+OTA in production is just static hosting — there's no server to deploy. The
+moving parts:
+
+1. **`build:watch` stamps the manifest.** [`scripts/build-watch.mjs`](./scripts/build-watch.mjs)
+   calls `writeOTAManifest` (from `react-native-watchos/manifest`), which writes
+   `targets/watch/assets/manifest.json` next to the bundle — the manifest's
+   `releaseId` is the bundle's content hash, so a changed bundle is detectable.
+   It also declares this UI's capability contract
+   (`requiredFeatures: ["connectivity", "network", "ota"]`).
+2. **`REACT_WATCH_OTA_URL` is baked into the bundle at build time** — the URL the
+   button fetches `/manifest.json` from. Empty (button shows a hint) unless set.
+3. **Serve the assets.** [`scripts/serve-ota.mjs`](./scripts/serve-ota.mjs)
+   (`pnpm ota:serve`) statically serves `targets/watch/assets/`; in production
+   use any CDN/S3 instead.
+
+Demo flow on the simulator (the watch sim shares the Mac's network, so
+`127.0.0.1` works):
+
+```bash
+REACT_WATCH_OTA_URL=http://127.0.0.1:8788 pnpm build:watch  # bake URL + stamp manifest
+pnpm prebuild                                               # build the app, run it on the sim
+pnpm ota:serve                                              # terminal A: serve the assets
+# edit watch-ui/App.tsx, then re-stamp the served bundle:
+REACT_WATCH_OTA_URL=http://127.0.0.1:8788 pnpm build:watch  # new releaseId
+# tap "Check for update" on the watch → "staged v1 — relaunch"
+```
+
+Sign manifests for production with the renderer's `ota:sign` (the private
+`OTA_SIGNING_KEY` is yours and is never committed); see the renderer README's
+OTA section.
+
 See [`../minimal-watch-app`](../minimal-watch-app) for the smallest possible
 consumer (watch UI only, no iPhone app).

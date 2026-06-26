@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "build:watch": "node scripts/build-watch.mjs",
+    "ota:serve": "node scripts/serve-ota.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "prebuild": "pnpm build:watch && expo prebuild -p ios --clean"
