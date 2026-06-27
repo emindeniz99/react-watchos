@@ -51,6 +51,12 @@ feature-set model supersedes the earlier scalar capability gate).
   `pnpm test` (renderer + examples), `pnpm typecheck`, `pnpm lint`, and
   `swift test` (the host is `#if os(watchOS)`-guarded so the package builds and
   tests on macOS/Linux without the watch UI).
+- **The Darwin bridges (`BluetoothBridge` et al.) — macOS, on the watch sim:**
+  `pnpm test:swift:watch` runs the Swift suite via `xcodebuild test` on a
+  watchOS simulator, where the `#if os(watchOS)` code actually compiles, so the
+  bridge tests (e.g. `BluetoothBridgeTests`) exercise it. `swift test` can't —
+  those bridges are empty modules off-watchOS. Add a Darwin-only bridge test as
+  `#if os(watchOS)` with `@testable import ReactWatchHost`.
 - **The watch UI, widget, target wiring, WidgetKit, navigation timing, and
   extension memory are the macOS/Xcode + on-device gate** — not covered by the
   above. GitHub Actions are intentionally not relied on for the native build;
