@@ -78,6 +78,8 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   ARCH-08 RuntimeSession isolation: the per-runtime vs persistent-transport
   seam, why it's deferred (no failing scenario today), and the shape to build.
 
+- [code-review-2026-06-27-deep-dive.md](./code-review-2026-06-27-deep-dive.md) — adversarially-verified code+design+DX review (64 confirmed findings; the blocker is fixed).
+
 ## Reference / background
 
 - [status.md](./status.md) — verified current capabilities (the "is it real?"
