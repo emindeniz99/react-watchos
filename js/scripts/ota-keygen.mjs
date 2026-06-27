@@ -1,7 +1,9 @@
-import { generateKeyPairSync, randomBytes } from "node:crypto";
+import { generateSigningKey } from "../esbuild/manifest.mjs";
 
 /**
  * Generates an Ed25519 keypair + a key id for OTA bundle signing (CR-4 / CR-17).
+ * Thin CLI over the published `generateSigningKey` (react-native-watchos/manifest)
+ * so the repo and consumers use one keygen.
  *
  *   node scripts/ota-keygen.mjs      (or: npm run ota:keygen)
  *
@@ -21,25 +23,13 @@ import { generateKeyPairSync, randomBytes } from "node:crypto";
  * NEVER commit the private key. It is the only thing that lets you ship a
  * bundle the watch will run — treat it like a code-signing key.
  */
-const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-
-// JWK gives the raw 32-byte values (x = public, d = private seed) as base64url.
-const pub = publicKey.export({ format: "jwk" }).x;
-const priv = privateKey.export({ format: "jwk" }).d;
-const toBase64 = (base64url) =>
-  Buffer.from(base64url, "base64url").toString("base64");
-
-// An opaque, random, NON-key-derived id (~47 bits) — it carries no security
-// weight itself (the signature + pinned map do), it just names the key so it
-// can be rotated/revoked cleanly. Colon-free [A-Za-z0-9_-], matching
-// UpdatePlan.isValidKeyId on the watch and the OTA_SIGNING_KEY_ID check.
-const keyId = randomBytes(6).toString("base64url");
+const { keyId, publicKeyBase64, privateKeySeedBase64 } = generateSigningKey();
 
 console.log(`OTA key id — '${keyId}' (used below):\n`);
 console.log("OTA public key (base64) — add to OTAConfig.signerPublicKeys:\n");
-console.log(`  signerPublicKeys: ["${keyId}": "${toBase64(pub)}"]\n`);
+console.log(`  signerPublicKeys: ["${keyId}": "${publicKeyBase64}"]\n`);
 console.log(
   "OTA signing key (base64) — keep SECRET; set as OTA_SIGNING_KEY in CI,\n" +
     `and set OTA_SIGNING_KEY_ID="${keyId}" alongside it:\n`,
 );
-console.log(`  ${toBase64(priv)}\n`);
+console.log(`  ${privateKeySeedBase64}\n`);

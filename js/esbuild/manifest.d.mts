@@ -21,3 +21,24 @@ export function writeOTAManifest(opts: {
   minBridgeProtocol?: number;
   signature?: string | null;
 }): OTAManifest;
+
+/** An Ed25519 OTA signing keypair. Keep `privateKeySeedBase64` secret; add
+ *  `publicKeyBase64` to the app's `signerPublicKeys` keyed by `keyId`. */
+export interface OTASigningKey {
+  keyId: string;
+  publicKeyBase64: string;
+  privateKeySeedBase64: string;
+}
+
+/** Generate an Ed25519 keypair + opaque key id for OTA bundle signing. */
+export function generateSigningKey(): OTASigningKey;
+
+/** Sign `<distDir>/manifest.json` in place (Ed25519) over
+ *  `v1:<keyId>:<version>:<bundle.js>` — the exact bytes the watch verifies.
+ *  Run at publish time only. Returns the signature, key id, and signed version. */
+export function signManifest(opts: {
+  distDir: string;
+  keyId: string;
+  privateKeySeedBase64: string;
+  manifestFileName?: string;
+}): { signature: string; keyId: string; version: number };
