@@ -310,6 +310,13 @@ function MovieRemoteScreen() {
   const [state, setState] = useState("connecting…");
   const [title, setTitle] = useState("—");
   const [volume, setVolume] = useState(50);
+  // BLE ops now return Promises (CX-022) that reject on failure/timeout — surface
+  // the reason instead of leaking an unhandled rejection (which would trip the
+  // dev error overlay). Without a real peripheral, connect rejects after the
+  // timeout and you'll see "ble: …" here.
+  const ble = (p: Promise<unknown>) =>
+    p.catch((e: { code?: string }) => setState(`ble: ${e?.code ?? "error"}`));
+  const sendCmd = (c: string, v: string) => ble(bleWrite(c, v));
   // Focus-gated, not a bare useEffect: screens stay mounted across navigation,
   // so connect only while this screen is open and disconnect on leave — never
   // at app launch. See useFocusEffect in navigation.tsx.
@@ -322,8 +329,12 @@ function MovieRemoteScreen() {
       // The laptop remote's service UUID — must be a valid 128-bit UUID that
       // matches the peripheral's advertised service (the bridge ignores
       // malformed UUIDs). "4D4F5649-4500" spells MOVIE; the tail spells "remote".
-      bleConnect("4D4F5649-4500-4000-8000-72656D6F7465");
-      bleSubscribe("title");
+      // Inline .catch (not the `ble` helper) so this focus effect's deps stay
+      // empty — setState is stable, the helper isn't.
+      bleConnect("4D4F5649-4500-4000-8000-72656D6F7465").catch(
+        (e: { code?: string }) => setState(`ble: ${e?.code ?? "error"}`),
+      );
+      bleSubscribe("title").catch(() => {});
       return () => {
         offState();
         offNotify();
@@ -338,16 +349,16 @@ function MovieRemoteScreen() {
       </Text>
       <Text bold>{title}</Text>
       <HStack spacing={10}>
-        <Button onPress={() => bleWrite("transport", "prev")}>
+        <Button onPress={() => sendCmd("transport", "prev")}>
           <Image systemName="backward.fill" accessibilityLabel="Previous" />
         </Button>
-        <Button onPress={() => bleWrite("transport", "playpause")}>
+        <Button onPress={() => sendCmd("transport", "playpause")}>
           <Image
             systemName="playpause.fill"
             accessibilityLabel="Play or pause"
           />
         </Button>
-        <Button onPress={() => bleWrite("transport", "next")}>
+        <Button onPress={() => sendCmd("transport", "next")}>
           <Image systemName="forward.fill" accessibilityLabel="Next" />
         </Button>
       </HStack>
@@ -358,7 +369,7 @@ function MovieRemoteScreen() {
         accessibilityLabel="Volume"
         onChange={(v) => {
           setVolume(v);
-          bleWrite("volume", String(Math.round(v)));
+          sendCmd("volume", String(Math.round(v)));
         }}
       >
         <Gauge value={volume} min={0} max={100} label="Vol" style="circular" />

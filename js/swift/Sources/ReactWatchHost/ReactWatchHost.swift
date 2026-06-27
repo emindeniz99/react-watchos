@@ -145,15 +145,19 @@ final class ReactWatchModel: ObservableObject {
         // Tear down the previous generation's in-flight async before the id space
         // resets (CX-008): cancel outstanding fetches and stop sensor streams so
         // their callbacks can't settle against — or push stale readings into —
-        // the fresh runtime. (BLE is intentionally left connected: it's a
-        // stateful link we don't want to drop on a dev hot-reload, and its events
-        // are name-routed, not id-keyed.)
+        // the fresh runtime. The BLE *connection* is intentionally left up (a
+        // stateful link we don't want to drop on a dev hot-reload, and its
+        // state/notify events are name-routed), but its connect/write/subscribe
+        // invoke correlation is id-keyed (CX-022) and ids reset per runtime, so
+        // drop the pending correlation or a late delegate could settle a NEW
+        // promise that happens to reuse an old id.
         generation += 1
         for task in fetchTasks.values {
             task.cancel()
         }
         fetchTasks.removeAll()
         sensors.stopAll()
+        bluetooth.resetPendingForReload()
         runtime = nil
         root = nil
         runtimeError = nil

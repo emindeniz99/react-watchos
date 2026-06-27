@@ -460,12 +460,16 @@ final class BleSessionTests: XCTestCase {
         s.awaitWriteAck(characteristic: "CMD", id: 2)
         s.awaitWriteAck(characteristic: "CMD", id: 3)
         _ = s.awaitSubscribe(characteristic: "HR", id: 4)
+        // A write queued before discovery also carries a promise; a disconnect
+        // before discovery must reject it, not leak it (the workflow caught this).
+        s.queueWrite(characteristic: "X", value: "1", confirm: nil, invokeId: 5)
 
         // A disconnect/drop must settle every in-flight promise, not leave JS
         // awaiting forever.
-        XCTAssertEqual(s.takeAllPending().sorted(), [1, 2, 3, 4])
-        // Drained: a second teardown has nothing, and the maps are clear.
+        XCTAssertEqual(s.takeAllPending().sorted(), [1, 2, 3, 4, 5])
+        // Drained: a second teardown has nothing, and the maps + queue are clear.
         XCTAssertTrue(s.takeAllPending().isEmpty)
+        XCTAssertTrue(s.pendingWrites.isEmpty)
         XCTAssertNil(s.takeConnectSettle())
         XCTAssertNil(s.takeWriteAck(characteristic: "CMD"))
         XCTAssertNil(s.takeSubscribeSettle(characteristic: "HR"))

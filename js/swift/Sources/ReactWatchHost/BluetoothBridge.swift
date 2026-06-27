@@ -41,6 +41,10 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     /// deliberate-vs-dropped disconnect latch, and the invoke↔delegate
     /// correlation) — pure logic in ReactWatchSupport, unit-tested off-device.
     private var session = BleSession()
+    /// Services still discovering characteristics. Reaching 0 means every
+    /// characteristic is known, so a subscribe/write to a UUID that's *still*
+    /// absent can be rejected (not mistaken for "in a not-yet-discovered service").
+    private var servicesAwaitingDiscovery = 0
 
     /// The direct `ble` op channel — now only `disconnect` (connect/write/
     /// subscribe moved to handleInvoke so they can report a result).
@@ -162,16 +166,31 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     }
 
     private func disconnect() {
-        session.endByUser()
-        // A deliberate disconnect rejects any in-flight connect/write/subscribe
-        // promise instead of leaving JS awaiting forever.
+        // Reject every in-flight promise (connect/write/subscribe AND queued
+        // writes) before tearing down — drained BEFORE endByUser, which clears
+        // the queue, or the queued-write ids would be lost (leaked promise).
         for id in session.takeAllPending() {
             reject(id, "UNAVAILABLE", "disconnected")
         }
-        if let peripheral { central?.cancelPeripheralConnection(peripheral) }
+        session.endByUser()
+        if let peripheral {
+            // cancelPeripheralConnection → didDisconnectPeripheral pushes the one
+            // "disconnected" state; pushing it here too would duplicate it.
+            central?.cancelPeripheralConnection(peripheral)
+        } else {
+            onState?("disconnected")
+        }
         peripheral = nil
         characteristics = [:]
-        onState?("disconnected")
+    }
+
+    /// Clear the per-runtime invoke correlation on a reload, so a delegate
+    /// callback that lands after the runtime was swapped can't settle the NEW
+    /// runtime's promise with a stale id (invoke ids reset per runtime). The
+    /// connection + desiredSubscriptions survive the hot-reload; only the
+    /// in-flight correlation is dropped (the old runtime's promises are gone).
+    func resetPendingForReload() {
+        _ = session.takeAllPending()
     }
 
     private func write(
@@ -280,7 +299,12 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     // MARK: - Peripheral
 
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices _: Error?) {
-        peripheral.services?.forEach { peripheral.discoverCharacteristics(nil, for: $0) }
+        let services = peripheral.services ?? []
+        servicesAwaitingDiscovery = services.count
+        if services.isEmpty {
+            finishDiscovery(peripheral)  // nothing to discover → settle absent ops
+        }
+        services.forEach { peripheral.discoverCharacteristics(nil, for: $0) }
     }
 
     func peripheral(
@@ -294,14 +318,35 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             let key = BluetoothUUID.canonical(ch.uuid.uuidString) ?? ch.uuid.uuidString
             characteristics[key] = ch
         }
-        // (Re)apply desired subscriptions so notifications resume after a
-        // reconnect, then flush any writes queued before discovery (carrying
-        // their invoke ids so the promises settle).
+        servicesAwaitingDiscovery -= 1
+        if servicesAwaitingDiscovery <= 0 { finishDiscovery(peripheral) }
+    }
+
+    /// All characteristics are now known. (Re)apply subscriptions and flush
+    /// queued writes — and crucially, **reject** any subscribe/write whose
+    /// characteristic genuinely isn't on the peripheral, so a typo'd or
+    /// unsupported UUID rejects its promise instead of hanging forever (CX-022).
+    private func finishDiscovery(_ peripheral: CBPeripheral) {
         for c in session.desiredSubscriptions {
             if let ch = characteristics[c] { peripheral.setNotifyValue(true, for: ch) }
         }
+        // A pending subscribe to an absent characteristic never gets a
+        // setNotifyValue, so didUpdateNotificationStateFor would never settle it.
+        for (char, id) in session.pendingSubscribes
+        where characteristics[char] == nil {
+            _ = session.takeSubscribeSettle(characteristic: char)
+            reject(id, "UNAVAILABLE", "characteristic not found")
+        }
+        // Flush queued writes; reject (don't silently re-queue) those whose
+        // characteristic is absent — a re-queue that can never flush is a hang.
         for w in session.takePendingWrites() {
-            write(w.characteristic, w.value, confirm: w.confirm, invokeId: w.invokeId)
+            if characteristics[w.characteristic] != nil {
+                write(
+                    w.characteristic, w.value, confirm: w.confirm,
+                    invokeId: w.invokeId)
+            } else if let id = w.invokeId {
+                reject(id, "UNAVAILABLE", "characteristic not found")
+            }
         }
     }
 

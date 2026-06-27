@@ -98,18 +98,21 @@ machinery lives in the `ReactWatchWidget` package:
   `ReactTimelineProvider` + `reactWidgetView`. That's the whole Swift side — no
   interpreter, no timeline plumbing, no per-widget QuickJS code.
 
-### Static vs. live-data widgets
+### Static vs. live-data vs. interactive widgets
 
 The example registers two widgets to show the spectrum — and note the **Swift is
-identical for both**; "live data" is purely a JS concern:
+identical for all**; "live data" and "interactive" are purely JS concerns:
 
 - **`example` (static)** — its `render` reads nothing external, so the widget
   extension renders constant content on its own. No running app required.
-- **`taps` (live data)** — its `render` reads `Storage.get("taps")` (the shared
-  App Group). The watch app writes that value (`App.tsx`'s "Tap +1" button calls
-  `Storage.set` + `publishWidgets()`), so the complication reflects what you did
-  in the app. The extension shares the same Storage, so it stays correct even
-  when the app is closed.
+- **`taps` (live data + interactive)** — its `render` reads the count from a
+  cross-process-atomic counter (`Storage.counterValue("taps")`). The watch app
+  bumps it (`App.tsx`'s "Tap +1" → `Storage.counterAdd` + `publishWidgets()`),
+  **and** on the rectangular family the complication shows live **+/- buttons**
+  (`<Button intent="taps.inc/dec">`) that run `registerIntent` handlers in the
+  extension with no app launch (watchOS 11+). Both sides mutate the same key in
+  different processes, so it's an **atomic counter** (ARCH-05) — `counterAdd`
+  avoids the lost-update race that `Storage.set` would have.
 
 `expo prebuild` links `ReactWatchWidget` + `ReactWatchCore` into the widget
 target automatically (the prebuild log prints the linked products). For a

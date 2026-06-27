@@ -143,17 +143,22 @@ public struct BleSession: Sendable {
         return pendingSubscribes[characteristic]
     }
 
-    /// Every in-flight invoke id, cleared — so on a disconnect/drop the bridge
-    /// can settle them all (a hung promise is worse than a rejected one) rather
-    /// than leave JS awaiting forever.
+    /// Every in-flight invoke id — the connect, the writes awaiting an ack, the
+    /// subscribes, AND the writes still queued before discovery — cleared. On a
+    /// disconnect/drop (or a runtime swap) the bridge settles them all, because a
+    /// hung promise is worse than a rejected one; a queued write whose discovery
+    /// never arrives would otherwise leak forever. Does NOT touch
+    /// desiredSubscriptions (those re-apply on reconnect).
     public mutating func takeAllPending() -> [Int] {
         var ids: [Int] = []
         if let connect = pendingConnect { ids.append(connect) }
         ids.append(contentsOf: pendingWriteAcks.values.flatMap { $0 })
         ids.append(contentsOf: pendingSubscribes.values)
+        ids.append(contentsOf: pendingWrites.compactMap(\.invokeId))
         pendingConnect = nil
         pendingWriteAcks = [:]
         pendingSubscribes = [:]
+        pendingWrites = []
         return ids
     }
 }
