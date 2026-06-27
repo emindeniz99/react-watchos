@@ -831,3 +831,45 @@ final class CoordinatedCounterStoreTests: XCTestCase {
         XCTAssertEqual(store.add(1, toKey: "g", min: 2, max: 8), 2)
     }
 }
+
+/// The widget extension's bundle-selection rule, extracted from the watchOS-only
+/// WidgetIntentRuntime so the load-bearing ARCH-04 invariant — render the
+/// known-good record, never the unvetted active one — is pinned on Linux.
+final class WidgetBundleChoiceTests: XCTestCase {
+    private func record(_ js: String, hash: String? = "h") -> OTARecord {
+        OTARecord(js: js, version: 1, signature: nil, bytecodeHash: hash)
+    }
+
+    func testNoKnownGoodRecordFallsBackToShipped() {
+        XCTAssertEqual(
+            WidgetBundleChoice.decide(knownGood: nil, bytecodeHashMatches: true),
+            .shipped)
+    }
+
+    func testEmptyKnownGoodRecordFallsBackToShipped() {
+        // A record with no source is unusable — don't run an empty bundle.
+        XCTAssertEqual(
+            WidgetBundleChoice.decide(
+                knownGood: record(""), bytecodeHashMatches: true),
+            .shipped)
+    }
+
+    func testRunsPinnedBytecodeOnlyWhenHashMatches() {
+        XCTAssertEqual(
+            WidgetBundleChoice.decide(
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true),
+            .knownGoodBytecode)
+        // Stale/absent bytecode → parse the source, never run unpinned bytecode.
+        XCTAssertEqual(
+            WidgetBundleChoice.decide(
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: false),
+            .knownGoodSource)
+    }
+
+    func testKnownGoodFilesAreDistinctFromTheActiveOnes() {
+        // The widget must read the KNOWN-GOOD paths, not the unvetted active
+        // ones — a swap would make a crash-looping bundle brick the complication.
+        XCTAssertNotEqual(OTAFiles.knownGoodRecord, OTAFiles.activeRecord)
+        XCTAssertNotEqual(OTAFiles.knownGoodBytecode, OTAFiles.activeBytecode)
+    }
+}

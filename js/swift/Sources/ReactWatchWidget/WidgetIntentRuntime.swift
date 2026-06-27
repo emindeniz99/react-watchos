@@ -86,18 +86,41 @@ public final class WidgetIntentRuntime {
     }
 
     private func loadBundle(appGroupId: String) throws {
-        // Render the SAME bundle the app last booted healthily: the known-good
-        // OTA record (which the app promotes on its first healthy commit), else
-        // the shipped bundle. Never the unvetted *active* OTA — the app's
-        // crash-loop guard may not have cleared it yet, and a bundle that bricks
-        // the extension would brick the complication on every refresh.
-        if let record = knownGoodRecord(appGroupId: appGroupId),
-            !record.js.isEmpty
-        {
-            try evaluateKnownGood(record, appGroupId: appGroupId)
-            return
+        // The bundle-selection rule (known-good over the unvetted active record;
+        // pinned bytecode only when the hash matches; shipped when there's no
+        // known-good) is the pure, Linux-tested WidgetBundleChoice. This shell
+        // only does the App Group file I/O and the evaluate.
+        let record = knownGoodRecord(appGroupId: appGroupId)
+        let bytecode = knownGoodBytecode(appGroupId: appGroupId)
+        let bytecodeHashMatches: Bool
+        if let record, let bytecode {
+            bytecodeHashMatches = record.bytecodeHash == ContentHash.of(bytecode)
+        } else {
+            bytecodeHashMatches = false
         }
-        try loadShippedBundle()
+        switch WidgetBundleChoice.decide(
+            knownGood: record, bytecodeHashMatches: bytecodeHashMatches)
+        {
+        case .shipped:
+            try loadShippedBundle()
+        case .knownGoodBytecode:
+            // decide returns this only when a hash-matching .good.qbc exists.
+            guard let bytecode, let record else {
+                try loadShippedBundle()
+                return
+            }
+            do {
+                try js.evaluateBytecode(bytecode)
+            } catch {
+                try js.evaluate(record.js)  // engine-version stale → parse source
+            }
+        case .knownGoodSource:
+            guard let record else {
+                try loadShippedBundle()
+                return
+            }
+            try js.evaluate(record.js)
+        }
     }
 
     /// The last OTA record the app promoted as known-good, from the App Group.
@@ -110,23 +133,13 @@ public final class WidgetIntentRuntime {
         return try? JSONDecoder().decode(OTARecord.self, from: data)
     }
 
-    /// Run the known-good OTA bundle, preferring its pinned bytecode (faster cold
-    /// start in the short-lived extension) and falling back to the source when
-    /// it's missing or hash-stale — the same trust rule the app uses (OP-1).
-    private func evaluateKnownGood(_ record: OTARecord, appGroupId: String) throws {
-        if let url = OTAFiles.url(
-            appGroupId: appGroupId, OTAFiles.knownGoodBytecode),
-            let data = try? Data(contentsOf: url),
-            record.bytecodeHash == ContentHash.of(data)
-        {
-            do {
-                try js.evaluateBytecode(data)
-                return
-            } catch {
-                // engine-version stale → parse the source below
-            }
-        }
-        try js.evaluate(record.js)
+    /// The known-good record's pinned bytecode blob, from the App Group.
+    private func knownGoodBytecode(appGroupId: String) -> Data? {
+        guard
+            let url = OTAFiles.url(
+                appGroupId: appGroupId, OTAFiles.knownGoodBytecode)
+        else { return nil }
+        return try? Data(contentsOf: url)
     }
 
     private func loadShippedBundle() throws {
