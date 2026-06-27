@@ -88,6 +88,7 @@
   "peerDependencies": {
     "@bacons/apple-targets": ">=4.0.0",
     "@expo/config-plugins": ">=56.0.0",
+    "esbuild": ">=0.27.0",
     "expo": ">=56.0.0",
     "react": "^19.2.0",
     "react-reconciler": "0.33.0"
@@ -97,6 +98,9 @@
       "optional": true
     },
     "@expo/config-plugins": {
+      "optional": true
+    },
+    "esbuild": {
       "optional": true
     },
     "expo": {

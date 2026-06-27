@@ -114,16 +114,22 @@ registerWidget({
 });
 ```
 
-**2. Build it** with the same preset as the watch bundle, to the widget target's
-asset (a second `watchBuildOptions` call with the widget entry/outfile):
+**2. Build it** alongside the watch bundle. `buildBundles` builds every target
+through the preset in one call — so a widget app's build script is the two
+bundles' entry/outfile, no esbuild boilerplate per target:
 
 ```js
-import { watchBuildOptions } from "react-native-watchos/build";
-await build(watchBuildOptions({
-  entry: "widget.entry.tsx",
-  outfile: "targets/widget/assets/bundle.js",
-}));
+import { buildBundles } from "react-native-watchos/build";
+await buildBundles([
+  { name: "watch", entry: "watch-ui/entry.tsx", outfile: "targets/watch/assets/bundle.js",
+    manifest: { version: 1, requiredFeatures: ["widgets"] } }, // app bundle: stamp OTA manifest
+  { name: "widget", entry: "watch-ui/widget.entry.tsx", outfile: "targets/widget/assets/bundle.js" },
+]);
 ```
+
+(For full control over the esbuild call, `watchBuildOptions({ entry, outfile })`
+returns the options and you run your own `esbuild.build` — `buildBundles` is the
+batteries-included wrapper around it.)
 
 **3. Swift glue** — `npx react-native-watchos scaffold` generates
 `targets/widget/ReactWidgets.swift` (a `@main WidgetBundle` whose widgets render
@@ -138,7 +144,13 @@ helpers — see the demo (`app/targets/widget`).
 
 - `react-native-watchos/build` — `watchBuildOptions({ entry, outfile })`, the
   QuickJS-correct esbuild preset (shim inject, `es2020`, neutral IIFE), so you
-  don't copy the bundle config.
+  don't copy the bundle config; and `buildBundles([…])`, which builds multiple
+  targets (watch + widget) through that preset in one call — each target may add
+  a `define`, esbuild `plugins` (e.g. the React Compiler), and an OTA `manifest`.
+  `buildBundles` needs `esbuild` installed (optional peer); reach for
+  `watchBuildOptions` directly only to hand-assemble the esbuild options.
+- `react-native-watchos/manifest` — `writeOTAManifest({ distDir, version, … })`,
+  the OTA `manifest.json` stamper (also used by `buildBundles`' `manifest`).
 - `react-native-watchos/testing` — `findByType` / `findByText` for asserting
   on committed trees with `runApp(element, new MemoryHost())`.
 
