@@ -69,4 +69,81 @@ public struct BleSession: Sendable {
     public var shouldAutoReconnect: Bool {
         !userInitiatedDisconnect
     }
+
+    // MARK: - invoke result correlation (CX-022)
+
+    // Which JS invoke id is awaiting which BLE op's delegate callback, so the
+    // bridge can resolve/reject the right promise. Pure bookkeeping mirroring the
+    // async CoreBluetooth machine: connect settles ONCE (not on every
+    // auto-reconnect), `.withResponse` writes settle FIFO per characteristic on
+    // didWriteValueFor, subscribes settle on didUpdateNotificationStateFor.
+    // `.withoutResponse` writes never ack, so the bridge settles those itself
+    // without touching this. The bridge decides resolve-vs-reject; this only
+    // tracks *which id* settles, so it's Linux-unit-tested.
+
+    /// The bleConnect id awaiting the first didConnect / didFailToConnect.
+    public private(set) var pendingConnect: Int?
+    /// `.withResponse` write ids awaiting didWriteValueFor, FIFO per characteristic.
+    public private(set) var pendingWriteAcks: [String: [Int]] = [:]
+    /// Subscribe ids awaiting didUpdateNotificationStateFor, per characteristic.
+    public private(set) var pendingSubscribes: [String: Int] = [:]
+
+    /// Record a bleConnect (`id`) awaiting the first connect. Returns a still-
+    /// pending connect id (a re-entrant connect before the first settled), which
+    /// the bridge must reject — only one connect promise is in flight at a time.
+    public mutating func awaitConnect(id: Int) -> Int? {
+        defer { pendingConnect = id }
+        return pendingConnect
+    }
+
+    /// Take the connect-awaiting id (didConnect → resolve, didFailToConnect →
+    /// reject). A later auto-reconnect finds nothing pending, so it never
+    /// re-settles a promise.
+    public mutating func takeConnectSettle() -> Int? {
+        defer { pendingConnect = nil }
+        return pendingConnect
+    }
+
+    /// Record a `.withResponse` write (`id`) awaiting its ack, FIFO per char.
+    public mutating func awaitWriteAck(characteristic: String, id: Int) {
+        pendingWriteAcks[characteristic, default: []].append(id)
+    }
+
+    /// didWriteValueFor fired: pop the oldest awaiting write id for this char.
+    public mutating func takeWriteAck(characteristic: String) -> Int? {
+        guard var queue = pendingWriteAcks[characteristic], !queue.isEmpty else {
+            return nil
+        }
+        let id = queue.removeFirst()
+        pendingWriteAcks[characteristic] = queue.isEmpty ? nil : queue
+        return id
+    }
+
+    /// Record a subscribe (`id`) awaiting its notification-state ack. Returns a
+    /// still-pending subscribe id for the same characteristic (a re-subscribe
+    /// before the first settled) for the bridge to reject.
+    public mutating func awaitSubscribe(characteristic: String, id: Int) -> Int? {
+        defer { pendingSubscribes[characteristic] = id }
+        return pendingSubscribes[characteristic]
+    }
+
+    /// Take the subscribe-awaiting id for this characteristic.
+    public mutating func takeSubscribeSettle(characteristic: String) -> Int? {
+        defer { pendingSubscribes[characteristic] = nil }
+        return pendingSubscribes[characteristic]
+    }
+
+    /// Every in-flight invoke id, cleared — so on a disconnect/drop the bridge
+    /// can settle them all (a hung promise is worse than a rejected one) rather
+    /// than leave JS awaiting forever.
+    public mutating func takeAllPending() -> [Int] {
+        var ids: [Int] = []
+        if let connect = pendingConnect { ids.append(connect) }
+        ids.append(contentsOf: pendingWriteAcks.values.flatMap { $0 })
+        ids.append(contentsOf: pendingSubscribes.values)
+        pendingConnect = nil
+        pendingWriteAcks = [:]
+        pendingSubscribes = [:]
+        return ids
+    }
 }

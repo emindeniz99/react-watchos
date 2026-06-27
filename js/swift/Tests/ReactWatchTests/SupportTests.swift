@@ -405,6 +405,71 @@ final class BleSessionTests: XCTestCase {
         s.beginConnect()  // a fresh connect re-arms auto-reconnect
         XCTAssertTrue(s.shouldAutoReconnect)
     }
+
+    // CX-022: the invoke-result correlation. These pin the part that has to be
+    // right before the device half can be trusted — connect settling exactly
+    // once across an auto-reconnect, write acks correlating FIFO per
+    // characteristic, and nothing left hanging on teardown.
+    func testConnectSettlesOnceThenAutoReconnectDoesNotResettle() {
+        var s = BleSession()
+        XCTAssertNil(s.awaitConnect(id: 7))  // nothing was pending
+        // First didConnect resolves invoke 7…
+        XCTAssertEqual(s.takeConnectSettle(), 7)
+        // …and a later auto-reconnect's didConnect finds nothing — no double-settle.
+        XCTAssertNil(s.takeConnectSettle())
+    }
+
+    func testReentrantConnectSurrendersTheStaleId() {
+        var s = BleSession()
+        XCTAssertNil(s.awaitConnect(id: 1))
+        // A second bleConnect before the first settled hands back id 1 to reject,
+        // and id 2 becomes the one in flight.
+        XCTAssertEqual(s.awaitConnect(id: 2), 1)
+        XCTAssertEqual(s.takeConnectSettle(), 2)
+    }
+
+    func testWriteAcksCorrelateFIFOPerCharacteristic() {
+        var s = BleSession()
+        s.awaitWriteAck(characteristic: "CMD", id: 10)
+        s.awaitWriteAck(characteristic: "CMD", id: 11)
+        s.awaitWriteAck(characteristic: "VOL", id: 12)
+        // didWriteValueFor only carries the characteristic, so same-char acks
+        // settle oldest-first; a different char is independent.
+        XCTAssertEqual(s.takeWriteAck(characteristic: "CMD"), 10)
+        XCTAssertEqual(s.takeWriteAck(characteristic: "VOL"), 12)
+        XCTAssertEqual(s.takeWriteAck(characteristic: "CMD"), 11)
+        // Nothing left → an unexpected didWriteValueFor settles nobody.
+        XCTAssertNil(s.takeWriteAck(characteristic: "CMD"))
+        XCTAssertNil(s.takeWriteAck(characteristic: "VOL"))
+    }
+
+    func testSubscribeSettlesPerCharacteristicAndResubscribeSurrenders() {
+        var s = BleSession()
+        XCTAssertNil(s.awaitSubscribe(characteristic: "HR", id: 20))
+        XCTAssertNil(s.awaitSubscribe(characteristic: "BAT", id: 21))
+        // Re-subscribing HR before it settled hands back 20 to reject.
+        XCTAssertEqual(s.awaitSubscribe(characteristic: "HR", id: 22), 20)
+        XCTAssertEqual(s.takeSubscribeSettle(characteristic: "HR"), 22)
+        XCTAssertEqual(s.takeSubscribeSettle(characteristic: "BAT"), 21)
+        XCTAssertNil(s.takeSubscribeSettle(characteristic: "HR"))
+    }
+
+    func testTakeAllPendingDrainsEverythingForTeardown() {
+        var s = BleSession()
+        _ = s.awaitConnect(id: 1)
+        s.awaitWriteAck(characteristic: "CMD", id: 2)
+        s.awaitWriteAck(characteristic: "CMD", id: 3)
+        _ = s.awaitSubscribe(characteristic: "HR", id: 4)
+
+        // A disconnect/drop must settle every in-flight promise, not leave JS
+        // awaiting forever.
+        XCTAssertEqual(s.takeAllPending().sorted(), [1, 2, 3, 4])
+        // Drained: a second teardown has nothing, and the maps are clear.
+        XCTAssertTrue(s.takeAllPending().isEmpty)
+        XCTAssertNil(s.takeConnectSettle())
+        XCTAssertNil(s.takeWriteAck(characteristic: "CMD"))
+        XCTAssertNil(s.takeSubscribeSettle(characteristic: "HR"))
+    }
 }
 
 // ARCH-01: the capability gate decides whether an OTA bundle may run on this
