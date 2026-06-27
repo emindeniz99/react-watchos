@@ -48,35 +48,46 @@ describe("BLE bridge", () => {
     expect(host.lastCommit!.root!.props.text).toBe("Blade Runner");
   });
 
-  it("connect/write/subscribe forward op messages to the host", () => {
+  it("connect/write/subscribe settle through the invoke channel", async () => {
     const host = installMockHost();
-    bleConnect("ABCD");
-    bleWrite("play", "1");
-    bleSubscribe("position");
+    // Each returns a Promise that resolves on the correlated result (CX-022).
+    await Promise.all([
+      bleConnect("ABCD"),
+      bleWrite("play", "1"),
+      bleSubscribe("position"),
+    ]);
 
-    const ops = host.ble.mock.calls.map((c) => JSON.parse(c[0]));
-    expect(ops).toEqual([
-      { op: "connect", service: "ABCD" },
-      { op: "write", characteristic: "play", value: "1" },
-      { op: "subscribe", characteristic: "position" },
+    const calls = host.invoke.mock.calls
+      .filter((c) => String(c[1]).startsWith("ble"))
+      .map((c) => [c[1], JSON.parse(c[2])]);
+    expect(calls).toEqual([
+      ["bleConnect", { service: "ABCD" }],
+      ["bleWrite", { characteristic: "play", value: "1" }],
+      ["bleSubscribe", { characteristic: "position" }],
     ]);
   });
 
-  it("forwards the reliable-write option only when set", () => {
+  it("forwards the reliable-write option only when set", async () => {
     const host = installMockHost();
-    bleWrite("next", "1"); // default: bridge decides
-    bleWrite("next", "1", { confirm: true }); // reliable (.withResponse)
-    bleWrite("next", "1", { confirm: false }); // fast (.withoutResponse)
+    await bleWrite("next", "1"); // default: bridge decides
+    await bleWrite("next", "1", { confirm: true }); // reliable (.withResponse)
+    await bleWrite("next", "1", { confirm: false }); // fast (.withoutResponse)
 
-    const ops = host.ble.mock.calls.map((c) => JSON.parse(c[0]));
-    expect(ops).toEqual([
-      { op: "write", characteristic: "next", value: "1" },
-      { op: "write", characteristic: "next", value: "1", confirm: true },
-      { op: "write", characteristic: "next", value: "1", confirm: false },
+    const writes = host.invoke.mock.calls
+      .filter((c) => c[1] === "bleWrite")
+      .map((c) => JSON.parse(c[2]));
+    expect(writes).toEqual([
+      { characteristic: "next", value: "1" },
+      { characteristic: "next", value: "1", confirm: true },
+      { characteristic: "next", value: "1", confirm: false },
     ]);
   });
 
-  it("is a no-op without a BLE-capable host", () => {
-    expect(() => bleConnect("X")).not.toThrow();
+  it("rejects (not hangs) without an invoke-capable host", async () => {
+    // No host installed (afterEach cleared it) — the promise rejects with a
+    // machine code rather than leaving JS awaiting forever.
+    await expect(bleConnect("X")).rejects.toMatchObject({
+      code: "UNAVAILABLE",
+    });
   });
 });

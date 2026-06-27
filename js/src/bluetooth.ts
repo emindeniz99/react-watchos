@@ -1,4 +1,5 @@
 import { getHost } from "./host";
+import { invoke } from "./invoke";
 import {
   type NativeEventHandler,
   registerNativeListener,
@@ -8,15 +9,22 @@ import {
 /**
  * BLE central over CoreBluetooth, for talking to a peripheral like a laptop
  * running a "movie remote" GATT service. watchOS supports the central role
- * only, so the watch connects to and drives the peripheral. Commands go out
- * through __host.ble (an op channel); connection state and characteristic
- * notifications arrive on the native-event push channel (commit instantly
- * via runSync). All values are strings (UTF-8 or base64, per your service).
+ * only, so the watch connects to and drives the peripheral.
+ *
+ * `bleConnect`/`bleWrite`/`bleSubscribe` return a Promise that settles with the
+ * op's result (CX-022) — a failed connect or unacked write rejects instead of
+ * silently vanishing. Connection state and characteristic notifications still
+ * arrive on the native-event push channel (`onBleState`/`onBleNotify`), which
+ * stays the source of truth for *ongoing* state; the promise is just the
+ * one-shot result of the call you made. All values are strings (UTF-8 or
+ * base64, per your service).
  *
  * The bridge auto-reconnects: an unexpected drop (range/power) re-scans and,
  * once reconnected, re-subscribes to the same characteristics — you'll see
- * `disconnected` -> `scanning` -> `connected` on `onBleState`. Calling
- * `bleDisconnect()` stays disconnected (no auto-reconnect).
+ * `disconnected` -> `scanning` -> `connected` on `onBleState`. The original
+ * `bleConnect` promise resolves only on the FIRST connect, not on auto-reconnects.
+ * Calling `bleDisconnect()` stays disconnected (no auto-reconnect) and rejects
+ * any in-flight connect/write/subscribe.
  */
 export const BLE_STATE_EVENT = "ble.state";
 export const BLE_NOTIFY_EVENT = "ble.notify";
@@ -28,9 +36,14 @@ function ble(op: string, payload: Record<string, unknown> = {}): void {
   getHost()?.ble?.(JSON.stringify({ op, ...payload }));
 }
 
-/** Scan for and connect to the first peripheral advertising `serviceUUID`. */
-export function bleConnect(serviceUUID: string): void {
-  ble("connect", { service: serviceUUID });
+/**
+ * Scan for and connect to the first peripheral advertising `serviceUUID`.
+ * Resolves on the first successful connect; rejects on failure or after a
+ * connect timeout (`UNAVAILABLE`). A second `bleConnect` before the first
+ * settles rejects the first (`INVALID_REQUEST`).
+ */
+export function bleConnect(serviceUUID: string): Promise<void> {
+  return invoke("bleConnect", { service: serviceUUID });
 }
 
 export function bleDisconnect(): void {
@@ -53,22 +66,34 @@ export interface BleWriteOptions {
  * default the bridge writes reliably (`.withResponse`) when the characteristic
  * supports it; pass `{ confirm: false }` for a fast fire-and-forget write, or
  * `{ confirm: true }` to force an acknowledged one.
+ *
+ * Resolves when the write is acknowledged for a reliable (`.withResponse`)
+ * write, and rejects on a peripheral error (`INTERNAL`) or a drop
+ * (`UNAVAILABLE`). **Caveat:** an unacknowledged (`.withoutResponse`) write
+ * resolves *optimistically* the moment it's handed to CoreBluetooth — there's
+ * no delivery ack, so "resolved" means "sent", not "delivered". Use
+ * `{ confirm: true }` when you need a real delivery guarantee.
  */
 export function bleWrite(
   characteristicUUID: string,
   value: string,
   options?: BleWriteOptions,
-): void {
-  ble("write", {
+): Promise<void> {
+  return invoke("bleWrite", {
     characteristic: characteristicUUID,
     value,
     ...(options?.confirm !== undefined ? { confirm: options.confirm } : {}),
   });
 }
 
-/** Subscribe to notifications from a characteristic (position, title, …). */
-export function bleSubscribe(characteristicUUID: string): void {
-  ble("subscribe", { characteristic: characteristicUUID });
+/**
+ * Subscribe to notifications from a characteristic (position, title, …).
+ * Resolves when the peripheral acknowledges the notification-state change;
+ * values then stream in on {@link onBleNotify}. Re-subscribing the same
+ * characteristic before the first settles rejects the first.
+ */
+export function bleSubscribe(characteristicUUID: string): Promise<void> {
+  return invoke("bleSubscribe", { characteristic: characteristicUUID });
 }
 
 /** Connection-state changes: handler gets `{ state }`. Returns an unsubscribe. */

@@ -10,11 +10,19 @@ public struct BleSession: Sendable {
         public let characteristic: String
         public let value: String
         public let confirm: Bool?
+        /// The invoke id awaiting this write's result, carried through the queue
+        /// so a write issued before discovery still settles its JS promise once
+        /// it's flushed and acked (CX-022). nil for a non-invoke write.
+        public let invokeId: Int?
 
-        public init(characteristic: String, value: String, confirm: Bool?) {
+        public init(
+            characteristic: String, value: String, confirm: Bool?,
+            invokeId: Int? = nil
+        ) {
             self.characteristic = characteristic
             self.value = value
             self.confirm = confirm
+            self.invokeId = invokeId
         }
     }
 
@@ -47,10 +55,12 @@ public struct BleSession: Sendable {
 
     /// Queue a write that arrived before its characteristic was available.
     public mutating func queueWrite(
-        characteristic: String, value: String, confirm: Bool?
+        characteristic: String, value: String, confirm: Bool?, invokeId: Int? = nil
     ) {
         pendingWrites.append(
-            .init(characteristic: characteristic, value: value, confirm: confirm)
+            .init(
+                characteristic: characteristic, value: value, confirm: confirm,
+                invokeId: invokeId)
         )
     }
 

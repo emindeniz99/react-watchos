@@ -119,6 +119,17 @@ final class ReactWatchModel: ObservableObject {
                 payload: ["characteristic": characteristic, "value": value]
             )
         }
+        // Settle bleConnect/bleWrite/bleSubscribe invokes (CX-022). CoreBluetooth
+        // delegates fire on the main queue (CBCentralManager queue: nil), so this
+        // is already main-thread; a settle for a torn-down runtime hits a nil
+        // runtime (or an unknown id the new runtime's pending map drops) — no-op,
+        // not a mis-settle.
+        bluetooth.onResolve = { [weak self] id, json in
+            self?.runtime?.resolveInvoke(id: id, resultJson: json)
+        }
+        bluetooth.onReject = { [weak self] id, json in
+            self?.runtime?.rejectInvoke(id: id, errorJson: json)
+        }
         sensors.onReading = { [weak self] kind, payload in
             self?.pushNativeEvent("sensor.\(kind)", payload: payload)
         }
@@ -235,6 +246,12 @@ final class ReactWatchModel: ObservableObject {
             scheduleNotification(id: id, payload: payload)
         case "aiAvailability":
             aiAvailability(id: id)
+        case "bleConnect":
+            bluetooth.handleInvoke(id: id, method: method, payload: payload)
+        case "bleWrite":
+            bluetooth.handleInvoke(id: id, method: method, payload: payload)
+        case "bleSubscribe":
+            bluetooth.handleInvoke(id: id, method: method, payload: payload)
         default:
             runtime?.rejectInvoke(
                 id: id,

@@ -374,7 +374,33 @@ export const hostMethods = [
     targets: ["watch"],
     feature: "bluetooth",
     since: 1,
+    doc: "Fire-and-forget BLE op channel — now only `disconnect`; connect/write/subscribe settle via invoke (bleConnect/bleWrite/bleSubscribe).",
     args: [{ name: "json", type: "string" }],
+  },
+  // BLE connect/write/subscribe settle their result through invoke (CX-022): a
+  // failed connect or unacked write was invisible on the fire-and-forget `ble`
+  // channel. Same `bluetooth` feature; the onBleState/onBleNotify push channel
+  // and `disconnect` (above) are unchanged.
+  {
+    name: "bleConnect",
+    targets: ["watch"],
+    feature: "bluetooth",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "bleWrite",
+    targets: ["watch"],
+    feature: "bluetooth",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "bleSubscribe",
+    targets: ["watch"],
+    feature: "bluetooth",
+    since: 1,
+    via: "invoke",
   },
   {
     name: "sensor",
