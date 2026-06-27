@@ -147,6 +147,27 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         onReject?(id, "{\"code\":\"\(code)\",\"message\":\"\(safe)\"}")
     }
 
+    /// Reject EVERY in-flight promise — the connect AND any write/subscribe that
+    /// was queued while connecting — on a failed or lost connection. Single-
+    /// sourced so no failure path can drain only the connect and leak the queued
+    /// ops: the verify pass found exactly that divergence in didFailToConnect.
+    private func failPendingOps(_ message: String) {
+        for id in session.takeAllPending() {
+            reject(id, "UNAVAILABLE", message)
+        }
+    }
+
+    /// A connection ATTEMPT failed (didFailToConnect, no peripheral was ever
+    /// connected): tear down, settle every in-flight promise, and auto-reconnect
+    /// unless the consumer asked to disconnect. Factored out so it's unit-testable
+    /// (the delegate callback needs a real CBPeripheral) and shares the drain.
+    func failConnectionAttempt(message: String) {
+        peripheral = nil
+        onState?("disconnected")
+        failPendingOps(message)
+        if session.shouldAutoReconnect { startScan() }
+    }
+
     /// Reject this connect if it's still the pending one after the timeout (it
     /// connected → already cleared; superseded → no longer this id).
     private func armConnectTimeout(id: Int) {
@@ -170,11 +191,8 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         guard connectEpoch == epoch, session.pendingConnect == id else { return }
         central?.stopScan()
         // Reject the connect AND any write/subscribe queued while it was in
-        // flight — they were all waiting on a connection that never came, so
-        // draining only the connect would leak those promises.
-        for pending in session.takeAllPending() {
-            reject(pending, "UNAVAILABLE", "connect timed out")
-        }
+        // flight — they were all waiting on a connection that never came.
+        failPendingOps("connect timed out")
     }
 
     // MARK: - Central
@@ -221,9 +239,7 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         // Reject every in-flight promise (connect/write/subscribe AND queued
         // writes) before tearing down — drained BEFORE endByUser, which clears
         // the queue, or the queued-write ids would be lost (leaked promise).
-        for id in session.takeAllPending() {
-            reject(id, "UNAVAILABLE", "disconnected")
-        }
+        failPendingOps("disconnected")
         session.endByUser()
         if let peripheral {
             // cancelPeripheralConnection → didDisconnectPeripheral pushes the one
@@ -331,9 +347,7 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         characteristics = [:]
         onState?("disconnected")
         // A drop mid-write/subscribe must settle those promises, not hang JS.
-        for id in session.takeAllPending() {
-            reject(id, "UNAVAILABLE", "disconnected")
-        }
+        failPendingOps("disconnected")
         // Auto-reconnect on an unexpected drop (range/power); stay down if the
         // consumer called bleDisconnect().
         if session.shouldAutoReconnect { startScan() }
@@ -343,12 +357,10 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         _: CBCentralManager, didFailToConnect _: CBPeripheral,
         error _: Error?
     ) {
-        peripheral = nil
-        onState?("disconnected")
-        if let id = session.takeConnectSettle() {
-            reject(id, "UNAVAILABLE", "failed to connect")
-        }
-        if session.shouldAutoReconnect { startScan() }
+        // Drain ALL pending — not just the connect: a write/subscribe issued
+        // while connecting (permitted by isConnectedOrConnecting) must not
+        // outlive the failed attempt.
+        failConnectionAttempt(message: "failed to connect")
     }
 
     // MARK: - Peripheral

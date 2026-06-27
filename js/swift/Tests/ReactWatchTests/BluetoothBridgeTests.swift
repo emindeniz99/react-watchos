@@ -102,6 +102,24 @@ final class BluetoothBridgeTests: XCTestCase {
         XCTAssertTrue(rejects().allSatisfy { $0.json.contains("connect timed out") })
     }
 
+    func testFailedConnectDrainsConnectAndQueuedOps() {
+        let (bridge, rejects) = makeBridge()
+        bridge.handleInvoke(
+            id: 200, method: "bleConnect", payload: #"{"service":"180D"}"#)
+        // A subscribe issued WHILE connecting is permitted and queues.
+        bridge.handleInvoke(
+            id: 201, method: "bleSubscribe", payload: #"{"characteristic":"2A37"}"#)
+        XCTAssertEqual(rejects().count, 0, "nothing settled before the failure")
+
+        // The peripheral actively refused the connection (didFailToConnect).
+        bridge.failConnectionAttempt(message: "failed to connect")
+
+        // BOTH the connect and the subscribe that was waiting on it reject —
+        // draining only the connect would leak the subscribe's promise forever.
+        XCTAssertEqual(Set(rejects().map(\.id)), [200, 201])
+        XCTAssertTrue(rejects().allSatisfy { $0.json.contains("failed to connect") })
+    }
+
     func testReloadEpochNeutralizesStaleConnectTimeout() {
         let (bridge, rejects) = makeBridge()
         bridge.handleInvoke(id: 1, method: "bleConnect", payload: #"{"service":"180D"}"#)
