@@ -74,6 +74,9 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 - [design-bundler-choice.md](./design-bundler-choice.md) — why the watch bundle
   uses esbuild (not Metro/Vite/Rollup/Bun), and when to revisit Rolldown.
   Verified against the 2026 landscape.
+- [design-arch-08-runtime-session.md](./design-arch-08-runtime-session.md) —
+  ARCH-08 RuntimeSession isolation: the per-runtime vs persistent-transport
+  seam, why it's deferred (no failing scenario today), and the shape to build.
 
 ## Reference / background
 
