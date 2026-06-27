@@ -54,7 +54,15 @@ export function watchBuildOptions({
     platform: "neutral",
     mainFields: ["module", "main"],
     conditions: ["import", "default"],
-    define: { "process.env.NODE_ENV": '"production"' },
+    // QuickJS has no `process`, so every `process.env.X` the bundle reads must be
+    // statically replaced here or the bundle throws at load. NODE_ENV (react/
+    // scheduler) and BUNDLE_VERSION (read at module load in update.ts) are the
+    // two the renderer itself reads; default BUNDLE_VERSION to "1" so a bundle
+    // can never crash on it. `buildBundles` overrides it from manifest.version.
+    define: {
+      "process.env.NODE_ENV": '"production"',
+      "process.env.BUNDLE_VERSION": '"1"',
+    },
     plugins,
     ...(nodePaths ? { nodePaths } : {}),
     minify,
@@ -132,7 +140,21 @@ export async function buildBundles(
       nodePaths,
       plugins,
     });
-    if (define) options.define = { ...options.define, ...define };
+    options.define = {
+      ...options.define,
+      ...(define ?? {}),
+      // The bundle's BUNDLE_VERSION (its anti-rollback/freshness identity) is the
+      // SAME number as the OTA manifest's `version` — derive it from there so the
+      // two can't drift, and so the bundle never ships with the unreplaced
+      // `process.env.BUNDLE_VERSION` that would crash it in QuickJS.
+      ...(manifest?.version !== undefined
+        ? {
+            "process.env.BUNDLE_VERSION": JSON.stringify(
+              String(manifest.version),
+            ),
+          }
+        : {}),
+    };
     await build(options);
 
     const sizeKB = Number((statSync(outfile).size / 1024).toFixed(0));

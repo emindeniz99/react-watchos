@@ -51,4 +51,31 @@ describe("buildBundles", () => {
   it("rejects an empty target list (a no-op build is a mistake)", async () => {
     await expect(buildBundles([])).rejects.toThrow(/non-empty/);
   });
+
+  // QuickJS has no `process`, so a `process.env.BUNDLE_VERSION` that survives to
+  // runtime crashes the whole bundle at load — the exact thing that only bites
+  // the shipped consumer path (the in-repo build + Node tests both have it
+  // defined). It must be statically replaced, and from manifest.version so the
+  // two stay in lockstep.
+  it("bakes BUNDLE_VERSION from manifest.version; never leaves a raw process.env read", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-bv-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, "export const v = process.env.BUNDLE_VERSION;\n");
+
+    const appOut = join(dir, "app.js");
+    await buildBundles([
+      { name: "app", entry, outfile: appOut, manifest: { version: 4 } },
+    ]);
+    const app = readFileSync(appOut, "utf8");
+    expect(app).not.toContain("process.env.BUNDLE_VERSION"); // would crash in QuickJS
+    expect(app).toContain('"4"'); // == manifest.version, not a hardcoded default
+
+    // A target with NO manifest still gets the preset default, so any bundle
+    // that happens to read BUNDLE_VERSION can't crash either.
+    const widgetOut = join(dir, "widget.js");
+    await buildBundles([{ name: "widget", entry, outfile: widgetOut }]);
+    expect(readFileSync(widgetOut, "utf8")).not.toContain(
+      "process.env.BUNDLE_VERSION",
+    );
+  });
 });
