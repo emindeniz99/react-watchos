@@ -33,7 +33,7 @@ struct ExampleWidget: Widget {
             kind: kind,
             provider: ReactTimelineProvider(kind: kind, appGroupId: appGroup)
         ) { entry in
-            reactWidgetView(entry)
+            reactWidgetView(entry, appGroupId: appGroup)
         }
         .configurationDisplayName("Example")
         .description("A static React-rendered complication.")
@@ -55,7 +55,7 @@ struct TapsWidget: Widget {
             kind: kind,
             provider: ReactTimelineProvider(kind: kind, appGroupId: appGroup)
         ) { entry in
-            reactWidgetView(entry)
+            reactWidgetView(entry, appGroupId: appGroup)
         }
         .configurationDisplayName("Taps")
         .description("Your tap count, updated from the watch app.")

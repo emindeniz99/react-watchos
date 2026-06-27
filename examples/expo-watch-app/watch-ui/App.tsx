@@ -22,16 +22,15 @@ export function App() {
   const [fromPhone, setFromPhone] = useState("waiting for phone…");
   const [sendStatus, setSendStatus] = useState("");
   const [otaStatus, setOtaStatus] = useState("");
-  const [taps, setTaps] = useState<number>(() => Storage.get<number>("taps") ?? 0);
+  const [taps, setTaps] = useState<number>(() => Storage.counterValue("taps"));
   useEffect(() => onPhoneMessage((m) => setFromPhone(JSON.stringify(m))), []);
-  // The live-data widget pattern: write a value the app owns to shared Storage
-  // (the App Group), then publishWidgets() re-renders the complications and asks
-  // WidgetKit to reload — so the "taps" widget (watch-ui/widgets.tsx) reflects
-  // this immediately.
+  // The live-data widget pattern: bump a value the app owns, then
+  // publishWidgets() re-renders the complications and asks WidgetKit to reload —
+  // so the "taps" widget (watch-ui/widgets.tsx) reflects it immediately. It's a
+  // cross-process-atomic counter (ARCH-05) because the widget's own +/- buttons
+  // mutate the same key in the extension; counterAdd avoids the lost-update race.
   const bump = () => {
-    const next = taps + 1;
-    setTaps(next);
-    Storage.set("taps", next);
+    setTaps(Storage.counterAdd("taps", 1, 0, 999));
     publishWidgets();
   };
   // sendToPhone rejects when the phone isn't reachable (CX-022) — handle it, so

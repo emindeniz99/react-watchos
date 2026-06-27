@@ -28,9 +28,13 @@ private func unsupportedWidgetNode(_ type: String) -> some View {
 /// are static) and navigation. nil renders the placeholder.
 public struct WidgetNodeView: View {
     let node: RNNode?
+    /// Threaded through so an interactive Button node can dispatch its `intent`
+    /// into the extension's React runtime for this consumer's App Group.
+    let appGroupId: String
 
-    public init(node: RNNode?) {
+    public init(node: RNNode?, appGroupId: String) {
         self.node = node
+        self.appGroupId = appGroupId
     }
 
     public var body: some View {
@@ -97,7 +101,9 @@ public struct WidgetNodeView: View {
                 ProgressView()
             }
         // Interactive/navigation nodes degrade to their content.
-        case "Button", "NavigationStack", "NavigationLink", "NavigationRoute",
+        case "Button":
+            button(node)
+        case "NavigationStack", "NavigationLink", "NavigationRoute",
             "ScrollView", "List", "TabView", "CrownRotation":
             children(node)
         case "Toggle":
@@ -129,7 +135,25 @@ public struct WidgetNodeView: View {
 
     private func children(_ node: RNNode) -> some View {
         ForEach(node.children) { child in
-            WidgetNodeView(node: child)
+            WidgetNodeView(node: child, appGroupId: appGroupId)
+        }
+    }
+
+    /// An interactive widget button (watchOS 11+): a tap runs the React intent
+    /// named by the `intent` prop in the extension, with no app launch. Without
+    /// an `intent` prop, or on watchOS 10, it degrades to its (static) content —
+    /// `onPress` is an in-app gesture that can't fire from a widget timeline.
+    @ViewBuilder private func button(_ node: RNNode) -> some View {
+        if #available(watchOS 11.0, *), let intent = node.string("intent") {
+            Button(
+                intent: ReactWidgetButtonIntent(
+                    name: intent, appGroupId: appGroupId)
+            ) {
+                children(node)
+            }
+            .buttonStyle(.plain)
+        } else {
+            children(node)
         }
     }
 
@@ -256,8 +280,10 @@ public struct WidgetNodeView: View {
 /// content closure of their `StaticConfiguration`/`AppIntentConfiguration`
 /// (which is itself main-actor, so the @MainActor here is a no-op at the call
 /// site — it just lets the body call SwiftUI's main-actor view modifiers).
-@MainActor @ViewBuilder public func reactWidgetView(_ entry: ReactEntry) -> some View {
-    let view = WidgetNodeView(node: entry.node)
+@MainActor @ViewBuilder public func reactWidgetView(
+    _ entry: ReactEntry, appGroupId: String
+) -> some View {
+    let view = WidgetNodeView(node: entry.node, appGroupId: appGroupId)
         .containerBackground(.clear, for: .widget)
     if let url = entry.url {
         view.widgetURL(url)

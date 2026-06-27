@@ -47,6 +47,8 @@ describe("scaffold (DX-3)", () => {
     expect(src).toContain(
       'ReactTimelineProvider(kind: kind, appGroupId: "group.com.example.expowatch")',
     );
-    expect(src).toContain("reactWidgetView(entry)");
+    expect(src).toContain(
+      'reactWidgetView(entry, appGroupId: "group.com.example.expowatch")',
+    );
   });
 });

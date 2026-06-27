@@ -95,7 +95,7 @@ struct ShoppingWidget: Widget {
             intent: SelectShoppingListIntent.self,
             provider: ShoppingTimelineProvider()
         ) { entry in
-            reactWidgetView(entry)
+            reactWidgetView(entry, appGroupId: WidgetStore.appGroupId)
         }
         .configurationDisplayName("Shopping")
         .description("A shopping list's progress — pick the list, React renders it.")

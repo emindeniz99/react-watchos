@@ -78,7 +78,7 @@ struct ExampleWidget: Widget {
             kind: kind,
             provider: ReactTimelineProvider(kind: kind, appGroupId: "${appGroupId}")
         ) { entry in
-            reactWidgetView(entry)
+            reactWidgetView(entry, appGroupId: "${appGroupId}")
         }
         .configurationDisplayName("Example")
         .description("A React-rendered complication.")

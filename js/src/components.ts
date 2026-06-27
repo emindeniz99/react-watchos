@@ -92,6 +92,15 @@ export interface ButtonProps extends A11yProps, GestureProps, SwipeActionProps {
   onPress?: () => void;
   /** Bind this button to the Apple Watch double-tap gesture (watchOS 11+). */
   primaryAction?: boolean;
+  /**
+   * Makes this button interactive **inside a widget/complication** (watchOS
+   * 11+): a tap runs the `registerIntent(name, …)` handler in the widget
+   * extension (no app launch), which mutates Storage and reloads the timeline —
+   * the same mechanism a Control uses. `onPress` is for the in-app UI and is
+   * ignored in a widget; `intent` is for a widget and is ignored in the app. On
+   * watchOS 10 a widget button falls back to its (non-interactive) content.
+   */
+  intent?: string;
   children?: ReactNode;
 }
 

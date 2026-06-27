@@ -26,11 +26,25 @@ describe("watch UI", () => {
 // (or the app stopped writing it), the complication would silently freeze.
 describe("widgets", () => {
   it("the taps widget reflects the value the app stored (live data)", () => {
-    Storage.set("taps", 7);
+    // The app + the widget's own +/- buttons share an atomic counter (ARCH-05),
+    // a separate namespace from get/set.
+    Storage.counterAdd("taps", 7, 0, 999);
     const tree =
       renderWidgets(Date.now()).widgets.taps?.accessoryInline?.entries[0]?.tree;
     // VStack > [ Text("Taps"), Text(<count>) ] — the second Text is the value.
     expect(tree?.children?.[1]?.props.text).toBe("7");
+  });
+
+  it("the taps widget is interactive on the rectangular family (intent buttons)", () => {
+    const tree =
+      renderWidgets(Date.now()).widgets.taps?.accessoryRectangular?.entries[0]
+        ?.tree;
+    // HStack > [ Button(intent dec), VStack, Button(intent inc) ] — each button
+    // carries the registerIntent name the extension runs on tap.
+    const intents = (tree?.children ?? [])
+      .filter((c) => c.type === "Button")
+      .map((b) => b.props.intent);
+    expect(intents).toEqual(["taps.dec", "taps.inc"]);
   });
 
   it("the example widget is static content (reads nothing external)", () => {

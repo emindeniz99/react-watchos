@@ -18,7 +18,7 @@ struct HydrationWidget: Widget {
             provider: ReactTimelineProvider(
                 kind: "hydration", appGroupId: WidgetStore.appGroupId)
         ) { entry in
-            reactWidgetView(entry)
+            reactWidgetView(entry, appGroupId: WidgetStore.appGroupId)
         }
         .configurationDisplayName("Hydration")
         .description("Glasses of water today — rendered by React.")
@@ -44,7 +44,7 @@ struct DaypartWidget: Widget {
             provider: ReactTimelineProvider(
                 kind: "daypart", appGroupId: WidgetStore.appGroupId)
         ) { entry in
-            reactWidgetView(entry)
+            reactWidgetView(entry, appGroupId: WidgetStore.appGroupId)
         }
         .configurationDisplayName("Time of Day")
         .description("A React timeline that updates itself all day.")
