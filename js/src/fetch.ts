@@ -88,6 +88,12 @@ class WatchAbortSignal {
   aborted = false;
   reason: unknown = undefined;
   private listeners = new Set<() => void>();
+  /**
+   * The timer id for a `.timeout()` signal, so fetch can cancel it once the
+   * response arrives — otherwise it fires (and round-trips to the native timer
+   * host) after the fetch already settled. Undefined for a controller signal.
+   */
+  timerId?: number;
 
   addEventListener(type: string, cb: () => void): void {
     if (type === "abort") this.listeners.add(cb);
@@ -116,7 +122,10 @@ class WatchAbortSignal {
         setTimeout?: (fn: () => void, ms: number) => number;
       }
     ).setTimeout;
-    setTimeoutFn?.(() => signal.fire(abortError(`timeout after ${ms}ms`)), ms);
+    signal.timerId = setTimeoutFn?.(
+      () => signal.fire(abortError(`timeout after ${ms}ms`)),
+      ms,
+    );
     return signal;
   }
 }
@@ -210,6 +219,14 @@ export function installFetch(g: Global): void {
     if (!p) return undefined;
     pending.delete(id);
     if (p.signal && p.onAbort) p.signal.removeEventListener("abort", p.onAbort);
+    // Cancel the timeout-sugar timer so it can't fire (and round-trip to the
+    // native timer host) after the fetch already settled.
+    if (p.signal?.timerId !== undefined) {
+      (globalThis as { clearTimeout?: (id: number) => void }).clearTimeout?.(
+        p.signal.timerId,
+      );
+      p.signal.timerId = undefined;
+    }
     return p;
   };
 

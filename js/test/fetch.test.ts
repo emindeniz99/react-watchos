@@ -129,6 +129,28 @@ describe("fetch shim (QuickJS environment)", () => {
     await expect(promise).rejects.toMatchObject({ name: "AbortError" });
   });
 
+  it("cancels the timeout timer when the response arrives first", async () => {
+    // The abort listener is dropped on settle, so a leaked timer fires
+    // harmlessly — but on the watch every timer round-trips to the native host,
+    // so a settled fetch must not leave one armed. getTimerCount() proves it.
+    vi.useFakeTimers();
+    try {
+      const fetch = g.fetch as (url: string, o?: unknown) => Promise<any>;
+      const promise = fetch("https://api.test/fast", { timeout: 50 });
+      expect(vi.getTimerCount()).toBe(1); // the timeout timer is armed
+      const [id] = hostFetch.mock.calls[0];
+      (g.__resolveFetch as (i: number, j: string) => void)(
+        id,
+        JSON.stringify({ status: 200, body: "ok" }),
+      );
+      const res = await promise;
+      expect(res.status).toBe(200);
+      expect(vi.getTimerCount()).toBe(0); // cleared on settle, not left to fire
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("marks non-2xx responses as not ok", async () => {
     const fetch = g.fetch as (url: string) => Promise<any>;
     const promise = fetch("https://api.test/z");
