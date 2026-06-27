@@ -71,6 +71,9 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 - [design-cx-025-release-freshness.md](./design-cx-025-release-freshness.md) —
   CX-025 OTA `releaseId` (so non-breaking fixes can ship). Core primitive proven
   (JS FNV-1a == Swift `ContentHash`); spec ready for a focused load-flow pass.
+- [design-bundler-choice.md](./design-bundler-choice.md) — why the watch bundle
+  uses esbuild (not Metro/Vite/Rollup/Bun), and when to revisit Rolldown.
+  Verified against the 2026 landscape.
 
 ## Reference / background
 
