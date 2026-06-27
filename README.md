@@ -205,7 +205,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 | Path | What |
 |---|---|
 | `js/` | The renderer + demo app (pure TypeScript, tested on any OS) **and** the SwiftPM host under `js/swift/` — both ship in one npm package. |
-| `js/swift/` | The Swift host as a **SwiftPM package**: `CQuickJS` (quickjs-ng as a Clang module), `ReactWatchCore` (codegen'd wire models), `ReactWatchSupport` (Foundation platform logic — storage/optimistic/notifications), `ReactWatchRuntime` (the QuickJS embedding) — all Linux-built + `swift test`ed — and `ReactWatchHost` (SwiftUI interpreter + bridges + `ReactWatchRootView`, macOS). |
+| `js/swift/` | The Swift host as a **SwiftPM package**: `CQuickJS` (quickjs-ng as a Clang module), `ReactWatchCore` (codegen'd wire models), `ReactWatchSupport` (Foundation platform logic — storage/optimistic/notifications), `ReactWatchRuntime` (the QuickJS embedding) — all Linux-built + `swift test`ed — plus two macOS-gated products: `ReactWatchHost` (SwiftUI interpreter + bridges + `ReactWatchRootView`) and `ReactWatchWidget` (WidgetKit infra: timeline providers + the extension's QuickJS runtime). |
 | `app/` | Expo SDK 56 iOS shell; the watch app is a [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) target that depends on the `js/swift/` package and is a thin `@main`. |
 | `app/targets/widget/` | WidgetKit extension: decodes React-rendered timelines from App Group storage (`ReactWidgets.swift`, `WidgetNodeView.swift`); imports `ReactWatchCore`. |
 | `examples/` | External-consumer templates (`minimal-watch-app`, `expo-watch-app`), each a workspace member. |
@@ -235,18 +235,20 @@ pnpm --filter react-native-watchos build:bytecode  # precompile bundle.qbc
 pnpm --filter react-native-watchos dev        # live reload on 127.0.0.1:8788
 ```
 
-The demo's **Updates** screen reads `REACT_WATCH_OTA_URL` at build time. For a
-local OTA test, serve `dist/bundle.js` from your Mac and rebuild the demo with
-the URL you want the watch to fetch:
+The demo's **Updates** screen reads `REACT_WATCH_OTA_URL` at build time. It is
+the **manifest** URL — `checkForUpdate` fetches the JSON manifest and resolves
+the bundle relative to it (so a `…/manifest.json` URL loads `…/bundle.js` from
+the same directory). The dev server serves `dist/` statically, so both are
+available. Point it at `manifest.json`, not the bundle:
 
 ```bash
 # Simulator: localhost works.
-REACT_WATCH_OTA_URL=http://127.0.0.1:8788/bundle.js \
+REACT_WATCH_OTA_URL=http://127.0.0.1:8788/manifest.json \
   pnpm --filter react-native-watchos build
 
 # Physical watch: bind the dev server to LAN and use your Mac's Wi-Fi IP.
 DEV_HOST=0.0.0.0 pnpm --filter react-native-watchos dev
-REACT_WATCH_OTA_URL=http://192.168.x.y:8788/bundle.js \
+REACT_WATCH_OTA_URL=http://192.168.x.y:8788/manifest.json \
   pnpm --filter react-native-watchos build
 ```
 
@@ -276,6 +278,23 @@ import { watchBuildOptions } from "react-native-watchos/build"; // esbuild prese
 - **Extending natively:** `getHost()` + `QuickJSHostGlobal` are public — see
   [docs/extending.md](./docs/extending.md) for the "add a native capability"
   recipe, and [docs/updates.md](./docs/updates.md) for how updates commit.
+
+**Native setup (Expo plugin + scaffold)** — no manual Xcode wiring:
+
+1. `npx expo install react-native-watchos @bacons/apple-targets`
+2. Add the `react-native-watchos` plugin to `app.json` **after** apple-targets,
+   and declare your watch (and optional widget) target with
+   `expo-target.config.js` — see
+   [`examples/expo-watch-app`](./examples/expo-watch-app) for the exact config.
+3. `npx react-native-watchos scaffold` writes the `@main` Swift glue the plugin
+   can't generate (`targets/watch/WatchApp.swift`, plus the widget bundle when
+   the widget target is enabled).
+4. `npx expo prebuild` — the plugin links the `js/swift/` SwiftPM products into
+   the generated targets and merges each target's Info.plist in one pass (no
+   post-prebuild step).
+5. Build your watch JS with the preset (`watchBuildOptions`) into the target's
+   assets; ship OTA updates by signing the manifest with `signManifest` from
+   `react-native-watchos/manifest`.
 
 Two worked examples (each its own workspace member, both verified on Linux):
 
@@ -347,10 +366,10 @@ the same embedding calls `JSRuntime.swift` makes.
 ### Watch app — requires macOS 15+, Xcode 16+
 
 ```bash
-cd js && npm install && npm run build     # produce the JS bundle
-cd ../app && npm install
-# set your team id in app.json ("appleTeamId")
-npx expo prebuild -p ios --clean          # generates ios/ with the watch target
+pnpm install                              # workspace install (every member)
+pnpm --filter react-native-watchos build  # produce the JS bundle
+# set your team id in app/app.json ("appleTeamId")
+cd app && npx expo prebuild -p ios --clean  # generates ios/ with the watch target
 xed ios                                   # open the workspace
 ```
 
@@ -366,18 +385,19 @@ signing still untested — Rule 12):**
 
 - The watch target depends on the `js/swift/` SwiftPM package. The unified
   `react-native-watchos` config plugin (its `app.plugin.js` entry) writes the
-  SwiftPM references into the generated watch/widget targets during
-  `expo prebuild` (best-effort, wrapped so it can't fail prebuild —
-  apple-targets/node-xcode have no local-package API, so it edits the pbxproj
-  directly), and a post-prebuild step re-applies the links authoritatively once
-  apple-targets has created the targets. If it didn't apply, add
-  it in Xcode (File ▸ Add Package Dependencies ▸ Add Local ▸ `js/swift/`) and link
-  **ReactWatchHost** to the watch target, **ReactWatchCore** +
-  **ReactWatchSupport** + **ReactWatchRuntime** to the widget. The engine is a Clang module
+  SwiftPM references into the generated watch/widget targets **during**
+  `expo prebuild` — via a base mod that runs after apple-targets has created the
+  targets (apple-targets/node-xcode have no local-package API, so it edits the
+  pbxproj directly). There is no separate post-prebuild step, and a genuine link
+  failure now fails the prebuild loudly rather than being swallowed. If it didn't
+  apply, add it in Xcode (File ▸ Add Package Dependencies ▸ Add Local ▸
+  `js/swift/`) and link **ReactWatchHost** to the watch target, **ReactWatchWidget**
+  + **ReactWatchCore** to the widget (ReactWatchWidget pulls in
+  Support/Runtime transitively). The engine is a Clang module
   (`import CQuickJS`) — no bridging header.
 - Confirm `assets/bundle.js` landed in the watch target's bundle resources.
 - `WKRunsIndependentlyOfCompanionApp` (standalone watch app) is set by the
-  plugin by default (`independent` option) and applied by the post-prebuild
+  plugin by default (`independent` option) and applied by the same in-prebuild
   Info.plist merge — for a companion-dependent watch app pass `independent:
   false`. ⚠️ Independence is irreversible after your first App Store upload, so
   choose before submitting (see docs/publishing.md).
