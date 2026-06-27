@@ -3,7 +3,9 @@ import {
   Button,
   fetchAndApplyUpdate,
   onPhoneMessage,
+  publishWidgets,
   sendToPhone,
+  Storage,
   Text,
   VStack,
 } from "react-native-watchos";
@@ -20,7 +22,18 @@ export function App() {
   const [fromPhone, setFromPhone] = useState("waiting for phone…");
   const [sendStatus, setSendStatus] = useState("");
   const [otaStatus, setOtaStatus] = useState("");
+  const [taps, setTaps] = useState<number>(() => Storage.get<number>("taps") ?? 0);
   useEffect(() => onPhoneMessage((m) => setFromPhone(JSON.stringify(m))), []);
+  // The live-data widget pattern: write a value the app owns to shared Storage
+  // (the App Group), then publishWidgets() re-renders the complications and asks
+  // WidgetKit to reload — so the "taps" widget (watch-ui/widgets.tsx) reflects
+  // this immediately.
+  const bump = () => {
+    const next = taps + 1;
+    setTaps(next);
+    Storage.set("taps", next);
+    publishWidgets();
+  };
   // sendToPhone rejects when the phone isn't reachable (CX-022) — handle it, so
   // a tap with no phone surfaces a status instead of leaking an unhandled
   // rejection. This is the pattern to copy.
@@ -69,6 +82,12 @@ export function App() {
           {otaStatus}
         </Text>
       ) : null}
+      <Button onPress={bump}>
+        <Text>Tap +1 (updates widget)</Text>
+      </Button>
+      <Text size={12} color="secondary">
+        Taps: {taps} — live on the "taps" complication
+      </Text>
     </VStack>
   );
 }

@@ -12,9 +12,9 @@ Three halves:
 - **Watch UI** (`watch-ui/App.tsx` → `watch-ui/entry.tsx`) — React on the
   `react-native-watchos` engine, bundled into the watch target's
   `assets/bundle.js`.
-- **Widget** (`watch-ui/widget.entry.tsx`) — a React-rendered complication, a
-  second bundle the watch widget extension evaluates. See
-  [Widget](#widget-a-react-complication).
+- **Widgets** (`watch-ui/widgets.tsx`) — two React-rendered complications (a
+  static one and a live-data one), a second bundle the watch widget extension
+  evaluates. See [Widget](#widget-a-react-complication).
 
 Both bundles are built by one script,
 [`scripts/build-targets.mjs`](./scripts/build-targets.mjs), which calls the
@@ -87,19 +87,33 @@ This example enables the widget target (`"widget": true` above), so it shows the
 full widget path a consumer writes — which is small, because the WidgetKit
 machinery lives in the `ReactWatchWidget` package:
 
-- **JS** — [`watch-ui/widget.entry.tsx`](./watch-ui/widget.entry.tsx) calls
-  `registerWidget({ kind: "example", … })` and renders a React tree. It's a
-  *second* bundle (no `runApp`), so the widget extension process stays small.
+- **JS** — [`watch-ui/widgets.tsx`](./watch-ui/widgets.tsx) calls `registerWidget`
+  and renders React trees. It's registered by *both* bundles (the widget
+  extension renders on demand; the app publishes too) — [`watch-ui/widget.entry.tsx`](./watch-ui/widget.entry.tsx)
+  is just `import "./widgets"` (no `runApp`, so the extension stays small).
   Built by `build:targets` → `targets/widget/assets/bundle.js`.
 - **Swift** — `npx react-native-watchos scaffold` generated
   [`targets/widget/ReactWidgets.swift`](./targets/widget/ReactWidgets.swift): a
-  `@main WidgetBundle` whose `ExampleWidget` (same `kind`) renders through the
-  package's `ReactTimelineProvider` + `reactWidgetView`. That's the whole Swift
-  side — no interpreter, no timeline plumbing, no per-widget QuickJS code.
+  `@main WidgetBundle` whose widgets render through the package's
+  `ReactTimelineProvider` + `reactWidgetView`. That's the whole Swift side — no
+  interpreter, no timeline plumbing, no per-widget QuickJS code.
+
+### Static vs. live-data widgets
+
+The example registers two widgets to show the spectrum — and note the **Swift is
+identical for both**; "live data" is purely a JS concern:
+
+- **`example` (static)** — its `render` reads nothing external, so the widget
+  extension renders constant content on its own. No running app required.
+- **`taps` (live data)** — its `render` reads `Storage.get("taps")` (the shared
+  App Group). The watch app writes that value (`App.tsx`'s "Tap +1" button calls
+  `Storage.set` + `publishWidgets()`), so the complication reflects what you did
+  in the app. The extension shares the same Storage, so it stays correct even
+  when the app is closed.
 
 `expo prebuild` links `ReactWatchWidget` + `ReactWatchCore` into the widget
 target automatically (the prebuild log prints the linked products). For a
-configurable widget (a picker on the watch face) write your own
+*configurable* widget (a picker on the watch face) write your own
 `AppIntentTimelineProvider` on the package's `reactTimeline`/`reactSnapshotEntry`
 helpers — see the demo (`app/targets/widget`).
 
