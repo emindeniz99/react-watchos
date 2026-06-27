@@ -37,8 +37,13 @@ export function handleIntent(name: string, paramsJson?: string): boolean {
   const handler = intents.get(name);
   if (!handler) return false;
   const writesBefore = storageWrites();
-  handler(paramsJson ? JSON.parse(paramsJson) : undefined);
-  if (storageWrites() !== writesBefore) publishWidgets();
+  try {
+    handler(paramsJson ? JSON.parse(paramsJson) : undefined);
+  } finally {
+    // Reload in the finally: a handler that persisted a write and THEN threw
+    // must still republish, or the App Group state and the complication diverge.
+    if (storageWrites() !== writesBefore) publishWidgets();
+  }
   return true;
 }
 

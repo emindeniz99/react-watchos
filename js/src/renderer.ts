@@ -314,14 +314,14 @@ export class WatchRoot {
   runSync<T>(fn: () => T): T {
     const previousPriority = currentUpdatePriority;
     currentUpdatePriority = DiscreteEventPriority;
-    let result: T;
     try {
-      result = fn();
+      return fn();
     } finally {
+      // Flush in the finally so a throwing native-event listener still commits
+      // the state changes that ran before it (matches the tap path's finally).
       currentUpdatePriority = previousPriority;
+      this.flush();
     }
-    this.flush();
-    return result;
   }
 
   private flush(): void {

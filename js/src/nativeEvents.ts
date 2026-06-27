@@ -52,7 +52,15 @@ export function dispatchNativeEvent(
   const set = listeners.get(name);
   if (!set || set.size === 0) return false;
   // Snapshot: a handler that (un)subscribes during dispatch mustn't disturb
-  // this iteration.
-  for (const handler of [...set]) handler(payload);
+  // this iteration. Isolate each handler (match the tap path): one throwing
+  // listener must not starve the others for this push — surface it (fail loud)
+  // but still deliver the payload to everyone else.
+  for (const handler of [...set]) {
+    try {
+      handler(payload);
+    } catch (error) {
+      console.error(`native-event listener for "${name}" threw:`, error);
+    }
+  }
   return true;
 }

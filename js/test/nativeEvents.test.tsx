@@ -82,4 +82,24 @@ describe("native event listeners", () => {
     off();
     expect(dispatchNativeEvent("x")).toBe(false);
   });
+
+  it("isolates a throwing listener — the others still get the payload", () => {
+    // One bad listener for a native push (ble.state, connection, sensor…) must
+    // not starve every later-registered one (the deep review caught this).
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const before = vi.fn();
+    const thrower = vi.fn(() => {
+      throw new Error("boom");
+    });
+    const after = vi.fn();
+    registerNativeListener("x", before);
+    registerNativeListener("x", thrower);
+    registerNativeListener("x", after);
+
+    expect(dispatchNativeEvent("x", { v: 1 })).toBe(true);
+    expect(before).toHaveBeenCalledWith({ v: 1 });
+    expect(after).toHaveBeenCalledWith({ v: 1 }); // not starved by the thrower
+    expect(spy).toHaveBeenCalled(); // surfaced, not swallowed
+    spy.mockRestore();
+  });
 });

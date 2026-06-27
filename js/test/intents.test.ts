@@ -77,4 +77,17 @@ describe("intent auto-reload", () => {
     handleIntent("bulk");
     expect(host.publishWidgets).toHaveBeenCalledTimes(1);
   });
+
+  it("reloads even if the handler throws AFTER persisting (state mustn't diverge)", () => {
+    const host = installMockHost();
+    // The exact shape of an interactive widget button's intent: write, then a
+    // later line throws. The write already landed in shared Storage, so the
+    // complication MUST still republish (the deep review caught this).
+    registerIntent("bumpThenThrow", () => {
+      Storage.counterAdd("taps", 1, 0, 999);
+      throw new Error("boom");
+    });
+    expect(() => handleIntent("bumpThenThrow")).toThrow("boom");
+    expect(host.publishWidgets).toHaveBeenCalledTimes(1);
+  });
 });
