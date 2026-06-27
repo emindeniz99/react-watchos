@@ -52,8 +52,11 @@ function mergeTargetInfoPlists(projectRoot) {
  * Config plugin: link the SwiftPM products + merge the target Info.plists during
  * prebuild, after apple-targets created the targets. Must be called AFTER the
  * apple-targets plugin so our base mod is registered (and runs) after its
- * xcode base mod. Wrapped so a wiring hiccup is surfaced but never fails the
- * whole prebuild.
+ * xcode base mod. A real wiring failure FAILS the prebuild loudly — a silently
+ * unlinked target only resurfaces as a baffling "no such module ReactWatchHost"
+ * at build time, which is far harder to diagnose. The genuinely benign case (no
+ * watch/widget target to wire) doesn't throw — wireLocalPackage skips an absent
+ * target — so it's reported as a warning, not swallowed.
  */
 function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
   const projectRoot = config._internal?.projectRoot ?? process.cwd();
@@ -66,25 +69,30 @@ function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
     platform: "ios",
     mod: MOD_NAME,
     action: (cfg) => {
-      try {
-        const { linked } = wireLocalPackage(cfg.modResults, {
-          packagePath,
-          targetProducts,
-        });
-        if (linked.length) {
-          console.log(
-            `[react-native-watchos] linked SwiftPM products: ${linked.join(", ")}`,
-          );
-        }
-        const merged = mergeTargetInfoPlists(cfg.modRequest.projectRoot);
-        if (merged.length) {
-          console.log(
-            `[react-native-watchos] merged infoPlist into ${merged.join(", ")}`,
-          );
-        }
-      } catch (error) {
+      // No try/catch: a thrown error here means the .pbxproj edit genuinely
+      // failed, and that MUST fail the prebuild rather than ship a project whose
+      // watch target never links the host. The "no target yet" case is handled
+      // inside wireLocalPackage (it skips an absent target), so it surfaces below
+      // as an empty `linked`, not an exception.
+      const { linked } = wireLocalPackage(cfg.modResults, {
+        packagePath,
+        targetProducts,
+      });
+      if (linked.length) {
+        console.log(
+          `[react-native-watchos] linked SwiftPM products: ${linked.join(", ")}`,
+        );
+      } else {
         console.warn(
-          `[react-native-watchos] native wiring skipped: ${error}`,
+          "[react-native-watchos] no watch/widget target was linked — if you " +
+            "expected one, check the apple-targets config and that " +
+            "`react-native-watchos scaffold` has run.",
+        );
+      }
+      const merged = mergeTargetInfoPlists(cfg.modRequest.projectRoot);
+      if (merged.length) {
+        console.log(
+          `[react-native-watchos] merged infoPlist into ${merged.join(", ")}`,
         );
       }
       return cfg;
