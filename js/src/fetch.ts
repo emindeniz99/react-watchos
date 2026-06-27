@@ -93,7 +93,7 @@ class WatchAbortSignal {
    * response arrives — otherwise it fires (and round-trips to the native timer
    * host) after the fetch already settled. Undefined for a controller signal.
    */
-  timerId?: number;
+  timerId: number | undefined = undefined;
 
   addEventListener(type: string, cb: () => void): void {
     if (type === "abort") this.listeners.add(cb);
