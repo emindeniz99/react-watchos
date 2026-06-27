@@ -317,8 +317,11 @@ export class WatchRoot {
     try {
       return fn();
     } finally {
-      // Flush in the finally so a throwing native-event listener still commits
-      // the state changes that ran before it (matches the tap path's finally).
+      // Flush in the finally, mirroring the tap path (dispatchEvent). A native-
+      // event listener that throws is already absorbed by dispatchNativeEvent,
+      // so for the current caller this guards a fn that throws BEFORE mutating
+      // (a malformed-payload JSON.parse) and any future caller whose fn can throw
+      // after a state change — the commit still lands and the error propagates.
       currentUpdatePriority = previousPriority;
       this.flush();
     }
