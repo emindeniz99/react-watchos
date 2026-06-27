@@ -6,9 +6,9 @@ import { context } from "esbuild";
 // for update" can fetch them. This is the demo stand-in for production OTA,
 // which is just static hosting (CDN/S3) — there's no server code to deploy.
 //
-//   npm run build:watch                                   # stamps manifest.json
+//   npm run build:targets                                 # stamps manifest.json
 //   npm run ota:serve                                     # terminal A
-//   REACT_WATCH_OTA_URL=http://127.0.0.1:8788 npm run build:watch && npm run prebuild
+//   REACT_WATCH_OTA_URL=http://127.0.0.1:8788 npm run build:targets && npm run prebuild
 //
 // The watch simulator shares the Mac's network, so 127.0.0.1 works. For a
 // physical watch use your Mac's LAN IP (OTA_HOST=0.0.0.0 here, that IP there).

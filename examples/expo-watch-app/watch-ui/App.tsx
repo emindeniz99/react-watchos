@@ -8,9 +8,9 @@ import {
   VStack,
 } from "react-native-watchos";
 
-// Your OTA endpoint — the manifest your build stamps (scripts/build-watch.mjs
-// calls writeOTAManifest) served from any static host. Injected at build time
-// from REACT_WATCH_OTA_URL; empty until you set it.
+// Your OTA endpoint — the manifest your build stamps (scripts/build-targets.mjs
+// passes a `manifest` to buildBundles) served from any static host. Injected at
+// build time from REACT_WATCH_OTA_URL; empty until you set it.
 const OTA_URL = process.env.REACT_WATCH_OTA_URL;
 
 // The watch UI — React running in QuickJS on the watch, rendering native

@@ -2,8 +2,8 @@ node_modules/
 dist/
 ios/
 .expo/
-# Generated bundles + OTA manifest (build them with `npm run build:watch` /
-# `build:widget`). The committed bits are the per-target Swift glue below.
+# Generated bundles + OTA manifest (build them with `npm run build:targets`).
+# The committed bits are the per-target Swift glue below.
 targets/*/assets/bundle.js
 targets/watch/assets/manifest.json
 targets/*/assets/*.qbc

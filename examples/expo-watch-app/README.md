@@ -10,22 +10,25 @@ Three halves:
 - **iPhone app** (`App.tsx`, `index.js`, `app.json`) — ordinary Expo/RN. Uses
   `react-native-watch-connectivity` to talk to the watch.
 - **Watch UI** (`watch-ui/App.tsx` → `watch-ui/entry.tsx`) — React on the
-  `react-native-watchos` engine, bundled by
-  [`scripts/build-watch.mjs`](./scripts/build-watch.mjs) (the shared build
-  preset) into the watch target's `assets/bundle.js`.
+  `react-native-watchos` engine, bundled into the watch target's
+  `assets/bundle.js`.
 - **Widget** (`watch-ui/widget.entry.tsx`) — a React-rendered complication, a
-  second bundle ([`scripts/build-widget.mjs`](./scripts/build-widget.mjs)) the
-  watch widget extension evaluates. See [Widget](#widget-a-react-complication).
+  second bundle the watch widget extension evaluates. See
+  [Widget](#widget-a-react-complication).
+
+Both bundles are built by one script,
+[`scripts/build-targets.mjs`](./scripts/build-targets.mjs), which calls the
+package's `buildBundles` helper (the shared preset) — so there's no per-target
+esbuild boilerplate, just the entry/outfile that differ.
 
 ## What's verifiable on Linux (and in CI)
 
 The watch UI is pure JS, so it's fully checkable without a Mac:
 
 ```bash
-pnpm --filter expo-watch-app typecheck    # watch-ui + build scripts + test
-pnpm --filter expo-watch-app test         # runApp + MemoryHost + /testing
-pnpm --filter expo-watch-app build:watch  # -> targets/watch/assets/bundle.js
-pnpm --filter expo-watch-app build:widget # -> targets/widget/assets/bundle.js
+pnpm --filter expo-watch-app typecheck     # watch-ui + build script + test
+pnpm --filter expo-watch-app test          # runApp + MemoryHost + /testing
+pnpm --filter expo-watch-app build:targets # -> watch + widget bundles
 ```
 
 It consumes the renderer through the pnpm workspace (`"react-native-watchos":
@@ -87,7 +90,7 @@ machinery lives in the `ReactWatchWidget` package:
 - **JS** — [`watch-ui/widget.entry.tsx`](./watch-ui/widget.entry.tsx) calls
   `registerWidget({ kind: "example", … })` and renders a React tree. It's a
   *second* bundle (no `runApp`), so the widget extension process stays small.
-  Built by `build:widget` → `targets/widget/assets/bundle.js`.
+  Built by `build:targets` → `targets/widget/assets/bundle.js`.
 - **Swift** — `npx react-native-watchos scaffold` generated
   [`targets/widget/ReactWidgets.swift`](./targets/widget/ReactWidgets.swift): a
   `@main WidgetBundle` whose `ExampleWidget` (same `kind`) renders through the
@@ -107,12 +110,13 @@ fetches a manifest and stages a fresher JS bundle without a rebuild/resubmit.
 OTA in production is just static hosting — there's no server to deploy. The
 moving parts:
 
-1. **`build:watch` stamps the manifest.** [`scripts/build-watch.mjs`](./scripts/build-watch.mjs)
-   calls `writeOTAManifest` (from `react-native-watchos/manifest`), which writes
-   `targets/watch/assets/manifest.json` next to the bundle — the manifest's
-   `releaseId` is the bundle's content hash, so a changed bundle is detectable.
-   It also declares this UI's capability contract
-   (`requiredFeatures: ["connectivity", "network", "ota"]`).
+1. **`build:targets` stamps the manifest.** [`scripts/build-targets.mjs`](./scripts/build-targets.mjs)
+   passes a `manifest` for the watch target, so `buildBundles` calls
+   `writeOTAManifest` and writes `targets/watch/assets/manifest.json` next to the
+   bundle — the manifest's `releaseId` is the bundle's content hash, so a changed
+   bundle is detectable. It also declares this UI's capability contract
+   (`requiredFeatures: ["connectivity", "network", "ota"]`). The widget target
+   has no `manifest` (it's shipped, not OTA'd).
 2. **`REACT_WATCH_OTA_URL` is baked into the bundle at build time** — the URL the
    button fetches `/manifest.json` from. Empty (button shows a hint) unless set.
 3. **Serve the assets.** [`scripts/serve-ota.mjs`](./scripts/serve-ota.mjs)
@@ -123,11 +127,11 @@ Demo flow on the simulator (the watch sim shares the Mac's network, so
 `127.0.0.1` works):
 
 ```bash
-REACT_WATCH_OTA_URL=http://127.0.0.1:8788 pnpm build:watch  # bake URL + stamp manifest
+REACT_WATCH_OTA_URL=http://127.0.0.1:8788 pnpm build:targets  # bake URL + stamp manifest
 pnpm prebuild                                               # build the app, run it on the sim
 pnpm ota:serve                                              # terminal A: serve the assets
 # edit watch-ui/App.tsx, then re-stamp the served bundle:
-REACT_WATCH_OTA_URL=http://127.0.0.1:8788 pnpm build:watch  # new releaseId
+REACT_WATCH_OTA_URL=http://127.0.0.1:8788 pnpm build:targets  # new releaseId
 # tap "Check for update" on the watch → "staged v1 — relaunch"
 ```
 

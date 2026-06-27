@@ -5,12 +5,11 @@
   "description": "An Expo iPhone app that adds a watch feature powered by react-native-watchos",
   "main": "index.js",
   "scripts": {
-    "build:watch": "node scripts/build-watch.mjs",
-    "build:widget": "node scripts/build-widget.mjs",
+    "build:targets": "node scripts/build-targets.mjs",
     "ota:serve": "node scripts/serve-ota.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "prebuild": "pnpm build:watch && pnpm build:widget && expo prebuild -p ios --clean"
+    "prebuild": "pnpm build:targets && expo prebuild -p ios --clean"
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.7",
