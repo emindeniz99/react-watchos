@@ -856,12 +856,19 @@ final class ReactWatchModel: ObservableObject {
         let js = try JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
         js.useJSCallBridge = useJSCallBridge  // CR-5 A/B selector
         js.bridge.commit = { [weak self] json in
-            self?.decodeQueue.async {
+            guard let self else { return }
+            // Capture the generation this commit was emitted under: the tree is
+            // decoded on a background queue, and a reload meanwhile would swap the
+            // runtime. Without this guard the stale tree would clobber the new
+            // runtime's root and advance its ack (CX-008) — the one async settle
+            // that was missing the guard every other one has.
+            let gen = self.generation
+            self.decodeQueue.async { [weak self] in
                 let decoded = try? JSONDecoder().decode(
                     RNTree.self, from: Data(json.utf8)
                 )
-                DispatchQueue.main.async {
-                    guard let self else { return }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, gen == self.generation else { return }
                     guard let tree = decoded else {
                         self.runtimeError = "tree decode failed"
                         return
