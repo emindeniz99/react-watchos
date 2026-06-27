@@ -31,7 +31,14 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
 
     /// How long a `bleConnect` waits for the first connection before rejecting,
     /// so a connect to an absent peripheral doesn't hang the JS promise forever.
-    private let connectTimeout: TimeInterval = 15
+    /// Injectable so the timeout-drain / epoch paths are unit-testable without a
+    /// 15s real-time wait (see BluetoothBridgeTests).
+    private let connectTimeout: TimeInterval
+
+    init(connectTimeout: TimeInterval = 15) {
+        self.connectTimeout = connectTimeout
+        super.init()
+    }
 
     private var central: CBCentralManager?
     private var peripheral: CBPeripheral?
@@ -45,6 +52,18 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     /// characteristic is known, so a subscribe/write to a UUID that's *still*
     /// absent can be rejected (not mistaken for "in a not-yet-discovered service").
     private var servicesAwaitingDiscovery = 0
+    /// Bumped on every runtime swap. A connect-timeout closure captures the
+    /// epoch it was armed under and no-ops if a reload has happened since, so it
+    /// can't reject a NEW runtime's connect that reused the same invoke id (ids
+    /// reset per runtime).
+    private var connectEpoch = 0
+
+    /// A connection exists or is being established. Used to fast-reject a
+    /// write/subscribe issued with no connect in flight, which would otherwise
+    /// queue for a discovery that never arrives and hang the JS promise forever.
+    private var isConnectedOrConnecting: Bool {
+        peripheral != nil || session.pendingConnect != nil
+    }
 
     /// The direct `ble` op channel — now only `disconnect` (connect/write/
     /// subscribe moved to handleInvoke so they can report a result).
@@ -74,6 +93,13 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             guard let service = p?.service else {
                 return reject(id, "INVALID_REQUEST", "bleConnect needs a service UUID")
             }
+            // Reject a malformed UUID up front: CBUUID(string:) raises an uncaught
+            // NSException, and connect()'s own guard would just drop a bad value
+            // silently → the promise hangs to the 15s timeout. BluetoothUUID
+            // accepts exactly what CBUUID does, and is Linux-tested.
+            guard BluetoothUUID.canonical(service) != nil else {
+                return reject(id, "INVALID_REQUEST", "malformed service UUID")
+            }
             // Only one connect promise in flight: a re-entrant connect rejects
             // the stale one rather than leaving it hanging.
             if let stale = session.awaitConnect(id: id) {
@@ -85,12 +111,25 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             guard let c = p?.characteristic, let v = p?.value else {
                 return reject(id, "INVALID_REQUEST", "bleWrite needs characteristic + value")
             }
+            guard BluetoothUUID.canonical(c) != nil else {
+                return reject(id, "INVALID_REQUEST", "malformed characteristic UUID")
+            }
+            // No connection in flight → the write would queue for a discovery
+            // that never arrives and hang forever. Fail fast instead.
+            guard isConnectedOrConnecting else {
+                return reject(id, "UNAVAILABLE", "not connected")
+            }
             write(c, v, confirm: p?.confirm, invokeId: id)
         case "bleSubscribe":
             guard let c = p?.characteristic else {
                 return reject(id, "INVALID_REQUEST", "bleSubscribe needs a characteristic")
             }
-            let key = BluetoothUUID.canonical(c) ?? c
+            guard let key = BluetoothUUID.canonical(c) else {
+                return reject(id, "INVALID_REQUEST", "malformed characteristic UUID")
+            }
+            guard isConnectedOrConnecting else {
+                return reject(id, "UNAVAILABLE", "not connected")
+            }
             if let stale = session.awaitSubscribe(characteristic: key, id: id) {
                 reject(stale, "INVALID_REQUEST", "superseded by a newer bleSubscribe")
             }
@@ -116,12 +155,25 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         // nonisolated(unsafe) is the same self-capture pattern the other bridges
         // use for their async callbacks.
         nonisolated(unsafe) let bridge = self
+        let epoch = connectEpoch
         DispatchQueue.main.asyncAfter(deadline: .now() + connectTimeout) {
-            guard bridge.session.pendingConnect == id,
-                let pending = bridge.session.takeConnectSettle()
-            else { return }
-            bridge.central?.stopScan()
-            bridge.reject(pending, "UNAVAILABLE", "connect timed out")
+            bridge.handleConnectTimeout(id: id, epoch: epoch)
+        }
+    }
+
+    /// The connect-timeout firing, factored out of the asyncAfter closure so the
+    /// drain + epoch logic is deterministically unit-testable (no 15s wait).
+    /// No-ops unless this id is still the pending connect AND no reload has
+    /// bumped the epoch since the timeout was armed — a stale timeout from a
+    /// previous runtime must not reject a new connect that reused the same id.
+    func handleConnectTimeout(id: Int, epoch: Int) {
+        guard connectEpoch == epoch, session.pendingConnect == id else { return }
+        central?.stopScan()
+        // Reject the connect AND any write/subscribe queued while it was in
+        // flight — they were all waiting on a connection that never came, so
+        // draining only the connect would leak those promises.
+        for pending in session.takeAllPending() {
+            reject(pending, "UNAVAILABLE", "connect timed out")
         }
     }
 
@@ -191,6 +243,9 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     /// in-flight correlation is dropped (the old runtime's promises are gone).
     func resetPendingForReload() {
         _ = session.takeAllPending()
+        // Invalidate any in-flight connect timeout armed by the old runtime, so
+        // it can't reject a new connect that reuses the same (reset) invoke id.
+        connectEpoch &+= 1
     }
 
     private func write(

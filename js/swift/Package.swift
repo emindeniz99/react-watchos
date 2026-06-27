@@ -42,6 +42,15 @@ var products: [Product] = [
     .library(name: "ReactWatchRuntime", targets: ["ReactWatchRuntime"])
 ]
 
+// The test target depends on the Foundation+C targets everywhere; on a Mac it
+// ALSO depends on the watchOS host/widget so `xcodebuild test` on the watch sim
+// can reach the Darwin bridges (BluetoothBridge et al.) via @testable import.
+// Those bridges are empty modules off-watchOS and the bridge tests themselves
+// are #if os(watchOS), so the extra deps are inert under `swift test`.
+var testTargetDeps: [Target.Dependency] = [
+    "ReactWatchCore", "ReactWatchSupport", "ReactWatchRuntime"
+]
+
 var targets: [Target] = [
     .target(name: "CQuickJS"),
     .target(name: "ReactWatchCore"),
@@ -49,15 +58,7 @@ var targets: [Target] = [
     // notification scheduling) extracted from the SwiftUI host so it's
     // unit-tested on Linux instead of riding along in the macOS-only target.
     .target(name: "ReactWatchSupport", dependencies: ["ReactWatchCore"]),
-    .target(name: "ReactWatchRuntime", dependencies: ["CQuickJS"]),
-    // `swift test`: decode real serializer fixtures with the codegen'd models,
-    // unit-test the support logic, and smoke the QuickJS embedding. Runs on
-    // Linux (swift test) and on the watchOS simulator (xcodebuild test).
-    .testTarget(
-        name: "ReactWatchTests",
-        dependencies: ["ReactWatchCore", "ReactWatchSupport", "ReactWatchRuntime"],
-        resources: [.copy("Fixtures")]
-    )
+    .target(name: "ReactWatchRuntime", dependencies: ["CQuickJS"])
 ]
 
 if includeAppleHost {
@@ -80,7 +81,21 @@ if includeAppleHost {
             ]
         )
     )
+    testTargetDeps.append("ReactWatchHost")
+    testTargetDeps.append("ReactWatchWidget")
 }
+
+// `swift test`: decode real serializer fixtures with the codegen'd models,
+// unit-test the support logic, and smoke the QuickJS embedding. Runs on Linux
+// (swift test) and on the watchOS simulator (xcodebuild test, where the
+// #if os(watchOS) bridge tests compile and exercise the real Darwin code).
+targets.append(
+    .testTarget(
+        name: "ReactWatchTests",
+        dependencies: testTargetDeps,
+        resources: [.copy("Fixtures")]
+    )
+)
 
 let package = Package(
     name: "ReactWatchHost",
