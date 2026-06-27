@@ -156,13 +156,36 @@ function hostBridgeSwift() {
   const fields = directMethods.map(
     (m) => `    public var ${m.name}: ${swiftClosureType(m)}?`,
   );
-  const installs = directMethods.map(
-    (m) =>
-      `        JS_SetPropertyStr(\n            context, host, "${m.name}",\n            JS_NewCFunction(context, ${trampoline(m)}, "${m.name}", ${argsOf(m).length}))`,
-  );
+  const installLine = (m) =>
+    `        JS_SetPropertyStr(\n            context, host, "${m.name}",\n            JS_NewCFunction(context, ${trampoline(m)}, "${m.name}", ${argsOf(m).length}))`;
+  // Group the installs by target: shared functions go on every embedding;
+  // watch-only ones are omitted in the widget extension so JS feature detection
+  // (typeof __host.fetch) is correct there and a stray call fails loudly instead
+  // of hanging on a nil-backed no-op trampoline (the widget never sets those).
+  const inTarget = (m, t) => m.targets.includes(t);
+  const sharedInstalls = directMethods
+    .filter((m) => inTarget(m, "watch") && inTarget(m, "widget"))
+    .map(installLine);
+  const watchOnlyInstalls = directMethods
+    .filter((m) => inTarget(m, "watch") && !inTarget(m, "widget"))
+    .map(installLine);
+  const widgetOnlyInstalls = directMethods
+    .filter((m) => !inTarget(m, "watch") && inTarget(m, "widget"))
+    .map(installLine);
+  const targetedBlock = (installs, target) =>
+    installs.length === 0
+      ? []
+      : [`        if target == .${target} {`, ...installs.map((l) => `    ${l}`), "        }"];
   return `${[
     banner(),
     "import CQuickJS",
+    "",
+    "/// Which embedding is installing the bridge — selects which host functions",
+    "/// are exposed on `__host`. Generated from each method's schema `targets`.",
+    "public enum HostTarget: Sendable {",
+    "    case watch",
+    "    case widget",
+    "}",
     "",
     "/// Every synchronous `__host` callback the JS bridge dispatches to. The",
     "/// embedding host (ReactWatchHost / IntentRuntime) sets the feature closures;",
@@ -176,9 +199,15 @@ function hostBridgeSwift() {
     "}",
     "",
     "extension JSRuntime {",
-    "    /// Installs every generated host function onto the `__host` object.",
-    "    func installHostBridge(into host: JSValue, context: OpaquePointer) {",
-    ...installs,
+    "    /// Installs the generated host functions onto `__host` for `target`.",
+    "    /// Watch-only functions are absent in the widget so JS feature detection",
+    "    /// is correct there and a stray call fails loudly, not silently hangs.",
+    "    func installHostBridge(",
+    "        into host: JSValue, context: OpaquePointer, target: HostTarget",
+    "    ) {",
+    ...sharedInstalls,
+    ...targetedBlock(watchOnlyInstalls, "watch"),
+    ...targetedBlock(widgetOnlyInstalls, "widget"),
     "    }",
     "}",
     "",

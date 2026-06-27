@@ -35,10 +35,16 @@ public final class WidgetIntentRuntime {
     public init?(appGroupId: String) {
         store = SharedWidgetStore(appGroupId: appGroupId)
         counters = CoordinatedCounterStore(appGroupId: appGroupId)
-        guard let js = try? JSRuntime(memoryLimitBytes: 16 * 1024 * 1024) else {
+        guard
+            let js = try? JSRuntime(
+                memoryLimitBytes: 16 * 1024 * 1024, target: .widget)
+        else {
             return nil
         }
         self.js = js
+        // Non-fatal JS errors (a throwing intent handler, a bad timeline render)
+        // would otherwise vanish in the extension — surface them to the console.
+        js.onError = { print("[react-watch-widget]", $0) }
         // The intent entrypoint must not mount UI; ignore any commit.
         js.bridge.commit = { _ in }
         js.bridge.publishWidgets = { [store] json in
@@ -56,13 +62,74 @@ public final class WidgetIntentRuntime {
             try js.evaluate(
                 "globalThis.__entrypoint = \"intent\"", filename: "entry.js"
             )
-            try loadBundle()
+            installCapabilities()
+            try loadBundle(appGroupId: appGroupId)
         } catch {
             return nil
         }
     }
 
-    private func loadBundle() throws {
+    /// Exposes the widget target's capability set + bridge protocol to JS before
+    /// the bundle runs (ARCH-01), mirroring the app's installHostCapabilities so
+    /// the same JS gate logic sees a consistent host. HostFeatures.widget is the
+    /// shared source of truth (the widget can't back fetch/ble/sensor/etc.).
+    private func installCapabilities() {
+        let features = HostFeatures.widget.sorted()
+        let json =
+            (try? JSONSerialization.data(withJSONObject: features))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        try? js.evaluate(
+            "globalThis.__hostFeatures=\(json);"
+                + "globalThis.__bridgeProtocol=\(RNWire.bridgeProtocol);",
+            filename: "host-capabilities.js"
+        )
+    }
+
+    private func loadBundle(appGroupId: String) throws {
+        // Render the SAME bundle the app last booted healthily: the known-good
+        // OTA record (which the app promotes on its first healthy commit), else
+        // the shipped bundle. Never the unvetted *active* OTA — the app's
+        // crash-loop guard may not have cleared it yet, and a bundle that bricks
+        // the extension would brick the complication on every refresh.
+        if let record = knownGoodRecord(appGroupId: appGroupId),
+            !record.js.isEmpty
+        {
+            try evaluateKnownGood(record, appGroupId: appGroupId)
+            return
+        }
+        try loadShippedBundle()
+    }
+
+    /// The last OTA record the app promoted as known-good, from the App Group.
+    private func knownGoodRecord(appGroupId: String) -> OTARecord? {
+        guard
+            let url = OTAFiles.url(
+                appGroupId: appGroupId, OTAFiles.knownGoodRecord),
+            let data = try? Data(contentsOf: url)
+        else { return nil }
+        return try? JSONDecoder().decode(OTARecord.self, from: data)
+    }
+
+    /// Run the known-good OTA bundle, preferring its pinned bytecode (faster cold
+    /// start in the short-lived extension) and falling back to the source when
+    /// it's missing or hash-stale — the same trust rule the app uses (OP-1).
+    private func evaluateKnownGood(_ record: OTARecord, appGroupId: String) throws {
+        if let url = OTAFiles.url(
+            appGroupId: appGroupId, OTAFiles.knownGoodBytecode),
+            let data = try? Data(contentsOf: url),
+            record.bytecodeHash == ContentHash.of(data)
+        {
+            do {
+                try js.evaluateBytecode(data)
+                return
+            } catch {
+                // engine-version stale → parse the source below
+            }
+        }
+        try js.evaluate(record.js)
+    }
+
+    private func loadShippedBundle() throws {
         // Prefer precompiled bytecode (faster cold start in the short-lived
         // extension), fall back to parsing bundle.js.
         if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),

@@ -32,6 +32,9 @@ public final class JSRuntime {
 
     private let runtime: OpaquePointer
     private let context: OpaquePointer
+    /// Which embedding this runtime is — selects which host functions get
+    /// installed on `__host` (the widget extension omits the watch-only ones).
+    private let target: HostTarget
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
 
     /// Selects the Swift→JS call mechanism (CR-5). true: direct `JS_Call` on
@@ -45,14 +48,19 @@ public final class JSRuntime {
     /// looked up lazily once the bundle defines them. Freed in deinit.
     private var globalFnCache: [String: JSValue] = [:]
 
-    /// - Parameter memoryLimitBytes: caps the QuickJS heap (the widget
-    ///   extension runs in a tight ~30MB budget; nil = unlimited).
-    public init(memoryLimitBytes: Int? = nil) throws {
+    /// - Parameters:
+    ///   - memoryLimitBytes: caps the QuickJS heap (the widget extension runs in
+    ///     a tight ~30MB budget; nil = unlimited).
+    ///   - target: which embedding this is. Defaults to `.watch` (the full app);
+    ///     the widget extension passes `.widget` so only the host functions it
+    ///     backs are installed on `__host`.
+    public init(memoryLimitBytes: Int? = nil, target: HostTarget = .watch) throws {
         guard let rt = JS_NewRuntime(), let ctx = JS_NewContext(rt) else {
             throw JSError.initialization
         }
         runtime = rt
         context = ctx
+        self.target = target
         if let memoryLimitBytes {
             JS_SetMemoryLimit(rt, size_t(memoryLimitBytes))
         }
@@ -391,8 +399,9 @@ public final class JSRuntime {
         bridge.log = { print("[js]", $0) }
 
         let host = JS_NewObject(context)
-        // Every direct host function is installed from the schema (CX-023).
-        installHostBridge(into: host, context: context)
+        // Every direct host function for this target is installed from the schema
+        // (CX-023); the widget omits the watch-only ones it can't back.
+        installHostBridge(into: host, context: context, target: target)
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }

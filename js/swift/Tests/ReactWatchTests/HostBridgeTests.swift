@@ -165,4 +165,28 @@ final class HostBridgeTests: XCTestCase {
         // A via-invoke method is NOT a direct host function (routed through invoke).
         XCTAssertTrue(r.evaluateBool("typeof __host.saveUpdate === 'undefined'"))
     }
+
+    func testWidgetTargetInstallsOnlyTheFunctionsItBacks() throws {
+        // The widget extension can't back fetch/ble/sensor/etc., so installing
+        // them as nil-backed no-op trampolines would make JS feature detection
+        // (typeof __host.fetch) wrongly report them present — and a call would
+        // hang on a no-op instead of failing loudly. The widget target omits them.
+        let widget = try JSRuntime(target: .widget)
+        for name in [
+            "commit", "log", "setTimer", "clearTimer", "invoke", "publishWidgets",
+            "getItem", "setItem", "counterGet", "counterAdd",
+        ] {
+            XCTAssertTrue(
+                widget.evaluateBool("typeof __host.\(name) === 'function'"),
+                "shared __host.\(name) should be installed on the widget")
+        }
+        for name in [
+            "playHaptic", "cancelNotification", "fetch", "abortFetch", "ble",
+            "sensor", "generate",
+        ] {
+            XCTAssertTrue(
+                widget.evaluateBool("typeof __host.\(name) === 'undefined'"),
+                "watch-only __host.\(name) must NOT be installed on the widget")
+        }
+    }
 }

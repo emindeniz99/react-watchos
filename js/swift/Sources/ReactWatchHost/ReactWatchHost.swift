@@ -202,21 +202,24 @@ final class ReactWatchModel: ObservableObject {
 
     /// The persisted active OTA bundle (js/src/update.ts): source + metadata in
     /// ONE atomically-written record (OTARecord), so an apply can't half-land.
+    /// Filenames come from the shared OTAFiles so the widget reads the same paths.
     private var otaRecordURL: URL? {
-        appGroupFile("ota-bundle.json")
+        appGroupFile(OTAFiles.activeRecord)
     }
 
     /// On-device-compiled bytecode cache for the OTA bundle (CR-17), so a cold
     /// start skips the parser. Pinned to the record by `bytecodeHash`.
     private var otaBytecodeURL: URL? {
-        appGroupFile("ota-bundle.qbc")
+        appGroupFile(OTAFiles.activeBytecode)
     }
 
     /// Previous-known-good OTA snapshot (ARCH-04): the last OTA record that
     /// reached a healthy commit, kept so a crash-looping bundle can roll back to
     /// a build that worked on this device instead of all the way to shipped.
-    private var otaKnownGoodURL: URL? { appGroupFile("ota-bundle.good.json") }
-    private var otaKnownGoodBytecodeURL: URL? { appGroupFile("ota-bundle.good.qbc") }
+    private var otaKnownGoodURL: URL? { appGroupFile(OTAFiles.knownGoodRecord) }
+    private var otaKnownGoodBytecodeURL: URL? {
+        appGroupFile(OTAFiles.knownGoodBytecode)
+    }
 
     /// The OTA record this launch actually booted (nil = running shipped). Set in
     /// `load`; read in the first-healthy-commit handler to promote it to the

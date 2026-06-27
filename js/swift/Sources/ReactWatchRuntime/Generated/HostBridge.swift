@@ -3,6 +3,13 @@
 
 import CQuickJS
 
+/// Which embedding is installing the bridge — selects which host functions
+/// are exposed on `__host`. Generated from each method's schema `targets`.
+public enum HostTarget: Sendable {
+    case watch
+    case widget
+}
+
 /// Every synchronous `__host` callback the JS bridge dispatches to. The
 /// embedding host (ReactWatchHost / IntentRuntime) sets the feature closures;
 /// JSRuntime sets the infra ones (setTimer/clearTimer/log) to internal
@@ -31,8 +38,12 @@ public struct HostBridge {
 }
 
 extension JSRuntime {
-    /// Installs every generated host function onto the `__host` object.
-    func installHostBridge(into host: JSValue, context: OpaquePointer) {
+    /// Installs the generated host functions onto `__host` for `target`.
+    /// Watch-only functions are absent in the widget so JS feature detection
+    /// is correct there and a stray call fails loudly, not silently hangs.
+    func installHostBridge(
+        into host: JSValue, context: OpaquePointer, target: HostTarget
+    ) {
         JS_SetPropertyStr(
             context, host, "commit",
             JS_NewCFunction(context, hostCommit, "commit", 1))
@@ -63,27 +74,29 @@ extension JSRuntime {
         JS_SetPropertyStr(
             context, host, "counterAdd",
             JS_NewCFunction(context, hostCounterAdd, "counterAdd", 4))
-        JS_SetPropertyStr(
-            context, host, "playHaptic",
-            JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
-        JS_SetPropertyStr(
-            context, host, "cancelNotification",
-            JS_NewCFunction(context, hostCancelNotification, "cancelNotification", 1))
-        JS_SetPropertyStr(
-            context, host, "fetch",
-            JS_NewCFunction(context, hostFetch, "fetch", 2))
-        JS_SetPropertyStr(
-            context, host, "abortFetch",
-            JS_NewCFunction(context, hostAbortFetch, "abortFetch", 1))
-        JS_SetPropertyStr(
-            context, host, "ble",
-            JS_NewCFunction(context, hostBle, "ble", 1))
-        JS_SetPropertyStr(
-            context, host, "sensor",
-            JS_NewCFunction(context, hostSensor, "sensor", 1))
-        JS_SetPropertyStr(
-            context, host, "generate",
-            JS_NewCFunction(context, hostGenerate, "generate", 2))
+        if target == .watch {
+            JS_SetPropertyStr(
+                context, host, "playHaptic",
+                JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
+            JS_SetPropertyStr(
+                context, host, "cancelNotification",
+                JS_NewCFunction(context, hostCancelNotification, "cancelNotification", 1))
+            JS_SetPropertyStr(
+                context, host, "fetch",
+                JS_NewCFunction(context, hostFetch, "fetch", 2))
+            JS_SetPropertyStr(
+                context, host, "abortFetch",
+                JS_NewCFunction(context, hostAbortFetch, "abortFetch", 1))
+            JS_SetPropertyStr(
+                context, host, "ble",
+                JS_NewCFunction(context, hostBle, "ble", 1))
+            JS_SetPropertyStr(
+                context, host, "sensor",
+                JS_NewCFunction(context, hostSensor, "sensor", 1))
+            JS_SetPropertyStr(
+                context, host, "generate",
+                JS_NewCFunction(context, hostGenerate, "generate", 2))
+        }
     }
 }
 
