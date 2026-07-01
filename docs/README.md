@@ -79,6 +79,12 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   seam, why it's deferred (no failing scenario today), and the shape to build.
 
 - [code-review-2026-06-27-deep-dive.md](./code-review-2026-06-27-deep-dive.md) — adversarially-verified code+design+DX review (64 confirmed findings; the blocker is fixed).
+- [system-architecture-review-2026-07-01-alternatives.md](./system-architecture-review-2026-07-01-alternatives.md) —
+  full-system review + strategic alternatives (NF-01…36): engine
+  (quickjs-ng vs XS/Moddable vs Hermes, argued in depth), UI model (React
+  vs SolidJS/signals — verdict: the wire protocol is the real seam),
+  design-system layer spec, and a prioritized P0–P2 plan. Newest review;
+  supersedes earlier ones where they disagree.
 
 ## Reference / background
 
