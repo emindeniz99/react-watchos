@@ -1,4 +1,5 @@
 #if os(watchOS)
+import Charts
 import ReactWatchCore
 import ReactWatchSupport
 import SwiftUI
@@ -176,6 +177,52 @@ public struct WidgetNodeView: View {
                 systemImage: node.string("systemName") ?? "circle"
             )
             .foregroundStyle(color(node.string("color")) ?? .primary)
+        case "Grid":
+            Grid(
+                horizontalSpacing: cgFloat(node, "horizontalSpacing"),
+                verticalSpacing: cgFloat(node, "verticalSpacing")
+            ) {
+                ForEach(node.children.filter { $0.type == "GridRow" }) { row in
+                    GridRow {
+                        ForEach(row.children) { child in
+                            WidgetNodeView(node: child, appGroupId: appGroupId)
+                        }
+                    }
+                }
+            }
+        case "GridRow":
+            HStack { children(node) }
+        case "ShareLink":
+            // Widgets can't present a share sheet: degrade to the label.
+            if node.children.isEmpty {
+                Image(systemName: "square.and.arrow.up")
+            } else {
+                children(node)
+            }
+        case "Chart":
+            chart(node)
+        case "LabeledContent":
+            LabeledContent(node.string("label") ?? "") {
+                if node.children.isEmpty {
+                    Text(node.string("value") ?? "")
+                } else {
+                    children(node)
+                }
+            }
+        case "ContentUnavailable":
+            ContentUnavailableView {
+                SwiftUI.Label(
+                    node.string("title") ?? "",
+                    systemImage: node.string("systemName") ?? "circle"
+                )
+            } description: {
+                if let description = node.string("description") {
+                    Text(description)
+                }
+            }
+        case "Toolbar", "ToolbarItem":
+            // No toolbar chrome in a widget.
+            EmptyView()
         case "Toggle":
             Text(node.string("label") ?? "")
         case "Slider", "Stepper":
@@ -257,6 +304,54 @@ public struct WidgetNodeView: View {
             text = text.font(.system(size: CGFloat(size)))
         }
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
+    }
+
+    /// Minimal Swift Charts binding, parity with NodeView.chartView.
+    @ViewBuilder private func chart(_ node: RNNode) -> some View {
+        let points = RNStyle.chartPoints(from: node.props["points"])
+        let kind = node.string("type") ?? "line"
+        let seriesColor = color(node.string("color")) ?? Color.accentColor
+        Chart(Array(points.enumerated()), id: \.offset) { index, point in
+            Self.chartMark(
+                kind: kind, point: point, index: index, color: seriesColor)
+        }
+    }
+
+    @ChartContentBuilder private static func chartMark(
+        kind: String, point: RNStyle.ChartPoint, index: Int, color: Color
+    ) -> some ChartContent {
+        if let label = point.label {
+            switch kind {
+            case "bar":
+                BarMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "area":
+                AreaMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "point":
+                PointMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            default:
+                LineMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            }
+        } else {
+            let x = point.x ?? Double(index)
+            switch kind {
+            case "bar":
+                BarMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "area":
+                AreaMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "point":
+                PointMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            default:
+                LineMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            }
+        }
     }
 
     /// One rich-text segment as a concatenable Text — color only when the

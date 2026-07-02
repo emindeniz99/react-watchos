@@ -989,3 +989,28 @@ final class OTARecordSignedMessageTests: XCTestCase {
                 .signedMessage())
     }
 }
+
+final class RNStyleChartTests: XCTestCase {
+    func testParsesNumericAndCategoricalPoints() {
+        let points = RNStyle.chartPoints(
+            from: .array([
+                .object(["x": .number(1), "y": .number(10)]),
+                .object(["x": .string("Mon"), "y": .number(3)]),
+            ]))
+        XCTAssertEqual(points, [
+            RNStyle.ChartPoint(x: 1, y: 10),
+            RNStyle.ChartPoint(label: "Mon", y: 3),
+        ])
+    }
+
+    func testDropsMalformedPointsKeepsRest() {
+        let points = RNStyle.chartPoints(
+            from: .array([
+                .object(["x": .number(1)]),  // no y -> dropped
+                .string("junk"),
+                .object(["y": .number(5)]),  // x optional (index-less)
+            ]))
+        XCTAssertEqual(points, [RNStyle.ChartPoint(y: 5)])
+        XCTAssertEqual(RNStyle.chartPoints(from: nil), [])
+    }
+}

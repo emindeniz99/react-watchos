@@ -1,6 +1,7 @@
 // watchOS-only host (WatchKit/UIKit/HealthKit/SwiftUI). The #if compiles this
 // file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
 #if os(watchOS)
+import Charts
 import MapKit
 import os
 import ReactWatchCore
@@ -151,6 +152,49 @@ struct NodeView: View {
                 systemImage: node.string("systemName") ?? "circle"
             )
             .foregroundStyle(color(node.string("color")) ?? .primary)
+        case "Grid":
+            Grid(
+                horizontalSpacing: cgFloat("horizontalSpacing"),
+                verticalSpacing: cgFloat("verticalSpacing")
+            ) {
+                ForEach(node.children.filter { $0.type == "GridRow" }) { row in
+                    GridRow {
+                        ForEach(row.children) { NodeView(node: $0) }
+                    }
+                }
+            }
+        case "GridRow":
+            // Only meaningful as a direct <Grid> child (rendered there); a
+            // stray row degrades to its cells side by side.
+            HStack { childViews }
+        case "ShareLink":
+            shareLink
+        case "Chart":
+            chartView
+        case "LabeledContent":
+            LabeledContent(node.string("label") ?? "") {
+                if node.children.isEmpty {
+                    Text(node.string("value") ?? "")
+                } else {
+                    childViews
+                }
+            }
+        case "ContentUnavailable":
+            ContentUnavailableView {
+                SwiftUI.Label(
+                    node.string("title") ?? "",
+                    systemImage: node.string("systemName") ?? "circle"
+                )
+            } description: {
+                if let description = node.string("description") {
+                    Text(description)
+                }
+            }
+        case "Toolbar":
+            ToolbarNode(node: node)
+        case "ToolbarItem":
+            // Only meaningful as a <Toolbar> child (rendered there).
+            EmptyView()
         case "TextField":
             OptimisticTextField(node: node)
         case "Picker":
@@ -295,6 +339,66 @@ struct NodeView: View {
             text = text.font(.system(size: CGFloat(size)))
         }
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
+    }
+
+    @ViewBuilder private var shareLink: some View {
+        let item = node.string("item") ?? ""
+        if node.children.isEmpty {
+            ShareLink(item: item)
+        } else {
+            ShareLink(item: item) { childViews }
+        }
+    }
+
+    /// Minimal Swift Charts binding: one mark type over one series. Points
+    /// with string `x` chart as categories; numeric/absent `x` as positions.
+    @ViewBuilder private var chartView: some View {
+        let points = RNStyle.chartPoints(from: node.props["points"])
+        let kind = node.string("type") ?? "line"
+        let seriesColor = color(node.string("color")) ?? Color.accentColor
+        Chart(Array(points.enumerated()), id: \.offset) { index, point in
+            Self.chartMark(
+                kind: kind, point: point, index: index, color: seriesColor)
+        }
+    }
+
+    /// PlottableValue is generic over the x type, so categorical (String) and
+    /// positional (Double) points branch here rather than share a variable.
+    @ChartContentBuilder private static func chartMark(
+        kind: String, point: RNStyle.ChartPoint, index: Int, color: Color
+    ) -> some ChartContent {
+        if let label = point.label {
+            switch kind {
+            case "bar":
+                BarMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "area":
+                AreaMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "point":
+                PointMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            default:
+                LineMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            }
+        } else {
+            let x = point.x ?? Double(index)
+            switch kind {
+            case "bar":
+                BarMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "area":
+                AreaMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "point":
+                PointMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            default:
+                LineMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            }
+        }
     }
 
     /// Self-ticking label: SwiftUI updates the digits natively (no per-frame
@@ -968,6 +1072,38 @@ private struct EdgeSwipeActionModifier: ViewModifier {
             }
         } else {
             content
+        }
+    }
+}
+
+/// Screen toolbar: <ToolbarItem placement> children land in the watchOS
+/// top-bar/bottom-bar slots. Anchor-based like the presentation nodes — the
+/// .toolbar modifier just needs a view inside the navigation content.
+private struct ToolbarNode: View {
+    let node: RNNode
+
+    var body: some View {
+        Color.clear.frame(width: 0, height: 0)
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarLeading) {
+                    items(in: "topBarLeading")
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    items(in: "topBarTrailing")
+                }
+                ToolbarItemGroup(placement: .bottomBar) {
+                    items(in: "bottomBar")
+                }
+            }
+    }
+
+    @ViewBuilder private func items(in placement: String) -> some View {
+        ForEach(
+            node.children.filter {
+                $0.type == "ToolbarItem" && $0.string("placement") == placement
+            }
+        ) { item in
+            ForEach(item.children) { NodeView(node: $0) }
         }
     }
 }

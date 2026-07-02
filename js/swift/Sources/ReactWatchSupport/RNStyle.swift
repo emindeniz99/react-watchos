@@ -181,6 +181,35 @@ extension RNStyle {
             kind: kind, duration: fields["duration"].flatMap(Self.number))
     }
 
+    /// One <Chart> data point: `y` is required; `x` is either a numeric
+    /// position or a category label (strings chart as discrete categories).
+    public struct ChartPoint: Equatable, Sendable {
+        public let x: Double?
+        public let label: String?
+        public let y: Double
+
+        public init(x: Double? = nil, label: String? = nil, y: Double) {
+            self.x = x
+            self.label = label
+            self.y = y
+        }
+    }
+
+    /// Parses a <Chart> `points` prop; malformed entries are dropped (a chart
+    /// with a bad point renders the rest, matching Map's annotation policy).
+    public static func chartPoints(from value: JSONValue?) -> [ChartPoint] {
+        guard case .array(let entries)? = value else { return [] }
+        return entries.compactMap { entry in
+            guard case .object(let fields) = entry,
+                let y = fields["y"].flatMap(Self.number)
+            else { return nil }
+            if case .string(let label)? = fields["x"] {
+                return ChartPoint(label: label, y: y)
+            }
+            return ChartPoint(x: fields["x"].flatMap(Self.number), y: y)
+        }
+    }
+
     private static func number(_ value: JSONValue) -> Double? {
         if case .number(let n) = value { return n }
         return nil

@@ -49,7 +49,7 @@ HN title options (pick one, don't oversell):
    - Signed OTA: Ed25519 with the keyId inside the signed bytes,
      anti-rollback, crash-loop rollback to known-good, boot-time
      re-verification — and refusal as the zero-config default.
-   - The design system: 31 primitives + shared modifier props
+   - The design system: 39 primitives + shared modifier props
      (padding/frame/background/…, per-node animation) + a token/theme layer
      that resolves in JS so the native side never sees a token.
 4. **Numbers** (sources in launch-checklist §4): 174 KB minified app bundle

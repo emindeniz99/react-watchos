@@ -70,6 +70,15 @@ export const components = [
   { name: "Sheet", widget: "degraded" },
   { name: "Section", widget: "degraded" },
   { name: "Label", widget: "full" },
+  // Layout/data-display vocabulary (watchOS 9/10 APIs within the v10 floor).
+  { name: "Grid", widget: "full" },
+  { name: "GridRow", widget: "full" },
+  { name: "ShareLink", widget: "degraded" },
+  { name: "Chart", widget: "full" },
+  { name: "LabeledContent", widget: "full" },
+  { name: "ContentUnavailable", widget: "full" },
+  { name: "Toolbar", widget: "degraded" },
+  { name: "ToolbarItem", widget: "degraded" },
 ];
 
 /** Plain structs, rendered for both Swift and TS from `fields`. */

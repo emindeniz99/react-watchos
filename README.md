@@ -38,7 +38,8 @@ SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `TimerText`, `Button`,
 `Toggle`, `Spacer`, `Image`, `ScrollView`, `List`, `Divider`, `Gauge`,
 `ProgressView`, `NavigationStack`, `NavigationRoute`, `NavigationLink`, `TextField`,
 `Picker`, `TabView`, `Alert`, `ConfirmationDialog`, `Sheet`, `Section`,
-`Label`), with SwiftUI layout rather than flexbox. Beyond
+`Label`, `Grid`, `ShareLink`, `Chart`, `LabeledContent`,
+`ContentUnavailable`, `Toolbar`), with SwiftUI layout rather than flexbox. Beyond
 views there's `Storage` (App Group UserDefaults), `playHaptic`,
 `scheduleNotification` (local notifications with permission request and
 cancel), `registerNativeListener` (instant native→React pushes), widget
@@ -428,7 +429,7 @@ signing still untested — Rule 12):**
 ## Limitations (honest list)
 
 - **Not RN core.** No RN components, no RN ecosystem libraries, no Yoga
-  flexbox. Thirty-one SwiftUI-like primitives, each accepting shared
+  flexbox. Thirty-nine SwiftUI-like primitives, each accepting shared
   layout-modifier props (`padding`, `frame`, `background`,
   `cornerRadius`, `opacity`, `tint`, per-node `animation`, and stack
   `alignment`).

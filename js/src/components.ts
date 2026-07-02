@@ -425,6 +425,71 @@ export interface LabelProps extends A11yProps, ModifierProps {
   color?: string;
 }
 
+/** Aligned rows/columns (SwiftUI `Grid`); children must be <GridRow>. */
+export interface GridProps extends A11yProps, ModifierProps {
+  horizontalSpacing?: number;
+  verticalSpacing?: number;
+  children?: ReactNode;
+}
+
+/** One row of a <Grid>; each child is a cell. */
+export interface GridRowProps extends A11yProps {
+  children?: ReactNode;
+}
+
+/** System share sheet (SwiftUI `ShareLink`). Children are the custom
+ *  tappable label; omit them for the system's default share label. */
+export interface ShareLinkProps extends A11yProps, ModifierProps {
+  /** The text or URL to share. */
+  item: string;
+  children?: ReactNode;
+}
+
+/** One <Chart> data point: `y` is required; `x` is a numeric position or a
+ *  category label (strings chart as discrete categories). Omit `x` to plot
+ *  by array index. */
+export interface ChartPoint {
+  x?: number | string;
+  y: number;
+}
+
+/** Swift Charts (watchOS 9+), minimal declarative form: one mark type over
+ *  one series. For dashboards-on-the-wrist, not full Charts composition. */
+export interface ChartProps extends A11yProps, ModifierProps {
+  type: "line" | "bar" | "area" | "point";
+  points: ChartPoint[];
+  /** Series color (system name or hex); defaults to the accent. */
+  color?: string;
+}
+
+/** A label:value row (SwiftUI `LabeledContent`); children are the value
+ *  view, or pass the simple `value` string. */
+export interface LabeledContentProps extends A11yProps, ModifierProps {
+  label: string;
+  value?: string;
+  children?: ReactNode;
+}
+
+/** Standard empty-state placeholder (SwiftUI `ContentUnavailableView`). */
+export interface ContentUnavailableProps extends A11yProps, ModifierProps {
+  title: string;
+  /** SF Symbol name. */
+  systemName: string;
+  description?: string;
+}
+
+/** Screen toolbar (SwiftUI `.toolbar`); children must be <ToolbarItem>.
+ *  Place it anywhere inside the screen's content. */
+export interface ToolbarProps {
+  children?: ReactNode;
+}
+
+/** One toolbar slot; the child is its content (usually a <Button>). */
+export interface ToolbarItemProps {
+  placement: "topBarLeading" | "topBarTrailing" | "bottomBar";
+  children?: ReactNode;
+}
+
 export const VStack = "VStack" as unknown as FC<VStackProps>;
 export const HStack = "HStack" as unknown as FC<HStackProps>;
 export const Text = "Text" as unknown as FC<TextProps>;
@@ -460,3 +525,13 @@ export const ConfirmationDialog =
 export const Sheet = "Sheet" as unknown as FC<SheetProps>;
 export const Section = "Section" as unknown as FC<SectionProps>;
 export const Label = "Label" as unknown as FC<LabelProps>;
+export const Grid = "Grid" as unknown as FC<GridProps>;
+export const GridRow = "GridRow" as unknown as FC<GridRowProps>;
+export const ShareLink = "ShareLink" as unknown as FC<ShareLinkProps>;
+export const Chart = "Chart" as unknown as FC<ChartProps>;
+export const LabeledContent =
+  "LabeledContent" as unknown as FC<LabeledContentProps>;
+export const ContentUnavailable =
+  "ContentUnavailable" as unknown as FC<ContentUnavailableProps>;
+export const Toolbar = "Toolbar" as unknown as FC<ToolbarProps>;
+export const ToolbarItem = "ToolbarItem" as unknown as FC<ToolbarItemProps>;
