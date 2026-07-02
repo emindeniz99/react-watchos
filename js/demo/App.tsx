@@ -47,6 +47,7 @@ import {
   useFocusEffect,
   useNavigation,
   useParams,
+  useTheme,
   VStack,
   ZStack,
 } from "../src/index";
@@ -213,30 +214,44 @@ function HydrationScreen() {
     });
     playHaptic("click");
   };
+  // Dogfoods the design system (docs/status.md rows): theme tokens for
+  // every value, card modifiers for the gauge, and a spring on the card so
+  // the fill/count transition instead of snapping.
+  const t = useTheme();
   return (
-    <VStack spacing={6}>
-      <Gauge
-        value={glasses}
-        min={0}
-        max={hydrationStore.goal}
-        label="Water"
-        style="circular"
-      />
-      <Text>{`${glasses} of ${hydrationStore.goal} glasses`}</Text>
+    <VStack spacing={t.space.sm}>
+      <VStack
+        spacing={t.space.xs}
+        padding={t.space.md}
+        background={t.colors.surface}
+        cornerRadius={t.radius.lg}
+        frame={{ maxWidth: "infinity" }}
+        tint={t.colors.accent}
+        animation={{ kind: "spring" }}
+      >
+        <Gauge
+          value={glasses}
+          min={0}
+          max={hydrationStore.goal}
+          label="Water"
+          style="circular"
+        />
+        <Text {...t.text.muted}>
+          {`${glasses} of ${hydrationStore.goal} glasses`}
+        </Text>
+      </VStack>
       <Button onPress={() => applyDelta(1)}>
         <Text>Add glass</Text>
       </Button>
       <Button onPress={() => applyDelta(-hydrationStore.goal)}>
-        <Text size={12} color="secondary">
+        <Text {...t.text.caption} color={t.colors.muted}>
           Reset
         </Text>
       </Button>
       <Button onPress={remind}>
-        <Text size={12}>Remind me in 30 min</Text>
+        <Text {...t.text.caption}>Remind me in 30 min</Text>
       </Button>
-      <Text size={11} color="secondary">
-        Updates the complication
-      </Text>
+      <Text {...t.text.muted}>Updates the complication</Text>
     </VStack>
   );
 }
