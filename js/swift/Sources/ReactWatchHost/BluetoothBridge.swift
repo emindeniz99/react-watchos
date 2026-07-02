@@ -22,7 +22,11 @@ import ReactWatchSupport
 /// device-gated, see docs/design-ble-result-reporting.md.
 final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var onState: ((String) -> Void)?
-    var onNotify: ((_ characteristic: String, _ value: String) -> Void)?
+    /// (characteristic, value, binary): `binary` is true when the payload was
+    /// not valid UTF-8 and `value` is its base64 encoding — the same fallback
+    /// contract as fetch response bodies (FetchPlan). Previously non-UTF-8
+    /// notifications were silently coerced to "" (NF-13).
+    var onNotify: ((_ characteristic: String, _ value: String, _ binary: Bool) -> Void)?
     /// Settle a bleConnect/bleWrite/bleSubscribe invoke: (invokeId, resultJson).
     var onResolve: ((Int, String) -> Void)?
     /// Reject one: (invokeId, errorJson `{code,message}` — code in the closed
@@ -452,10 +456,15 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         _: CBPeripheral,
         didUpdateValueFor characteristic: CBCharacteristic, error _: Error?
     ) {
-        let value =
-            characteristic.value
-            .flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        onNotify?(characteristic.uuid.uuidString, value)
+        let data = characteristic.value ?? Data()
+        if let text = String(data: data, encoding: .utf8) {
+            onNotify?(characteristic.uuid.uuidString, text, false)
+        } else {
+            // Same base64 fallback contract as fetch bodies (FetchPlan):
+            // non-UTF-8 used to be coerced to "" — silent data loss (NF-13).
+            onNotify?(
+                characteristic.uuid.uuidString, data.base64EncodedString(), true)
+        }
     }
 }
 #endif

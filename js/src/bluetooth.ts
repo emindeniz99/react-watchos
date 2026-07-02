@@ -102,7 +102,10 @@ export function onBleState(handler: NativeEventHandler): Unsubscribe {
 }
 
 /**
- * Characteristic notifications: handler gets `{ characteristic, value }`.
+ * Characteristic notifications: handler gets `{ characteristic, value }`,
+ * plus `binary: true` when the peripheral's payload was not valid UTF-8 —
+ * then `value` is its base64 encoding (the same fallback contract as fetch
+ * response bodies). Text protocols see an unchanged payload shape.
  * Returns an unsubscribe.
  */
 export function onBleNotify(handler: NativeEventHandler): Unsubscribe {

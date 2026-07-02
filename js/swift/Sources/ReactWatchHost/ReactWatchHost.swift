@@ -114,11 +114,14 @@ final class ReactWatchModel: ObservableObject {
         bluetooth.onState = { [weak self] state in
             self?.pushNativeEvent("ble.state", payload: ["state": state])
         }
-        bluetooth.onNotify = { [weak self] characteristic, value in
-            self?.pushNativeEvent(
-                "ble.notify",
-                payload: ["characteristic": characteristic, "value": value]
-            )
+        bluetooth.onNotify = { [weak self] characteristic, value, binary in
+            var payload: [String: Any] = [
+                "characteristic": characteristic, "value": value,
+            ]
+            // Only stamped for the base64 fallback, so existing text-protocol
+            // consumers see an unchanged payload shape.
+            if binary { payload["binary"] = true }
+            self?.pushNativeEvent("ble.notify", payload: payload)
         }
         // Settle bleConnect/bleWrite/bleSubscribe invokes (CX-022). CoreBluetooth
         // delegates fire on the main queue (CBCentralManager queue: nil), so this
@@ -167,6 +170,10 @@ final class ReactWatchModel: ObservableObject {
         ackedSeq = 0
         nextSeq = 1
         optimistic = OptimisticStore()
+        // One warning per BOOT, not per model lifetime (NF-15): without the
+        // reset, a second bad bundle after a dev hot-reload would be rejected
+        // with no banner at all.
+        warnedWireMismatch = false
         // Only the .runOTA branches repopulate this; without the reset a later
         // .runShipped or DEBUG dev-code boot retains the previous OTA record,
         // and the first-healthy-commit handler could promote a bundle that is
@@ -962,7 +969,15 @@ final class ReactWatchModel: ObservableObject {
             self?.generate(id: id, requestJson: reqJson)
         }
         js.onError = { [weak self] message in
-            DispatchQueue.main.async { self?.runtimeError = message }
+            // Generation guard (CX-008 discipline, NF-14): a late error from a
+            // runtime that has already been swapped must not paint the NEW
+            // generation's error banner.
+            guard let self else { return }
+            let gen = self.generation
+            DispatchQueue.main.async { [weak self] in
+                guard let self, gen == self.generation else { return }
+                self.runtimeError = message
+            }
         }
         js.bridge.playHaptic = { type in
             let haptic: WKHapticType =

@@ -371,6 +371,9 @@ public final class JSRuntime {
 
     /// Looks up and retains a global function for reuse. Not cached until the
     /// bundle has actually defined it, so an early call can't pin `undefined`.
+    /// ASSUMES bundle globals are set once at eval and never reassigned — a
+    /// bundle (or future HMR shim) that reassigns e.g. `__dispatchEvent` after
+    /// first use would keep dispatching to the stale function (NF review note).
     private func cachedGlobalFunction(_ name: String) -> JSValue {
         if let fn = globalFnCache[name] { return fn }
         let global = JS_GetGlobalObject(context)
