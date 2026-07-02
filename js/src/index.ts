@@ -5,6 +5,11 @@ import { WatchRoot } from "./renderer";
 
 export type { GenerateOptions } from "./ai";
 export { generateText, isOnDeviceAIAvailable } from "./ai";
+export {
+  BACKGROUND_REFRESH_EVENT,
+  onBackgroundRefresh,
+  scheduleBackgroundRefresh,
+} from "./background";
 export type { BleState, BleWriteOptions } from "./bluetooth";
 export {
   BLE_NOTIFY_EVENT,
@@ -106,7 +111,17 @@ export {
   PHONE_MESSAGE_EVENT,
   sendToPhone,
 } from "./connectivity";
+export type { DeviceInfo } from "./device";
+export { getDeviceInfo } from "./device";
 export { ErrorBoundary } from "./errorBoundary";
+export {
+  onRuntimeSessionState,
+  onRuntimeSessionWillExpire,
+  RUNTIME_STATE_EVENT,
+  RUNTIME_WILL_EXPIRE_EVENT,
+  startExtendedRuntimeSession,
+  stopExtendedRuntimeSession,
+} from "./extendedRuntime";
 export { Headers } from "./fetch";
 export { WIRE_VERSION } from "./generated/wire";
 export type { HapticType } from "./haptics";
@@ -119,6 +134,13 @@ export type {
   WatchEvent,
 } from "./host";
 export { getHost, MemoryHost } from "./host";
+export type { IAPProduct, PurchaseResult } from "./iap";
+export {
+  currentEntitlements,
+  getProducts,
+  purchase,
+  restorePurchases,
+} from "./iap";
 export type { InspectorOptions } from "./inspector";
 export {
   captureLog,
@@ -132,6 +154,7 @@ export {
   registerIntent,
   unregisterAllIntents,
 } from "./intents";
+export { Keychain } from "./keychain";
 export type { NativeEventHandler, Unsubscribe } from "./nativeEvents";
 export {
   dispatchNativeEvent,
@@ -185,6 +208,13 @@ export {
   startSensor,
   stopSensor,
 } from "./sensors";
+export type { SpeakOptions } from "./speech";
+export {
+  onSpeechFinished,
+  SPEECH_FINISHED_EVENT,
+  speak,
+  stopSpeaking,
+} from "./speech";
 export { Storage } from "./storage";
 export type { TextVariant, ThemeOverrides, WatchTheme } from "./theme";
 export { createTheme, defaultTheme, ThemeProvider, useTheme } from "./theme";

@@ -453,4 +453,106 @@ export const hostMethods = [
     since: 1,
     via: "invoke",
   },
+  // --- Device info (WKInterfaceDevice): a snapshot query; battery + wrist
+  //     changes stream on the push channel (device.battery / device.wrist). ---
+  {
+    name: "getDeviceInfo",
+    targets: ["watch"],
+    feature: "device",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Background app refresh: schedule a wake-up; the fire arrives on the
+  //     push channel as `backgroundRefresh`. ---
+  {
+    name: "scheduleBackgroundRefresh",
+    targets: ["watch"],
+    feature: "background",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Extended runtime session (WKExtendedRuntimeSession): keep running
+  //     briefly after backgrounding; state on `runtimeSession.*` push events. ---
+  {
+    name: "startExtendedRuntimeSession",
+    targets: ["watch"],
+    feature: "runtime",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "stopExtendedRuntimeSession",
+    targets: ["watch"],
+    feature: "runtime",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Keychain secure storage (Security framework), distinct from Storage's
+  //     App-Group UserDefaults: for tokens/secrets. ---
+  {
+    name: "keychainSet",
+    targets: ["watch"],
+    feature: "keychain",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "keychainGet",
+    targets: ["watch"],
+    feature: "keychain",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "keychainDelete",
+    targets: ["watch"],
+    feature: "keychain",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Speech synthesis (AVSpeechSynthesizer): speak/stop; completion on the
+  //     push channel as `speech.finished`. ---
+  {
+    name: "speak",
+    targets: ["watch"],
+    feature: "speech",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "stopSpeaking",
+    targets: ["watch"],
+    feature: "speech",
+    since: 1,
+    via: "invoke",
+  },
+  // --- In-app purchase (StoreKit 2). ---
+  {
+    name: "getProducts",
+    targets: ["watch"],
+    feature: "iap",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "purchase",
+    targets: ["watch"],
+    feature: "iap",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "currentEntitlements",
+    targets: ["watch"],
+    feature: "iap",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "restorePurchases",
+    targets: ["watch"],
+    feature: "iap",
+    since: 1,
+    via: "invoke",
+  },
 ];

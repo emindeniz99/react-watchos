@@ -50,6 +50,12 @@ build (②) is the real gate**, and behavioral correctness isn't guaranteed unti
 | Per-node `animation` prop | ① → ② pending | parsing ① (`RNStyleAnimationTests`); `.animation(_:value:)` application needs the macOS build (②); actual motion is ③. Widgets ignore it by design |
 | Boot-time OTA signature re-verify (NF-35) | ① → ② pending | signedMessage parity ① (`OTARecordSignedMessageTests`); the evaluateOTA hook needs the macOS build (②) |
 | **On-device AI** (`generateText` / Foundation Models) | ⛔ **Blocked** (gate fixed) | Gate corrected to **`watchOS 27.0`** (Apple docs: Foundation Models' `LanguageModelSession` is watchOS 27.0+ beta) and `maxTokens` wired to `GenerationOptions.maximumResponseTokens` (CX-002). The FoundationModels block still can't be **built** without the **watchOS 27 SDK (Xcode 27)** — on the current SDK it compiles out and `generateText` rejects "unavailable" — and no stable watchOS 27 device exists yet, so it's not usable by apps. A runtime `isOnDeviceAIAvailable()` query exists (resolves `false` until the FM path is built on watchOS 27). Remaining: device-verify on Xcode 27. |
+| Device info (`getDeviceInfo`) | ① → ② pending | invoke routing drift-tested ① (`codegen.test`); WKInterfaceDevice snapshot is watchOS-gated ② |
+| Keychain secure storage (`Keychain.*`) | ① → ② pending | invoke routing ①; Security-framework handler ② |
+| Speech synthesis (`speak`/`stopSpeaking`) | ① → ② pending | invoke routing ①; AVSpeechSynthesizer handler ② |
+| Extended runtime session | ① → ② pending | invoke routing ①; WKExtendedRuntimeSession handler ② (needs Info.plist session reason; device-only behavior ③) |
+| Background refresh **scheduling** (`scheduleBackgroundRefresh`) | ① → ② pending | invoke routing ①; WKApplication schedule ②. **Fire→JS delivery** needs a Scene hook not yet exposed — scenePhase wake works in the meantime |
+| In-app purchase (StoreKit 2) | ① → ② pending | invoke routing ①; StoreKit handlers ②; real purchases are App-Store-Connect + device ③ |
 | DevTools | ② note | a **remote inspector** (`startInspector` tees `console.log` + tree snapshots over `fetch`), **not** the official React DevTools — QuickJS has no WebSocket transport |
 | macOS / tvOS targets | — | not built; cross-platform core extraction is a roadmap bet, not current |
 

@@ -42,7 +42,9 @@ SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `TimerText`, `Button`,
 `ContentUnavailable`, `Toolbar`), with SwiftUI layout rather than flexbox. Beyond
 views there's `Storage` (App Group UserDefaults), `playHaptic`,
 `scheduleNotification` (local notifications with permission request and
-cancel), `registerNativeListener` (instant native→React pushes), widget
+cancel), `registerNativeListener` (instant native→React pushes),
+`getDeviceInfo`, `Keychain`, `speak` (TTS), `scheduleBackgroundRefresh`,
+extended-runtime sessions, StoreKit 2 in-app purchase, widget
 timelines, and control intents — all bridged through the same
 registered-message host surface.
 

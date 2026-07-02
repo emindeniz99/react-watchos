@@ -72,3 +72,43 @@ arbitrary native code, only the ops the host installed. Events commit through
 `runSync`, so external state lands on screen instantly without a polling loop.
 Keep payloads JSON-serializable — strings are all that cross the QuickJS↔Swift
 boundary.
+
+## Built-in capabilities (2026-07 additions)
+
+Beyond the recipe above, these ship as first-class modules — all routed
+through the same invoke channel:
+
+| Module | API | Feature |
+|---|---|---|
+| Device info | `getDeviceInfo()` → battery/wrist/screen/model snapshot (watchOS has no battery-change notification; poll it) | `device` |
+| Background refresh | `scheduleBackgroundRefresh(afterMs, userInfo?)`, `onBackgroundRefresh(cb)` | `background` |
+| Extended runtime | `startExtendedRuntimeSession()`, `stop…`, `onRuntimeSessionState/WillExpire` | `runtime` |
+| Keychain | `Keychain.set/get/delete` (encrypted; distinct from `Storage`) | `keychain` |
+| Speech (TTS) | `speak(text, opts?)`, `stopSpeaking()`, `onSpeechFinished(cb)` | `speech` |
+| In-app purchase | `getProducts`, `purchase`, `currentEntitlements`, `restorePurchases` (StoreKit 2) | `iap` |
+
+Two honest caveats:
+
+- **Background refresh delivery** — `scheduleBackgroundRefresh` works today
+  (it registers the wake-up), but forwarding a *fired*
+  `WKApplicationRefreshBackgroundTask` to JS (`onBackgroundRefresh`) needs a
+  Scene/app-delegate hook the current public surface (`ReactWatchRootView`)
+  doesn't expose yet; the model's `deliverBackgroundRefresh` is the ready
+  hook for a planned `ReactWatchScene` wrapper. In the meantime a scenePhase
+  `active` wake already reaches JS as a `scenePhase` event.
+- **Extended runtime sessions** require the consumer to declare the session
+  reason in the target's Info.plist; without it the system invalidates the
+  session immediately, which surfaces as a `runtimeSession.state` event with
+  `state: "invalidated"`.
+
+## App Shortcuts / Siri — a native AppIntents concern, not a runtime binding
+
+Registering Siri phrases / App Shortcuts is **compile-time** metadata
+(`AppShortcutsProvider` + `AppIntent` types declared in Swift), not something
+a JS bundle can register at runtime — the phrases are indexed by the system
+from the app binary at install time. So it does not fit the invoke/push
+bridge model, and there is deliberately no `registerSiriPhrase` API. The
+*execution* surface you'd want is already covered: `registerIntent(name, …)`
+runs your React handler for a widget/Control AppIntent. A watch-app-level App
+Shortcut is a scaffold step (add the `AppShortcutsProvider` Swift alongside
+`WatchApp.swift`) — a candidate for the scaffold CLI, tracked on the roadmap.

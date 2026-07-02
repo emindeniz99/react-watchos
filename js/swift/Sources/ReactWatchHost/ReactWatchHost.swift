@@ -57,6 +57,10 @@ final class ReactWatchModel: ObservableObject {
     private let connectivity = PhoneConnectivity()
     private let bluetooth = BluetoothBridge()
     private let sensors = SensorBridge()
+    /// Capability bridges (device/keychain/speech/runtime/background/iap),
+    /// all routed through the invoke channel — see CapabilityBridges.swift.
+    private let speechBridge = SpeechBridge()
+    private let extendedRuntime = ExtendedRuntimeBridge()
     private var fetchTasks: [Int: URLSessionDataTask] = [:]
     /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
     /// the JS-assigned id of a request whose id space resets with the runtime, so
@@ -136,6 +140,17 @@ final class ReactWatchModel: ObservableObject {
         }
         sensors.onReading = { [weak self] kind, payload in
             self?.pushNativeEvent("sensor.\(kind)", payload: payload)
+        }
+        speechBridge.onFinished = { [weak self] text in
+            self?.pushNativeEvent("speech.finished", payload: ["text": text])
+        }
+        extendedRuntime.onState = { [weak self] state, reason in
+            var payload: [String: Any] = ["state": state]
+            if let reason { payload["reason"] = reason }
+            self?.pushNativeEvent("runtimeSession.state", payload: payload)
+        }
+        extendedRuntime.onWillExpire = { [weak self] in
+            self?.pushNativeEvent("runtimeSession.willExpire")
         }
         boot()
         #if DEBUG
@@ -272,6 +287,32 @@ final class ReactWatchModel: ObservableObject {
             bluetooth.handleInvoke(id: id, method: method, payload: payload)
         case "bleSubscribe":
             bluetooth.handleInvoke(id: id, method: method, payload: payload)
+        case "getDeviceInfo":
+            handleGetDeviceInfo(id: id)
+        case "scheduleBackgroundRefresh":
+            handleScheduleBackgroundRefresh(id: id, payload: payload)
+        case "startExtendedRuntimeSession":
+            handleStartExtendedRuntimeSession(id: id)
+        case "stopExtendedRuntimeSession":
+            handleStopExtendedRuntimeSession(id: id)
+        case "keychainSet":
+            handleKeychainSet(id: id, payload: payload)
+        case "keychainGet":
+            handleKeychainGet(id: id, payload: payload)
+        case "keychainDelete":
+            handleKeychainDelete(id: id, payload: payload)
+        case "speak":
+            handleSpeak(id: id, payload: payload)
+        case "stopSpeaking":
+            handleStopSpeaking(id: id)
+        case "getProducts":
+            handleGetProducts(id: id, payload: payload)
+        case "purchase":
+            handlePurchase(id: id, payload: payload)
+        case "currentEntitlements":
+            handleCurrentEntitlements(id: id)
+        case "restorePurchases":
+            handleRestorePurchases(id: id)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -1354,4 +1395,208 @@ public struct ReactWatchRootView: View {
         }
     }
 }
+
+// MARK: - Capability invoke handlers (device/background/runtime/keychain/
+// speech/iap). Same-file extension so the generation guard (private) is
+// visible; the native bits live in CapabilityBridges.swift.
+extension ReactWatchModel {
+    func handleGetDeviceInfo(id: Int) {
+        runtime?.resolveInvoke(
+            id: id, resultJson: Self.jsonObject(DeviceSnapshot.current()))
+    }
+
+    func handleScheduleBackgroundRefresh(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        let afterMs = (fields["afterMs"] as? Double) ?? 0
+        let date = Date().addingTimeInterval(max(0, afterMs) / 1000)
+        // userInfo must be (NSSecureCoding & NSObjectProtocol)?: carry the JSON
+        // userInfo as an NSString so it round-trips to the fire event verbatim.
+        var info: (NSSecureCoding & NSObjectProtocol)?
+        if let userInfo = fields["userInfo"],
+            let data = try? JSONSerialization.data(withJSONObject: userInfo),
+            let json = String(data: data, encoding: .utf8)
+        {
+            info = json as NSString
+        }
+        WKApplication.shared().scheduleBackgroundRefresh(
+            withPreferredDate: date, userInfo: info
+        ) { [weak self] error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let error {
+                    self.runtime?.rejectInvoke(
+                        id: id,
+                        errorJson: Self.errorJSON(
+                            code: "INTERNAL", message: error.localizedDescription))
+                } else {
+                    self.runtime?.resolveInvoke(id: id, resultJson: "null")
+                }
+            }
+        }
+    }
+
+    /// Delivery hook for a fired background refresh -> JS `onBackgroundRefresh`.
+    /// Scheduling (`scheduleBackgroundRefresh`) works today; calling this on a
+    /// fired WKApplicationRefreshBackgroundTask needs a Scene/app-delegate hook
+    /// the current public surface (ReactWatchRootView) doesn't expose yet — a
+    /// scenePhase `active` wake already reaches JS in the meantime. Kept
+    /// internal-ready for the planned Scene integration (see extending.md).
+    func deliverBackgroundRefresh(userInfo: [String: Any]?) {
+        pushNativeEvent("backgroundRefresh", payload: ["userInfo": userInfo ?? [:]])
+    }
+
+    func handleStartExtendedRuntimeSession(id: Int) {
+        extendedRuntime.start()
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleStopExtendedRuntimeSession(id: Int) {
+        extendedRuntime.stop()
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleKeychainSet(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let key = fields["key"] as? String,
+            let value = fields["value"] as? String
+        else {
+            rejectInvalid(id: id, message: "keychainSet needs key + value")
+            return
+        }
+        if KeychainStore.set(key: key, value: value) {
+            runtime?.resolveInvoke(id: id, resultJson: "null")
+        } else {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: "INTERNAL", message: "keychain write failed"))
+        }
+    }
+
+    func handleKeychainGet(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let key = fields["key"] as? String else {
+            rejectInvalid(id: id, message: "keychainGet needs key")
+            return
+        }
+        if let value = KeychainStore.get(key: key) {
+            runtime?.resolveInvoke(id: id, resultJson: Self.jsonString(value))
+        } else {
+            runtime?.resolveInvoke(id: id, resultJson: "null")
+        }
+    }
+
+    func handleKeychainDelete(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let key = fields["key"] as? String else {
+            rejectInvalid(id: id, message: "keychainDelete needs key")
+            return
+        }
+        KeychainStore.delete(key: key)
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleSpeak(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let text = fields["text"] as? String, !text.isEmpty else {
+            rejectInvalid(id: id, message: "speak needs text")
+            return
+        }
+        speechBridge.speak(
+            text: text,
+            rate: fields["rate"] as? Double,
+            pitch: fields["pitch"] as? Double,
+            language: fields["language"] as? String,
+            volume: fields["volume"] as? Double
+        )
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleStopSpeaking(id: Int) {
+        speechBridge.stop()
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleGetProducts(id: Int, payload: String) {
+        let ids = (Self.decodeObject(payload)["productIds"] as? [Any])?
+            .compactMap { $0 as? String } ?? []
+        let gen = generation
+        Task { [weak self] in
+            let result = await StoreKitBridge.products(for: ids)
+            await MainActor.run {
+                guard let self, gen == self.generation else { return }
+                self.settleStoreKit(id: id, result: result)
+            }
+        }
+    }
+
+    func handlePurchase(id: Int, payload: String) {
+        guard let productId = Self.decodeObject(payload)["productId"] as? String else {
+            rejectInvalid(id: id, message: "purchase needs productId")
+            return
+        }
+        let gen = generation
+        Task { [weak self] in
+            let result = await StoreKitBridge.purchase(productId: productId)
+            await MainActor.run {
+                guard let self, gen == self.generation else { return }
+                self.settleStoreKit(id: id, result: result)
+            }
+        }
+    }
+
+    func handleCurrentEntitlements(id: Int) {
+        let gen = generation
+        Task { [weak self] in
+            let result = await StoreKitBridge.currentEntitlements()
+            await MainActor.run {
+                guard let self, gen == self.generation else { return }
+                self.settleStoreKit(id: id, result: result)
+            }
+        }
+    }
+
+    func handleRestorePurchases(id: Int) {
+        let gen = generation
+        Task { [weak self] in
+            let result = await StoreKitBridge.restore()
+            await MainActor.run {
+                guard let self, gen == self.generation else { return }
+                self.settleStoreKit(id: id, result: result)
+            }
+        }
+    }
+
+    private func settleStoreKit(id: Int, result: StoreKitBridge.Result) {
+        switch result {
+        case .ok(let json):
+            runtime?.resolveInvoke(id: id, resultJson: json)
+        case .error(let message):
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: "INTERNAL", message: message))
+        }
+    }
+
+    static func decodeObject(_ json: String) -> [String: Any] {
+        (try? JSONSerialization.jsonObject(with: Data(json.utf8)))
+            as? [String: Any] ?? [:]
+    }
+
+    /// JSON-encodes a bare string value (with proper escaping) for
+    /// resolveInvoke, which parses its resultJson: `hi` -> `"hi"`.
+    static func jsonString(_ value: String) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: [value]),
+            let wrapped = String(data: data, encoding: .utf8)
+        else { return "\"\"" }
+        return String(wrapped.dropFirst().dropLast())  // strip the [ ]
+    }
+
+    /// Shared INVALID_REQUEST rejection for the capability handlers.
+    private func rejectInvalid(id: Int, message: String) {
+        runtime?.rejectInvoke(
+            id: id,
+            errorJson: Self.errorJSON(code: "INVALID_REQUEST", message: message))
+    }
+}
+
 #endif
