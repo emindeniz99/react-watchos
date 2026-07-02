@@ -21,8 +21,9 @@ import { type InvokeError, invoke } from "./invoke";
  * rotation safe. The `version` is a compatibility integer (bump it only on a
  * breaking change); the watch refuses any bundle older than the newest it has
  * applied (anti-rollback), so an old bundle can't run against a newer-schema db.
- * Always fetch over HTTPS. With no key configured the bundle still loads
- * (fail-open) but the native side logs a loud warning.
+ * Always fetch over HTTPS. With no key configured, new OTA saves are REFUSED
+ * (NF-29 secure default) unless the app explicitly opts into
+ * `OTAConfig(allowUnsignedUpdates: true)` for development.
  *
  * App Store guardrail (2.5.2): OTA bundles may ship fixes and UI changes to
  * *already-reviewed* functionality — not materially new capability, and
@@ -109,6 +110,48 @@ export interface UpdateManifest {
   requiredFeatures?: string[];
   /** Minimum host bridge-protocol version the bundle needs (ARCH-01). */
   minBridgeProtocol?: number;
+}
+
+/**
+ * Validates a fetched manifest's shape LOUDLY (NF-32). Without this, a
+ * malformed manifest (a string `version`, a missing `bundle`) flowed into
+ * numeric compares and read as "up to date" forever — silently disabling
+ * updates, which is also what a manifest-freeze attacker wants to look like.
+ * Throwing distinguishes "endpoint is broken" from "no update".
+ */
+export function parseManifest(raw: unknown): UpdateManifest {
+  const fail = (what: string): never => {
+    throw new Error(`malformed update manifest: ${what}`);
+  };
+  if (typeof raw !== "object" || raw === null) fail("not a JSON object");
+  const m = raw as Record<string, unknown>;
+  if (typeof m.version !== "number" || !Number.isFinite(m.version)) {
+    fail("`version` must be a finite number");
+  }
+  if (typeof m.bundle !== "string" || m.bundle.length === 0) {
+    fail("`bundle` must be a non-empty string");
+  }
+  for (const key of ["releaseId", "signature", "keyId"] as const) {
+    if (m[key] !== undefined && typeof m[key] !== "string") {
+      fail(`\`${key}\` must be a string when present`);
+    }
+  }
+  if (
+    m.requiredFeatures !== undefined &&
+    !(
+      Array.isArray(m.requiredFeatures) &&
+      m.requiredFeatures.every((f) => typeof f === "string")
+    )
+  ) {
+    fail("`requiredFeatures` must be an array of strings when present");
+  }
+  if (
+    m.minBridgeProtocol !== undefined &&
+    typeof m.minBridgeProtocol !== "number"
+  ) {
+    fail("`minBridgeProtocol` must be a number when present");
+  }
+  return m as unknown as UpdateManifest;
 }
 
 /**
@@ -201,7 +244,7 @@ export async function checkForUpdate(manifestUrl: string): Promise<{
   appUpdateRequired?: boolean;
   missingCapabilities?: string[];
 }> {
-  const manifest = (await (await fetch(manifestUrl)).json()) as UpdateManifest;
+  const manifest = parseManifest(await (await fetch(manifestUrl)).json());
   const isNewer = isFresherRelease(manifest);
   const host = hostCapabilities();
   const missing = isNewer && host ? capabilityGap(manifest, host) : [];
@@ -227,7 +270,7 @@ export async function checkForUpdate(manifestUrl: string): Promise<{
 export async function fetchAndApplyUpdate(
   manifestUrl: string,
 ): Promise<number | null> {
-  const manifest = (await (await fetch(manifestUrl)).json()) as UpdateManifest;
+  const manifest = parseManifest(await (await fetch(manifestUrl)).json());
   if (!isFresherRelease(manifest)) return null;
   const host = hostCapabilities();
   if (host && capabilityGap(manifest, host).length > 0) return null;

@@ -97,3 +97,24 @@ won't boot at all (it shows a native "update required" screen, recoverable via
 `OTASigningInteropTests` (Swift) verifies a Node-produced signature with
 CryptoKit over `UpdatePlan.signedMessage`, so the signer and the verifier can't
 silently drift apart.
+
+## Threat-model note: the manifest itself is NOT signed (freeze exposure)
+
+The signature covers `v1:<keyId>:<version>:<bundle-js>` — the **bundle
+content and its compatibility version**, which is what stops in-sandbox RCE
+and version swaps. The **manifest JSON is not signed**, so an on-path
+attacker who can answer the manifest URL cannot inject code, but CAN:
+
+- serve a stale manifest forever (a **freeze/suppression attack** — clients
+  report "up to date" while a real fix exists), or
+- flip `requiredFeatures`/`minBridgeProtocol` to make the gate stricter and
+  suppress an applicable update the same way.
+
+Neither path executes code (a tampered bundle URL still fails signature
+verification, and NF-32 makes a malformed manifest throw loudly instead of
+reading as "up to date"). Mitigations, in order of value: serve the manifest
+over HTTPS from an origin you control (the baseline assumption), keep
+manifest cache times short, and monitor fleet version/releaseId telemetry for
+staleness. Signing the manifest body is the structural fix if the freeze
+risk ever matters for your deployment — pre-release, extending
+`signedMessage` to cover it is a schema change away.

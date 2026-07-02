@@ -266,3 +266,59 @@ describe("OTA capability gate", () => {
     expect(host.invoke).toHaveBeenCalled();
   });
 });
+
+describe("manifest shape validation (NF-32)", () => {
+  it("throws loudly on a malformed manifest instead of reporting up to date", async () => {
+    // A string `version` used to flow into numeric compares and read as
+    // "up to date" forever — indistinguishable from a freeze attack.
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({ version: "2", bundle: "bundle.js" }),
+    }));
+    await expect(
+      checkForUpdate("https://x.test/manifest.json"),
+    ).rejects.toThrow(/malformed update manifest.*version/);
+  });
+
+  it("throws when `bundle` is missing", async () => {
+    g.fetch = vi.fn(async () => ({ json: async () => ({ version: 2 }) }));
+    await expect(
+      fetchAndApplyUpdate("https://x.test/manifest.json"),
+    ).rejects.toThrow(/malformed update manifest.*bundle/);
+  });
+
+  it("throws when the manifest is not an object", async () => {
+    g.fetch = vi.fn(async () => ({ json: async () => "nope" }));
+    await expect(
+      checkForUpdate("https://x.test/manifest.json"),
+    ).rejects.toThrow(/not a JSON object/);
+  });
+
+  it("rejects mistyped optional fields", async () => {
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: 2,
+        bundle: "bundle.js",
+        requiredFeatures: "network",
+      }),
+    }));
+    await expect(
+      checkForUpdate("https://x.test/manifest.json"),
+    ).rejects.toThrow(/requiredFeatures/);
+  });
+
+  it("accepts a fully-populated valid manifest", async () => {
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: 2,
+        bundle: "bundle.js",
+        releaseId: "abc",
+        signature: "sig",
+        keyId: "kid",
+        requiredFeatures: ["network"],
+        minBridgeProtocol: 1,
+      }),
+    }));
+    const result = await checkForUpdate("https://x.test/manifest.json");
+    expect(result.latest).toBe(2);
+  });
+});
