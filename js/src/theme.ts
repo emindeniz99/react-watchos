@@ -104,8 +104,23 @@ export function createTheme(overrides: ThemeOverrides = {}): WatchTheme {
     space: { ...defaultTheme.space, ...overrides.space },
     radius: { ...defaultTheme.radius, ...overrides.radius },
     colors: { ...defaultTheme.colors, ...overrides.colors },
-    text: { ...defaultTheme.text, ...overrides.text },
+    // Text values are themselves prop bundles, so merge one level DEEPER than
+    // the scalar sections: a partial variant override (e.g. `{ numeric: { color
+    // } }`) must keep the variant's other props (numeric's monospacedDigit /
+    // textStyle), not replace the whole bundle.
+    text: mergeTextVariants(defaultTheme.text, overrides.text),
   };
+}
+
+function mergeTextVariants(
+  base: WatchTheme["text"],
+  over: Partial<WatchTheme["text"]> = {},
+): WatchTheme["text"] {
+  const out = {} as WatchTheme["text"];
+  for (const key of Object.keys(base) as (keyof WatchTheme["text"])[]) {
+    out[key] = { ...base[key], ...over[key] };
+  }
+  return out;
 }
 
 const ThemeContext = createContext<WatchTheme>(defaultTheme);

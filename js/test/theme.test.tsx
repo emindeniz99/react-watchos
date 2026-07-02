@@ -92,4 +92,18 @@ describe("theme tokens (Tier 2)", () => {
     expect(theme.colors.positive).toBe(defaultTheme.colors.positive);
     expect(JSON.stringify(defaultTheme)).toBe(before);
   });
+
+  it("createTheme merges a partial text variant, keeping its other props", () => {
+    // Overriding only numeric's color must preserve monospacedDigit + textStyle
+    // — else a numeric label silently loses its fixed-width digits (the reason
+    // the variant exists).
+    const theme = createTheme({ text: { numeric: { color: "green" } } });
+    expect(theme.text.numeric.color).toBe("green");
+    expect(theme.text.numeric.monospacedDigit).toBe(
+      defaultTheme.text.numeric.monospacedDigit,
+    );
+    expect(theme.text.numeric.textStyle).toBe(
+      defaultTheme.text.numeric.textStyle,
+    );
+  });
 });

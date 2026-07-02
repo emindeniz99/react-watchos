@@ -161,6 +161,12 @@ struct NodeView: View {
                     GridRow {
                         ForEach(row.children) { NodeView(node: $0) }
                     }
+                    // The row node is expanded here rather than rendered through
+                    // NodeView, so apply its a11y explicitly or it's dropped.
+                    .modifier(
+                        A11yModifier(
+                            label: row.string("accessibilityLabel"),
+                            hint: row.string("accessibilityHint")))
                 }
             }
         case "GridRow":
@@ -863,6 +869,12 @@ private struct NavigationRouteDestination: View {
 
     var body: some View {
         content.navigationTitle(node.string("title") ?? "")
+            // The route node renders here, not through NodeView, so apply its
+            // a11y explicitly (else a pushed screen's label is dropped).
+            .modifier(
+                A11yModifier(
+                    label: node.string("accessibilityLabel"),
+                    hint: node.string("accessibilityHint")))
     }
 
     @ViewBuilder private var content: some View {
@@ -1234,6 +1246,12 @@ private struct SheetNode: View {
         ) {
             _ = model.dispatch(nodeId: action.id, event: "press")
         }
+        // The action node is expanded here, not rendered through NodeView, so
+        // apply its a11y explicitly (else dropped).
+        .modifier(
+            A11yModifier(
+                label: action.string("accessibilityLabel"),
+                hint: action.string("accessibilityHint")))
     }
 }
 

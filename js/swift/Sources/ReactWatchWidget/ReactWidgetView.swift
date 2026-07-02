@@ -202,11 +202,14 @@ public struct WidgetNodeView: View {
                 verticalSpacing: cgFloat(node, "verticalSpacing")
             ) {
                 ForEach(node.children.filter { $0.type == "GridRow" }) { row in
-                    GridRow {
-                        ForEach(row.children) { child in
-                            WidgetNodeView(node: child, appGroupId: appGroupId)
-                        }
-                    }
+                    // The row node is expanded here, not rendered through
+                    // WidgetNodeView, so apply its a11y explicitly (else dropped).
+                    applyA11y(
+                        GridRow {
+                            ForEach(row.children) { child in
+                                WidgetNodeView(node: child, appGroupId: appGroupId)
+                            }
+                        }, row)
                 }
             }
         case "GridRow":

@@ -213,6 +213,28 @@ fixed** (the third is a native/design decision, flagged).
   uncontrolled mode, or dev-warn when neither prop is set) — not a blind JS
   change. Tracked for the macOS-build follow-up.
 
+## Cycle 7 — theme/token resolution + accessibility prop wiring
+
+Two more named gaps. **4 confirmed** (1 HIGH JS + 3 a11y prop-drops).
+
+- **HIGH (fixed, tested)** — `createTheme` merged the `text` section with a
+  single-level spread, so a PARTIAL text-variant override
+  (`createTheme({ text: { numeric: { color } } })`) replaced the whole variant,
+  silently dropping `numeric`'s `monospacedDigit`/`textStyle` — a numeric/timer
+  label loses its fixed-width digits (the variant's whole purpose). All variant
+  fields are optional, so it type-checked. Now merges variants one level deeper.
+- **MEDIUM (fixed)** — `GridRow`'s `accessibilityLabel`/`Hint` were dropped in
+  BOTH interpreters: inside `<Grid>` the row node is expanded via manual
+  child-iteration, never rendered through the a11y-applying `NodeView`/
+  `WidgetNodeView`. Apply the row's a11y at the expansion site (both files).
+- **LOW (fixed)** — same class for `AlertAction` (watch) and `NavigationRoute`
+  pushed-screen destinations (watch): a11y applied at their manual-expansion
+  sites.
+- **LOW (deferred)** — `NavigationRoute` a11y on the ROOT route (inline stack
+  base) and the widget's `navigationStackRoot` expansion are still dropped; a
+  refinement (lower value than the pushed-screen case), flagged for the
+  macOS-build follow-up.
+
 ## Coverage gaps (honest limits)
 
 - **The Swift was never compiled.** Cycles 1–3 are static reasoning over source +
