@@ -64,9 +64,10 @@ stale "done" claims here defeat its purpose (Rule 12).
 - [ ] **Where the deep answers live**: architecture + alternatives → the
   2026-07-01 review; "is X real?" → status.md; security → ota-signing.md; the
   2026-07-02 self-review cycles (5 adversarial passes, 32 fixes) →
-  code-review-2026-07-02-self-review-cycles.md. Two items there are gated on the
-  macOS `swift build` (E3): the widget OTA signature re-verification, and
-  compiling the ~4k lines of reviewed-but-uncompiled SwiftUI-host Swift.
+  code-review-2026-07-02-self-review-cycles.md. The widget OTA signature
+  re-verification is now implemented (fail-closed); like the ~4k lines of
+  reviewed SwiftUI-host Swift it awaits the macOS `swift build` (E3) to compile
+  — the one remaining gate, blocked on `actions:write` to dispatch it.
 
 ## 5. Suggested order of operations
 

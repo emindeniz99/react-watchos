@@ -869,7 +869,9 @@ final class WidgetBundleChoiceTests: XCTestCase {
 
     func testNoKnownGoodRecordFallsBackToShipped() {
         XCTAssertEqual(
-            WidgetBundleChoice.decide(knownGood: nil, bytecodeHashMatches: true),
+            WidgetBundleChoice.decide(
+                knownGood: nil, bytecodeHashMatches: true,
+                keyState: .disabled, recordVerified: false),
             .shipped)
     }
 
@@ -877,20 +879,51 @@ final class WidgetBundleChoiceTests: XCTestCase {
         // A record with no source is unusable — don't run an empty bundle.
         XCTAssertEqual(
             WidgetBundleChoice.decide(
-                knownGood: record(""), bytecodeHashMatches: true),
+                knownGood: record(""), bytecodeHashMatches: true,
+                keyState: .disabled, recordVerified: false),
             .shipped)
     }
 
     func testRunsPinnedBytecodeOnlyWhenHashMatches() {
+        // .disabled = the unsigned dev opt-in, so the app-promoted record runs.
         XCTAssertEqual(
             WidgetBundleChoice.decide(
-                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true),
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true,
+                keyState: .disabled, recordVerified: false),
             .knownGoodBytecode)
         // Stale/absent bytecode → parse the source, never run unpinned bytecode.
         XCTAssertEqual(
             WidgetBundleChoice.decide(
-                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: false),
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: false,
+                keyState: .disabled, recordVerified: false),
             .knownGoodSource)
+    }
+
+    func testEnforcedRunsKnownGoodOnlyWhenSignatureVerifies() {
+        // NF-35: with keys enforced, the App-Group known-good record must
+        // re-verify in the extension. Verified → run it...
+        XCTAssertEqual(
+            WidgetBundleChoice.decide(
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true,
+                keyState: .enforced, recordVerified: true),
+            .knownGoodBytecode)
+        // ...unverified (attacker-overwritten record) → shipped, NOT the record.
+        XCTAssertEqual(
+            WidgetBundleChoice.decide(
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true,
+                keyState: .enforced, recordVerified: false),
+            .shipped)
+    }
+
+    func testMisconfiguredOrUnconfiguredKeysFailClosedToShipped() {
+        // No usable key to authenticate the record → never run it.
+        for state in [OTAKeyState.misconfigured, .unconfigured] {
+            XCTAssertEqual(
+                WidgetBundleChoice.decide(
+                    knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true,
+                    keyState: state, recordVerified: false),
+                .shipped)
+        }
     }
 
     func testKnownGoodFilesAreDistinctFromTheActiveOnes() {

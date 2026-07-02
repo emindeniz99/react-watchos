@@ -75,6 +75,16 @@ import WidgetKit
 // reactSnapshotEntry helpers — see the demo (app/targets/widget) and the README.
 @main
 struct ${widgetStructName(name)}: WidgetBundle {
+    init() {
+        // OTA trust for the widget (NF-35): the widget re-verifies the known-good
+        // bundle it renders. Trust the SAME keys your watch app passes to
+        // ReactWatchRootView(ota:) — until then the widget shows the shipped
+        // bundle and won't run an OTA bundle it can't verify (secure default):
+        //   ReactWatchWidgetOTA.configure(signerPublicKeys: ["<keyId>": "<publicKeyBase64>"])
+        // For unsigned dev updates (matching allowUnsignedUpdates on the app):
+        //   ReactWatchWidgetOTA.configure(allowUnsignedUpdates: true)
+    }
+
     var body: some Widget {
         ExampleWidget()
     }

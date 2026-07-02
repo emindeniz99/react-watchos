@@ -101,24 +101,37 @@ findings both defeat NF-35 — the review paid for itself here.
   (battery + stale events). Fix: a `wantHeartRate` desired-state latch gates the
   completion; `beginWorkout` is now idempotent.
 
-### Deferred (tracked): HIGH — widget OTA runs unverified
+### HIGH — widget OTA ran unverified (now FIXED, commit `<this batch>`)
 
-`WidgetIntentRuntime.loadBundle` executes the known-good OTA record/bytecode
+`WidgetIntentRuntime.loadBundle` executed the known-good OTA record/bytecode
 from the App Group with **no Ed25519 re-verification** (the app re-verifies; the
-widget doesn't). Under the NF-35 writable-App-Group model, an attacker who
-overwrites `knownGoodRecord`/`knownGoodBytecode` gets code execution in the
-widget process on the next timeline refresh.
+widget didn't). Under the NF-35 writable-App-Group model, an attacker who
+overwrote `knownGoodRecord`/`knownGoodBytecode` got code execution in the widget
+process on the next timeline refresh.
 
-Not fixed in this batch because the correct fix is cross-cutting and shouldn't be
-rushed blind: the widget must obtain the trusted keys from a location an
-App-Group writer can't forge — i.e. **baked into the code-signed widget extension
-bundle** (Info.plist entry written by the config plugin, or a compiled constant),
-NOT read from the App Group. That needs (a) a signature verifier factored into
-the shared `ReactWatchSupport` (today it lives only in `ReactWatchHost`), (b)
-`WidgetIntentRuntime` reading the pinned keys + re-verifying `knownGoodRecord`
-before eval, falling back to the shipped bundle on failure, and (c) the config
-plugin / scaffold writing the keys into the widget target. This is the **top open
-security item** and should land with a compiler in the loop (macOS build).
+Fixed by giving the widget the trusted keys from the **code-signed extension
+binary** (not the writable App Group) and re-verifying:
+
+- `ReactWatchWidgetOTA.configure(signerPublicKeys:allowUnsignedUpdates:)` — a
+  write-once global set at the widget bundle's `@main` init with the SAME keys
+  the app passes to `ReactWatchRootView(ota:)`. A write-once global (not per-call
+  threading like `appGroupId`) is correct here: the signer keyset is one
+  build-time constant, unambiguous across families/App Groups.
+- `WidgetBundleChoice.decide` now takes `keyState` + `recordVerified`: under
+  `.enforced` an unverified record → the shipped bundle; `.unconfigured` /
+  `.misconfigured` fail closed to shipped; `.disabled` (dev opt-in) trusts the
+  app-promoted record. Pure Foundation, Linux-unit-tested (5 new cases).
+- `WidgetIntentRuntime.loadBundle` classifies via `OTAKeyState`, re-verifies the
+  known-good record's signature over `signedMessage()` with a CryptoKit check
+  mirroring the app's `verifyStoredRecord`, and passes the result into `decide`.
+- The scaffold + demo widget bundles call `configure(...)` (the demo mirrors the
+  app's `allowUnsignedUpdates: true`).
+
+**Fail-closed by construction:** if a consumer never calls `configure(...)`, or a
+key is malformed, the widget can't authenticate an App-Group record and shows the
+shipped bundle — safe, never insecure. The Swift verify/verify-wiring is
+watchOS-only, so it is validated by the macOS `swift build`, not the Linux gate;
+the decision policy it feeds is Linux-tested.
 
 ## Cycle 4 — JS integration seams (fetch / connectivity / notifications / widgets / storage / intents)
 
