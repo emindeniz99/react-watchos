@@ -90,6 +90,9 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 
 - [launch-checklist.md](./launch-checklist.md) — pre-marketing gates with
   honest statuses (engineering, release, security posture, claims discipline).
+- [announcement-draft.md](./announcement-draft.md) — launch copy (short post,
+  blog outline, prewritten FAQ) written against the checklist's claims lists;
+  bracketed gates must clear before publishing.
 - [status.md](./status.md) — verified current capabilities (the "is it real?"
   matrix; superseding "shipped" claims elsewhere).
 - [roadmap.md](./roadmap.md), [publishing.md](./publishing.md),
