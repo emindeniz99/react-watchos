@@ -89,13 +89,13 @@ through the same invoke channel:
 
 Two honest caveats:
 
-- **Background refresh delivery** — `scheduleBackgroundRefresh` works today
-  (it registers the wake-up), but forwarding a *fired*
-  `WKApplicationRefreshBackgroundTask` to JS (`onBackgroundRefresh`) needs a
-  Scene/app-delegate hook the current public surface (`ReactWatchRootView`)
-  doesn't expose yet; the model's `deliverBackgroundRefresh` is the ready
-  hook for a planned `ReactWatchScene` wrapper. In the meantime a scenePhase
-  `active` wake already reaches JS as a `scenePhase` event.
+- **Background refresh** is fully wired: `scheduleBackgroundRefresh`
+  registers the wake-up, and the package's `ReactWatchAppDelegate` forwards
+  the fired `WKApplicationRefreshBackgroundTask` to JS's
+  `onBackgroundRefresh` (with your userInfo). It needs the delegate adaptor
+  in your `@main` App — `@WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self)`
+  — which `react-native-watchos scaffold` writes for you. Keep the handler
+  short; the app suspends again when it returns.
 - **Extended runtime sessions** require the consumer to declare the session
   reason in the target's Info.plist; without it the system invalidates the
   session immediately, which surfaces as a `runtimeSession.state` event with

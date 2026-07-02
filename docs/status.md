@@ -54,7 +54,7 @@ build (②) is the real gate**, and behavioral correctness isn't guaranteed unti
 | Keychain secure storage (`Keychain.*`) | ① → ② pending | invoke routing ①; Security-framework handler ② |
 | Speech synthesis (`speak`/`stopSpeaking`) | ① → ② pending | invoke routing ①; AVSpeechSynthesizer handler ② |
 | Extended runtime session | ① → ② pending | invoke routing ①; WKExtendedRuntimeSession handler ② (needs Info.plist session reason; device-only behavior ③) |
-| Background refresh **scheduling** (`scheduleBackgroundRefresh`) | ① → ② pending | invoke routing ①; WKApplication schedule ②. **Fire→JS delivery** needs a Scene hook not yet exposed — scenePhase wake works in the meantime |
+| Background refresh (`scheduleBackgroundRefresh` + `onBackgroundRefresh`) | ① → ② pending | invoke routing ①; full path wired — WKApplication schedule + `ReactWatchAppDelegate` fire→JS delivery (scaffold adds the `@WKApplicationDelegateAdaptor`) ② |
 | In-app purchase (StoreKit 2) | ① → ② pending | invoke routing ①; StoreKit handlers ②; real purchases are App-Store-Connect + device ③ |
 | DevTools | ② note | a **remote inspector** (`startInspector` tees `console.log` + tree snapshots over `fetch`), **not** the official React DevTools — QuickJS has no WebSocket transport |
 | macOS / tvOS targets | — | not built; cross-platform core extraction is a roadmap bet, not current |

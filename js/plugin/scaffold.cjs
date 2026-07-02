@@ -35,6 +35,10 @@ import SwiftUI
 // the native bridges all live in the package.
 @main
 struct ${structName(name)}: App {
+    // Forwards background-refresh tasks (scheduleBackgroundRefresh) to JS's
+    // onBackgroundRefresh. Harmless if you never schedule one.
+    @WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
             // OTA updates are refused until you trust a signing key (secure

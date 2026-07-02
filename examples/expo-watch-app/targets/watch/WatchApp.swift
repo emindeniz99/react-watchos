@@ -8,6 +8,9 @@ import SwiftUI
 // the native bridges all live in the package.
 @main
 struct ExpoWatchApp: App {
+    // Delivers scheduled background refreshes to JS's onBackgroundRefresh.
+    @WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
             // OTA updates are refused until you trust a signing key (secure

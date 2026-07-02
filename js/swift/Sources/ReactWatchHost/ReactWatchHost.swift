@@ -69,6 +69,11 @@ final class ReactWatchModel: ObservableObject {
     /// in and drops its result if it no longer matches.
     private var generation = 0
 
+    /// The live model, so the package's WKApplicationDelegate can forward a
+    /// fired background-refresh task to JS (`deliverBackgroundRefresh`). A watch
+    /// app has exactly one; weak so it doesn't outlive the scene. Main-isolated.
+    static weak var shared: ReactWatchModel?
+
     /// OTA verification config (CR-4 / CR-17). `updatePublicKeys` empty =
     /// fail-open (load unsigned + warn); otherwise it's the trusted
     /// `keyId -> publicKey` map (CX-007) — an OTA's `keyId` selects the key, and
@@ -111,6 +116,7 @@ final class ReactWatchModel: ObservableObject {
 
     func start() {
         guard runtime == nil else { return }
+        Self.shared = self
         connectivity.onMessage = { [weak self] message in
             self?.pushNativeEvent("watchConnectivity", payload: message)
         }
@@ -1396,6 +1402,42 @@ public struct ReactWatchRootView: View {
     }
 }
 
+/// The package's WKApplicationDelegate: forwards a fired background-refresh
+/// task to JS (`onBackgroundRefresh`). Wire it in your @main App with
+/// `@WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self)` — the
+/// `react-native-watchos scaffold` command writes this for you. Without it,
+/// `scheduleBackgroundRefresh` still schedules the wake, but the fire event
+/// never reaches JS (a scenePhase `active` wake does).
+public final class ReactWatchAppDelegate: NSObject, WKApplicationDelegate {
+    public override init() { super.init() }
+
+    public func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
+        // WatchKit delivers background tasks on the main thread; deliver to JS
+        // SYNCHRONOUSLY (a pushNativeEvent commit), THEN complete the task, so
+        // watchOS doesn't suspend mid-commit.
+        for task in backgroundTasks {
+            if let refresh = task as? WKApplicationRefreshBackgroundTask {
+                let userInfo = Self.decodeUserInfo(refresh.userInfo)
+                MainActor.assumeIsolated {
+                    ReactWatchModel.shared?.deliverBackgroundRefresh(userInfo: userInfo)
+                }
+            }
+            // No snapshot: we changed no UI directly (JS republishes widgets).
+            task.setTaskCompletedWithSnapshot(false)
+        }
+    }
+
+    /// The userInfo we scheduled with is carried as a JSON NSString (see
+    /// handleScheduleBackgroundRefresh); decode it back to a dictionary.
+    private static func decodeUserInfo(_ raw: NSSecureCoding?) -> [String: Any]? {
+        guard let json = raw as? NSString,
+            let data = (json as String).data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return obj
+    }
+}
+
 // MARK: - Capability invoke handlers (device/background/runtime/keychain/
 // speech/iap). Same-file extension so the generation guard (private) is
 // visible; the native bits live in CapabilityBridges.swift.
@@ -1436,11 +1478,8 @@ extension ReactWatchModel {
     }
 
     /// Delivery hook for a fired background refresh -> JS `onBackgroundRefresh`.
-    /// Scheduling (`scheduleBackgroundRefresh`) works today; calling this on a
-    /// fired WKApplicationRefreshBackgroundTask needs a Scene/app-delegate hook
-    /// the current public surface (ReactWatchRootView) doesn't expose yet — a
-    /// scenePhase `active` wake already reaches JS in the meantime. Kept
-    /// internal-ready for the planned Scene integration (see extending.md).
+    /// Called by ReactWatchAppDelegate.handle(_:) when watchOS runs a task
+    /// scheduled by `scheduleBackgroundRefresh` (wire the adaptor in @main App).
     func deliverBackgroundRefresh(userInfo: [String: Any]?) {
         pushNativeEvent("backgroundRefresh", payload: ["userInfo": userInfo ?? [:]])
     }

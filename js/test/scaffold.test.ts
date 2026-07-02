@@ -23,6 +23,10 @@ describe("scaffold (DX-3)", () => {
     expect(src).toContain("import ReactWatchHost");
     expect(src).toContain("@main");
     expect(src).toContain("struct ExpoWatchApp: App {");
+    // Background-refresh delivery is wired by default (harmless if unused).
+    expect(src).toContain(
+      "@WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self)",
+    );
     // The App Group must be threaded into ReactWatchRootView verbatim.
     expect(src).toContain(
       'ReactWatchRootView(appGroupId: "group.com.example.expowatch")',
