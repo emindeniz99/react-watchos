@@ -37,6 +37,10 @@ import SwiftUI
 struct ${structName(name)}: App {
     var body: some Scene {
         WindowGroup {
+            // OTA updates are refused until you trust a signing key (secure
+            // default). Your build script prints the dev key line on first
+            // build; production keys come from 'npm run ota:keygen':
+            //   ota: .init(signerPublicKeys: ["<keyId>": "<publicKeyBase64>"])
             ReactWatchRootView(appGroupId: "${appGroupId}")
         }
     }

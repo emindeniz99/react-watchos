@@ -28,9 +28,13 @@ Prints a **key id** (`kid`) plus two base64 values:
   private key.** It is the only thing that lets you ship a bundle the watch will
   run — treat it like a code-signing key.
 
-With an **empty** `signerPublicKeys` the app is *fail-open*: it loads unsigned
-bundles and logs a warning. Configure at least one key to enforce signatures +
-the anti-rollback gate.
+With an **empty** `signerPublicKeys` the app **refuses new OTA saves** (NF-29
+secure default) — an example copied without keys cannot be hijacked by whoever
+answers its manifest URL. For local development you can opt into the old
+fail-open behavior explicitly with `OTAConfig(allowUnsignedUpdates: true)`
+(unsigned bundles load with a loud warning); never ship a release with it set.
+Configure at least one key to enforce signatures + the anti-rollback gate —
+keys always win over the opt-in.
 
 ### Key rotation (CX-007)
 

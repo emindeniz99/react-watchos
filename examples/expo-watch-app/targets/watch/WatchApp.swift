@@ -10,6 +10,10 @@ import SwiftUI
 struct ExpoWatchApp: App {
     var body: some Scene {
         WindowGroup {
+            // OTA updates are refused until you trust a signing key (secure
+            // default). `npm run build:targets` prints your dev key's line on
+            // first build (persisted at .ota-dev-key.json, gitignored):
+            //   ota: .init(signerPublicKeys: ["<keyId>": "<publicKeyBase64>"])
             ReactWatchRootView(appGroupId: "group.com.example.expowatch")
         }
     }

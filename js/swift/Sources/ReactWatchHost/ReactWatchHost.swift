@@ -92,7 +92,8 @@ final class ReactWatchModel: ObservableObject {
         // malformed" (fail CLOSED) — a base64 typo must not silently disable
         // signature enforcement the developer opted into.
         updateKeyState = OTAKeyState.classify(
-            configuredCount: ota.signerPublicKeys.count, validCount: keys.count)
+            configuredCount: ota.signerPublicKeys.count, validCount: keys.count,
+            allowUnsigned: ota.allowUnsignedUpdates)
         if keys.count < ota.signerPublicKeys.count {
             print(
                 "[ReactWatch] WARNING: \(ota.signerPublicKeys.count - keys.count) OTA "
@@ -407,6 +408,14 @@ final class ReactWatchModel: ObservableObject {
                 + "lacks (\(missing.joined(separator: ", "))) — update the app"
             return false
         }
+        // NF-29: the secure zero-config default — no keys and no explicit dev
+        // opt-in means new OTA bundles are refused, not silently accepted.
+        if updateKeyState == .unconfigured {
+            runtimeError =
+                "OTA update rejected: no signing keys configured — set "
+                + "OTAConfig.signerPublicKeys (or allowUnsignedUpdates for dev builds)"
+            return false
+        }
         // CX-003: keys were configured but none decoded — the developer opted
         // into enforcement but misconfigured it. Refuse loudly; never fall
         // through to the fail-open branch below.
@@ -698,10 +707,11 @@ final class ReactWatchModel: ObservableObject {
         let candidate = otaCandidate()
         let decision: BootDecision =
             if updateKeyState == .disabled {
-                // Fail-open ONLY when no keys are configured (CX-003): versions are
-                // unverified, so no anti-rollback — run the OTA bundle if present,
-                // else shipped. A misconfigured keyset still enforces anti-rollback
-                // here (and saveUpdate refuses new unsigned bundles).
+                // Fail-open ONLY on the explicit allowUnsignedUpdates dev opt-in
+                // (CX-003/NF-29): versions are unverified, so no anti-rollback —
+                // run the OTA bundle if present, else shipped. Unconfigured and
+                // misconfigured keysets still enforce anti-rollback here (and
+                // saveUpdate refuses their new bundles).
                 candidate != nil ? .runOTA : .runShipped
             } else {
                 VersionPolicy.decide(
@@ -1162,9 +1172,10 @@ final class ReactWatchModel: ObservableObject {
 /// OTA verification + rollback policy for `ReactWatchRootView` (CR-4 / CR-17).
 public struct OTAConfig: Sendable {
     /// Trusted OTA signing keys (CX-007): `keyId -> base64 Ed25519 public key`.
-    /// Empty = fail-open (bundles load unsigned with a loud warning); set it to
-    /// enforce signed updates + anti-rollback. Multiple entries enable key
-    /// rotation — trust `{old, new}` while you migrate signing to `new`, then
+    /// Empty = OTA saves are REFUSED unless `allowUnsignedUpdates` is set
+    /// (NF-29 secure default); set keys to enforce signed updates +
+    /// anti-rollback. Multiple entries enable key rotation — trust `{old, new}`
+    /// while you migrate signing to `new`, then
     /// drop `old` in a later app release (rotate-then-revoke with an overlap
     /// window so no device is stranded). This map ships INSIDE the code-signed
     /// app binary: it's the trust anchor, so it must never come from a source
@@ -1181,15 +1192,22 @@ public struct OTAConfig: Sendable {
     /// gate's "Check for update" recover natively — re-fetching a current bundle
     /// when stale JS is blocked and the JS app isn't running to fetch. HTTPS.
     public var manifestURL: String?
+    /// Explicit dev opt-in to load UNSIGNED OTA bundles when no keys are
+    /// configured (NF-29). Never ship a release build with this set: anyone
+    /// who can answer the manifest URL gets the full host surface. Ignored
+    /// once `signerPublicKeys` is non-empty — keys always enforce.
+    public var allowUnsignedUpdates: Bool
 
     public init(
         signerPublicKeys: [String: String] = [:], gate: OTAGate = .soft,
-        shippedVersion: Int = 1, manifestURL: String? = nil
+        shippedVersion: Int = 1, manifestURL: String? = nil,
+        allowUnsignedUpdates: Bool = false
     ) {
         self.signerPublicKeys = signerPublicKeys
         self.gate = gate
         self.shippedVersion = shippedVersion
         self.manifestURL = manifestURL
+        self.allowUnsignedUpdates = allowUnsignedUpdates
     }
 }
 

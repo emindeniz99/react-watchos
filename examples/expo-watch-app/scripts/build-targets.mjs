@@ -1,6 +1,11 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildBundles } from "react-native-watchos/build";
+import {
+  generateSigningKey,
+  signManifest,
+} from "react-native-watchos/manifest";
 
 // Builds both watch bundles (ARCH-03: the app UI + the widget) in one call via
 // the package's `buildBundles` helper — no per-target esbuild boilerplate, just
@@ -39,3 +44,34 @@ await buildBundles(
   ],
   { minify, nodePaths: [join(root, "node_modules")] },
 );
+
+// NF-29: never leave the stamped manifest unsigned, even in the demo — an
+// unsigned OTA channel hands the full host surface to whoever answers the
+// manifest URL, and examples get copied verbatim. Production/CI signs with
+// the real secret (OTA_SIGNING_KEY + OTA_SIGNING_KEY_ID); local dev falls
+// back to a per-checkout keypair persisted at .ota-dev-key.json (gitignored).
+// Trust the printed public key in targets/watch/WatchApp.swift to let the
+// watch accept these dev-signed updates.
+const assetsDir = join(root, "targets/watch/assets");
+let keyId = process.env.OTA_SIGNING_KEY_ID;
+let privateKeySeedBase64 = process.env.OTA_SIGNING_KEY;
+if (!keyId || !privateKeySeedBase64) {
+  const keyFile = join(root, ".ota-dev-key.json");
+  let devKey;
+  if (existsSync(keyFile)) {
+    devKey = JSON.parse(readFileSync(keyFile, "utf8"));
+  } else {
+    devKey = generateSigningKey();
+    writeFileSync(keyFile, `${JSON.stringify(devKey, null, 2)}\n`);
+    console.log(
+      `Generated a DEV OTA signing key at ${keyFile} (gitignored).\n` +
+        "Trust it in targets/watch/WatchApp.swift so the watch accepts " +
+        "dev-signed updates:\n" +
+        `  ota: .init(signerPublicKeys: ["${devKey.keyId}": "${devKey.publicKeyBase64}"])`,
+    );
+  }
+  keyId = devKey.keyId;
+  privateKeySeedBase64 = devKey.privateKeySeedBase64;
+}
+const signed = signManifest({ distDir: assetsDir, keyId, privateKeySeedBase64 });
+console.log(`OTA manifest signed (keyId ${signed.keyId}, v${signed.version})`);

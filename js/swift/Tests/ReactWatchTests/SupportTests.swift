@@ -735,33 +735,58 @@ final class SharedWidgetStoreTests: XCTestCase {
 }
 
 // CX-003: a configured-but-malformed signing key must not silently degrade to
-// fail-open. The pure classifier keeps the three states distinct; the host wires
+// fail-open. The pure classifier keeps the states distinct; the host wires
 // `.misconfigured` to "refuse all OTA loudly" and `.disabled` to fail-open.
 final class OTAKeyStateTests: XCTestCase {
-    func testNoKeysConfiguredIsDisabled() {
+    func testNoKeysWithoutOptInIsUnconfigured() {
+        // NF-29: the zero-config default is secure — no keys and no explicit
+        // opt-in refuses new OTA saves instead of silently loading unsigned.
         XCTAssertEqual(
-            OTAKeyState.classify(configuredCount: 0, validCount: 0), .disabled)
+            OTAKeyState.classify(configuredCount: 0, validCount: 0, allowUnsigned: false),
+            .unconfigured)
+    }
+
+    func testNoKeysWithOptInIsDisabled() {
+        // Dev fail-open requires the explicit allowUnsignedUpdates opt-in.
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 0, validCount: 0, allowUnsigned: true),
+            .disabled)
+    }
+
+    func testOptInIsIgnoredOnceKeysAreConfigured() {
+        // Configured keys always enforce; the dev opt-in can't weaken them.
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 2, validCount: 2, allowUnsigned: true),
+            .enforced)
     }
 
     func testAllKeysValidEnforces() {
         XCTAssertEqual(
-            OTAKeyState.classify(configuredCount: 2, validCount: 2), .enforced)
+            OTAKeyState.classify(configuredCount: 2, validCount: 2, allowUnsigned: false),
+            .enforced)
     }
 
     func testSomeValidStillEnforces() {
         // A partially-bad keyset still enforces on its valid keys (the bad one is
         // dropped + warned) — only an ALL-bad keyset is misconfigured.
         XCTAssertEqual(
-            OTAKeyState.classify(configuredCount: 2, validCount: 1), .enforced)
+            OTAKeyState.classify(configuredCount: 2, validCount: 1, allowUnsigned: false),
+            .enforced)
     }
 
     func testConfiguredButNoneValidIsMisconfigured() {
         // The CX-003 trap: keys were set (enforcement intended) but every one
-        // failed to decode — must be fail-closed, NOT the same as `.disabled`.
+        // failed to decode — must be fail-closed, NOT the same as `.disabled`,
+        // and the dev opt-in must not soften it either.
         XCTAssertEqual(
-            OTAKeyState.classify(configuredCount: 1, validCount: 0), .misconfigured)
+            OTAKeyState.classify(configuredCount: 1, validCount: 0, allowUnsigned: false),
+            .misconfigured)
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 1, validCount: 0, allowUnsigned: true),
+            .misconfigured)
         XCTAssertNotEqual(
-            OTAKeyState.classify(configuredCount: 1, validCount: 0), .disabled)
+            OTAKeyState.classify(configuredCount: 1, validCount: 0, allowUnsigned: false),
+            .disabled)
     }
 }
 
