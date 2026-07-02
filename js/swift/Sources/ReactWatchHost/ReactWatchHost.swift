@@ -913,7 +913,13 @@ final class ReactWatchModel: ObservableObject {
                         }
                         return
                     }
-                    self.root = tree.root
+                    // @Published fires objectWillChange on every assignment
+                    // regardless of equality; guard so an ack-only or
+                    // value-identical commit (high-frequency sensor pushes)
+                    // doesn't re-diff the whole SwiftUI tree (NF-22).
+                    if self.root != tree.root {
+                        self.root = tree.root
+                    }
                     // A committed tree means the bundle booted healthily — clear
                     // the crash-loop counter so only *boot* failures accumulate
                     // (ARCH-04). Idempotent; after the first reset it's a no-op.

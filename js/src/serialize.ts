@@ -2,7 +2,7 @@ import { WIRE_VERSION } from "./generated/wire";
 import type { SerializedNode, SerializedTree } from "./host";
 import type { Container, Instance } from "./renderer";
 
-function textContent(children: unknown): string {
+export function textContent(children: unknown): string {
   if (children == null) return "";
   if (Array.isArray(children)) return children.map(textContent).join("");
   return String(children);

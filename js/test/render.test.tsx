@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { useState } from "react";
+import { describe, expect, it, vi } from "vitest";
 import type { VStackProps } from "../src/index";
 import {
   Button,
@@ -11,6 +12,7 @@ import {
   VStack,
   WatchRoot,
 } from "../src/index";
+import { findByType } from "./helpers";
 
 describe("render", () => {
   it("serializes a JSX tree to the exact wire schema", () => {
@@ -143,5 +145,75 @@ describe("render", () => {
       ),
     ).toThrow(/single root element \(got 2\)/i);
     expect(host.commits).toHaveLength(0);
+  });
+});
+
+describe("wire-identical commit skip (NF-21)", () => {
+  it("skips serialization entirely when a commit changes nothing wire-visible", () => {
+    // State changes 0.4 → 0.45, but the rendered text rounds to "0" both
+    // times: React commits (new props identity), yet the wire bytes would be
+    // identical — the serializer must not even run.
+    function Rounded() {
+      const [v, setV] = useState(0.4);
+      return (
+        <Button onPress={() => setV(0.45)}>
+          <Text>{Math.round(v)}</Text>
+        </Button>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Rounded />);
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    const commitsBefore = host.commits.length;
+
+    const stringify = vi.spyOn(JSON, "stringify");
+    try {
+      // No seq → no ack owed, so the clean tree short-circuits before
+      // serializeTree/JSON.stringify.
+      root.dispatchEvent({ nodeId: button.id, event: "press" });
+      expect(stringify).not.toHaveBeenCalled();
+    } finally {
+      stringify.mockRestore();
+    }
+    expect(host.commits.length).toBe(commitsBefore);
+  });
+
+  it("still acks the seq when the tree is wire-identical", () => {
+    function Rounded() {
+      const [v, setV] = useState(0.4);
+      return (
+        <Button onPress={() => setV(0.45)}>
+          <Text>{Math.round(v)}</Text>
+        </Button>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Rounded />);
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+
+    root.dispatchEvent({ nodeId: button.id, event: "press", seq: 7 });
+    // The ack forces a serialize even on a clean tree (CX-010): the commit
+    // carrying seq 7 must reach native or an optimistic control strands.
+    expect(host.lastCommit!.seq).toBe(7);
+  });
+
+  it("a real value change still commits", () => {
+    function Counter() {
+      const [n, setN] = useState(0);
+      return (
+        <Button onPress={() => setN((c) => c + 1)}>
+          <Text>{n}</Text>
+        </Button>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Counter />);
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    root.dispatchEvent({ nodeId: button.id, event: "press" });
+    const text = findByType(host.lastCommit!.root!, "Text")[0];
+    expect(text.props.text).toBe("1");
   });
 });
