@@ -88,6 +88,8 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 
 ## Reference / background
 
+- [launch-checklist.md](./launch-checklist.md) — pre-marketing gates with
+  honest statuses (engineering, release, security posture, claims discipline).
 - [status.md](./status.md) — verified current capabilities (the "is it real?"
   matrix; superseding "shipped" claims elsewhere).
 - [roadmap.md](./roadmap.md), [publishing.md](./publishing.md),
