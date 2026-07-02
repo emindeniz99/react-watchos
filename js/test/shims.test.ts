@@ -93,8 +93,8 @@ describe("timer shims (QuickJS environment)", () => {
     });
   });
 
-  it("clearInterval from inside the callback stops re-arming", () => {
-    withBareEngine(({ armed, fire }) => {
+  it("clearInterval from inside the callback cancels the re-armed timer", () => {
+    withBareEngine(({ armed, cleared, fire }) => {
       const g = globalThis as Record<string, unknown>;
       let id = 0;
       let ticks = 0;
@@ -105,9 +105,49 @@ describe("timer shims (QuickJS environment)", () => {
       const armedAfterCreate = armed.length;
       fire(id);
       expect(ticks).toBe(1);
-      expect(armed.length).toBe(armedAfterCreate); // not re-armed after clear
+      // The interval re-arms BEFORE the callback runs (fixed rate), so the
+      // in-callback clear must cancel that just-armed host timer.
+      expect(armed.length).toBe(armedAfterCreate + 1);
+      expect(cleared).toContain(id);
       fire(id);
-      expect(ticks).toBe(1);
+      expect(ticks).toBe(1); // cleared → the map entry is gone, fire is a no-op
+    });
+  });
+
+  it("a throwing interval callback does not kill the interval", () => {
+    withBareEngine(({ armed, fire }) => {
+      const g = globalThis as Record<string, unknown>;
+      let ticks = 0;
+      const id = (g.setInterval as (fn: () => void, ms: number) => number)(
+        () => {
+          ticks++;
+          throw new Error("tick boom");
+        },
+        100,
+      );
+      expect(() => fire(id)).toThrow("tick boom");
+      // Re-armed before the callback ran, so the throw can't strand it.
+      expect(armed[armed.length - 1]).toEqual({ id, ms: 100 });
+      expect(() => fire(id)).toThrow("tick boom");
+      expect(ticks).toBe(2);
+    });
+  });
+
+  it("clamps negative and NaN delays to 0 before they reach the host", () => {
+    withBareEngine(({ armed }) => {
+      const g = globalThis as Record<string, unknown>;
+      const set = g.setTimeout as (fn: () => void, ms?: number) => number;
+      const idNegative = set(() => {}, -5);
+      const idNaN = set(() => {}, Number.NaN);
+      const idMissing = set(() => {});
+      expect(armed).toEqual([
+        { id: idNegative, ms: 0 },
+        { id: idNaN, ms: 0 },
+        { id: idMissing, ms: 0 },
+      ]);
+      const interval = g.setInterval as (fn: () => void, ms?: number) => number;
+      const idInterval = interval(() => {}, -100);
+      expect(armed[armed.length - 1]).toEqual({ id: idInterval, ms: 0 });
     });
   });
 });

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "../src/invoke";
 import { installMockHost } from "./helpers";
 
@@ -44,5 +44,41 @@ describe("invoke channel (SD-1)", () => {
         '"second"',
       ),
     ).not.toThrow();
+  });
+});
+
+describe("invoke timeout net (NF-01)", () => {
+  it("rejects INTERNAL when native accepts the call but never replies", async () => {
+    vi.useFakeTimers();
+    try {
+      const host = installMockHost();
+      host.invoke.mockImplementation(() => {
+        // Native accepted the invoke and then dropped it on the floor.
+      });
+      const promise = invoke("requestNotificationPermission");
+      const assertion = expect(promise).rejects.toMatchObject({
+        code: "INTERNAL",
+        message: expect.stringContaining("no native reply"),
+      });
+      await vi.advanceTimersByTimeAsync(30_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a settle before the deadline cancels the timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const host = installMockHost();
+      host.invoke.mockImplementation((id: number) => {
+        (g.__resolveInvoke as (i: number, j: string) => void)(id, '"ok"');
+      });
+      await expect(invoke("requestNotificationPermission")).resolves.toBe("ok");
+      // Advancing past the deadline must not surface a late rejection.
+      await vi.advanceTimersByTimeAsync(60_000);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

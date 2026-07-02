@@ -32,8 +32,22 @@ function invokeError(code: InvokeErrorCode, message: string): InvokeError {
 let nextInvokeId = 1;
 const pending = new Map<
   number,
-  { resolve: (value: unknown) => void; reject: (error: unknown) => void }
+  {
+    resolve: (value: unknown) => void;
+    reject: (error: unknown) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }
 >();
+
+/**
+ * Last-resort settle when native accepts an invoke and then never replies (an
+ * exception before the callback, a dropped delegate). Every native path is
+ * supposed to settle exactly once (CX-022), but that invariant depends on
+ * each bridge author's diligence — without this net, one miss hangs the JS
+ * promise and leaks its closures for the runtime's life. Paths with tighter
+ * native semantics (BLE connect's 15 s) settle first and win.
+ */
+const INVOKE_TIMEOUT_MS = 30_000;
 
 /** The single settle path — drops the id from the pending map FIRST, so a
  *  duplicate native reply for the same id is a silent no-op (settle once). */
@@ -41,6 +55,7 @@ function settle(id: number, ok: boolean, json: string): void {
   const entry = pending.get(id);
   if (!entry) return;
   pending.delete(id);
+  clearTimeout(entry.timer);
   if (ok) {
     try {
       entry.resolve(json ? JSON.parse(json) : undefined);
@@ -94,7 +109,20 @@ export function invoke<T = unknown>(
   installInvokeBridge();
   return new Promise<T>((resolve, reject) => {
     const id = nextInvokeId++;
-    pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
+    const timer = setTimeout(() => {
+      if (!pending.delete(id)) return;
+      reject(
+        invokeError(
+          "INTERNAL",
+          `${method} got no native reply within ${INVOKE_TIMEOUT_MS}ms`,
+        ),
+      );
+    }, INVOKE_TIMEOUT_MS);
+    pending.set(id, {
+      resolve: resolve as (v: unknown) => void,
+      reject,
+      timer,
+    });
     host.invoke?.(
       id,
       method,
