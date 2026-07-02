@@ -118,6 +118,30 @@ struct NodeView: View {
             navigationLink
         case "NavigationRoute":
             NavigationRouteDestination(node: node)
+        case "Alert":
+            AlertNode(node: node, dialog: false)
+        case "ConfirmationDialog":
+            AlertNode(node: node, dialog: true)
+        case "AlertAction":
+            // Only meaningful as an Alert/ConfirmationDialog child, where the
+            // parent renders it as a system button; standalone it is nothing.
+            EmptyView()
+        case "Sheet":
+            SheetNode(node: node)
+        case "Section":
+            Section {
+                childViews
+            } header: {
+                if let header = node.string("header") { Text(header) }
+            } footer: {
+                if let footer = node.string("footer") { Text(footer) }
+            }
+        case "Label":
+            SwiftUI.Label(
+                node.string("label") ?? "",
+                systemImage: node.string("systemName") ?? "circle"
+            )
+            .foregroundStyle(color(node.string("color")) ?? .primary)
         case "TextField":
             OptimisticTextField(node: node)
         case "Picker":
@@ -918,6 +942,102 @@ private struct EdgeSwipeActionModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// System alert / confirmation dialog (`dialog: true`), React-controlled the
+/// same way as Toggle: `presented` is the source of truth, dismissal
+/// dispatches an optimistic change(false), and each <AlertAction> child
+/// becomes a system button whose tap dispatches press on ITS node id. The
+/// anchor is a zero-size clear view — presentation modifiers just need any
+/// view in the hierarchy.
+private struct AlertNode: View {
+    let node: RNNode
+    let dialog: Bool
+    @EnvironmentObject private var model: ReactWatchModel
+
+    var body: some View {
+        let title = node.string("title") ?? ""
+        let anchor = Color.clear.frame(width: 0, height: 0)
+        if dialog {
+            anchor.confirmationDialog(
+                title, isPresented: presentedBinding(node: node, model: model)
+            ) {
+                alertActionButtons(node: node, model: model)
+            }
+        } else {
+            anchor.alert(
+                title, isPresented: presentedBinding(node: node, model: model)
+            ) {
+                alertActionButtons(node: node, model: model)
+            } message: {
+                if let message = node.string("message") { Text(message) }
+            }
+        }
+    }
+}
+
+/// Modal sheet (full-screen on watchOS), controlled like AlertNode; the
+/// node's children are the sheet content.
+private struct SheetNode: View {
+    let node: RNNode
+    @EnvironmentObject private var model: ReactWatchModel
+
+    var body: some View {
+        Color.clear.frame(width: 0, height: 0)
+            .sheet(isPresented: presentedBinding(node: node, model: model)) {
+                ForEach(node.children) { child in
+                    NodeView(node: child)
+                }
+            }
+    }
+}
+
+/// The controlled `presented` binding shared by Alert/ConfirmationDialog/
+/// Sheet — the Toggle pattern: optimistic local value until React acks.
+@MainActor private func presentedBinding(
+    node: RNNode, model: ReactWatchModel
+) -> Binding<Bool> {
+    Binding(
+        get: {
+            // Without an onChange handler React can never observe the
+            // dismissal, so the CX-010 ack would snap `presented` back to
+            // true and the system would re-present forever. A handler-less
+            // presentation therefore never presents (the read-only rule the
+            // other controlled inputs get via .disabled).
+            guard node.bool("onChange") == true else { return false }
+            return model.optimisticBool(node.id) ?? node.bool("presented") ?? false
+        },
+        set: { newValue in
+            model.dispatchOptimistic(
+                nodeId: node.id, value: .bool(newValue),
+                payload: ["value": newValue]
+            )
+        }
+    )
+}
+
+/// <AlertAction> children -> system buttons. The system dismisses on tap
+/// (which fires the binding's change(false)); the action's own press is
+/// dispatched against the ACTION node so React runs the right handler.
+@MainActor @ViewBuilder private func alertActionButtons(
+    node: RNNode, model: ReactWatchModel
+) -> some View {
+    ForEach(node.children.filter { $0.type == "AlertAction" }) { action in
+        Button(
+            action.string("label") ?? "",
+            role: buttonRole(action.string("role"))
+        ) {
+            _ = model.dispatch(nodeId: action.id, event: "press")
+        }
+    }
+}
+
+private func buttonRole(_ name: String?) -> ButtonRole? {
+    switch name {
+    case "destructive": .destructive
+    case "cancel": .cancel
+    default: nil
     }
 }
 

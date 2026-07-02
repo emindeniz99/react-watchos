@@ -355,6 +355,71 @@ export interface TimerTextProps extends A11yProps, ModifierProps {
   color?: string;
 }
 
+/** An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
+ *  presentation automatically when an action is tapped; `onPress` fires for
+ *  the tapped action and the presentation's `onChange(false)` fires too. */
+export interface AlertActionProps extends A11yProps {
+  label: string;
+  /** "destructive" renders red; "cancel" gets the cancel slot/placement. */
+  role?: "destructive" | "cancel";
+  onPress?: () => void;
+}
+
+/**
+ * System alert (SwiftUI `.alert`), React-controlled like Toggle: you present
+ * it with `presented`, the system dismisses it (action tap), and
+ * `onChange(false)` tells React to drop its state. Children must be
+ * <AlertAction> elements; with none, the system adds a default OK.
+ */
+export interface AlertProps {
+  presented?: boolean;
+  title: string;
+  message?: string;
+  /**
+   * REQUIRED for the alert to actually present: without it React could never
+   * observe the system's dismissal and the seq-ack would re-present forever,
+   * so a handler-less presentation stays hidden (the controlled-input rule).
+   */
+  onChange?: (presented: boolean) => void;
+  children?: ReactNode;
+}
+
+/** Action-sheet-style dialog (SwiftUI `.confirmationDialog`); same controlled
+ *  contract as <Alert>, children are <AlertAction> elements. */
+export interface ConfirmationDialogProps {
+  presented?: boolean;
+  title: string;
+  onChange?: (presented: boolean) => void;
+  children?: ReactNode;
+}
+
+/**
+ * Modal sheet (SwiftUI `.sheet`; effectively full-screen on watchOS).
+ * Controlled like <Alert>: present with `presented`, the user's swipe-down /
+ * system dismissal fires `onChange(false)`. Children are the sheet content.
+ */
+export interface SheetProps {
+  presented?: boolean;
+  onChange?: (presented: boolean) => void;
+  children?: ReactNode;
+}
+
+/** Grouped rows with an optional header/footer — meaningful inside <List>
+ *  (SwiftUI `Section`). */
+export interface SectionProps extends A11yProps, ModifierProps {
+  header?: string;
+  footer?: string;
+  children?: ReactNode;
+}
+
+/** Icon + text as one primitive (SwiftUI `Label(_:systemImage:)`). */
+export interface LabelProps extends A11yProps, ModifierProps {
+  label: string;
+  /** SF Symbol name. */
+  systemName: string;
+  color?: string;
+}
+
 export const VStack = "VStack" as unknown as FC<VStackProps>;
 export const HStack = "HStack" as unknown as FC<HStackProps>;
 export const Text = "Text" as unknown as FC<TextProps>;
@@ -383,3 +448,10 @@ export const Stepper = "Stepper" as unknown as FC<StepperProps>;
 export const DatePicker = "DatePicker" as unknown as FC<DatePickerProps>;
 // Exported as MapView to avoid shadowing the global `Map`; node type "Map".
 export const MapView = "Map" as unknown as FC<MapProps>;
+export const Alert = "Alert" as unknown as FC<AlertProps>;
+export const AlertAction = "AlertAction" as unknown as FC<AlertActionProps>;
+export const ConfirmationDialog =
+  "ConfirmationDialog" as unknown as FC<ConfirmationDialogProps>;
+export const Sheet = "Sheet" as unknown as FC<SheetProps>;
+export const Section = "Section" as unknown as FC<SectionProps>;
+export const Label = "Label" as unknown as FC<LabelProps>;

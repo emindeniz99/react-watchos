@@ -149,6 +149,24 @@ public struct WidgetNodeView: View {
         case "NavigationStack", "NavigationLink", "NavigationRoute",
             "ScrollView", "List", "TabView", "CrownRotation":
             children(node)
+        // Widgets cannot present anything — presentation surfaces degrade to
+        // nothing (their content only exists while presented in the app).
+        case "Alert", "AlertAction", "ConfirmationDialog", "Sheet":
+            EmptyView()
+        case "Section":
+            // Degraded grouping: header text above the rows, no List styling.
+            VStack(alignment: .leading, spacing: 2) {
+                if let header = node.string("header") {
+                    Text(header).font(.footnote).foregroundStyle(.secondary)
+                }
+                children(node)
+            }
+        case "Label":
+            SwiftUI.Label(
+                node.string("label") ?? "",
+                systemImage: node.string("systemName") ?? "circle"
+            )
+            .foregroundStyle(color(node.string("color")) ?? .primary)
         case "Toggle":
             Text(node.string("label") ?? "")
         case "Slider", "Stepper":

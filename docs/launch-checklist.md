@@ -43,7 +43,7 @@ stale "done" claims here defeat its purpose (Rule 12).
   Center intent updating a complication with the app closed, dev hot-reload
   loop. All capturable on the simulator today (no device needed).
 - [ ] **Numbers to quote** (each with its source): ~500-line reconciler core;
-  25 SwiftUI-like primitives; 174 KB minified app bundle (200 KB CI budget);
+  31 SwiftUI-like primitives; 174 KB minified app bundle (200 KB CI budget);
   ~2 MB QuickJS heap for the demo app / ~6 MB widget peak (embed-host `[mem]`
   line); 1.06 ms/dispatch on x86 quickjs-ng (until E4).
 - [ ] **Claims to make**: "React for watchOS — JSX/hooks driving native

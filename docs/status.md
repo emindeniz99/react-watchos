@@ -33,7 +33,7 @@ build (②) is the real gate**, and behavioral correctness isn't guaranteed unti
 | Capability | Level | Evidence / note |
 |---|---|---|
 | React → JSON tree → SwiftUI renderer + sync commit pipeline | ② | reconciler [renderer.ts](../js/src/renderer.ts); wire decode in `swift test`; host builds green |
-| 25 UI primitives (Stack/Text/Image/Gauge/List/Map/…) | ② | contract is single-sourced + drift-guarded ① ([component-contract.test.ts](../js/test/component-contract.test.ts)); views in `NodeView.swift` build green (②) |
+| 31 UI primitives (Stack/Text/Image/Gauge/List/Map/Alert/Sheet/Section/…) | ② (presentation surfaces ① → ② pending) | contract is single-sourced + drift-guarded ① ([component-contract.test.ts](../js/test/component-contract.test.ts)); views in `NodeView.swift` build green (②) |
 | Digital Crown, gestures, Slider/Stepper/DatePicker/Picker | ② | prop decode ①; views ② — on-device feel is ③ |
 | WatchConnectivity — watch→phone (`sendToPhone`) + phone→watch | ② | `PhoneConnectivity` builds ②; **iPhone-side WCSession still needs wiring in the Expo companion app** |
 | `fetch` over URLSession (WHATWG subset) | ② | `FetchPlan` request/response parsing ① (`FetchPlanTests`); URLSession orchestration ② |

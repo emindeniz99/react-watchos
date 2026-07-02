@@ -62,6 +62,14 @@ export const components = [
   { name: "NavigationStack", widget: "degraded" },
   { name: "NavigationLink", widget: "degraded" },
   { name: "NavigationRoute", widget: "degraded" },
+  // Presentation surfaces (system-presented; widgets can't present -> degraded
+  // to nothing) + grouping/label primitives.
+  { name: "Alert", widget: "degraded" },
+  { name: "AlertAction", widget: "degraded" },
+  { name: "ConfirmationDialog", widget: "degraded" },
+  { name: "Sheet", widget: "degraded" },
+  { name: "Section", widget: "degraded" },
+  { name: "Label", widget: "full" },
 ];
 
 /** Plain structs, rendered for both Swift and TS from `fields`. */
