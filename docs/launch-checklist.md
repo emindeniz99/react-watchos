@@ -42,10 +42,18 @@ stale "done" claims here defeat its purpose (Rule 12).
   updating from the app, `TimerText` stopwatch (zero per-frame JS), Control
   Center intent updating a complication with the app closed, dev hot-reload
   loop. All capturable on the simulator today (no device needed).
-- [ ] **Numbers to quote** (each with its source): ~500-line reconciler core;
-  39 SwiftUI-like primitives; 174 KB minified app bundle (200 KB CI budget);
+- [x] **Numbers to quote** (each with its source, re-verified 2026-07-02):
+  488-line reconciler core (`js/src/renderer.ts` `wc -l`); 39 SwiftUI-like
+  primitives (`codegen/schema.mjs` `components.length`, pinned by
+  `component-contract.test.ts`); 41 host methods across 18 capability features
+  (`schema.mjs` `hostMethods` / `wire.ts` `HOST_FEATURES.watch`); 177 KB minified
+  app bundle + 145 KB widget (200 KB / 160 KB CI budgets, `pnpm check:size`);
+  320 JS tests + 139 Swift test functions passing (`pnpm test`; the Swift cores
+  run on Linux via `swift test`, the SwiftUI host on the macOS build);
   ~2 MB QuickJS heap for the demo app / ~6 MB widget peak (embed-host `[mem]`
-  line); 1.06 ms/dispatch on x86 quickjs-ng (until E4).
+  line); 1.06 ms/dispatch on x86 quickjs-ng (until E4). NOTE: the bundle grew
+  174 KB→177 KB with the media/IAP/keychain capability bindings — re-run
+  `check:size` before quoting.
 - [ ] **Claims to make**: "React for watchOS — JSX/hooks driving native
   SwiftUI on the watch itself, standalone, with signed OTA updates and
   React-authored complications."
@@ -54,7 +62,11 @@ stale "done" claims here defeat its purpose (Rule 12).
   the announcement); no device verification yet (E3); on-device AI is
   blocked on watchOS 27 SDK (status.md ⛔); Suspense unsupported by design.
 - [ ] **Where the deep answers live**: architecture + alternatives → the
-  2026-07-01 review; "is X real?" → status.md; security → ota-signing.md.
+  2026-07-01 review; "is X real?" → status.md; security → ota-signing.md; the
+  2026-07-02 self-review cycles (5 adversarial passes, 32 fixes) →
+  code-review-2026-07-02-self-review-cycles.md. Two items there are gated on the
+  macOS `swift build` (E3): the widget OTA signature re-verification, and
+  compiling the ~4k lines of reviewed-but-uncompiled SwiftUI-host Swift.
 
 ## 5. Suggested order of operations
 
