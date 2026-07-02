@@ -102,10 +102,14 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         let hrType = HKQuantityType(.heartRate)
         healthStore.requestAuthorization(toShare: [], read: [hrType]) { [weak self] ok, _ in
             guard ok, let self else { return }
+            // SensorBridge isn't Sendable, so hop to main without sending self —
+            // the same nonisolated(unsafe) idiom this file uses for the off-main
+            // HealthKit reading callback (Swift 6 strict concurrency).
+            nonisolated(unsafe) let this = self
             DispatchQueue.main.async {
                 // Dropped if heart rate was stopped/reloaded during the auth window.
-                guard self.wantHeartRate else { return }
-                self.beginWorkout()
+                guard this.wantHeartRate else { return }
+                this.beginWorkout()
             }
         }
     }

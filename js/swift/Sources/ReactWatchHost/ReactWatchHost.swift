@@ -1686,15 +1686,6 @@ extension ReactWatchModel {
             as? [String: Any] ?? [:]
     }
 
-    /// JSON-encodes a bare string value (with proper escaping) for
-    /// resolveInvoke, which parses its resultJson: `hi` -> `"hi"`.
-    static func jsonString(_ value: String) -> String {
-        guard let data = try? JSONSerialization.data(withJSONObject: [value]),
-            let wrapped = String(data: data, encoding: .utf8)
-        else { return "\"\"" }
-        return String(wrapped.dropFirst().dropLast())  // strip the [ ]
-    }
-
     /// Shared INVALID_REQUEST rejection for the capability handlers.
     private func rejectInvalid(id: Int, message: String) {
         runtime?.rejectInvoke(
