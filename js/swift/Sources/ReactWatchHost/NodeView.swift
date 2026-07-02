@@ -248,9 +248,31 @@ struct NodeView: View {
             action: { model.dispatch(nodeId: node.id, event: "press") }
         ) { childViews }
         if node.bool("primaryAction") == true, #available(watchOS 11.0, *) {
-            accessibleButton(button).handGestureShortcut(.primaryAction)
+            glassStyled(accessibleButton(button)).handGestureShortcut(.primaryAction)
         } else {
-            accessibleButton(button)
+            glassStyled(accessibleButton(button))
+        }
+    }
+
+    /// Liquid Glass button styles (GlassButtonStyle, verified watchOS 26.0);
+    /// a no-op on older OSes and for the default style, so the same JS runs
+    /// everywhere.
+    @ViewBuilder private func glassStyled(_ button: some View) -> some View {
+        switch node.string("buttonStyle") {
+        case "glass":
+            if #available(watchOS 26.0, *) {
+                button.buttonStyle(.glass)
+            } else {
+                button
+            }
+        case "glassProminent":
+            if #available(watchOS 26.0, *) {
+                button.buttonStyle(.glassProminent)
+            } else {
+                button
+            }
+        default:
+            button
         }
     }
 

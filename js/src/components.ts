@@ -150,6 +150,11 @@ export interface ButtonProps
    * watchOS 10 a widget button falls back to its (non-interactive) content.
    */
   intent?: string;
+  /**
+   * Liquid Glass button styles (watchOS 26+; silently the default style on
+   * older watches). "glassProminent" is the accented/filled variant.
+   */
+  buttonStyle?: "glass" | "glassProminent";
   children?: ReactNode;
 }
 
