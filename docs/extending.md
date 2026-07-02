@@ -45,9 +45,11 @@ export function onTorchState(cb: (on: boolean) => void) {
 }
 ```
 
-If you're adding the op to the renderer itself, declare it on
-`QuickJSHostGlobal` (in `src/host.ts`) instead of the inline cast, and add it to
-`codegen/schema.mjs`'s `hostMethods` so the Swift install is cross-checked.
+If you're adding the op to the renderer itself, add it to
+`codegen/schema.mjs`'s `hostMethods` and run `pnpm codegen` —
+`QuickJSHostGlobal` is GENERATED (`src/generated/wire.ts`, re-exported from
+`src/host.ts`), so hand-editing the type gets overwritten; the schema is the
+source of truth and the Swift install is cross-checked from it.
 
 **2. Swift side** installs the op and pushes events. In the SwiftPM package
 (`swift/`), `ReactWatchRuntime/JSRuntime.swift` installs the `__host` methods

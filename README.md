@@ -349,9 +349,10 @@ this is needed — it's specific to linked local packages.
   are excluded so it never fights codegen. Non-null assertions and `any` are
   allowed only under `test/**`.
 - **Swift** contract tests build in Swift 6 language mode (strict
-  concurrency) with `-warnings-as-errors`. `.swiftformat` + `.swiftlint.yml`
-  cover the watch/widget targets and run on the macOS workflow (SourceKit
-  isn't available on the Linux CI).
+  concurrency) with `-warnings-as-errors`. Codegen formats generated Swift
+  with Apple's `swift format` (`.swift-format`); the macOS workflow
+  additionally lints with SwiftFormat + SwiftLint (`.swiftlint.yml`) —
+  SourceKit isn't available on the Linux CI.
 
 With `npm run dev` running, DEBUG builds of the watch app poll the dev
 server every 2s and hot-restart the QuickJS runtime when the bundle
@@ -409,7 +410,7 @@ signing still untested — Rule 12):**
 ## Limitations (honest list)
 
 - **Not RN core.** No RN components, no RN ecosystem libraries, no Yoga
-  flexbox. Eighteen SwiftUI-like primitives.
+  flexbox. Twenty-five SwiftUI-like primitives.
 - **Controls require watchOS 26**; gated with `#available`, everything
   else runs on watchOS 10+.
 - **Input round-trips**: Toggle/Picker/TextField keep optimistic local
@@ -428,8 +429,10 @@ signing still untested — Rule 12):**
   work; don't mine bitcoin in `useEffect`.
 - Full-tree commits: ideal for watch-sized screens; large lists would want
   the diffing optimization noted in docs/research.md.
-- Bundle is ~460KB unminified (minify would roughly halve it); QuickJS
-  itself adds ~1MB of code — comfortably inside the watch app budget.
+- Demo app bundle is ~555KB unminified / ~174KB minified (CI enforces a
+  200KB minified budget; the widget bundle is 144KB against 160KB);
+  QuickJS itself adds ~1MB of code — comfortably inside the watch app
+  budget.
 
 ## Notes / learnings
 
