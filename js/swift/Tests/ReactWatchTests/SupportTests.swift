@@ -842,6 +842,23 @@ final class CoordinatedCounterStoreTests: XCTestCase {
         XCTAssertEqual(store.add(-8, toKey: "g", min: 0, max: 8), 0)
     }
 
+    func testAddSaturatesInsteadOfTrappingOnOverflow() {
+        // A huge delta or a corrupt/oversized stored value must clamp to the
+        // range, never trap the process on Int overflow (both app + widget
+        // extension run this — ARCH-05). The old `(current) + delta` before the
+        // clamp would crash here.
+        let (store, dir) = tempStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // Seed at Int.max, then a positive add overflows Int -> clamps to max.
+        XCTAssertEqual(
+            store.add(Int.max, toKey: "g", min: 0, max: Int.max), Int.max)
+        XCTAssertEqual(store.add(1, toKey: "g", min: 0, max: 8), 8)
+        // Symmetric underflow: seed Int.min, a negative add underflows -> min.
+        XCTAssertEqual(
+            store.add(Int.min, toKey: "h", min: Int.min, max: 0), Int.min)
+        XCTAssertEqual(store.add(-1, toKey: "h", min: 0, max: 8), 0)
+    }
+
     func testKeysAreIsolated() {
         let (store, dir) = tempStore()
         defer { try? FileManager.default.removeItem(at: dir) }

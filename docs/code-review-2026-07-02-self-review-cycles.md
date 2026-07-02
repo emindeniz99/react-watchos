@@ -267,6 +267,22 @@ payload are sound, and the real trust gate is Swift anyway).
   isn't a member and is a no-op. Two regression tests (spurious-stop, kill-live-
   stream-on-restart).
 
+## Cycle 10 — pure Foundation support logic
+
+The most-tested files (SupportTests, 93 funcs), reviewed as a dimension for the
+first time. **1 confirmed** (`VersionPolicy` anti-rollback + crash-loop recovery
+came back clean — no downgrade, no infinite recovery, no brick).
+
+- **HIGH (fixed, CI-testable)** — `CoordinatedCounterStore.add` computed
+  `(current) + delta` with Swift's trapping `+` BEFORE the clamp, so a huge delta
+  or a corrupt/oversized stored file value overflows `Int` and **traps (crashes)
+  the process** — on the shared add-glass counter both the app and the widget
+  extension run (ARCH-05). The clamp can't help; it runs on the already-overflowed
+  sum. Switched to `addingReportingOverflow` + saturate-then-clamp. Regression
+  test seeds `Int.max`/`Int.min` and asserts it clamps instead of crashing — it
+  exercises the Linux `#else` path, so `swift test` in CI validates it directly
+  (unlike the watchOS-only interpreter/capability Swift).
+
 ## Coverage gaps (honest limits)
 
 - **The Swift was never compiled.** Cycles 1–3 are static reasoning over source +
