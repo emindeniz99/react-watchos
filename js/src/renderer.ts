@@ -181,6 +181,11 @@ const hostConfig = {
   resetTextContent() {},
   appendChild: (parent: Instance, child: Instance) => {
     assertTextParent(parent, child);
+    // Move semantics: react-reconciler reuses appendChild to reorder a keyed
+    // child to the LAST position (getHostSibling returns null) with no preceding
+    // removeChild, so a plain push would duplicate it — remove any existing
+    // occurrence first, mirroring insertInto.
+    removeFrom(parent.children, child);
     parent.children.push(child);
     parent.container.dirty = true;
   },
@@ -188,6 +193,7 @@ const hostConfig = {
     if (child.rawText) {
       throw new Error("Raw text must be wrapped in a <Text> element");
     }
+    removeFrom(container.children, child);
     container.children.push(child);
     container.dirty = true;
   },

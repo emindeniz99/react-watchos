@@ -79,6 +79,7 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   seam, why it's deferred (no failing scenario today), and the shape to build.
 
 - [code-review-2026-06-27-deep-dive.md](./code-review-2026-06-27-deep-dive.md) — adversarially-verified code+design+DX review (64 confirmed findings; the blocker is fixed).
+- [code-review-2026-07-02-self-review-cycles.md](./code-review-2026-07-02-self-review-cycles.md) — three adversarial self-review cycles over the session's blind-written Swift/JS (capability, render-pipeline, core); 20 confirmed+fixed so far incl. a critical Swift-6 compile break.
 - [system-architecture-review-2026-07-01-alternatives.md](./system-architecture-review-2026-07-01-alternatives.md) —
   full-system review + strategic alternatives (NF-01…36): engine
   (quickjs-ng vs XS/Moddable vs Hermes, argued in depth), UI model (React

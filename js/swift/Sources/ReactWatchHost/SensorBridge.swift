@@ -26,6 +26,12 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
 
     private var workoutSession: HKWorkoutSession?
     private var workoutBuilder: HKLiveWorkoutBuilder?
+    /// Desired-state latch for heart rate. requestAuthorization resolves
+    /// asynchronously; if a stop/unmount (or reload via stopAll) lands during
+    /// that window, this flips false so the completion doesn't start an orphaned
+    /// workout session that drains battery and pushes readings into a runtime
+    /// that no longer wants them.
+    private var wantHeartRate = false
 
     private struct Op: Decodable {
         let op: String
@@ -92,14 +98,22 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
 
     private func startHeartRate() {
         guard HKHealthStore.isHealthDataAvailable() else { return }
+        wantHeartRate = true
         let hrType = HKQuantityType(.heartRate)
         healthStore.requestAuthorization(toShare: [], read: [hrType]) { [weak self] ok, _ in
             guard ok, let self else { return }
-            DispatchQueue.main.async { self.beginWorkout() }
+            DispatchQueue.main.async {
+                // Dropped if heart rate was stopped/reloaded during the auth window.
+                guard self.wantHeartRate else { return }
+                self.beginWorkout()
+            }
         }
     }
 
     private func beginWorkout() {
+        // Idempotent: a second auth completion (e.g. start→reload→start) must not
+        // start a second session and leak the first.
+        guard workoutSession == nil else { return }
         let config = HKWorkoutConfiguration()
         config.activityType = .other
         do {
@@ -121,6 +135,7 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     }
 
     private func stopHeartRate() {
+        wantHeartRate = false
         workoutSession?.end()
         workoutBuilder?.endCollection(withEnd: Date()) { _, _ in }
         workoutSession = nil

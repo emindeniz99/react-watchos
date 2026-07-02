@@ -791,10 +791,18 @@ final class ReactWatchModel: ObservableObject {
             if updateKeyState == .disabled {
                 // Fail-open ONLY on the explicit allowUnsignedUpdates dev opt-in
                 // (CX-003/NF-29): versions are unverified, so no anti-rollback —
-                // run the OTA bundle if present, else shipped. Unconfigured and
-                // misconfigured keysets still enforce anti-rollback here (and
-                // saveUpdate refuses their new bundles).
+                // run the OTA bundle if present, else shipped.
                 candidate != nil ? .runOTA : .runShipped
+            } else if updateKeyState == .misconfigured || updateKeyState == .unconfigured {
+                // Fail CLOSED (CX-003): with no usable signing key we cannot
+                // authenticate a stored record from the writable App Group, so
+                // never run an OTA candidate — an attacker-planted record would
+                // otherwise execute unverified (the NF-35 hole). Run shipped. The
+                // candidate is KEPT, not dropped: once the key config is fixed the
+                // enforced path re-verifies and runs it. verifyStoredRecord only
+                // *verifies* under .enforced, so without this gate these states
+                // would reach evaluateOTA and skip the signature check entirely.
+                .runShipped
             } else {
                 VersionPolicy.decide(
                     otaVersion: candidate.flatMap(\.version),
@@ -917,10 +925,12 @@ final class ReactWatchModel: ObservableObject {
 
     /// NF-35: with keys enforced, a stored record must re-verify at every
     /// boot — otherwise "verified at save" silently degrades to "whoever can
-    /// write the App Group container owns the runtime". The bytecode path is
-    /// covered too: the signature verifies the SOURCE, and evaluateOTA only
-    /// trusts a `.qbc` whose hash the record pinned to that source (OP-1).
-    /// Unsigned records under the explicit dev opt-in skip this by design.
+    /// write the App Group container owns the runtime". The signature covers only
+    /// the SOURCE (scheme:keyId:version:js); the on-device `.qbc` bytecode is NOT
+    /// signed, so evaluateOTA refuses to trust it under enforcement and runs the
+    /// re-verified source. Unsigned records under the explicit dev opt-in
+    /// (.disabled) skip this by design; .unconfigured/.misconfigured never reach
+    /// here for an OTA candidate (load() fails them closed to the shipped bundle).
     private func verifyStoredRecord(_ record: OTARecord) throws {
         guard updateKeyState == .enforced else { return }
         guard let keyId = record.keyId, let key = updatePublicKeys[keyId],
@@ -946,11 +956,18 @@ final class ReactWatchModel: ObservableObject {
         // restore) funnels through here, so this is the one choke point.
         try verifyStoredRecord(record)
         setBundleReleaseId(record.js, into: js)
-        // Trust the cached bytecode only if the blob on disk hashes to what this
-        // record was saved with (OP-1): a `.qbc` left by a previous bundle, or a
-        // partial write, won't match and is reparsed — so stale bytecode can
-        // never run as if it were this bundle.
-        if let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL),
+        // Trust the cached App-Group bytecode ONLY when keys aren't enforced.
+        // The signature covers the SOURCE (scheme:keyId:version:js) — NOT the
+        // on-device-compiled `.qbc`, whose only integrity check is the record's
+        // OWN `bytecodeHash`, an unsigned field an App-Group writer also controls.
+        // Under enforcement, trusting that hash would let such a writer pin it to
+        // a malicious blob and run arbitrary bytecode despite a valid signature
+        // (defeats NF-35), so we always run the boot-re-verified source instead.
+        // The bytecode fast-path stays valid off-enforcement (dev/unsigned, no
+        // security claim) and for the shipped bundle (inside the signed app
+        // bundle — see loadShipped — where no untrusted writer exists).
+        if updateKeyState != .enforced,
+            let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL),
             record.bytecodeHash == ContentHash.of(data)
         {
             do {

@@ -61,6 +61,29 @@ describe("render", () => {
     expect(host.lastCommit?.root?.props.text).toBe("Count: 3");
   });
 
+  it("reordering a keyed child to last doesn't duplicate it (appendChild move)", () => {
+    // react-reconciler moves a keyed child to the LAST slot via appendChild
+    // with no preceding removeChild; a plain push would leave the node in
+    // twice (duplicate wire ids). This pins the move semantics.
+    function List({ order }: { order: string[] }) {
+      return (
+        <VStack>
+          {order.map((k) => (
+            <Text key={k}>{k}</Text>
+          ))}
+        </VStack>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<List order={["a", "b", "c"]} />);
+    root.render(<List order={["b", "c", "a"]} />); // "a" moves to last
+    const texts = host.lastCommit!.root!.children;
+    expect(texts.map((t) => t.props.text)).toEqual(["b", "c", "a"]);
+    const ids = texts.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length); // no duplicates
+  });
+
   it("serializes a Dynamic Type textStyle", () => {
     const host = new MemoryHost();
     new WatchRoot(host).render(<Text textStyle="headline">Title</Text>);
