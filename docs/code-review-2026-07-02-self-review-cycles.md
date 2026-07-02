@@ -190,6 +190,29 @@ is converging. All pure JS/Node, each fix verified with a test.
   an invalid Swift `@main` struct name. `identifierBase` now prefixes a non-digit.
   Test.
 
+## Cycle 6 — navigation runtime (router / back-stack / deep-links / path matching)
+
+A named gap in the 2026-06-27 coverage list, reviewed here. **2 of 3 confirmed
+fixed** (the third is a native/design decision, flagged).
+
+- **HIGH (fixed)** — `NavigationRoute` focused EVERY route whose pattern matched
+  the active path (`FocusContext value={match !== null}`), but the native host
+  renders only the single highest-scoring match (`RouteMatcher.best`). With
+  overlapping routes (a concrete path beside a catch-all, or a static beside a
+  dynamic sibling — both supported/tested), the losing route's `useFocusEffect`
+  fired and `useIsFocused()` read true on a screen never shown — starting
+  BLE/sensor/polling subscriptions off-screen. `NavigationStack` now resolves the
+  single winning pattern by score (mirroring `RouteMatcher.best`, ties to
+  first-declared, fragment-aware) via a context; `NavigationRoute` focuses +
+  exposes params only when it is that winner. Regression test added (verified
+  against the reviewer's own vitest repro).
+- **MEDIUM (deferred, flagged)** — an *uncontrolled* `NavigationStack` (neither
+  `path` nor `onPathChange`) hardwires the JS active route to `/`, so
+  `useParams`/`useIsFocused` are wrong for every pushed screen. The correct fix
+  is native (emit `pathChange` in uncontrolled mode) or a design decision (drop
+  uncontrolled mode, or dev-warn when neither prop is set) — not a blind JS
+  change. Tracked for the macOS-build follow-up.
+
 ## Coverage gaps (honest limits)
 
 - **The Swift was never compiled.** Cycles 1–3 are static reasoning over source +

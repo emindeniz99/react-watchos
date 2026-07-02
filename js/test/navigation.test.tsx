@@ -16,6 +16,7 @@ import {
   Toggle,
   unregisterAllNativeListeners,
   useFocusEffect,
+  useIsFocused,
   useNavigate,
   useNavigation,
   useParams,
@@ -170,6 +171,32 @@ describe("useParams", () => {
       host,
     );
     expect(findByText(host.lastCommit!.root!, "id=42")).toHaveLength(1);
+  });
+
+  it("focuses only the best-scoring route when patterns overlap", () => {
+    // The native host renders only the highest-scoring match (RouteMatcher.best),
+    // so JS must focus only that one — else a losing overlapping route (here the
+    // optional catch-all) fires useFocusEffect + reports useIsFocused() on a
+    // screen the user never sees.
+    function FocusProbe({ tag }: { tag: string }) {
+      const focused = useIsFocused();
+      return <Text>{`${tag}:${focused}`}</Text>;
+    }
+    const host = new MemoryHost();
+    runApp(
+      <NavigationStack path={["/shop/nike"]}>
+        <NavigationRoute path="/shop/[name]">
+          <FocusProbe tag="concrete" />
+        </NavigationRoute>
+        <NavigationRoute path="/shop/[name]/[[...rest]]">
+          <FocusProbe tag="catchall" />
+        </NavigationRoute>
+      </NavigationStack>,
+      host,
+    );
+    const root = host.lastCommit!.root!;
+    expect(findByText(root, "concrete:true")).toHaveLength(1); // score 3 wins
+    expect(findByText(root, "catchall:false")).toHaveLength(1); // score 2 loses
   });
 });
 
