@@ -235,6 +235,21 @@ Two more named gaps. **4 confirmed** (1 HIGH JS + 3 a11y prop-drops).
   refinement (lower value than the pushed-screen case), flagged for the
   macOS-build follow-up.
 
+## Cycle 8 — on-device AI path (generateText)
+
+The last named JS surface. **1 fixed** (found by direct read, not a workflow —
+the file is small).
+
+- **MEDIUM (fixed, tested)** — `generateText` had NO timeout net (unlike `invoke`
+  and, now, `fetch`): if native accepted the `generate` but never called
+  `__resolveGenerate`/`__rejectGenerate` (a stuck `LanguageModelSession`, an
+  exception before the callback, a torn-down runtime), the promise never settled
+  and its pending entry leaked for the runtime's life — the CX-022 "never hangs"
+  violation the 2026-06-27 deep dive flagged as still open. Added a 60s
+  last-resort net (generous, since on-device generation is slow) that rejects +
+  clears the entry; the settle handlers `clearTimeout`. Regression test uses fake
+  timers to prove it rejects instead of hanging.
+
 ## Coverage gaps (honest limits)
 
 - **The Swift was never compiled.** Cycles 1–3 are static reasoning over source +
