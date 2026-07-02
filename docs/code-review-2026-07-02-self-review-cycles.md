@@ -250,6 +250,23 @@ the file is small).
   clears the entry; the settle handlers `clearTimeout`. Regression test uses fake
   timers to prove it rejects instead of hanging.
 
+## Cycle 9 — OTA JS driver + BLE/sensor JS wrappers
+
+Two more uncovered JS surfaces. **1 confirmed** (the OTA driver `update.ts` came
+back clean — manifest validation, the capability pre-check, and the `saveUpdate`
+payload are sound, and the real trust gate is Swift anyway).
+
+- **HIGH (fixed, tested)** — `startSensor`'s cleanup read the shared subscriber
+  COUNT live, so after `stopSensor()` force-cleared a kind (or a new subscriber
+  restarted the stream), an outstanding cleanup from before mis-accounted: it
+  either emitted a spurious second `stop`, or — the CX-014 hazard the refcount
+  exists to prevent — **stopped a live stream a newer subscriber owned**, on an
+  ordinary React sequence (force-stop → remount → late unmount of the earlier
+  component). Replaced the count with a Set of per-subscriber identity TOKENS:
+  each cleanup removes only its own token, so a stale closure after stop/restart
+  isn't a member and is a no-op. Two regression tests (spurious-stop, kill-live-
+  stream-on-restart).
+
 ## Coverage gaps (honest limits)
 
 - **The Swift was never compiled.** Cycles 1–3 are static reasoning over source +

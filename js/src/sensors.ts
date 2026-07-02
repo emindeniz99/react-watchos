@@ -25,11 +25,15 @@ function sensor(op: "start" | "stop", kind: SensorKind): void {
   getHost()?.sensor?.(JSON.stringify({ op, kind }));
 }
 
-// Per-kind subscriber count. A sensor's native stream is shared, so it starts
-// on the first subscriber (0->1) and stops only when the last one leaves
-// (1->0). Without this, unmounting one component stops a stream others still
-// use (CX-014).
-const activeCounts = new Map<SensorKind, number>();
+// Per-kind set of live subscriber TOKENS (not a count). A sensor's native
+// stream is shared, so it starts on the first subscriber and stops when the last
+// leaves (CX-014). A Set of identity tokens — rather than a bare count — is what
+// makes a late cleanup safe: each cleanup removes only ITS OWN token, so after
+// stopSensor() force-clears the kind (or a new subscriber restarts the stream),
+// an outstanding cleanup from before the stop/restart isn't a member and is a
+// no-op. A shared count would let that stale cleanup zero the new subscribers'
+// stream or emit a spurious stop.
+const activeTokens = new Map<SensorKind, Set<object>>();
 
 /**
  * Starts a sensor and routes its readings to `handler` (`{ ...reading }`).
@@ -43,35 +47,40 @@ export function startSensor(
   handler: NativeEventHandler,
 ): Unsubscribe {
   const off = registerNativeListener(SENSOR_EVENT_PREFIX + kind, handler);
-  const count = (activeCounts.get(kind) ?? 0) + 1;
-  activeCounts.set(kind, count);
-  if (count === 1) sensor("start", kind);
+  const token = {};
+  let tokens = activeTokens.get(kind);
+  if (!tokens) {
+    tokens = new Set<object>();
+    activeTokens.set(kind, tokens);
+  }
+  if (tokens.size === 0) sensor("start", kind);
+  tokens.add(token);
   let cleaned = false;
   return () => {
-    // Idempotent: a double cleanup (or a cleanup after stopSensor) must not
-    // drive the count negative or emit a spurious stop.
+    // Idempotent: a double cleanup, or a cleanup after stopSensor()/a restart,
+    // must not drive a spurious stop — this token is no longer a member, so the
+    // guarded delete below is a no-op.
     if (cleaned) return;
     cleaned = true;
     off();
-    const next = (activeCounts.get(kind) ?? 0) - 1;
-    if (next <= 0) {
-      activeCounts.delete(kind);
+    const set = activeTokens.get(kind);
+    if (set?.delete(token) && set.size === 0) {
+      activeTokens.delete(kind);
       sensor("stop", kind);
-    } else {
-      activeCounts.set(kind, next);
     }
   };
 }
 
-/** Force-stops a kind's native stream regardless of remaining subscribers. */
+/** Force-stops a kind's native stream regardless of remaining subscribers.
+ *  Drops all current tokens, so their outstanding cleanups become no-ops. */
 export function stopSensor(kind: SensorKind): void {
-  activeCounts.delete(kind);
+  activeTokens.delete(kind);
   sensor("stop", kind);
 }
 
-/** Test-only: clears the per-kind subscriber counts (not part of the public API). */
+/** Test-only: clears the per-kind subscriber tokens (not part of the public API). */
 export function __resetSensorCountsForTest(): void {
-  activeCounts.clear();
+  activeTokens.clear();
 }
 
 /** Live heart rate (bpm): handler gets `{ bpm }`. */

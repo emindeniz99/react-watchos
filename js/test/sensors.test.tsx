@@ -110,4 +110,30 @@ describe("sensor refcounting (CX-014)", () => {
       { op: "start", kind: "gyroscope" },
     ]);
   });
+
+  it("a late cleanup after stopSensor() emits no spurious stop", () => {
+    const host = installMockHost();
+    const off = startSensor("heartRate", () => {});
+    stopSensor("heartRate"); // force-stop
+    off(); // the earlier subscriber's late unmount must be a no-op
+    expect(ops(host)).toEqual([
+      { op: "start", kind: "heartRate" },
+      { op: "stop", kind: "heartRate" },
+    ]);
+  });
+
+  it("a late cleanup after stopSensor()+restart doesn't kill the new stream", () => {
+    // The CX-014 hazard: a shared count would let the old subscriber's late
+    // cleanup zero the count under the NEW subscriber and stop its live stream.
+    const host = installMockHost();
+    const off1 = startSensor("heartRate", () => {}); // stream A
+    stopSensor("heartRate"); // stop A
+    startSensor("heartRate", () => {}); // stream B — a new subscriber owns it
+    off1(); // A's late unmount must NOT stop B
+    expect(ops(host)).toEqual([
+      { op: "start", kind: "heartRate" },
+      { op: "stop", kind: "heartRate" },
+      { op: "start", kind: "heartRate" }, // no trailing stop — B is still live
+    ]);
+  });
 });
