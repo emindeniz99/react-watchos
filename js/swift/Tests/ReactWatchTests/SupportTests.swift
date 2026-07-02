@@ -898,3 +898,45 @@ final class WidgetBundleChoiceTests: XCTestCase {
         XCTAssertNotEqual(OTAFiles.knownGoodBytecode, OTAFiles.activeBytecode)
     }
 }
+
+// Design-system Tier 1: pure parsing for the layout-modifier props
+// (padding/frame), shared by NodeView and WidgetNodeView via RNStyle so the
+// two interpreters can't drift (the CX-018 lesson).
+final class RNStyleModifierTests: XCTestCase {
+    func testScalarPaddingAppliesToAllEdges() {
+        XCTAssertEqual(
+            RNStyle.padding(from: .number(8)), RNStyle.Insets(all: 8))
+    }
+
+    func testObjectPaddingPerAxis() {
+        XCTAssertEqual(
+            RNStyle.padding(from: .object(["horizontal": .number(8), "vertical": .number(2)])),
+            RNStyle.Insets(horizontal: 8, vertical: 2))
+        XCTAssertEqual(
+            RNStyle.padding(from: .object(["horizontal": .number(6)])),
+            RNStyle.Insets(horizontal: 6))
+    }
+
+    func testMalformedPaddingIsNil() {
+        XCTAssertNil(RNStyle.padding(from: nil))
+        XCTAssertNil(RNStyle.padding(from: .string("8")))
+        XCTAssertNil(RNStyle.padding(from: .object(["top": .number(1)])))
+    }
+
+    func testFrameParsesNumbersAndInfinity() {
+        let frame = RNStyle.frame(
+            from: .object([
+                "width": .number(40), "maxWidth": .string("infinity"),
+            ]))
+        XCTAssertEqual(frame?.width, 40)
+        XCTAssertEqual(frame?.maxWidthInfinity, true)
+        XCTAssertNil(frame?.maxWidth)
+        XCTAssertNil(frame?.height)
+    }
+
+    func testEmptyOrMalformedFrameIsNil() {
+        XCTAssertNil(RNStyle.frame(from: nil))
+        XCTAssertNil(RNStyle.frame(from: .number(40)))
+        XCTAssertNil(RNStyle.frame(from: .object(["width": .string("40")])))
+    }
+}

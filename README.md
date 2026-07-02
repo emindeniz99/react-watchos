@@ -410,7 +410,9 @@ signing still untested — Rule 12):**
 ## Limitations (honest list)
 
 - **Not RN core.** No RN components, no RN ecosystem libraries, no Yoga
-  flexbox. Twenty-five SwiftUI-like primitives.
+  flexbox. Twenty-five SwiftUI-like primitives, each accepting shared
+  layout-modifier props (`padding`, `frame`, `background`,
+  `cornerRadius`, `opacity`, `tint`, and stack `alignment`).
 - **Controls require watchOS 26**; gated with `#available`, everything
   else runs on watchOS 10+.
 - **Input round-trips**: Toggle/Picker/TextField keep optimistic local

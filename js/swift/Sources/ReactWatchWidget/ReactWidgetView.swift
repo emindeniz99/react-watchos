@@ -39,7 +39,7 @@ public struct WidgetNodeView: View {
 
     public var body: some View {
         if let node {
-            applyA11y(render(node), node)
+            applyLayout(applyA11y(render(node), node), node)
         } else {
             // Placeholder/redacted state before the app publishes data.
             Image(systemName: "drop")
@@ -62,14 +62,54 @@ public struct WidgetNodeView: View {
         }
     }
 
+    /// Design-system Tier 1 parity with NodeView.LayoutModifier — same props,
+    /// same RNStyle parsing, same application order (padding -> background +
+    /// cornerRadius -> frame -> opacity -> tint).
+    @ViewBuilder private func applyLayout(
+        _ content: some View, _ node: RNNode
+    ) -> some View {
+        let insets = RNStyle.padding(from: node.props["padding"])
+        let frame = RNStyle.frame(from: node.props["frame"])
+        let background = color(node.string("background"))
+        let radius = node.double("cornerRadius").map { CGFloat($0) }
+        let tint = color(node.string("tint"))
+        padded(content, insets)
+            .modifier(WidgetBackground(background: background, cornerRadius: radius))
+            .modifier(WidgetFrame(frame: frame))
+            .opacity(node.double("opacity") ?? 1)
+            .modifier(WidgetTint(tint: tint))
+    }
+
+    @ViewBuilder private func padded(
+        _ content: some View, _ insets: RNStyle.Insets?
+    ) -> some View {
+        if let all = insets?.all {
+            content.padding(CGFloat(all))
+        } else if let insets, insets.horizontal != nil || insets.vertical != nil {
+            content
+                .padding(.horizontal, insets.horizontal.map { CGFloat($0) } ?? 0)
+                .padding(.vertical, insets.vertical.map { CGFloat($0) } ?? 0)
+        } else {
+            content
+        }
+    }
+
     @ViewBuilder private func render(_ node: RNNode) -> some View {
         switch node.type {
         case "VStack":
-            VStack(spacing: cgFloat(node, "spacing")) { children(node) }
+            VStack(
+                alignment: horizontalAlignment(node.string("alignment")),
+                spacing: cgFloat(node, "spacing")
+            ) { children(node) }
         case "HStack":
-            HStack(spacing: cgFloat(node, "spacing")) { children(node) }
+            HStack(
+                alignment: verticalAlignment(node.string("alignment")),
+                spacing: cgFloat(node, "spacing")
+            ) { children(node) }
         case "ZStack":
-            ZStack { children(node) }
+            ZStack(alignment: zAlignment(node.string("alignment"))) {
+                children(node)
+            }
         case "Text":
             styled(node, Text(node.string("text") ?? ""))
         case "TimerText":
@@ -291,4 +331,83 @@ public struct WidgetNodeView: View {
         view
     }
 }
+private func horizontalAlignment(_ name: String?) -> HorizontalAlignment {
+    switch name {
+    case "leading": .leading
+    case "trailing": .trailing
+    default: .center
+    }
+}
+
+private func verticalAlignment(_ name: String?) -> VerticalAlignment {
+    switch name {
+    case "top": .top
+    case "bottom": .bottom
+    case "firstTextBaseline": .firstTextBaseline
+    default: .center
+    }
+}
+
+private func zAlignment(_ name: String?) -> Alignment {
+    switch name {
+    case "topLeading": .topLeading
+    case "top": .top
+    case "topTrailing": .topTrailing
+    case "leading": .leading
+    case "trailing": .trailing
+    case "bottomLeading": .bottomLeading
+    case "bottom": .bottom
+    case "bottomTrailing": .bottomTrailing
+    default: .center
+    }
+}
+
+private struct WidgetBackground: ViewModifier {
+    let background: Color?
+    let cornerRadius: CGFloat?
+
+    func body(content: Content) -> some View {
+        if let background, let cornerRadius {
+            content.background(
+                background, in: RoundedRectangle(cornerRadius: cornerRadius))
+        } else if let background {
+            content.background(background)
+        } else if let cornerRadius {
+            content.clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        } else {
+            content
+        }
+    }
+}
+
+private struct WidgetFrame: ViewModifier {
+    let frame: RNStyle.Frame?
+
+    func body(content: Content) -> some View {
+        if let frame {
+            content
+                .frame(
+                    width: frame.width.map { CGFloat($0) },
+                    height: frame.height.map { CGFloat($0) }
+                )
+                .frame(
+                    maxWidth: frame.maxWidthInfinity
+                        ? .infinity : frame.maxWidth.map { CGFloat($0) },
+                    maxHeight: frame.maxHeightInfinity
+                        ? .infinity : frame.maxHeight.map { CGFloat($0) }
+                )
+        } else {
+            content
+        }
+    }
+}
+
+private struct WidgetTint: ViewModifier {
+    let tint: Color?
+
+    func body(content: Content) -> some View {
+        if let tint { content.tint(tint) } else { content }
+    }
+}
+
 #endif

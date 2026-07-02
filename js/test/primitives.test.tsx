@@ -392,3 +392,36 @@ describe("navigation primitives", () => {
     expect(details.children[0].children[0].props.text).toBe("detail screen");
   });
 });
+
+describe("layout modifier props (design-system Tier 1)", () => {
+  it("modifier props cross the wire verbatim", () => {
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <VStack
+        alignment="leading"
+        spacing={4}
+        padding={{ horizontal: 8, vertical: 2 }}
+        background="#112233"
+        cornerRadius={12}
+        frame={{ maxWidth: "infinity", height: 40 }}
+        opacity={0.5}
+        tint="cyan"
+      >
+        <Text padding={6}>hi</Text>
+      </VStack>,
+    );
+    const node = host.lastCommit!.root!;
+    expect(node.props).toMatchObject({
+      alignment: "leading",
+      spacing: 4,
+      padding: { horizontal: 8, vertical: 2 },
+      background: "#112233",
+      cornerRadius: 12,
+      frame: { maxWidth: "infinity", height: 40 },
+      opacity: 0.5,
+      tint: "cyan",
+    });
+    expect(node.children[0].props.padding).toBe(6);
+  });
+});

@@ -19,6 +19,32 @@ export interface A11yProps {
 }
 
 /**
+ * Layout/appearance modifiers every visual primitive supports (design-system
+ * Tier 1). Values map 1:1 to SwiftUI modifiers and are applied in this fixed
+ * order: padding → background+cornerRadius → frame → opacity → tint. Colors
+ * take the same values as `color` (system name or #RRGGBB[AA] hex).
+ */
+export interface ModifierProps {
+  /** Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`. */
+  padding?: number | { horizontal?: number; vertical?: number };
+  /** Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom. */
+  frame?: {
+    width?: number;
+    height?: number;
+    maxWidth?: number | "infinity";
+    maxHeight?: number | "infinity";
+  };
+  /** Fill color behind the content (rounded when cornerRadius is set). */
+  background?: string;
+  /** Rounds the background — or clips the content when there is none. */
+  cornerRadius?: number;
+  /** 0 (invisible) … 1 (opaque). */
+  opacity?: number;
+  /** Accent color for this subtree's controls (SwiftUI .tint). */
+  tint?: string;
+}
+
+/**
  * Gestures any view can opt into (applied in NodeView like a11y). onSwipe
  * gets a direction. Avoid onSwipe on scroll containers — it competes with
  * scrolling and the system swipe-back.
@@ -54,17 +80,21 @@ export interface SwipeActionProps {
   onLeadingSwipeAction?: () => void;
 }
 
-export interface VStackProps extends A11yProps, GestureProps {
+export interface VStackProps extends A11yProps, GestureProps, ModifierProps {
   spacing?: number;
+  /** Horizontal alignment of children (SwiftUI VStack(alignment:)). */
+  alignment?: "leading" | "center" | "trailing";
   children?: ReactNode;
 }
 
-export interface HStackProps extends A11yProps, GestureProps {
+export interface HStackProps extends A11yProps, GestureProps, ModifierProps {
   spacing?: number;
+  /** Vertical alignment of children (SwiftUI HStack(alignment:)). */
+  alignment?: "top" | "center" | "bottom" | "firstTextBaseline";
   children?: ReactNode;
 }
 
-export interface TextProps extends A11yProps {
+export interface TextProps extends A11yProps, ModifierProps {
   /** Text children must be strings/numbers; nested elements are not supported. */
   children?: TextContent;
   bold?: boolean;
@@ -88,7 +118,11 @@ export interface TextProps extends A11yProps {
   monospacedDigit?: boolean;
 }
 
-export interface ButtonProps extends A11yProps, GestureProps, SwipeActionProps {
+export interface ButtonProps
+  extends A11yProps,
+    GestureProps,
+    SwipeActionProps,
+    ModifierProps {
   onPress?: () => void;
   /** Bind this button to the Apple Watch double-tap gesture (watchOS 11+). */
   primaryAction?: boolean;
@@ -104,15 +138,15 @@ export interface ButtonProps extends A11yProps, GestureProps, SwipeActionProps {
   children?: ReactNode;
 }
 
-export interface ToggleProps extends A11yProps {
+export interface ToggleProps extends A11yProps, ModifierProps {
   value?: boolean;
   onChange?: (value: boolean) => void;
   label?: string;
 }
 
-export interface SpacerProps extends A11yProps {}
+export interface SpacerProps extends A11yProps, ModifierProps {}
 
-export interface ImageProps extends A11yProps {
+export interface ImageProps extends A11yProps, ModifierProps {
   /** SF Symbol name — vector icons (tiny, themeable). */
   systemName?: string;
   /** Remote image URL — native loads & caches (best for photos/posters). */
@@ -123,21 +157,32 @@ export interface ImageProps extends A11yProps {
   size?: number;
 }
 
-export interface ZStackProps extends A11yProps {
+export interface ZStackProps extends A11yProps, ModifierProps {
+  /** Anchor for stacked children (SwiftUI ZStack(alignment:)). */
+  alignment?:
+    | "topLeading"
+    | "top"
+    | "topTrailing"
+    | "leading"
+    | "center"
+    | "trailing"
+    | "bottomLeading"
+    | "bottom"
+    | "bottomTrailing";
   children?: ReactNode;
 }
 
-export interface ScrollViewProps extends A11yProps {
+export interface ScrollViewProps extends A11yProps, ModifierProps {
   children?: ReactNode;
 }
 
-export interface ListProps extends A11yProps {
+export interface ListProps extends A11yProps, ModifierProps {
   children?: ReactNode;
 }
 
-export interface DividerProps extends A11yProps {}
+export interface DividerProps extends A11yProps, ModifierProps {}
 
-export interface GaugeProps extends A11yProps {
+export interface GaugeProps extends A11yProps, ModifierProps {
   value: number;
   min?: number;
   max?: number;
@@ -147,7 +192,7 @@ export interface GaugeProps extends A11yProps {
   color?: string;
 }
 
-export interface ProgressViewProps extends A11yProps {
+export interface ProgressViewProps extends A11yProps, ModifierProps {
   /** Fraction 0...1 when total omitted, else value out of total. */
   value?: number;
   total?: number;
@@ -192,14 +237,14 @@ export interface NavigationRouteProps extends A11yProps {
   children?: ReactNode;
 }
 
-export interface TextFieldProps extends A11yProps {
+export interface TextFieldProps extends A11yProps, ModifierProps {
   value?: string;
   placeholder?: string;
   /** Fired on input commit (watchOS input is modal: dictation/scribble/QWERTY). */
   onChange?: (value: string) => void;
 }
 
-export interface PickerProps extends A11yProps {
+export interface PickerProps extends A11yProps, ModifierProps {
   label?: string;
   options: string[];
   /** Selected index into options. */
@@ -213,7 +258,7 @@ export interface TabViewProps extends A11yProps {
 }
 
 /** A draggable value slider (also Crown-adjustable when focused). */
-export interface SliderProps extends A11yProps {
+export interface SliderProps extends A11yProps, ModifierProps {
   value: number;
   from?: number;
   through?: number;
@@ -222,7 +267,7 @@ export interface SliderProps extends A11yProps {
 }
 
 /** Numeric +/- stepper. */
-export interface StepperProps extends A11yProps {
+export interface StepperProps extends A11yProps, ModifierProps {
   value: number;
   from?: number;
   through?: number;
@@ -241,7 +286,7 @@ export interface MapAnnotation {
 }
 
 /** A MapKit map (watchOS 26): a region with markers and an optional route. */
-export interface MapProps extends A11yProps {
+export interface MapProps extends A11yProps, ModifierProps {
   /** Region center + span (degrees). Defaults to fit the annotations. */
   latitude?: number;
   longitude?: number;
@@ -253,7 +298,7 @@ export interface MapProps extends A11yProps {
 }
 
 /** Date/time picker. value and onChange are epoch milliseconds. */
-export interface DatePickerProps extends A11yProps {
+export interface DatePickerProps extends A11yProps, ModifierProps {
   value: number;
   label?: string;
   /** "date" | "hourAndMinute" | "dateAndTime" (default). */
@@ -288,7 +333,7 @@ export interface CrownRotationProps extends A11yProps {
  * so a stopwatch/countdown costs zero per-frame JS. For a paused/stopped
  * value, render a plain <Text> with the frozen string instead.
  */
-export interface TimerTextProps extends A11yProps {
+export interface TimerTextProps extends A11yProps, ModifierProps {
   /** Count up from this epoch-ms start (elapsed time). */
   since?: number;
   /** Count down to this epoch-ms deadline. Takes precedence over `since`. */

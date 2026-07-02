@@ -41,6 +41,7 @@ struct NodeView: View {
             // the prop as `true` when a handler exists) is read-only: disable it
             // so it can't show a local value React will never accept (CX-010).
             .disabled(isHandlerlessControl)
+            .modifier(LayoutModifier(node: node))
             .modifier(GlassModifier(glass: node.bool("glass") == true))
             .modifier(
                 A11yModifier(
@@ -70,9 +71,15 @@ struct NodeView: View {
     @ViewBuilder private var rendered: some View {
         switch node.type {
         case "VStack":
-            VStack(spacing: cgFloat("spacing")) { childViews }
+            VStack(
+                alignment: Self.horizontalAlignment(node.string("alignment")),
+                spacing: cgFloat("spacing")
+            ) { childViews }
         case "HStack":
-            HStack(spacing: cgFloat("spacing")) { childViews }
+            HStack(
+                alignment: Self.verticalAlignment(node.string("alignment")),
+                spacing: cgFloat("spacing")
+            ) { childViews }
         case "Text":
             styled(Text(node.string("text") ?? ""))
         case "TimerText":
@@ -86,7 +93,9 @@ struct NodeView: View {
         case "Image":
             imageView
         case "ZStack":
-            ZStack { childViews }
+            ZStack(alignment: Self.zAlignment(node.string("alignment"))) {
+                childViews
+            }
         case "ScrollView":
             ScrollView { childViews }
         case "List":
@@ -487,11 +496,47 @@ struct NodeView: View {
     /// widget interpreter via RNStyle so the two can't drift (CX-018); this only
     /// maps the parsed value to SwiftUI.
     private func color(_ name: String?) -> Color? {
+        Self.styleColor(name)
+    }
+
+    /// Static so LayoutModifier (a separate ViewModifier) shares it.
+    static func styleColor(_ name: String?) -> Color? {
         guard let value = RNStyle.color(name) else { return nil }
         switch value {
         case .named(let named): return Self.systemColor(named)
         case .rgba(let r, let g, let b, let a):
             return Color(red: r, green: g, blue: b, opacity: a)
+        }
+    }
+
+    static func horizontalAlignment(_ name: String?) -> HorizontalAlignment {
+        switch name {
+        case "leading": .leading
+        case "trailing": .trailing
+        default: .center
+        }
+    }
+
+    static func verticalAlignment(_ name: String?) -> VerticalAlignment {
+        switch name {
+        case "top": .top
+        case "bottom": .bottom
+        case "firstTextBaseline": .firstTextBaseline
+        default: .center
+        }
+    }
+
+    static func zAlignment(_ name: String?) -> Alignment {
+        switch name {
+        case "topLeading": .topLeading
+        case "top": .top
+        case "topTrailing": .topTrailing
+        case "leading": .leading
+        case "trailing": .trailing
+        case "bottomLeading": .bottomLeading
+        case "bottom": .bottom
+        case "bottomTrailing": .bottomTrailing
+        default: .center
         }
     }
 
@@ -872,6 +917,94 @@ private struct EdgeSwipeActionModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// Design-system Tier 1: the layout/appearance modifier props every visual
+/// node supports (padding/frame/background/cornerRadius/opacity/tint).
+/// Parsing is RNStyle (pure, Linux-tested, shared with the widget
+/// interpreter); this only maps values to SwiftUI. Application order is the
+/// documented contract in components.ts: padding -> background+cornerRadius
+/// -> frame -> opacity -> tint.
+struct LayoutModifier: ViewModifier {
+    let node: RNNode
+
+    func body(content: Content) -> some View {
+        content
+            .modifier(PaddingModifier(insets: RNStyle.padding(from: node.props["padding"])))
+            .modifier(
+                BackgroundModifier(
+                    background: NodeView.styleColor(node.string("background")),
+                    cornerRadius: node.double("cornerRadius").map { CGFloat($0) }
+                )
+            )
+            .modifier(FrameModifier(frame: RNStyle.frame(from: node.props["frame"])))
+            .opacity(node.double("opacity") ?? 1)
+            .modifier(TintModifier(tint: NodeView.styleColor(node.string("tint"))))
+    }
+}
+
+private struct PaddingModifier: ViewModifier {
+    let insets: RNStyle.Insets?
+
+    func body(content: Content) -> some View {
+        if let all = insets?.all {
+            content.padding(CGFloat(all))
+        } else if let insets, insets.horizontal != nil || insets.vertical != nil {
+            content
+                .padding(.horizontal, insets.horizontal.map { CGFloat($0) } ?? 0)
+                .padding(.vertical, insets.vertical.map { CGFloat($0) } ?? 0)
+        } else {
+            content
+        }
+    }
+}
+
+private struct BackgroundModifier: ViewModifier {
+    let background: Color?
+    let cornerRadius: CGFloat?
+
+    func body(content: Content) -> some View {
+        if let background, let cornerRadius {
+            content.background(background, in: RoundedRectangle(cornerRadius: cornerRadius))
+        } else if let background {
+            content.background(background)
+        } else if let cornerRadius {
+            // No background: clip the content itself (e.g. a remote Image).
+            content.clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        } else {
+            content
+        }
+    }
+}
+
+private struct FrameModifier: ViewModifier {
+    let frame: RNStyle.Frame?
+
+    func body(content: Content) -> some View {
+        if let frame {
+            content
+                .frame(
+                    width: frame.width.map { CGFloat($0) },
+                    height: frame.height.map { CGFloat($0) }
+                )
+                .frame(
+                    maxWidth: frame.maxWidthInfinity
+                        ? .infinity : frame.maxWidth.map { CGFloat($0) },
+                    maxHeight: frame.maxHeightInfinity
+                        ? .infinity : frame.maxHeight.map { CGFloat($0) }
+                )
+        } else {
+            content
+        }
+    }
+}
+
+private struct TintModifier: ViewModifier {
+    let tint: Color?
+
+    func body(content: Content) -> some View {
+        if let tint { content.tint(tint) } else { content }
     }
 }
 
