@@ -175,7 +175,11 @@ function hostBridgeSwift() {
   const targetedBlock = (installs, target) =>
     installs.length === 0
       ? []
-      : [`        if target == .${target} {`, ...installs.map((l) => `    ${l}`), "        }"];
+      : [
+          `        if target == .${target} {`,
+          ...installs.map((l) => `    ${l}`),
+          "        }",
+        ];
   return `${[
     banner(),
     "import CQuickJS",
