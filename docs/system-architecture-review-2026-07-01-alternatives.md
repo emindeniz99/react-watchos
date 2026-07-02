@@ -101,6 +101,15 @@ the `this.uncaughtError` check, weakening fail-loud.
 Fix: loop — `do { flushSyncWork() } while (flushPassiveEffects())` — then
 check `uncaughtError`. `flushPassiveEffects` returns whether it did work, so
 the loop terminates.
+**Correction (2026-07-02, verified by experiment):** the loop is *not* the
+fix — React forces update priority to Default while passive effects run,
+so effect-scheduled renders inherently land on later scheduler turns (the
+README's documented one-hop model); no synchronous flush can pull them
+forward. The real defect is the error path: those scheduler-turn commits
+never pass through `flush()`, so their `uncaughtError` sat until the next
+native event. Fixed by a microtask rethrow fallback in `onUncaughtError`
+(no-op when a sync flush consumes the error first), with tests pinning
+both the staged cascade semantics and the surfacing.
 
 **NF-03 [m] `setInterval` drifts and dies silently on a throwing callback.**
 `js/src/shims.ts:48-69` — the re-arm happens *after* `timer.run()` returns,
