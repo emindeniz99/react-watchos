@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  AUDIO_FINISHED_EVENT,
   BACKGROUND_REFRESH_EVENT,
   currentEntitlements,
   dispatchNativeEvent,
@@ -7,10 +8,12 @@ import {
   getDeviceInfo,
   getProducts,
   Keychain,
+  onAudioFinished,
   onBackgroundRefresh,
   onRuntimeSessionState,
   onRuntimeSessionWillExpire,
   onSpeechFinished,
+  playAudio,
   purchase,
   RUNTIME_STATE_EVENT,
   RUNTIME_WILL_EXPIRE_EVENT,
@@ -19,6 +22,7 @@ import {
   scheduleBackgroundRefresh,
   speak,
   startExtendedRuntimeSession,
+  stopAudio,
   stopExtendedRuntimeSession,
   stopSpeaking,
   unregisterAllNativeListeners,
@@ -102,6 +106,24 @@ describe("capability modules route through invoke", () => {
     expect(seen).toEqual({ text: "hello", rate: 0.5, language: "en-US" });
   });
 
+  it("playAudio forwards url + options", async () => {
+    const host = installMockHost();
+    let seen: unknown;
+    host.invoke.mockImplementation(
+      (id: number, method: string, json: string) => {
+        expect(method).toBe("playAudio");
+        seen = JSON.parse(json);
+        (g.__resolveInvoke as (i: number, j: string) => void)(id, "null");
+      },
+    );
+    await playAudio("https://cdn/clip.mp3", { volume: 0.8, loop: true });
+    expect(seen).toEqual({
+      url: "https://cdn/clip.mp3",
+      volume: 0.8,
+      loop: true,
+    });
+  });
+
   it("startExtendedRuntimeSession routes with no payload", async () => {
     const host = installMockHost();
     host.invoke.mockImplementation((id: number, method: string) => {
@@ -146,28 +168,34 @@ describe("capability push-event listeners", () => {
     const state = vi.fn();
     const expire = vi.fn();
     const spoken = vi.fn();
+    const played = vi.fn();
     const offs = [
       onBackgroundRefresh(bg),
       onRuntimeSessionState(state),
       onRuntimeSessionWillExpire(expire),
       onSpeechFinished(spoken),
+      onAudioFinished(played),
     ];
 
     dispatchNativeEvent(BACKGROUND_REFRESH_EVENT, { userInfo: { a: 1 } });
     dispatchNativeEvent(RUNTIME_STATE_EVENT, { state: "running" });
     dispatchNativeEvent(RUNTIME_WILL_EXPIRE_EVENT, {});
     dispatchNativeEvent(SPEECH_FINISHED_EVENT, { text: "hi" });
+    dispatchNativeEvent(AUDIO_FINISHED_EVENT, {});
 
     expect(bg).toHaveBeenCalledWith({ userInfo: { a: 1 } });
     expect(state).toHaveBeenCalledWith({ state: "running" });
     expect(expire).toHaveBeenCalledTimes(1);
     expect(spoken).toHaveBeenCalledWith({ text: "hi" });
+    expect(played).toHaveBeenCalledTimes(1);
 
     for (const off of offs) off();
     dispatchNativeEvent(BACKGROUND_REFRESH_EVENT, { userInfo: {} });
     dispatchNativeEvent(SPEECH_FINISHED_EVENT, { text: "again" });
+    dispatchNativeEvent(AUDIO_FINISHED_EVENT, {});
     expect(bg).toHaveBeenCalledTimes(1); // no fire after unsubscribe
     expect(spoken).toHaveBeenCalledTimes(1);
+    expect(played).toHaveBeenCalledTimes(1);
   });
 
   // The Swift host pushes these exact event names (ReactWatchHost.swift
@@ -178,6 +206,7 @@ describe("capability push-event listeners", () => {
     expect(RUNTIME_STATE_EVENT).toBe("runtimeSession.state");
     expect(RUNTIME_WILL_EXPIRE_EVENT).toBe("runtimeSession.willExpire");
     expect(SPEECH_FINISHED_EVENT).toBe("speech.finished");
+    expect(AUDIO_FINISHED_EVENT).toBe("audio.finished");
   });
 });
 
@@ -238,7 +267,12 @@ describe("capability invoke — remaining paths", () => {
       (g.__resolveInvoke as (i: number, s: string) => void)(id, "null");
     });
     await stopSpeaking();
+    await stopAudio();
     await stopExtendedRuntimeSession();
-    expect(methods).toEqual(["stopSpeaking", "stopExtendedRuntimeSession"]);
+    expect(methods).toEqual([
+      "stopSpeaking",
+      "stopAudio",
+      "stopExtendedRuntimeSession",
+    ]);
   });
 });

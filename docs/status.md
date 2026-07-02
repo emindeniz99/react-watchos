@@ -53,6 +53,7 @@ build (②) is the real gate**, and behavioral correctness isn't guaranteed unti
 | Device info (`getDeviceInfo` + accessibility state + `enableWaterLock`) | ① → ② pending | invoke routing drift-tested ① (`codegen.test`); WKInterfaceDevice + WKAccessibility snapshot / Water Lock are watchOS-gated ② |
 | Keychain secure storage (`Keychain.*`) | ① → ② pending | invoke routing ①; Security-framework handler ② |
 | Speech synthesis (`speak`/`stopSpeaking`) | ① → ② pending | invoke routing ①; AVSpeechSynthesizer handler ② |
+| Audio playback (`playAudio`/`stopAudio` + `onAudioFinished`) | ① → ② pending | invoke routing ①; AVAudioPlayer + AVAudioSession `.playback` handler ② (downloads the URL, routes to Bluetooth/speaker) |
 | Extended runtime session | ① → ② pending | invoke routing ①; WKExtendedRuntimeSession handler ② (needs Info.plist session reason; device-only behavior ③) |
 | Background refresh (`scheduleBackgroundRefresh` + `onBackgroundRefresh`) | ① → ② pending | invoke routing ①; full path wired — WKApplication schedule + `ReactWatchAppDelegate` fire→JS delivery (scaffold adds the `@WKApplicationDelegateAdaptor`) ② |
 | In-app purchase (StoreKit 2) | ① → ② pending | invoke routing ①; StoreKit handlers ②; real purchases are App-Store-Connect + device ③ |

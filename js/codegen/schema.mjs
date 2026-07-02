@@ -526,6 +526,22 @@ export const hostMethods = [
     since: 1,
     via: "invoke",
   },
+  // --- Audio playback (AVAudioPlayer over AVAudioSession .playback):
+  //     play a sound from an https URL; completion on `audio.finished`. ---
+  {
+    name: "playAudio",
+    targets: ["watch"],
+    feature: "audio",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "stopAudio",
+    targets: ["watch"],
+    feature: "audio",
+    since: 1,
+    via: "invoke",
+  },
   // --- In-app purchase (StoreKit 2). ---
   {
     name: "getProducts",

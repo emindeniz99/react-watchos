@@ -145,6 +145,75 @@ final class SpeechBridge: NSObject, AVSpeechSynthesizerDelegate {
     }
 }
 
+// MARK: - Audio playback (AVAudioPlayer)
+
+/// Downloads an https audio URL and plays it through an AVAudioSession
+/// `.playback` (routes to Bluetooth audio, else the watch speaker). Completion
+/// (natural end, not stop) is reported via onFinished.
+final class AudioBridge: NSObject, AVAudioPlayerDelegate {
+    var onFinished: (() -> Void)?
+    private var player: AVAudioPlayer?
+    private var task: URLSessionDataTask?
+
+    /// (id-less) start playback; `settle` is called with nil on success or an
+    /// error message. Download + decode happen off-main; playback starts on
+    /// main.
+    func play(
+        url: URL, volume: Double?, loop: Bool,
+        settle: @escaping (String?) -> Void
+    ) {
+        task?.cancel()
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 30
+        task = URLSession.shared.dataTask(with: request) {
+            [weak self] data, _, error in
+            if let error {
+                DispatchQueue.main.async { settle(error.localizedDescription) }
+                return
+            }
+            guard let data else {
+                DispatchQueue.main.async { settle("no audio data") }
+                return
+            }
+            DispatchQueue.main.async {
+                guard let self else { return }
+                do {
+                    let session = AVAudioSession.sharedInstance()
+                    try session.setCategory(.playback)
+                    try session.setActive(true)
+                    let player = try AVAudioPlayer(data: data)
+                    player.delegate = self
+                    if let volume { player.volume = Float(volume) }
+                    player.numberOfLoops = loop ? -1 : 0
+                    player.play()
+                    self.player = player
+                    settle(nil)
+                } catch {
+                    settle(error.localizedDescription)
+                }
+            }
+        }
+        task?.resume()
+    }
+
+    func stop() {
+        task?.cancel()
+        task = nil
+        player?.stop()
+        player = nil
+        try? AVAudioSession.sharedInstance().setActive(false)
+    }
+
+    func audioPlayerDidFinishPlaying(
+        _: AVAudioPlayer, successfully _: Bool
+    ) {
+        player = nil
+        try? AVAudioSession.sharedInstance().setActive(false)
+        nonisolated(unsafe) let handler = onFinished
+        DispatchQueue.main.async { handler?() }
+    }
+}
+
 // MARK: - Extended runtime session (WKExtendedRuntimeSession)
 
 /// Keeps the app running for a bounded stretch. The consumer must declare a

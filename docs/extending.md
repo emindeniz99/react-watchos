@@ -85,6 +85,7 @@ through the same invoke channel:
 | Extended runtime | `startExtendedRuntimeSession()`, `stop…`, `onRuntimeSessionState/WillExpire` | `runtime` |
 | Keychain | `Keychain.set/get/delete` (encrypted; distinct from `Storage`) | `keychain` |
 | Speech (TTS) | `speak(text, opts?)`, `stopSpeaking()`, `onSpeechFinished(cb)` | `speech` |
+| Audio | `playAudio(url, opts?)`, `stopAudio()`, `onAudioFinished(cb)` (AVAudioPlayer; downloads the URL, routes to Bluetooth/speaker) | `audio` |
 | In-app purchase | `getProducts`, `purchase`, `currentEntitlements`, `restorePurchases` (StoreKit 2) | `iap` |
 
 Two honest caveats:

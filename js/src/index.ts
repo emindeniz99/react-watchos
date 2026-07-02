@@ -5,6 +5,13 @@ import { WatchRoot } from "./renderer";
 
 export type { GenerateOptions } from "./ai";
 export { generateText, isOnDeviceAIAvailable } from "./ai";
+export type { PlayAudioOptions } from "./audio";
+export {
+  AUDIO_FINISHED_EVENT,
+  onAudioFinished,
+  playAudio,
+  stopAudio,
+} from "./audio";
 export {
   BACKGROUND_REFRESH_EVENT,
   onBackgroundRefresh,

@@ -60,6 +60,7 @@ final class ReactWatchModel: ObservableObject {
     /// Capability bridges (device/keychain/speech/runtime/background/iap),
     /// all routed through the invoke channel — see CapabilityBridges.swift.
     private let speechBridge = SpeechBridge()
+    private let audioBridge = AudioBridge()
     private let extendedRuntime = ExtendedRuntimeBridge()
     private var fetchTasks: [Int: URLSessionDataTask] = [:]
     /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
@@ -149,6 +150,9 @@ final class ReactWatchModel: ObservableObject {
         }
         speechBridge.onFinished = { [weak self] text in
             self?.pushNativeEvent("speech.finished", payload: ["text": text])
+        }
+        audioBridge.onFinished = { [weak self] in
+            self?.pushNativeEvent("audio.finished")
         }
         extendedRuntime.onState = { [weak self] state, reason in
             var payload: [String: Any] = ["state": state]
@@ -314,6 +318,10 @@ final class ReactWatchModel: ObservableObject {
             handleSpeak(id: id, payload: payload)
         case "stopSpeaking":
             handleStopSpeaking(id: id)
+        case "playAudio":
+            handlePlayAudio(id: id, payload: payload)
+        case "stopAudio":
+            handleStopAudio(id: id)
         case "getProducts":
             handleGetProducts(id: id, payload: payload)
         case "purchase":
@@ -1555,6 +1563,34 @@ extension ReactWatchModel {
 
     func handleStopSpeaking(id: Int) {
         speechBridge.stop()
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handlePlayAudio(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let raw = fields["url"] as? String, let url = URL(string: raw) else {
+            rejectInvalid(id: id, message: "playAudio needs a url")
+            return
+        }
+        let gen = generation
+        audioBridge.play(
+            url: url,
+            volume: fields["volume"] as? Double,
+            loop: fields["loop"] as? Bool ?? false
+        ) { [weak self] error in
+            guard let self, gen == self.generation else { return }
+            if let error {
+                self.runtime?.rejectInvoke(
+                    id: id,
+                    errorJson: Self.errorJSON(code: "AUDIO_FAILED", message: error))
+            } else {
+                self.runtime?.resolveInvoke(id: id, resultJson: "null")
+            }
+        }
+    }
+
+    func handleStopAudio(id: Int) {
+        audioBridge.stop()
         runtime?.resolveInvoke(id: id, resultJson: "null")
     }
 
