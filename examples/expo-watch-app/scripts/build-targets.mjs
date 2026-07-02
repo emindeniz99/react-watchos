@@ -42,7 +42,10 @@ await buildBundles(
       outfile: join(root, "targets/widget/assets/bundle.js"),
     },
   ],
-  { minify, nodePaths: [join(root, "node_modules")] },
+  // reactCompiler: the published preset flag (NF-28) — auto-memoizes app +
+  // renderer components so React emits fewer commits (needs the Babel dev
+  // deps in package.json).
+  { minify, reactCompiler: true, nodePaths: [join(root, "node_modules")] },
 );
 
 // NF-29: never leave the stamped manifest unsigned, even in the demo — an
