@@ -12,6 +12,10 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
 
 ## Already shipped (don't redo)
 
+- **Design system** (2026-07 review §2.4, all three tiers) — shared layout
+  modifiers (`padding`/`frame`/`background`/`cornerRadius`/`opacity`/`tint`,
+  stack `alignment`), the `useTheme`/`createTheme` token layer, and per-node
+  `animation`. SwiftUI application pends the macOS build (see status.md).
 - **Digital Crown** (`CrownRotation`, T1-P0) — done.
 - **`setInterval`/`clearInterval` shim** (T2-P0) — done.
 - **CI bundle-size budget** (`check:size`, T2-P1) — done.
