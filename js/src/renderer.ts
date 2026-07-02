@@ -16,6 +16,9 @@ export interface Instance {
   props: Record<string, unknown>;
   children: Instance[];
   container: Container;
+  /** True for a raw text segment React created inside a rich <Text> — only
+   *  ever legal as a Text child (guarded at every attach point). */
+  rawText?: boolean;
 }
 
 export interface Container {
@@ -40,6 +43,19 @@ function insertInto(list: Instance[], child: Instance, before: Instance): void {
   removeFrom(list, child);
   const index = list.indexOf(before);
   list.splice(index < 0 ? list.length : index, 0, child);
+}
+
+/** A React element child (vs a scalar) — the rich-text trigger. */
+function hasElementChild(children: unknown): boolean {
+  if (Array.isArray(children)) return children.some(hasElementChild);
+  return typeof children === "object" && children !== null;
+}
+
+/** Raw text segments are only legal under a <Text> parent (fail loud). */
+function assertTextParent(parent: Instance, child: Instance): void {
+  if (child.rawText && parent.type !== "Text") {
+    throw new Error("Raw text must be wrapped in a <Text> element");
+  }
 }
 
 /**
@@ -117,13 +133,28 @@ const hostConfig = {
     rootContainer.instances.set(instance.id, instance);
     return instance;
   },
-  createTextInstance(): never {
-    throw new Error("Raw text must be wrapped in a <Text> element");
+  // Rich text: a raw string inside a mixed <Text> becomes a Text segment
+  // instance. It is only legal under a Text parent — enforced at the attach
+  // points below, where the parent is known (createTextInstance isn't told).
+  createTextInstance(text: string, rootContainer: Container): Instance {
+    const instance: Instance = {
+      id: rootContainer.nextId++,
+      type: "Text",
+      props: { children: text },
+      children: [],
+      container: rootContainer,
+      rawText: true,
+    };
+    rootContainer.instances.set(instance.id, instance);
+    return instance;
   },
-  // Text folds its string children into props.text at serialization, so
-  // React must not create child fibers for them.
-  shouldSetTextContent: (type: string) => type === "Text",
+  // Text folds its string children into props.text at serialization — UNLESS
+  // an element child is present (rich text), when React must create child
+  // fibers so each <Text> segment carries its own style.
+  shouldSetTextContent: (type: string, props: Record<string, unknown>) =>
+    type === "Text" && !hasElementChild(props.children),
   appendInitialChild: (parent: Instance, child: Instance) => {
+    assertTextParent(parent, child);
     parent.children.push(child);
     parent.container.dirty = true;
   },
@@ -143,17 +174,25 @@ const hostConfig = {
     }
     instance.props = newProps;
   },
-  commitTextUpdate() {},
+  commitTextUpdate(textInstance: Instance, _old: string, next: string) {
+    textInstance.props = { children: next };
+    textInstance.container.dirty = true;
+  },
   resetTextContent() {},
   appendChild: (parent: Instance, child: Instance) => {
+    assertTextParent(parent, child);
     parent.children.push(child);
     parent.container.dirty = true;
   },
   appendChildToContainer: (container: Container, child: Instance) => {
+    if (child.rawText) {
+      throw new Error("Raw text must be wrapped in a <Text> element");
+    }
     container.children.push(child);
     container.dirty = true;
   },
   insertBefore: (parent: Instance, child: Instance, before: Instance) => {
+    assertTextParent(parent, child);
     insertInto(parent.children, child, before);
     parent.container.dirty = true;
   },

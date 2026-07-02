@@ -105,8 +105,13 @@ export interface HStackProps extends A11yProps, GestureProps, ModifierProps {
 }
 
 export interface TextProps extends A11yProps, ModifierProps {
-  /** Text children must be strings/numbers; nested elements are not supported. */
-  children?: TextContent;
+  /**
+   * Strings/numbers fold into one label; nested <Text> elements make RICH
+   * text — segments concatenate into a single native Text, each styled
+   * independently (`Bold <Text bold>this</Text>`). Only <Text> children are
+   * meaningful; other elements are ignored by the interpreter.
+   */
+  children?: TextContent | ReactNode;
   bold?: boolean;
   /** Fixed point size. Prefer `textStyle` so text scales with Dynamic Type. */
   size?: number;

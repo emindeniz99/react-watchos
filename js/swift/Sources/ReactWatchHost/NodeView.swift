@@ -81,7 +81,16 @@ struct NodeView: View {
                 spacing: cgFloat("spacing")
             ) { childViews }
         case "Text":
-            styled(Text(node.string("text") ?? ""))
+            // Rich text: element children are styled segments concatenated
+            // into ONE Text (scalar-only children folded into props.text).
+            if node.children.isEmpty {
+                styled(Text(node.string("text") ?? ""))
+            } else {
+                styled(
+                    node.children.reduce(Text(node.string("text") ?? "")) {
+                        $0 + Self.textSegment($1)
+                    })
+            }
         case "TimerText":
             timerText
         case "Button":
@@ -355,7 +364,25 @@ struct NodeView: View {
         RNStyle.formatValue(value)
     }
 
-    private func semanticFont(_ style: String) -> Font {
+    /// One rich-text segment (a Text child of <Text>) as a concatenable
+    /// Text — only Text-returning modifiers, and color only when the segment
+    /// sets one, so plain segments inherit the outer Text's style.
+    static func textSegment(_ node: RNNode) -> Text {
+        var text = Text(node.string("text") ?? "")
+        if node.bool("bold") == true { text = text.bold() }
+        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
+        if let style = node.string("textStyle") {
+            text = text.font(semanticFont(style))
+        } else if let size = node.double("size") {
+            text = text.font(.system(size: CGFloat(size)))
+        }
+        if let color = styleColor(node.string("color")) {
+            text = text.foregroundStyle(color)
+        }
+        return text
+    }
+
+    private static func semanticFont(_ style: String) -> Font {
         switch RNStyle.fontStyle(style) {
         case .largeTitle: .largeTitle
         case .title: .title

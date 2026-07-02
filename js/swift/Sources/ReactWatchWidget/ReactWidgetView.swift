@@ -114,7 +114,16 @@ public struct WidgetNodeView: View {
                 children(node)
             }
         case "Text":
-            styled(node, Text(node.string("text") ?? ""))
+            // Rich text parity with NodeView: element children concatenate
+            // into one Text, each segment styled independently.
+            if node.children.isEmpty {
+                styled(node, Text(node.string("text") ?? ""))
+            } else {
+                styled(
+                    node, node.children.reduce(Text(node.string("text") ?? "")) {
+                        $0 + textSegment($1)
+                    })
+            }
         case "TimerText":
             timerText(node)
         case "Image":
@@ -248,6 +257,23 @@ public struct WidgetNodeView: View {
             text = text.font(.system(size: CGFloat(size)))
         }
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
+    }
+
+    /// One rich-text segment as a concatenable Text — color only when the
+    /// segment sets one, so plain segments inherit the outer style.
+    private func textSegment(_ node: RNNode) -> Text {
+        var text = Text(node.string("text") ?? "")
+        if node.bool("bold") == true { text = text.bold() }
+        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
+        if let style = node.string("textStyle") {
+            text = text.font(semanticFont(style))
+        } else if let size = node.double("size") {
+            text = text.font(.system(size: CGFloat(size)))
+        }
+        if let segmentColor = color(node.string("color")) {
+            text = text.foregroundStyle(segmentColor)
+        }
+        return text
     }
 
     private func semanticFont(_ style: String) -> Font {
