@@ -1,12 +1,26 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  BACKGROUND_REFRESH_EVENT,
+  currentEntitlements,
+  dispatchNativeEvent,
   getDeviceInfo,
   getProducts,
   Keychain,
+  onBackgroundRefresh,
+  onRuntimeSessionState,
+  onRuntimeSessionWillExpire,
+  onSpeechFinished,
   purchase,
+  RUNTIME_STATE_EVENT,
+  RUNTIME_WILL_EXPIRE_EVENT,
+  restorePurchases,
+  SPEECH_FINISHED_EVENT,
   scheduleBackgroundRefresh,
   speak,
   startExtendedRuntimeSession,
+  stopExtendedRuntimeSession,
+  stopSpeaking,
+  unregisterAllNativeListeners,
 } from "../src/index";
 import { installMockHost } from "./helpers";
 
@@ -16,6 +30,7 @@ afterEach(() => {
   delete g.__host;
   delete g.__resolveInvoke;
   delete g.__rejectInvoke;
+  unregisterAllNativeListeners();
 });
 
 // The capability modules all route through the generic invoke channel (SD-1),
@@ -112,5 +127,108 @@ describe("capability modules route through invoke", () => {
       );
     });
     expect((await purchase("pro.monthly")).status).toBe("userCancelled");
+  });
+});
+
+describe("capability push-event listeners", () => {
+  it("onBackgroundRefresh / runtime / speech listeners fire and unsubscribe", () => {
+    const bg = vi.fn();
+    const state = vi.fn();
+    const expire = vi.fn();
+    const spoken = vi.fn();
+    const offs = [
+      onBackgroundRefresh(bg),
+      onRuntimeSessionState(state),
+      onRuntimeSessionWillExpire(expire),
+      onSpeechFinished(spoken),
+    ];
+
+    dispatchNativeEvent(BACKGROUND_REFRESH_EVENT, { userInfo: { a: 1 } });
+    dispatchNativeEvent(RUNTIME_STATE_EVENT, { state: "running" });
+    dispatchNativeEvent(RUNTIME_WILL_EXPIRE_EVENT, {});
+    dispatchNativeEvent(SPEECH_FINISHED_EVENT, { text: "hi" });
+
+    expect(bg).toHaveBeenCalledWith({ userInfo: { a: 1 } });
+    expect(state).toHaveBeenCalledWith({ state: "running" });
+    expect(expire).toHaveBeenCalledTimes(1);
+    expect(spoken).toHaveBeenCalledWith({ text: "hi" });
+
+    for (const off of offs) off();
+    dispatchNativeEvent(BACKGROUND_REFRESH_EVENT, { userInfo: {} });
+    dispatchNativeEvent(SPEECH_FINISHED_EVENT, { text: "again" });
+    expect(bg).toHaveBeenCalledTimes(1); // no fire after unsubscribe
+    expect(spoken).toHaveBeenCalledTimes(1);
+  });
+
+  // The Swift host pushes these exact event names (ReactWatchHost.swift
+  // start() closures). Pin them so a JS rename can't silently desync from
+  // native — the same drift-guard discipline as the codegen contract tests.
+  it("event-name constants match the native push strings", () => {
+    expect(BACKGROUND_REFRESH_EVENT).toBe("backgroundRefresh");
+    expect(RUNTIME_STATE_EVENT).toBe("runtimeSession.state");
+    expect(RUNTIME_WILL_EXPIRE_EVENT).toBe("runtimeSession.willExpire");
+    expect(SPEECH_FINISHED_EVENT).toBe("speech.finished");
+  });
+});
+
+describe("capability invoke — remaining paths", () => {
+  it("Keychain.get returns null for an absent key; set/delete resolve", async () => {
+    const host = installMockHost();
+    host.invoke.mockImplementation(
+      (id: number, method: string, _json: string) => {
+        const resolve = (j: string) =>
+          (g.__resolveInvoke as (i: number, s: string) => void)(id, j);
+        if (method === "keychainGet") resolve("null");
+        else resolve("null"); // set/delete resolve void
+      },
+    );
+    expect(await Keychain.get("missing")).toBeNull();
+    await expect(Keychain.set("k", "v")).resolves.toBeNull();
+    await expect(Keychain.delete("k")).resolves.toBeNull();
+  });
+
+  it("purchase success returns productId + transactionId", async () => {
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number) => {
+      (g.__resolveInvoke as (i: number, s: string) => void)(
+        id,
+        JSON.stringify({
+          status: "success",
+          productId: "pro.monthly",
+          transactionId: "tx-1",
+        }),
+      );
+    });
+    const result = await purchase("pro.monthly");
+    expect(result).toEqual({
+      status: "success",
+      productId: "pro.monthly",
+      transactionId: "tx-1",
+    });
+  });
+
+  it("currentEntitlements + restorePurchases return the id list", async () => {
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number, method: string) => {
+      expect(["currentEntitlements", "restorePurchases"]).toContain(method);
+      (g.__resolveInvoke as (i: number, s: string) => void)(
+        id,
+        JSON.stringify(["pro.monthly"]),
+      );
+    });
+    expect(await currentEntitlements()).toEqual(["pro.monthly"]);
+    expect(await restorePurchases()).toEqual(["pro.monthly"]);
+  });
+
+  it("stopSpeaking + stopExtendedRuntimeSession route and settle", async () => {
+    const host = installMockHost();
+    const methods: string[] = [];
+    host.invoke.mockImplementation((id: number, method: string) => {
+      methods.push(method);
+      (g.__resolveInvoke as (i: number, s: string) => void)(id, "null");
+    });
+    await stopSpeaking();
+    await stopExtendedRuntimeSession();
+    expect(methods).toEqual(["stopSpeaking", "stopExtendedRuntimeSession"]);
   });
 });
