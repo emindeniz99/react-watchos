@@ -42,6 +42,16 @@ export interface ModifierProps {
   opacity?: number;
   /** Accent color for this subtree's controls (SwiftUI .tint). */
   tint?: string;
+  /**
+   * Animate this node's committed changes (SwiftUI `.animation(_:value:)`):
+   * any prop or subtree change transitions with the given curve instead of
+   * snapping. `duration` in seconds (omit for the curve's default). App
+   * only — widgets are static snapshots and ignore it.
+   */
+  animation?: {
+    kind: "spring" | "ease" | "easeIn" | "easeOut" | "linear";
+    duration?: number;
+  };
 }
 
 /**

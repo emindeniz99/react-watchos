@@ -425,3 +425,19 @@ describe("layout modifier props (design-system Tier 1)", () => {
     expect(node.children[0].props.padding).toBe(6);
   });
 });
+
+describe("animation prop", () => {
+  it("crosses the wire verbatim", () => {
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <VStack animation={{ kind: "spring", duration: 0.3 }}>
+        <Text>hi</Text>
+      </VStack>,
+    );
+    expect(host.lastCommit!.root!.props.animation).toEqual({
+      kind: "spring",
+      duration: 0.3,
+    });
+  });
+});

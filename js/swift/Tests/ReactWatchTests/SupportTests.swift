@@ -942,3 +942,22 @@ final class RNStyleModifierTests: XCTestCase {
         XCTAssertNil(RNStyle.frame(from: .object(["width": .string("40")])))
     }
 }
+
+final class RNStyleAnimationTests: XCTestCase {
+    func testParsesKindAndDuration() {
+        XCTAssertEqual(
+            RNStyle.animation(
+                from: .object(["kind": .string("spring"), "duration": .number(0.3)])),
+            RNStyle.AnimationSpec(kind: .spring, duration: 0.3))
+        XCTAssertEqual(
+            RNStyle.animation(from: .object(["kind": .string("linear")])),
+            RNStyle.AnimationSpec(kind: .linear))
+    }
+
+    func testMalformedAnimationIsNil() {
+        XCTAssertNil(RNStyle.animation(from: nil))
+        XCTAssertNil(RNStyle.animation(from: .string("spring")))
+        XCTAssertNil(RNStyle.animation(from: .object(["kind": .string("bounce")])))
+        XCTAssertNil(RNStyle.animation(from: .object(["duration": .number(1)])))
+    }
+}

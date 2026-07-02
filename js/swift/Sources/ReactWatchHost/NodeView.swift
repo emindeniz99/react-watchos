@@ -942,6 +942,28 @@ struct LayoutModifier: ViewModifier {
             .modifier(FrameModifier(frame: RNStyle.frame(from: node.props["frame"])))
             .opacity(node.double("opacity") ?? 1)
             .modifier(TintModifier(tint: NodeView.styleColor(node.string("tint"))))
+            // Animates THIS node's committed changes (RNNode is Equatable, so
+            // any prop/subtree change is the trigger). nil animation = no-op.
+            .animation(
+                swiftUIAnimation(RNStyle.animation(from: node.props["animation"])),
+                value: node
+            )
+    }
+
+    private func swiftUIAnimation(_ spec: RNStyle.AnimationSpec?) -> Animation? {
+        guard let spec else { return nil }
+        return switch (spec.kind, spec.duration) {
+        case (.spring, let d?): .spring(duration: d)
+        case (.spring, nil): .spring
+        case (.ease, let d?): .easeInOut(duration: d)
+        case (.ease, nil): .easeInOut
+        case (.easeIn, let d?): .easeIn(duration: d)
+        case (.easeIn, nil): .easeIn
+        case (.easeOut, let d?): .easeOut(duration: d)
+        case (.easeOut, nil): .easeOut
+        case (.linear, let d?): .linear(duration: d)
+        case (.linear, nil): .linear
+        }
     }
 }
 

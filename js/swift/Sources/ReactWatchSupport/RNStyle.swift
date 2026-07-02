@@ -150,6 +150,37 @@ extension RNStyle {
         return frame.isEmpty ? nil : frame
     }
 
+    /// Parsed `animation` prop: how this node's changes animate
+    /// (`.animation(_:value:)` in the app interpreter; widgets are static
+    /// snapshots, so the widget interpreter ignores it by design).
+    public struct AnimationSpec: Equatable, Sendable {
+        public enum Kind: String, Sendable {
+            case spring
+            case ease
+            case easeIn
+            case easeOut
+            case linear
+        }
+
+        public let kind: Kind
+        /// Seconds; nil = the kind's SwiftUI default.
+        public let duration: Double?
+
+        public init(kind: Kind, duration: Double? = nil) {
+            self.kind = kind
+            self.duration = duration
+        }
+    }
+
+    public static func animation(from value: JSONValue?) -> AnimationSpec? {
+        guard case .object(let fields)? = value,
+            case .string(let kindName)? = fields["kind"],
+            let kind = AnimationSpec.Kind(rawValue: kindName)
+        else { return nil }
+        return AnimationSpec(
+            kind: kind, duration: fields["duration"].flatMap(Self.number))
+    }
+
     private static func number(_ value: JSONValue) -> Double? {
         if case .number(let n) = value { return n }
         return nil
