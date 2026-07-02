@@ -1006,12 +1006,11 @@ final class ReactWatchModel: ObservableObject {
         js.bridge.generate = { [weak self] id, reqJson in
             self?.generate(id: id, requestJson: reqJson)
         }
+        // Capture the generation NOW (makeRuntime runs under the boot that
+        // just bumped it): reading it when the error fires would see the new
+        // generation after a swap and defeat the guard (CX-008 / NF-14).
+        let gen = generation
         js.onError = { [weak self] message in
-            // Generation guard (CX-008 discipline, NF-14): a late error from a
-            // runtime that has already been swapped must not paint the NEW
-            // generation's error banner.
-            guard let self else { return }
-            let gen = self.generation
             DispatchQueue.main.async { [weak self] in
                 guard let self, gen == self.generation else { return }
                 self.runtimeError = message

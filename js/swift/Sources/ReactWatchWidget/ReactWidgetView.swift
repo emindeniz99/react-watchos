@@ -39,7 +39,10 @@ public struct WidgetNodeView: View {
 
     public var body: some View {
         if let node {
-            applyLayout(applyA11y(render(node), node), node)
+            // Same wrapping order as the app's NodeView chain (layout inner,
+            // a11y outermost), so the accessibility element spans the padded/
+            // filled region in both interpreters.
+            applyA11y(applyLayout(render(node), node), node)
         } else {
             // Placeholder/redacted state before the app publishes data.
             Image(systemName: "drop")
