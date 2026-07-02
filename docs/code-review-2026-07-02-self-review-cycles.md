@@ -133,6 +133,15 @@ shipped bundle — safe, never insecure. The Swift verify/verify-wiring is
 watchOS-only, so it is validated by the macOS `swift build`, not the Linux gate;
 the decision policy it feeds is Linux-tested.
 
+**Contract-consistency (verified 2026-07-02):** the widget's `verifyRecord` uses
+the SAME path the app's `verifyStoredRecord` does — `OTARecord.signedMessage()`
+(`v1:keyId:version:js`) + `Curve25519.Signing.PublicKey(rawRepresentation:)` +
+`isValidSignature`. That path is proven cross-language by `OTASigningTests.swift`
+(it verifies a signature vector produced by the Node signer, `manifest.mjs`
+`signManifest`, plus tamper-rejection cases) and by `manifest.test.ts`. So the
+widget verification is not only fail-closed but will actually *accept* a
+legitimately-signed bundle — it isn't a blind guess that could reject everything.
+
 ## Cycle 4 — JS integration seams (fetch / connectivity / notifications / widgets / storage / intents)
 
 Dimensions: fetch/network, connectivity+notifications, widgets/storage/intents.
