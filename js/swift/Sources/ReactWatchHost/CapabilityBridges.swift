@@ -117,13 +117,22 @@ final class SpeechBridge: NSObject, AVSpeechSynthesizerDelegate {
     func speechSynthesizer(
         _: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance
     ) {
-        onFinished?(utterance.speechString)
+        finish(utterance.speechString)
     }
 
     func speechSynthesizer(
         _: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance
     ) {
-        onFinished?(utterance.speechString)
+        finish(utterance.speechString)
+    }
+
+    /// The onFinished closure calls into the @MainActor model (pushNativeEvent),
+    /// so hop to main — the same nonisolated(unsafe)-capture pattern SensorBridge
+    /// uses for its off-main HealthKit callback (satisfies Swift 6 strict
+    /// concurrency regardless of which thread the delegate fires on).
+    private func finish(_ text: String) {
+        nonisolated(unsafe) let handler = onFinished
+        DispatchQueue.main.async { handler?(text) }
     }
 }
 
@@ -153,11 +162,12 @@ final class ExtendedRuntimeBridge: NSObject, WKExtendedRuntimeSessionDelegate {
     }
 
     func extendedRuntimeSessionDidStart(_: WKExtendedRuntimeSession) {
-        onState?("running", nil)
+        emitState("running", nil)
     }
 
     func extendedRuntimeSessionWillExpire(_: WKExtendedRuntimeSession) {
-        onWillExpire?()
+        nonisolated(unsafe) let handler = onWillExpire
+        DispatchQueue.main.async { handler?() }
     }
 
     func extendedRuntimeSession(
@@ -165,8 +175,16 @@ final class ExtendedRuntimeBridge: NSObject, WKExtendedRuntimeSessionDelegate {
         didInvalidateWith reason: WKExtendedRuntimeSessionInvalidationReason,
         error: Error?
     ) {
-        onState?("invalidated", error?.localizedDescription ?? "\(reason.rawValue)")
+        emitState(
+            "invalidated", error?.localizedDescription ?? "\(reason.rawValue)")
         session = nil
+    }
+
+    /// onState calls into the @MainActor model; hop to main (Swift 6 strict
+    /// concurrency), matching SensorBridge's nonisolated(unsafe) convention.
+    private func emitState(_ state: String, _ reason: String?) {
+        nonisolated(unsafe) let handler = onState
+        DispatchQueue.main.async { handler?(state, reason) }
     }
 }
 
