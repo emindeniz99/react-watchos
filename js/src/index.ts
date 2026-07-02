@@ -112,7 +112,7 @@ export {
   sendToPhone,
 } from "./connectivity";
 export type { DeviceInfo } from "./device";
-export { getDeviceInfo } from "./device";
+export { enableWaterLock, getDeviceInfo } from "./device";
 export { ErrorBoundary } from "./errorBoundary";
 export {
   onRuntimeSessionState,

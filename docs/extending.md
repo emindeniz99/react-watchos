@@ -80,7 +80,7 @@ through the same invoke channel:
 
 | Module | API | Feature |
 |---|---|---|
-| Device info | `getDeviceInfo()` → battery/wrist/screen/model snapshot (watchOS has no battery-change notification; poll it) | `device` |
+| Device info | `getDeviceInfo()` → battery/wrist/screen/model + accessibility (reduceMotion/voiceOver/text-size) snapshot; `enableWaterLock()` (watchOS has no battery/a11y-change notification; poll it) | `device` |
 | Background refresh | `scheduleBackgroundRefresh(afterMs, userInfo?)`, `onBackgroundRefresh(cb)` | `background` |
 | Extended runtime | `startExtendedRuntimeSession()`, `stop…`, `onRuntimeSessionState/WillExpire` | `runtime` |
 | Keychain | `Keychain.set/get/delete` (encrypted; distinct from `Storage`) | `keychain` |

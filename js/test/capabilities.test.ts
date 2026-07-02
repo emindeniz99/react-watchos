@@ -3,6 +3,7 @@ import {
   BACKGROUND_REFRESH_EVENT,
   currentEntitlements,
   dispatchNativeEvent,
+  enableWaterLock,
   getDeviceInfo,
   getProducts,
   Keychain,
@@ -50,6 +51,15 @@ describe("capability modules route through invoke", () => {
     const info = await getDeviceInfo();
     expect(info.batteryLevel).toBe(0.8);
     expect(info.model).toBe("Watch");
+  });
+
+  it("enableWaterLock routes with no payload", async () => {
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number, method: string) => {
+      expect(method).toBe("enableWaterLock");
+      (g.__resolveInvoke as (i: number, j: string) => void)(id, "null");
+    });
+    await expect(enableWaterLock()).resolves.toBeNull();
   });
 
   it("scheduleBackgroundRefresh forwards afterMs + userInfo", async () => {

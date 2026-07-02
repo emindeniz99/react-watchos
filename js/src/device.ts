@@ -21,10 +21,25 @@ export interface DeviceInfo {
   model: string;
   systemVersion: string;
   name: string;
+  /** Accessibility state (poll; watchOS has no change notification here). */
+  reduceMotion: boolean;
+  voiceOverRunning: boolean;
+  /** Dynamic Type size, e.g. "UICTContentSizeCategoryL". */
+  preferredContentSizeCategory: string;
 }
 
 /** Fetches the current device snapshot. Rejects (invoke `UNAVAILABLE`) when
  *  there's no device bridge (tests/Node). */
 export function getDeviceInfo(): Promise<DeviceInfo> {
   return invoke<DeviceInfo>("getDeviceInfo");
+}
+
+/**
+ * Enables Water Lock (SwiftUI-less): locks the touch screen so submersion
+ * can't register taps; the user turns the crown to unlock and the watch
+ * ejects water. Only works on a water-resistant watch (wr50); rejects
+ * otherwise.
+ */
+export function enableWaterLock(): Promise<void> {
+  return invoke("enableWaterLock");
 }

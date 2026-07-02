@@ -34,7 +34,16 @@ enum DeviceSnapshot {
             "model": device.model,
             "systemVersion": device.systemVersion,
             "name": device.name,
+            "reduceMotion": WKAccessibilityIsReduceMotionEnabled(),
+            "voiceOverRunning": WKAccessibilityIsVoiceOverRunning(),
+            "preferredContentSizeCategory": device.preferredContentSizeCategory,
         ]
+    }
+
+    /// Locks the touch screen (Water Lock); the crown unlocks + ejects water.
+    /// Only on a water-resistant watch — no-op/ignored otherwise.
+    static func enableWaterLock() {
+        WKInterfaceDevice.current().enableWaterLock()
     }
 
     private static func batteryState(

@@ -295,6 +295,9 @@ final class ReactWatchModel: ObservableObject {
             bluetooth.handleInvoke(id: id, method: method, payload: payload)
         case "getDeviceInfo":
             handleGetDeviceInfo(id: id)
+        case "enableWaterLock":
+            DeviceSnapshot.enableWaterLock()
+            runtime?.resolveInvoke(id: id, resultJson: "null")
         case "scheduleBackgroundRefresh":
             handleScheduleBackgroundRefresh(id: id, payload: payload)
         case "startExtendedRuntimeSession":
