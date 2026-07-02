@@ -90,7 +90,7 @@
     "format:swift:check": "swift format lint -s -r -p swift/Sources swift/Tests ../app/targets"
   },
   "peerDependencies": {
-    "@bacons/apple-targets": ">=4.0.0",
+    "@bacons/apple-targets": "^4.0.0",
     "@expo/config-plugins": ">=56.0.0",
     "esbuild": ">=0.27.0",
     "expo": ">=56.0.0",

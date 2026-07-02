@@ -125,7 +125,7 @@ importers:
   js:
     dependencies:
       '@bacons/apple-targets':
-        specifier: '>=4.0.0'
+        specifier: ^4.0.0
         version: 4.0.7(expo@56.0.12)
       '@expo/config-plugins':
         specifier: '>=56.0.0'
