@@ -106,6 +106,20 @@ export function invoke<T = unknown>(
       ),
     );
   }
+  // Serialize BEFORE arming the timer / pending entry: a non-serializable
+  // payload (BigInt, circular ref) must reject cleanly, not orphan a 30s timer
+  // + pending entry that only clear when the timeout fires (CX-022 no-leak).
+  let payloadJson: string;
+  try {
+    payloadJson = payload === undefined ? "" : JSON.stringify(payload);
+  } catch (error) {
+    return Promise.reject(
+      invokeError(
+        "INVALID_REQUEST",
+        `${method} payload not serializable: ${(error as Error).message}`,
+      ),
+    );
+  }
   installInvokeBridge();
   return new Promise<T>((resolve, reject) => {
     const id = nextInvokeId++;
@@ -123,10 +137,6 @@ export function invoke<T = unknown>(
       reject,
       timer,
     });
-    host.invoke?.(
-      id,
-      method,
-      payload === undefined ? "" : JSON.stringify(payload),
-    );
+    host.invoke?.(id, method, payloadJson);
   });
 }

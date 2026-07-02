@@ -29,6 +29,19 @@ describe("invoke channel (SD-1)", () => {
     });
   });
 
+  it("rejects a non-serializable payload with INVALID_REQUEST and never dispatches", async () => {
+    // A circular ref (or BigInt) makes JSON.stringify throw. That must reject
+    // cleanly BEFORE arming the pending entry + 30s timer, so nothing leaks and
+    // native is never called (CX-022 no-leak).
+    const host = installMockHost();
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    await expect(invoke("saveUpdate", circular)).rejects.toMatchObject({
+      code: "INVALID_REQUEST",
+    });
+    expect(host.invoke).not.toHaveBeenCalled();
+  });
+
   it("settles exactly once — a duplicate native reply is ignored", async () => {
     const host = installMockHost();
     let capturedId = 0;

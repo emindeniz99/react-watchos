@@ -233,3 +233,37 @@ describe("fetch shim (QuickJS environment)", () => {
     await expect(res.arrayBuffer()).rejects.toBeInstanceOf(TypeError);
   });
 });
+
+describe("fetch shim with a host lacking fetch (reduced/widget host)", () => {
+  const SHIM = [
+    "fetch",
+    "Headers",
+    "AbortController",
+    "AbortSignal",
+    "__resolveFetch",
+    "__rejectFetch",
+  ] as const;
+  let saved: Record<string, unknown>;
+
+  beforeEach(() => {
+    saved = {};
+    for (const k of SHIM) {
+      saved[k] = g[k];
+      g[k] = undefined;
+    }
+    // A host without a `fetch` method (widget/test), like installMockHost.
+    g.__host = { log: () => {} };
+    installShims();
+  });
+
+  afterEach(() => {
+    for (const k of SHIM) g[k] = saved[k];
+    delete g.__host;
+  });
+
+  it("rejects instead of hanging when __host.fetch is absent (CX-022)", async () => {
+    const fetch = g.fetch as (url: string) => Promise<unknown>;
+    // Must settle (reject), not leave a promise pending forever.
+    await expect(fetch("https://api.test/x")).rejects.toBeInstanceOf(TypeError);
+  });
+});

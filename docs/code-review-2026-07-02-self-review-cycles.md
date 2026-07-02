@@ -1,8 +1,8 @@
 # Self-review cycles — capability + render-pipeline + core (2026-07-02)
 
-Three adversarial multi-agent review workflows run against the Swift and JS
-surfaces that were written this session **without a compiler in the dev
-container** (no Swift toolchain on Linux; `ReactWatchHost` — the SwiftUI host —
+Four adversarial multi-agent review workflows run against the Swift and JS
+surfaces of the framework, most written this session **without a compiler in the
+dev container** (no Swift toolchain on Linux; `ReactWatchHost` — the SwiftUI host —
 compiles only on the macOS `react-native-watchos swift build` workflow). Each
 workflow fanned reviewers across dimensions, then **independently verified every
 finding with a default-refute skeptic** before it counted. Only verified,
@@ -120,11 +120,37 @@ before eval, falling back to the shipped bundle on failure, and (c) the config
 plugin / scaffold writing the keys into the widget target. This is the **top open
 security item** and should land with a compiler in the loop (macOS build).
 
-## Coverage gaps (honest limits)
+## Cycle 4 — JS integration seams (fetch / connectivity / notifications / widgets / storage / intents)
+
+Dimensions: fetch/network, connectivity+notifications, widgets/storage/intents.
+**5 confirmed of 6.** Unlike the Swift cycles these are pure JS, so every fix
+ships with a Linux-runnable regression test.
+
+- **HIGH** — `fetch()` hung forever + leaked its pending entry when `__host.fetch`
+  is absent (reduced/widget/test host): the native call was an optional-chained
+  no-op that never settled. Now rejects (CX-022 fail-loud), mirroring invoke's
+  UNAVAILABLE guard, before allocating any state. Test added.
+- **MEDIUM** — `invoke()` armed the 30s timeout timer + pending entry BEFORE
+  `JSON.stringify(payload)`, so a non-serializable payload (BigInt / circular
+  ref) rejected but orphaned the timer+entry for 30s each — a per-call leak.
+  Serialize up-front; reject `INVALID_REQUEST` before arming anything. Fixes it
+  for every invoke caller (sendToPhone, etc.). Test added.
+- **MEDIUM** — the inspector's `console.log` tee ran `String(arg)` (which throws
+  on a null-prototype object / throwing `toString`) BEFORE the real log, so a
+  benign `console.log` could throw into the caller. Now logs first, captures
+  defensively.
+- **MEDIUM** — one widget's `render()`/`instances()` throwing aborted publishing
+  ALL widgets (healthy complications silently dropped; via the intent
+  auto-reload path a buffered mutation left unpublished). Per-kind try/catch
+  isolates them, matching the native-event dispatcher's per-listener isolation.
+  Test added.
+- **LOW** — fetch `settle()` tore down a caller-shared `AbortSignal.timeout`
+  timer, dropping the timeout for other in-flight fetches sharing that signal.
+  An `ownsTimer` flag limits teardown to the internal `timeout:` sugar signal.
 
 ## Coverage gaps (honest limits)
 
-- **Nothing was compiled.** All three cycles are static reasoning over source +
+- **The Swift was never compiled.** Cycles 1–3 are static reasoning over source +
   Apple-docs JSON. The critical Swift-6 finding in Cycle 1 proves the value (a
   real compile break caught), but the corollary is that other type/isolation
   errors could remain until the macOS `react-native-watchos swift build`

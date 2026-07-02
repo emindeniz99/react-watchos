@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   Gauge,
   publishWidgets,
@@ -97,6 +97,26 @@ describe("widget timelines", () => {
     const tree =
       renderWidgets(NOW).widgets.hydration.accessoryCircular.entries[0].tree;
     expect(tree?.props.value).toBe(5);
+  });
+
+  it("one widget's render() throwing does not drop the healthy widgets", () => {
+    registerWidget({
+      kind: "broken",
+      families: ["accessoryInline"],
+      render: () => {
+        throw new Error("boom");
+      },
+    });
+    registerHydration(2);
+    // Silence the expected per-widget error log.
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const payload = renderWidgets(NOW);
+    spy.mockRestore();
+    // The broken kind is skipped; the healthy one still published.
+    expect(payload.widgets.broken).toBeUndefined();
+    expect(
+      payload.widgets.hydration.accessoryInline.entries[0].tree,
+    ).toMatchObject({ type: "Text", props: { text: "2/8 glasses" } });
   });
 
   it("publishWidgets hands the JSON payload to the native host", () => {

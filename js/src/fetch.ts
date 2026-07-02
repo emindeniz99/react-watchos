@@ -211,6 +211,10 @@ export function installFetch(g: Global): void {
     reject: (error: unknown) => void;
     signal?: WatchAbortSignal;
     onAbort?: () => void;
+    /** True only when this fetch created the signal via the `timeout:` sugar,
+     *  so it owns the timer and may tear it down on settle. A caller-passed
+     *  signal may be shared across fetches — leave its timer alone. */
+    ownsTimer?: boolean;
   }
   const pending = new Map<number, Pending>();
 
@@ -220,8 +224,10 @@ export function installFetch(g: Global): void {
     pending.delete(id);
     if (p.signal && p.onAbort) p.signal.removeEventListener("abort", p.onAbort);
     // Cancel the timeout-sugar timer so it can't fire (and round-trip to the
-    // native timer host) after the fetch already settled.
-    if (p.signal?.timerId !== undefined) {
+    // native timer host) after the fetch already settled — but ONLY when this
+    // fetch owns it. A caller-shared AbortSignal.timeout must keep ticking for
+    // the other fetches still using it.
+    if (p.ownsTimer && p.signal?.timerId !== undefined) {
       (globalThis as { clearTimeout?: (id: number) => void }).clearTimeout?.(
         p.signal.timerId,
       );
@@ -286,6 +292,8 @@ export function installFetch(g: Global): void {
 
   g.fetch = (url: string, options?: FetchOptions): Promise<unknown> =>
     new Promise((resolve, reject) => {
+      // Only the `timeout:` sugar path produces a signal this fetch owns.
+      const ownsTimer = !options?.signal && options?.timeout !== undefined;
       const signal =
         options?.signal ??
         (options?.timeout
@@ -295,8 +303,20 @@ export function installFetch(g: Global): void {
         reject(signalReason(signal));
         return;
       }
+      // Fail loud, don't hang: without a fetch-capable host the native call
+      // would be a silent no-op and this promise (+ pending entry + abort
+      // listener) would leak for the runtime's life (CX-022). Mirror invoke's
+      // UNAVAILABLE guard — reject BEFORE allocating any state.
+      if (!g.__host?.fetch) {
+        reject(
+          new TypeError(
+            `fetch unavailable: host has no fetch (cannot request ${url})`,
+          ),
+        );
+        return;
+      }
       const id = nextId++;
-      const entry: Pending = { resolve, reject };
+      const entry: Pending = { resolve, reject, ownsTimer };
       if (signal) {
         entry.signal = signal;
         entry.onAbort = () => {

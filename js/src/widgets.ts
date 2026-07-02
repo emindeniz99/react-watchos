@@ -150,46 +150,60 @@ export function renderWidgets(now: number = Date.now()): PublishedWidgets {
 function renderWidgetsInner(now: number): PublishedWidgets {
   const widgets: PublishedWidgets["widgets"] = {};
   for (const definition of registry.values()) {
-    // A plain widget renders one timeline under `kind`; an `instances` widget
-    // renders one per id under `kind/id` (undefined → the plain `kind` key).
-    const instanceIds = definition.instances?.() ?? [undefined];
-    for (const instanceId of instanceIds) {
-      const byFamily: Record<string, PublishedFamilyTimeline> = {};
-      for (const family of definition.families) {
-        const timeline = definition.render({
-          family,
-          now,
-          ...(instanceId !== undefined ? { instanceId } : {}),
-        });
-        byFamily[family] = {
-          entries: timeline.entries.map((entry) => ({
-            date: toMs(entry.date),
-            tree: renderToTree(entry.view),
-            ...(entry.url ? { url: entry.url } : {}),
-            ...(entry.relevance ? { relevance: entry.relevance } : {}),
-          })),
-          ...(timeline.reloadAfter !== undefined
-            ? { reloadAfter: toMs(timeline.reloadAfter) }
-            : {}),
-          ...(timeline.relevantContexts
-            ? {
-                relevantContexts: timeline.relevantContexts.map((c) => ({
-                  ...(c.date !== undefined ? { date: toMs(c.date) } : {}),
-                  ...(c.latitude !== undefined ? { latitude: c.latitude } : {}),
-                  ...(c.longitude !== undefined
-                    ? { longitude: c.longitude }
-                    : {}),
-                  ...(c.radius !== undefined ? { radius: c.radius } : {}),
-                })),
-              }
-            : {}),
-        };
+    // Isolate each kind: one widget's instances()/render() throwing must not
+    // abort publishing the others — that would silently drop healthy
+    // complications, and via the intent auto-reload path (a successful Storage
+    // write → publishWidgets) leave the buffered mutation unpublished. Same
+    // per-item isolation the native-event dispatcher uses.
+    try {
+      // A plain widget renders one timeline under `kind`; an `instances` widget
+      // renders one per id under `kind/id` (undefined → the plain `kind` key).
+      const instanceIds = definition.instances?.() ?? [undefined];
+      for (const instanceId of instanceIds) {
+        const byFamily: Record<string, PublishedFamilyTimeline> = {};
+        for (const family of definition.families) {
+          const timeline = definition.render({
+            family,
+            now,
+            ...(instanceId !== undefined ? { instanceId } : {}),
+          });
+          byFamily[family] = {
+            entries: timeline.entries.map((entry) => ({
+              date: toMs(entry.date),
+              tree: renderToTree(entry.view),
+              ...(entry.url ? { url: entry.url } : {}),
+              ...(entry.relevance ? { relevance: entry.relevance } : {}),
+            })),
+            ...(timeline.reloadAfter !== undefined
+              ? { reloadAfter: toMs(timeline.reloadAfter) }
+              : {}),
+            ...(timeline.relevantContexts
+              ? {
+                  relevantContexts: timeline.relevantContexts.map((c) => ({
+                    ...(c.date !== undefined ? { date: toMs(c.date) } : {}),
+                    ...(c.latitude !== undefined
+                      ? { latitude: c.latitude }
+                      : {}),
+                    ...(c.longitude !== undefined
+                      ? { longitude: c.longitude }
+                      : {}),
+                    ...(c.radius !== undefined ? { radius: c.radius } : {}),
+                  })),
+                }
+              : {}),
+          };
+        }
+        const key =
+          instanceId === undefined
+            ? definition.kind
+            : `${definition.kind}/${instanceId}`;
+        widgets[key] = byFamily;
       }
-      const key =
-        instanceId === undefined
-          ? definition.kind
-          : `${definition.kind}/${instanceId}`;
-      widgets[key] = byFamily;
+    } catch (error) {
+      console.log(
+        `[react-watch-widget] render failed for "${definition.kind}":`,
+        error,
+      );
     }
   }
   const controls: PublishedWidgets["controls"] = {};

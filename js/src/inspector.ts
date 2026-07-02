@@ -53,8 +53,24 @@ export function startInspector(options: InspectorOptions): () => void {
     globalThis.console = {
       ...globalThis.console,
       log: (...args: unknown[]) => {
-        captureLog(args.map(String).join(" "));
+        // The tee must never break or alter the app's logging: run the real
+        // console first, then capture defensively — String(x) throws for a
+        // null-prototype object or a throwing toString, which would otherwise
+        // propagate out of console.log to the caller.
         original(...args);
+        try {
+          captureLog(
+            args
+              .map((a) => {
+                try {
+                  return String(a);
+                } catch {
+                  return "[unserializable]";
+                }
+              })
+              .join(" "),
+          );
+        } catch {}
       },
     };
   }
