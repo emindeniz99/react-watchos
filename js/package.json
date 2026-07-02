@@ -68,6 +68,7 @@
     "bin"
   ],
   "scripts": {
+    "prepublishOnly": "pnpm run typecheck && pnpm run lint && pnpm run check:size",
     "build": "node scripts/build.mjs",
     "build:min": "node scripts/build.mjs --minify",
     "dev": "node scripts/dev.mjs",
@@ -143,5 +144,9 @@
   },
   "bin": {
     "react-native-watchos": "./bin/react-native-watchos.cjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }
