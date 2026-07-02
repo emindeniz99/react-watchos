@@ -112,7 +112,7 @@ static const char *epilogue =
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s <bundle.js>\n", argv[0]);
+        fprintf(stderr, "usage: %s <bundle.js|bundle.qbc> [epilogue.js]\n", argv[0]);
         return 2;
     }
     size_t len = 0;
@@ -120,6 +120,23 @@ int main(int argc, char **argv) {
     if (!bundle) {
         fprintf(stderr, "cannot read %s\n", argv[1]);
         return 2;
+    }
+    /* An optional second arg replaces the built-in smoke epilogue, so other
+     * harnesses (the NF-20 tree-commit bench) can drive the same embedding
+     * without duplicating this host. */
+    const char *epilogue_src = epilogue;
+    const char *epilogue_name = "epilogue.js";
+    char *epilogue_buf = NULL;
+    if (argc > 2) {
+        size_t elen = 0;
+        epilogue_buf = read_file(argv[2], &elen);
+        if (!epilogue_buf) {
+            fprintf(stderr, "cannot read %s\n", argv[2]);
+            free(bundle);
+            return 2;
+        }
+        epilogue_src = epilogue_buf;
+        epilogue_name = argv[2];
     }
 
     JSRuntime *rt = JS_NewRuntime();
@@ -165,7 +182,8 @@ int main(int argc, char **argv) {
     JS_FreeValue(ctx, result);
     drain_jobs(rt);
 
-    JSValue summary = JS_Eval(ctx, epilogue, strlen(epilogue), "epilogue.js", JS_EVAL_TYPE_GLOBAL);
+    JSValue summary = JS_Eval(ctx, epilogue_src, strlen(epilogue_src), epilogue_name,
+                              JS_EVAL_TYPE_GLOBAL);
     if (JS_IsException(summary)) {
         JSValue exc = JS_GetException(ctx);
         const char *msg = JS_ToCString(ctx, exc);
@@ -194,6 +212,7 @@ int main(int argc, char **argv) {
 #endif
     );
 
+    free(epilogue_buf);
     JS_FreeContext(ctx);
     JS_FreeRuntime(rt);
     return 0;

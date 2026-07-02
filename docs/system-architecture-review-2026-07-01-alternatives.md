@@ -268,6 +268,20 @@ existing `qjs` smoke harness so CI produces an interpreter-engine number,
 and re-run the decision against it. Fix (real): one on-device profile of
 commit cost at realistic tree sizes — this is the number the whole
 protocol question hangs on (see §2.3).
+**Measured (2026-07-02, `tools/embed-smoke/bench.sh` — the real demo
+bundle inside the vendored quickjs-ng, Linux x86 CI-class hardware):**
+demo tree = 137 nodes / 11.2 KB; per-dispatch full pipeline (React render
++ serialize + stringify + C hop) = **1.06 ms**; serializeTree alone =
+0.40 ms; serialize+stringify = 0.85 ms. That is ~25× the V8 number, as
+predicted. Scaled to a watch SoC (assume 3–10× slower than desktop x86),
+per-tap cost lands at ~3–10 ms: fine for taps, meaningful at 10 Hz sensor
+pushes (3–10% of a core, on the UI thread), painful for crown-rate change
+storms. Verdict update: full-tree commits remain acceptable at current
+tree sizes; NF-22 (coalescing + Swift equality guard) is the priority
+lever; protocol v2 stays measurement-gated but the JS-side serialize is
+confirmed as the dominant per-commit cost and grows linearly with
+eager-mounted screens (ARCH-09). The bench now runs in CI (step
+"Tree-commit bench in the vendored engine").
 
 **NF-21 [M] The no-op-commit bailout still pays the full serialize +
 stringify.** `js/src/renderer.ts:223-231` — `serializeTree` +
