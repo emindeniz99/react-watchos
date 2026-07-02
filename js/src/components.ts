@@ -358,7 +358,9 @@ export interface TimerTextProps extends A11yProps, ModifierProps {
   since?: number;
   /** Count down to this epoch-ms deadline. Takes precedence over `since`. */
   until?: number;
-  /** Show mm:ss.SSS using native SwiftUI ticking instead of JS intervals. */
+  /** Show mm:ss.SSS using native SwiftUI ticking instead of JS intervals.
+   *  Watch-only: in a widget this degrades to the seconds timer (WidgetKit
+   *  can't live-tick sub-second). */
   milliseconds?: boolean;
   bold?: boolean;
   size?: number;

@@ -3,7 +3,9 @@ import type { SerializedNode, SerializedTree } from "./host";
 import type { Container, Instance } from "./renderer";
 
 export function textContent(children: unknown): string {
-  if (children == null) return "";
+  // Match React: null/undefined/booleans render as nothing, so the idiomatic
+  // `{cond && "…"}` guard folds to "" (not the literal "false") when cond is off.
+  if (children == null || typeof children === "boolean") return "";
   if (Array.isArray(children)) return children.map(textContent).join("");
   // Element children (rich text) serialize as child nodes, not folded text.
   if (typeof children === "object") return "";

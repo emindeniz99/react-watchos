@@ -213,17 +213,22 @@ struct NodeView: View {
         case "CrownRotation":
             CrownRotationView(node: node)
         case "Slider":
+            // Normalize bounds: a reversed from/through would trap building the
+            // ClosedRange and crash the whole render, not just this node.
             let lo = node.double("from") ?? 0
             let hi = node.double("through") ?? 1
+            let range = lo <= hi ? lo...hi : hi...lo
             if let step = node.double("step") {
-                Slider(value: doubleBinding, in: lo...hi, step: step)
+                Slider(value: doubleBinding, in: range, step: step)
             } else {
-                Slider(value: doubleBinding, in: lo...hi)
+                Slider(value: doubleBinding, in: range)
             }
         case "Stepper":
+            let lo = node.double("from") ?? 0
+            let hi = node.double("through") ?? 100
             Stepper(
                 value: doubleBinding,
-                in: (node.double("from") ?? 0)...(node.double("through") ?? 100),
+                in: lo <= hi ? lo...hi : hi...lo,
                 step: node.double("step") ?? 1
             ) { Text(node.string("label") ?? "") }
         case "DatePicker":
@@ -470,8 +475,10 @@ struct NodeView: View {
     }
 
     @ViewBuilder private var gauge: some View {
-        let min = node.double("min") ?? 0
-        let max = node.double("max") ?? 1
+        // Normalize bounds so a reversed min/max can't trap building the range.
+        let rawMin = node.double("min") ?? 0
+        let rawMax = node.double("max") ?? 1
+        let (min, max) = rawMin <= rawMax ? (rawMin, rawMax) : (rawMax, rawMin)
         let value = Swift.min(Swift.max(node.double("value") ?? 0, min), max)
         let base = Gauge(value: value, in: min...max) {
             Text(node.string("label") ?? "")
@@ -494,7 +501,16 @@ struct NodeView: View {
     /// Text — only Text-returning modifiers, and color only when the segment
     /// sets one, so plain segments inherit the outer Text's style.
     static func textSegment(_ node: RNNode) -> Text {
-        var text = Text(node.string("text") ?? "")
+        // Recurse: a segment with element children has text="" (serialize forces
+        // it) and carries its content as nested <Text> — fold those in first, then
+        // layer this node's own styling on top (concatenated segments keep their
+        // own attributes; this node's fill the rest).
+        var text =
+            node.children.isEmpty
+            ? Text(node.string("text") ?? "")
+            : node.children.reduce(Text(node.string("text") ?? "")) {
+                $0 + Self.textSegment($1)
+            }
         if node.bool("bold") == true { text = text.bold() }
         if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
         if let style = node.string("textStyle") {
@@ -938,12 +954,15 @@ private struct CrownRotationView: View {
     @EnvironmentObject private var model: ReactWatchModel
 
     var body: some View {
-        VStack { ForEach(node.children) { NodeView(node: $0) } }
+        // Normalize bounds so a reversed from/through can't trap the crown range.
+        let lo = node.double("from") ?? 0
+        let hi = node.double("through") ?? 100
+        return VStack { ForEach(node.children) { NodeView(node: $0) } }
             .focusable()
             .digitalCrownRotation(
                 binding,
-                from: node.double("from") ?? 0,
-                through: node.double("through") ?? 100,
+                from: Swift.min(lo, hi),
+                through: Swift.max(lo, hi),
                 by: node.double("step") ?? 1,
                 sensitivity: .medium,
                 isContinuous: false,
@@ -1236,23 +1255,37 @@ struct LayoutModifier: ViewModifier {
     let node: RNNode
 
     func body(content: Content) -> some View {
-        content
-            .modifier(PaddingModifier(insets: RNStyle.padding(from: node.props["padding"])))
-            .modifier(
-                BackgroundModifier(
-                    background: NodeView.styleColor(node.string("background")),
-                    cornerRadius: node.double("cornerRadius").map { CGFloat($0) }
+        animated(
+            content
+                .modifier(
+                    PaddingModifier(insets: RNStyle.padding(from: node.props["padding"]))
                 )
-            )
-            .modifier(FrameModifier(frame: RNStyle.frame(from: node.props["frame"])))
-            .opacity(node.double("opacity") ?? 1)
-            .modifier(TintModifier(tint: NodeView.styleColor(node.string("tint"))))
-            // Animates THIS node's committed changes (RNNode is Equatable, so
-            // any prop/subtree change is the trigger). nil animation = no-op.
-            .animation(
-                swiftUIAnimation(RNStyle.animation(from: node.props["animation"])),
-                value: node
-            )
+                .modifier(
+                    BackgroundModifier(
+                        background: NodeView.styleColor(node.string("background")),
+                        cornerRadius: node.double("cornerRadius").map { CGFloat($0) }
+                    )
+                )
+                .modifier(FrameModifier(frame: RNStyle.frame(from: node.props["frame"])))
+                .opacity(node.double("opacity") ?? 1)
+                .modifier(TintModifier(tint: NodeView.styleColor(node.string("tint"))))
+        )
+    }
+
+    /// Attaches `.animation(_:value:)` ONLY when this node actually declares an
+    /// animation. An unconditional `.animation(nil, value: node)` on every node
+    /// isn't a no-op — it sets an explicit nil transaction that shadows an
+    /// ancestor's animation for the entire subtree, so a parent could never
+    /// animate its children's changes. RNNode is Equatable, so any prop/subtree
+    /// change is the trigger.
+    @ViewBuilder private func animated(_ styled: some View) -> some View {
+        if let animation = swiftUIAnimation(
+            RNStyle.animation(from: node.props["animation"]))
+        {
+            styled.animation(animation, value: node)
+        } else {
+            styled
+        }
     }
 
     private func swiftUIAnimation(_ spec: RNStyle.AnimationSpec?) -> Animation? {

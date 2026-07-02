@@ -149,15 +149,31 @@ public struct WidgetNodeView: View {
             gauge(node)
         case "ProgressView":
             if let value = node.double("value") {
-                ProgressView(value: value, total: node.double("total") ?? 1)
+                ProgressView(value: value, total: node.double("total") ?? 1) {
+                    Text(node.string("label") ?? "")
+                }
             } else {
                 ProgressView()
             }
         // Interactive/navigation nodes degrade to their content.
         case "Button":
             button(node)
-        case "NavigationStack", "NavigationLink", "NavigationRoute",
-            "ScrollView", "List", "TabView", "CrownRotation":
+        case "NavigationStack":
+            // Match the watch: only the root ("/") route renders inline; other
+            // routes are off-screen destinations and must not leak into the
+            // complication (widget has no navigation).
+            navigationStackRoot(node)
+        case "NavigationLink":
+            // Mirror NodeView.navigationLinkLabel: the label-based form (no
+            // children) must still show its visible text.
+            if let label = node.string("label") {
+                Text(label)
+            } else if node.children.isEmpty {
+                Text(node.string("to") ?? "")
+            } else {
+                children(node)
+            }
+        case "NavigationRoute", "ScrollView", "List", "TabView", "CrownRotation":
             children(node)
         // Widgets cannot present anything — presentation surfaces degrade to
         // nothing (their content only exists while presented in the app).
@@ -170,6 +186,9 @@ public struct WidgetNodeView: View {
                     Text(header).font(.footnote).foregroundStyle(.secondary)
                 }
                 children(node)
+                if let footer = node.string("footer") {
+                    Text(footer).font(.footnote).foregroundStyle(.secondary)
+                }
             }
         case "Label":
             SwiftUI.Label(
@@ -226,9 +245,11 @@ public struct WidgetNodeView: View {
         case "Toggle":
             Text(node.string("label") ?? "")
         case "Slider", "Stepper":
-            // Read-only in widgets: show the value as a fraction.
+            // Read-only in widgets: show the value as a fraction. Defaults mirror
+            // the app interpreter — Slider spans 0...1, Stepper 0...100 — so the
+            // implicit-range fraction reads the same in both.
             let lo = node.double("from") ?? 0
-            let hi = node.double("through") ?? 1
+            let hi = node.double("through") ?? (node.type == "Stepper" ? 100 : 1)
             let v = node.double("value") ?? 0
             ProgressView(value: max(0, min(1, hi > lo ? (v - lo) / (hi - lo) : 0)))
         case "DatePicker":
@@ -254,6 +275,30 @@ public struct WidgetNodeView: View {
         ForEach(node.children) { child in
             WidgetNodeView(node: child, appGroupId: appGroupId)
         }
+    }
+
+    /// The root ("/") route's content of a NavigationStack, mirroring the watch's
+    /// RoutedNavigationStack.rootChildren: render only the root route (destination
+    /// routes stay hidden), or the non-route children when there is no explicit
+    /// root NavigationRoute.
+    @ViewBuilder private func navigationStackRoot(_ node: RNNode) -> some View {
+        let routes = node.children.filter { $0.type == "NavigationRoute" }
+        if let root = routes.first(where: {
+            normalizedPath($0.string("path") ?? "/") == "/"
+        }) {
+            children(root)
+        } else {
+            ForEach(node.children.filter { $0.type != "NavigationRoute" }) {
+                child in
+                WidgetNodeView(node: child, appGroupId: appGroupId)
+            }
+        }
+    }
+
+    /// Path normalization matching NodeView.normalized(_ route:).
+    private func normalizedPath(_ route: String) -> String {
+        if route.isEmpty || route == "/" { return "/" }
+        return route.hasPrefix("/") ? route : "/\(route)"
     }
 
     /// An interactive widget button (watchOS 11+): a tap runs the React intent
@@ -387,7 +432,11 @@ public struct WidgetNodeView: View {
     }
 
     /// Auto-updating timer label; valid in widgets (Text(timerInterval:) is
-    /// one of the few views WidgetKit ticks without a timeline reload).
+    /// one of the few views WidgetKit ticks without a timeline reload). The
+    /// `milliseconds` mode is deliberately NOT honored here: WidgetKit can't
+    /// live-tick sub-second, so a frozen ms snapshot would show stale digits —
+    /// the widget degrades to the clean seconds-granularity timer instead
+    /// (TimerText is `widget: "degraded"` in the contract for this reason).
     @ViewBuilder private func timerText(_ node: RNNode) -> some View {
         if let until = node.double("until") {
             let end = Date(timeIntervalSince1970: until / 1000)

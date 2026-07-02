@@ -42,6 +42,23 @@ describe("rich text", () => {
     expect(text.children).toEqual([]);
   });
 
+  it("folds boolean children to nothing (React semantics), not 'false'", () => {
+    // The idiomatic `{cond && "…"}` guard yields `false` when off; React renders
+    // booleans/null/undefined as nothing, so the wire text must be empty — not
+    // the literal word "false" showing up on the watch.
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    const show = false;
+    root.render(
+      <Text>
+        Total: {show && "loading"} {42}
+      </Text>,
+    );
+    const text = findByType(host.lastCommit!.root!, "Text")[0];
+    expect(text.props.text).toBe("Total:  42");
+    expect(text.children).toEqual([]);
+  });
+
   it("updating a raw segment commits (commitTextUpdate marks dirty)", () => {
     function Counter() {
       const [n, setN] = useState(3);

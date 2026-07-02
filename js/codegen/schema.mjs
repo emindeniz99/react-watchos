@@ -46,7 +46,10 @@ export const components = [
   { name: "Spacer", widget: "full" },
   { name: "Divider", widget: "full" },
   { name: "Text", widget: "full" },
-  { name: "TimerText", widget: "full" },
+  // degraded, not full: the `milliseconds` mode falls back to seconds in a
+  // widget — WidgetKit timelines can't live-tick sub-second (see the widget
+  // interpreter's timerText). Plain mm:ss timers render fully.
+  { name: "TimerText", widget: "degraded" },
   { name: "Image", widget: "full" },
   { name: "Map", widget: "degraded" },
   { name: "Gauge", widget: "full" },
