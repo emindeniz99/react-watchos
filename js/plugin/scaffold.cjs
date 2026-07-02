@@ -8,7 +8,10 @@
 /** The identifier core of a target name ("Expo Watch" -> "ExpoWatch"),
  *  falling back to "ReactWatch" when the name has no identifier characters. */
 function identifierBase(name) {
-  return String(name).replace(/[^A-Za-z0-9]/g, "") || "ReactWatch";
+  const base = String(name).replace(/[^A-Za-z0-9]/g, "") || "ReactWatch";
+  // A Swift identifier can't start with a digit ("2Watch" -> invalid @main
+  // struct name), so prefix one when the surviving head is numeric.
+  return /^[0-9]/.test(base) ? `App${base}` : base;
 }
 
 /** A valid Swift type name derived from the target name.

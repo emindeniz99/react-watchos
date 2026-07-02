@@ -89,6 +89,9 @@
     "format:swift": "swift format -i -r swift/Sources swift/Tests ../app/targets",
     "format:swift:check": "swift format lint -s -r -p swift/Sources swift/Tests ../app/targets"
   },
+  "dependencies": {
+    "plist": "^3.1.0"
+  },
   "peerDependencies": {
     "@bacons/apple-targets": "^4.0.0",
     "@expo/config-plugins": ">=56.0.0",

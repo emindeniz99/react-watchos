@@ -148,6 +148,26 @@ ships with a Linux-runnable regression test.
   timer, dropping the timeout for other in-flight fetches sharing that signal.
   An `ownsTimer` flag limits teardown to the internal `timeout:` sugar signal.
 
+## Cycle 5 — Expo config plugin + scaffold (the consumer install path)
+
+Dimensions: pbxproj/target wiring, package-resolution/Info.plist merge, scaffold
+generators. **3 confirmed of 3** — notably all medium/low, the signal that review
+is converging. All pure JS/Node, each fix verified with a test.
+
+- **MEDIUM** — the plugin calls `plist.parse/build` (Info.plist merge) but
+  `plist` was an **undeclared dependency**, reached only as a
+  transitive-of-transitive of `@expo/config-plugins`. Default installs hoist it
+  so it works, but a strict layout (pnpm `hoist=false`) or peer-version drift
+  makes `expo prebuild` fail with `MODULE_NOT_FOUND` mid-merge. Declared `plist`
+  as a direct dependency (lockfile updated).
+- **LOW** — `withEasAppExtensions` concatenated the bundle suffix unconditionally
+  while apple-targets only appends a *leading-dot* suffix (else uses it verbatim).
+  A non-dot `watchBundleSuffix` override produced a duplicate EAS entry + a
+  non-namespaced bundle id. Now shares apple-targets' dot-aware derivation. Test.
+- **LOW** — a target `name` whose identifier head is a digit ("2 Watch") produced
+  an invalid Swift `@main` struct name. `identifierBase` now prefixes a non-digit.
+  Test.
+
 ## Coverage gaps (honest limits)
 
 - **The Swift was never compiled.** Cycles 1–3 are static reasoning over source +

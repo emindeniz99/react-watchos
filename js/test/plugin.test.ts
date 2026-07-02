@@ -423,6 +423,20 @@ describe("withEasAppExtensions (EAS extra-target signing)", () => {
     ]);
   });
 
+  it("uses a non-dot suffix verbatim, matching apple-targets' derivation", () => {
+    // apple-targets appends a leading-dot suffix to the app id but uses any
+    // other suffix as the whole id. The EAS entry must agree, or its bundle-id
+    // upsert would push a duplicate instead of reconciling.
+    const opts = resolveOptions(config, {
+      watchBundleSuffix: "watch2",
+      widget: false,
+    });
+    const list = extensionsOf(
+      withEasAppExtensions({ ...config }, opts),
+    ) as Array<{ bundleIdentifier: string }>;
+    expect(list[0].bundleIdentifier).toBe("watch2");
+  });
+
   it("drops the widget entry and HealthKit when those options are off", () => {
     const opts = resolveOptions(config, { widget: false, healthKit: false });
     const list = extensionsOf(
