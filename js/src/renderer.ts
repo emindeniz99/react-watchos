@@ -288,8 +288,16 @@ export class WatchRoot {
           // and corrupts EVERY later root in the runtime (NF-06). Route the
           // multi-root guard through uncaughtError instead — flush() rethrows
           // it right after the commit machinery finishes, so the failure is
-          // just as loud but the engine stays usable.
+          // just as loud but the engine stays usable. A commit driven by the
+          // scheduler never passes through flush(), so mirror the
+          // onUncaughtError microtask fallback (no-op when flush consumed it).
           this.uncaughtError = error;
+          queueMicrotask(() => {
+            if (this.uncaughtError === error) {
+              this.uncaughtError = null;
+              throw error;
+            }
+          });
           return;
         }
         const json = JSON.stringify(tree);
