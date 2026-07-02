@@ -560,6 +560,7 @@ struct NodeView: View {
         case "black": .black
         case "primary": .primary
         case "secondary": .secondary
+        case "accentColor": .accentColor
         default: .primary
         }
     }

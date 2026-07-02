@@ -96,6 +96,23 @@ live instances. Same producer/consumer pattern as
 (whose extension architecture is reviewed in
 [docs/research.md](./docs/research.md)).
 
+## Theming (semantic tokens)
+
+Tokens resolve in JS — the wire and the Swift interpreter only ever see
+concrete values, so theming needs no native code and is fully testable off-
+device. `defaultTheme` uses SwiftUI semantic colors + Dynamic-Type text
+styles, so zero config already looks native; `createTheme` overrides one
+section at a time.
+
+```tsx
+const t = useTheme(); // wrap the app in <ThemeProvider theme={createTheme(...)}> to customize
+<VStack spacing={t.space.sm} padding={t.space.md}
+        background={t.colors.surface} cornerRadius={t.radius.md}>
+  <Text {...t.text.title}>Water</Text>
+  <Text {...t.text.muted}>2 of 8 glasses</Text>
+</VStack>
+```
+
 ## Navigation & deep links
 
 Navigation is route-first. Every navigable screen gets a stable path, and

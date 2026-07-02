@@ -157,6 +157,8 @@ export {
   stopSensor,
 } from "./sensors";
 export { Storage } from "./storage";
+export type { TextVariant, ThemeOverrides, WatchTheme } from "./theme";
+export { createTheme, defaultTheme, ThemeProvider, useTheme } from "./theme";
 export {
   applyUpdate,
   BUNDLE_VERSION,

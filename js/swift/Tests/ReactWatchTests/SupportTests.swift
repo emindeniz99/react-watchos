@@ -529,6 +529,8 @@ final class CapabilityGateTests: XCTestCase {
 final class RNStyleTests: XCTestCase {
     func testNamedColor() {
         XCTAssertEqual(RNStyle.color("green"), .named("green"))
+        // The theme layer's default accent (Tier 2) must stay resolvable.
+        XCTAssertEqual(RNStyle.color("accentColor"), .named("accentColor"))
     }
 
     func testHexColor6And8Digits() {
