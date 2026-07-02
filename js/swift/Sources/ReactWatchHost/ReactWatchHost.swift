@@ -616,6 +616,15 @@ final class ReactWatchModel: ObservableObject {
                 return
             }
             let (jsData, _) = try await URLSession.shared.data(from: bundleURL)
+            // Enforce the size cap BEFORE materializing a String — saveUpdate
+            // checks it too, but only after this path has already doubled the
+            // allocation for a hostile/erroneous manifest's bundle (NF-33).
+            guard jsData.count <= Self.maxOTABundleBytes else {
+                runtimeError =
+                    "update bundle is \(jsData.count) bytes — over the "
+                    + "\(Self.maxOTABundleBytes)-byte limit"
+                return
+            }
             guard let js = String(data: jsData, encoding: .utf8) else {
                 runtimeError = "update bundle was not UTF-8 text"
                 return
