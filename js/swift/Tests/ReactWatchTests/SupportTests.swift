@@ -966,12 +966,11 @@ final class RNStyleAnimationTests: XCTestCase {
 // UpdatePlan's, or save-time verification and boot-time re-verification
 // could accept different bytes.
 final class OTARecordSignedMessageTests: XCTestCase {
-    func testMatchesUpdatePlanFormat() throws {
+    func testMatchesUpdatePlanFormat() {
         let record = OTARecord(
             js: "globalThis.x=1", keyId: "abc123", version: 4, signature: "s")
-        let plan = try XCTUnwrap(
-            UpdatePlan(
-                json: #"{"js":"globalThis.x=1","keyId":"abc123","version":4}"#))
+        let plan = UpdatePlan(
+            payload: #"{"js":"globalThis.x=1","keyId":"abc123","version":4}"#)
         XCTAssertEqual(record.signedMessage(), plan.signedMessage())
         XCTAssertEqual(
             record.signedMessage(),
