@@ -166,6 +166,11 @@ final class ReactWatchModel: ObservableObject {
         ackedSeq = 0
         nextSeq = 1
         optimistic = OptimisticStore()
+        // Only the .runOTA branches repopulate this; without the reset a later
+        // .runShipped or DEBUG dev-code boot retains the previous OTA record,
+        // and the first-healthy-commit handler could promote a bundle that is
+        // not the one actually running to known-good.
+        bootedOTARecord = nil
         do {
             let js = try makeRuntime()
             runtime = js
@@ -456,7 +461,12 @@ final class ReactWatchModel: ObservableObject {
         // runtime whose host callbacks are all nil (so commit/setItem/publish are
         // no-ops). A bundle that throws on load is caught BEFORE we persist it,
         // and its module init can't mutate the real App Group storage here.
-        guard let validator = try? JSRuntime() else { return false }
+        // Same heap cap as the live runtime: maxOTABundleBytes bounds the
+        // *source*, not allocation — an unbounded validator lets a small bundle
+        // whose module init allocates without limit OOM-kill the app during
+        // validation, before any of the persist/rollback protections exist.
+        guard let validator = try? JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
+        else { return false }
         do {
             try validator.evaluate(js)
         } catch {
@@ -491,7 +501,10 @@ final class ReactWatchModel: ObservableObject {
     /// back to the source.
     private func cacheOTABytecode(source: String) -> String? {
         guard let bcURL = otaBytecodeURL else { return nil }
-        if let bytecode = (try? JSRuntime())?.compileToBytecode(source),
+        // Capped like the validator: compilation only parses (no module init),
+        // but a hostile source can still exhaust the parser's heap.
+        if let bytecode = (try? JSRuntime(memoryLimitBytes: 64 * 1024 * 1024))?
+            .compileToBytecode(source),
             (try? bytecode.write(to: bcURL, options: .atomic)) != nil
         {
             return ContentHash.of(bytecode)
