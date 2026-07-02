@@ -34,7 +34,7 @@ stale "done" claims here defeat its purpose (Rule 12).
 | S2 | Examples model the secure path (dev keypair auto-generated + manifest always signed) | ✅ |
 | S3 | Manifest freeze exposure documented with mitigations (ota-signing.md threat-model note) | ✅ |
 | S4 | App Store 2.5.2 posture documented (bundled-JS interpretation permitted; OTA limited to already-reviewed functionality) — but actual review experience is UNTESTED | 🟡 statement ready; first submission is the test |
-| S5 | Load-time trust boundary (App-Group sandbox, FNV content pinning) | 🟡 documented in the review (NF-35); consider boot-time signature re-verify before claiming "verified at every load" |
+| S5 | Load-time trust boundary | ✅ stored records re-verify their Ed25519 signature at every boot when keys are enforced (NF-35) |
 
 ## 4. Marketing assets & claims discipline
 

@@ -961,3 +961,32 @@ final class RNStyleAnimationTests: XCTestCase {
         XCTAssertNil(RNStyle.animation(from: .object(["duration": .number(1)])))
     }
 }
+
+// NF-35: the stored record's signedMessage must be byte-identical to
+// UpdatePlan's, or save-time verification and boot-time re-verification
+// could accept different bytes.
+final class OTARecordSignedMessageTests: XCTestCase {
+    func testMatchesUpdatePlanFormat() throws {
+        let record = OTARecord(
+            js: "globalThis.x=1", keyId: "abc123", version: 4, signature: "s")
+        let plan = try XCTUnwrap(
+            UpdatePlan(
+                json: #"{"js":"globalThis.x=1","keyId":"abc123","version":4}"#))
+        XCTAssertEqual(record.signedMessage(), plan.signedMessage())
+        XCTAssertEqual(
+            record.signedMessage(),
+            Data("v1:abc123:4:globalThis.x=1".utf8))
+    }
+
+    func testUnsignedOrInvalidRecordsHaveNoMessage() {
+        XCTAssertNil(
+            OTARecord(js: "x", keyId: nil, version: 1, signature: nil)
+                .signedMessage())
+        XCTAssertNil(
+            OTARecord(js: "x", keyId: "abc123", version: nil, signature: nil)
+                .signedMessage())
+        XCTAssertNil(
+            OTARecord(js: "x", keyId: "bad:colon", version: 1, signature: nil)
+                .signedMessage())
+    }
+}

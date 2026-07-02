@@ -826,10 +826,10 @@ final class ReactWatchModel: ObservableObject {
         }
     }
 
-    /// The persisted OTA bundle + its version. The signature was verified at
-    /// save (the network boundary); the App Group is a trusted local sandbox,
-    /// so load doesn't re-verify — which is what lets it run the unsigned local
-    /// bytecode cache. nil if none.
+    /// The persisted OTA bundle + its version. Verified at save (the network
+    /// boundary) AND re-verified at every boot when keys are enforced
+    /// (verifyStoredRecord, NF-35); unsigned records exist only under the
+    /// explicit dev opt-in. nil if none.
     private func otaCandidate() -> OTARecord? {
         guard let record = loadOTARecord(), !record.js.isEmpty else { return nil }
         return record
@@ -849,7 +849,36 @@ final class ReactWatchModel: ObservableObject {
             filename: "release-id.js")
     }
 
+    /// NF-35: with keys enforced, a stored record must re-verify at every
+    /// boot — otherwise "verified at save" silently degrades to "whoever can
+    /// write the App Group container owns the runtime". The bytecode path is
+    /// covered too: the signature verifies the SOURCE, and evaluateOTA only
+    /// trusts a `.qbc` whose hash the record pinned to that source (OP-1).
+    /// Unsigned records under the explicit dev opt-in skip this by design.
+    private func verifyStoredRecord(_ record: OTARecord) throws {
+        guard updateKeyState == .enforced else { return }
+        guard let keyId = record.keyId, let key = updatePublicKeys[keyId],
+            let signatureB64 = record.signature,
+            let signature = Data(base64Encoded: signatureB64),
+            let message = record.signedMessage(),
+            key.isValidSignature(signature, for: message)
+        else {
+            throw OTAVerifyError.storedRecordFailedVerification
+        }
+    }
+
+    private enum OTAVerifyError: Error, CustomStringConvertible {
+        case storedRecordFailedVerification
+
+        var description: String {
+            "stored OTA record failed signature re-verification — dropped"
+        }
+    }
+
     private func evaluateOTA(_ record: OTARecord, into js: JSRuntime) throws {
+        // Every OTA boot path (the candidate and the crash-loop known-good
+        // restore) funnels through here, so this is the one choke point.
+        try verifyStoredRecord(record)
         setBundleReleaseId(record.js, into: js)
         // Trust the cached bytecode only if the blob on disk hashes to what this
         // record was saved with (OP-1): a `.qbc` left by a previous bundle, or a

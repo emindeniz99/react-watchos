@@ -112,7 +112,9 @@ attacker who can answer the manifest URL cannot inject code, but CAN:
 
 Neither path executes code (a tampered bundle URL still fails signature
 verification, and NF-32 makes a malformed manifest throw loudly instead of
-reading as "up to date"). Mitigations, in order of value: serve the manifest
+reading as "up to date"). Stored records are also re-verified at every boot
+when keys are enforced (NF-35), so even an actor who can write the App Group
+container cannot swap in unsigned code. Mitigations, in order of value: serve the manifest
 over HTTPS from an origin you control (the baseline assumption), keep
 manifest cache times short, and monitor fleet version/releaseId telemetry for
 staleness. Signing the manifest body is the structural fix if the freeze
