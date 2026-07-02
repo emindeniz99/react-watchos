@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
   Button,
@@ -301,5 +301,103 @@ describe("events", () => {
     // The seq was acked (rollback) before the error propagated.
     expect(host.commits.length).toBe(before + 1);
     expect(host.lastCommit!.seq).toBe(11);
+  });
+});
+
+describe("passive effect cascades", () => {
+  it("commits the handler's update synchronously; effect-scheduled commits land on later scheduler turns", async () => {
+    // React forces update priority to Default while passive effects run, so
+    // a render scheduled *by* an effect always waits for a scheduler turn
+    // (one host-timer hop per generation) — the documented model in README
+    // "Updating the UI". This pins that staging so a regression in either
+    // direction (cascades going fully async, or someone "fixing" them to be
+    // sync against React's semantics) is caught.
+    function Cascade() {
+      const [a, setA] = useState(0);
+      const [b, setB] = useState(0);
+      const [c, setC] = useState(0);
+      useEffect(() => {
+        if (a > 0) setB(a + 1);
+      }, [a]);
+      useEffect(() => {
+        if (b > 0) setC(b + 1);
+      }, [b]);
+      return (
+        <Button onPress={() => setA(1)}>
+          <Text>{`a${a}b${b}c${c}`}</Text>
+        </Button>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Cascade />);
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    const text = () => findByType(host.lastCommit!.root!, "Text")[0].props.text;
+
+    root.dispatchEvent({ nodeId: button.id, event: "press", seq: 1 });
+    // The tap's own update is committed before dispatchEvent returned.
+    expect(text()).toBe("a1b0c0");
+
+    // Effect-scheduled commits are async (scheduler turns), but land within
+    // a few host-timer hops. Poll instead of pinning the exact staging: how
+    // many turns each generation takes is a scheduler implementation detail.
+    for (let turn = 0; turn < 5 && text() !== "a1b2c3"; turn += 1) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    expect(text()).toBe("a1b2c3");
+  });
+
+  it("surfaces an error from an effect-scheduled commit via the microtask fallback", async () => {
+    // A commit driven by the scheduler never passes through flush(), so its
+    // uncaughtError used to sit silently until the next native event. The
+    // onUncaughtError microtask fallback rethrows it promptly instead.
+    function Boom() {
+      const [a, setA] = useState(0);
+      const [b, setB] = useState(0);
+      useEffect(() => {
+        if (a > 0) setB(a + 1);
+      }, [a]);
+      useEffect(() => {
+        if (b > 0) throw new Error("cascade boom");
+      }, [b]);
+      return (
+        <Button onPress={() => setA(1)}>
+          <Text>{`${a}${b}`}</Text>
+        </Button>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Boom />);
+    const button = findByType(host.lastCommit!.root!, "Button")[0];
+    // No synchronous throw: the throwing effect belongs to a later turn.
+    root.dispatchEvent({ nodeId: button.id, event: "press" });
+
+    // Capture microtasks so the fallback's rethrow is observable instead of
+    // crossing vitest's unhandled-exception boundary; pump turns until it
+    // fires (each effect generation needs a timer turn + its microtasks).
+    const realQueueMicrotask = globalThis.queueMicrotask;
+    const captured: Array<() => void> = [];
+    globalThis.queueMicrotask = ((fn: () => void) => {
+      captured.push(fn);
+    }) as typeof queueMicrotask;
+    let thrown: unknown = null;
+    try {
+      for (let turn = 0; turn < 10 && thrown === null; turn += 1) {
+        await new Promise((r) => setTimeout(r, 1));
+        while (captured.length > 0) {
+          const fn = captured.shift();
+          try {
+            fn?.();
+          } catch (error) {
+            thrown = error;
+            break;
+          }
+        }
+      }
+    } finally {
+      globalThis.queueMicrotask = realQueueMicrotask;
+    }
+    expect(String(thrown)).toContain("cascade boom");
   });
 });

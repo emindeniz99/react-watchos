@@ -246,6 +246,20 @@ export class WatchRoot {
       "",
       (error: unknown) => {
         this.uncaughtError = error;
+        // A commit driven by the scheduler (an effect-scheduled render on a
+        // host-timer turn) never passes through flush(), so without a
+        // fallback the stored error would sit until the *next* native
+        // event — delayed and misattributed, or silent forever. If a
+        // synchronous flush doesn't consume it first, rethrow from a
+        // microtask: QuickJS's job drain surfaces it to the host onError,
+        // vitest fails the test. A sync flush clears the field, making
+        // this a no-op.
+        queueMicrotask(() => {
+          if (this.uncaughtError === error) {
+            this.uncaughtError = null;
+            throw error;
+          }
+        });
       },
       reconciler.defaultOnCaughtError,
       reconciler.defaultOnRecoverableError,
@@ -329,6 +343,13 @@ export class WatchRoot {
 
   private flush(): void {
     reconciler.flushSyncWork();
+    // One passive pass is the most a synchronous flush can do: React forces
+    // update priority to Default while passive effects run, so a render
+    // scheduled *by* an effect always lands on the scheduler's next turn
+    // (one host-timer hop — the documented model in README "Updating the
+    // UI"). Looping flushPassiveEffects here cannot pull those commits
+    // forward; errors from those later turns are surfaced by the
+    // onUncaughtError microtask fallback in the constructor.
     reconciler.flushPassiveEffects();
     reconciler.flushSyncWork();
     if (this.uncaughtError != null) {
