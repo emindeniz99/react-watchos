@@ -73,7 +73,12 @@ enum KeychainStore {
         var q = query(for: key)
         SecItemDelete(q as CFDictionary)  // replace semantics
         q[kSecValueData as String] = Data(value.utf8)
-        q[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlocked
+        // AfterFirstUnlock (not WhenUnlocked): the framework runs code while the
+        // watch is locked (background refresh, extended runtime), and those paths
+        // read stored tokens. WhenUnlocked would return errSecInteractionNotAllowed
+        // on a locked read, which get() can't distinguish from "absent" — silent
+        // background auth failures. ThisDeviceOnly keeps the item off backups.
+        q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         return SecItemAdd(q as CFDictionary, nil) == errSecSuccess
     }
 
@@ -99,6 +104,11 @@ final class SpeechBridge: NSObject, AVSpeechSynthesizerDelegate {
     /// (text) of the utterance that just finished or was cancelled.
     var onFinished: ((String) -> Void)?
     private let synthesizer = AVSpeechSynthesizer()
+    /// Set by a `silent` stop() (boot() teardown) so the resulting didCancel
+    /// doesn't push a stale speech.finished into a freshly booted runtime. The
+    /// synthesizer is reused across generations, so its delegate can't just be
+    /// detached; this one-shot flag is cleared by the next finish() instead.
+    private var suppressFinish = false
 
     override init() {
         super.init()
@@ -119,7 +129,10 @@ final class SpeechBridge: NSObject, AVSpeechSynthesizerDelegate {
         synthesizer.speak(utterance)
     }
 
-    func stop() {
+    /// `silent` (boot() teardown) suppresses the didCancel-driven finish event
+    /// for an in-flight utterance; a JS-driven stop keeps its finish semantics.
+    func stop(silent: Bool = false) {
+        if silent, synthesizer.isSpeaking { suppressFinish = true }
         synthesizer.stopSpeaking(at: .immediate)
     }
 
@@ -140,6 +153,10 @@ final class SpeechBridge: NSObject, AVSpeechSynthesizerDelegate {
     /// uses for its off-main HealthKit callback (satisfies Swift 6 strict
     /// concurrency regardless of which thread the delegate fires on).
     private func finish(_ text: String) {
+        if suppressFinish {
+            suppressFinish = false
+            return
+        }
         nonisolated(unsafe) let handler = onFinished
         DispatchQueue.main.async { handler?(text) }
     }
@@ -157,7 +174,11 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
 
     /// (id-less) start playback; `settle` is called with nil on success or an
     /// error message. Download + decode happen off-main; playback starts on
-    /// main.
+    /// main. URLSession's completion handler is `@Sendable`, so `self` and the
+    /// `settle` closure (both non-Sendable — the bridge holds mutable state, and
+    /// settle re-enters the @MainActor model) are laundered with
+    /// nonisolated(unsafe); everything they touch is confined to the main queue,
+    /// the same discipline SpeechBridge.finish/audioPlayerDidFinishPlaying use.
     func play(
         url: URL, volume: Double?, loop: Bool,
         settle: @escaping (String?) -> Void
@@ -165,8 +186,9 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
         task?.cancel()
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
-        task = URLSession.shared.dataTask(with: request) {
-            [weak self] data, _, error in
+        nonisolated(unsafe) let settle = settle
+        nonisolated(unsafe) let this = self
+        task = URLSession.shared.dataTask(with: request) { data, _, error in
             if let error {
                 DispatchQueue.main.async { settle(error.localizedDescription) }
                 return
@@ -176,17 +198,16 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
                 return
             }
             DispatchQueue.main.async {
-                guard let self else { return }
                 do {
                     let session = AVAudioSession.sharedInstance()
                     try session.setCategory(.playback)
                     try session.setActive(true)
                     let player = try AVAudioPlayer(data: data)
-                    player.delegate = self
+                    player.delegate = this
                     if let volume { player.volume = Float(volume) }
                     player.numberOfLoops = loop ? -1 : 0
                     player.play()
-                    self.player = player
+                    this.player = player
                     settle(nil)
                 } catch {
                     settle(error.localizedDescription)
@@ -234,7 +255,13 @@ final class ExtendedRuntimeBridge: NSObject, WKExtendedRuntimeSessionDelegate {
         self.session = session
     }
 
-    func stop() {
+    /// `silent` (used by boot() teardown) detaches the delegate before
+    /// invalidating so the didInvalidate callback can't push a stale
+    /// `invalidated` state into a freshly booted runtime; a JS-driven stop keeps
+    /// emitting the terminal state. start() always makes a new session with its
+    /// own delegate, so clearing this one's is safe.
+    func stop(silent: Bool = false) {
+        if silent { session?.delegate = nil }
         session?.invalidate()
         session = nil
     }

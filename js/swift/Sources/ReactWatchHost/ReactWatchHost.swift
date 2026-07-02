@@ -187,6 +187,14 @@ final class ReactWatchModel: ObservableObject {
         fetchTasks.removeAll()
         sensors.stopAll()
         bluetooth.resetPendingForReload()
+        // Stop native media/session resources tied to the outgoing generation so
+        // they can't drain battery or push stale finish/state events into the
+        // fresh runtime (audio download+player+session, in-flight speech, and the
+        // extended-runtime session). `silent:` suppresses the teardown-only
+        // lifecycle event for the two that emit one on cancel/invalidate.
+        audioBridge.stop()
+        speechBridge.stop(silent: true)
+        extendedRuntime.stop(silent: true)
         runtime = nil
         root = nil
         runtimeError = nil
@@ -1471,11 +1479,12 @@ extension ReactWatchModel {
         {
             info = json as NSString
         }
+        let gen = generation
         WKApplication.shared().scheduleBackgroundRefresh(
             withPreferredDate: date, userInfo: info
         ) { [weak self] error in
             DispatchQueue.main.async {
-                guard let self else { return }
+                guard let self, gen == self.generation else { return }
                 if let error {
                     self.runtime?.rejectInvoke(
                         id: id,
@@ -1582,7 +1591,7 @@ extension ReactWatchModel {
             if let error {
                 self.runtime?.rejectInvoke(
                     id: id,
-                    errorJson: Self.errorJSON(code: "AUDIO_FAILED", message: error))
+                    errorJson: Self.errorJSON(code: "INTERNAL", message: error))
             } else {
                 self.runtime?.resolveInvoke(id: id, resultJson: "null")
             }

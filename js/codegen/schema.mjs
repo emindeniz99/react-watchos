@@ -462,6 +462,13 @@ export const hostMethods = [
     since: 1,
     via: "invoke",
   },
+  {
+    name: "enableWaterLock",
+    targets: ["watch"],
+    feature: "device",
+    since: 1,
+    via: "invoke",
+  },
   // --- Background app refresh: schedule a wake-up; the fire arrives on the
   //     push channel as `backgroundRefresh`. ---
   {
