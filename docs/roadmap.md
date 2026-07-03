@@ -23,8 +23,11 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
   watch side done; **iPhone-side WCSession still needs wiring in the Expo
   companion app**.
 - **`fetch` shim over URLSession** (T3-P1) — done.
-- **ErrorBoundary** + on-device error banner. Remaining: richer dev overlay
-  with stack/source.
+- **ErrorBoundary** + on-device error banner. Richer dev overlay: the JS layer
+  is done — ErrorBoundary forwards React's `componentStack`, and the remote
+  inspector captures errors (message + stack + componentStack, `console.error`
+  teed) into an ERRORS panel. Remaining: enriching the native on-device banner
+  to show it (macOS-build-gated).
 - **VoiceOver labels** (`A11yProps`). Remaining: Dynamic Type, reduce-motion.
 - **TimerText**, **runSync / native-event push**, **codegen wire contract**,
   **bytecode precompile**, **no-op commit bailout**, **Linux CI + swift
@@ -101,7 +104,7 @@ Owns `shims.ts`, `renderer.ts`, `scripts/`, CI.
 | **`setInterval` shim** | P0 | S | The confirmed bug: `setInterval`/`clearInterval` are undefined in QuickJS, so an interval-driven update throws. Add them on top of the existing `setTimeout`→`__host.setTimer` bridge (re-arm on fire). *Async `setState` already commits via the scheduler's `setTimeout` hop* — this is the missing piece, not a scheduler redesign. Document the scheduler integration. Accept: an interval counter commits with no tap. **Land first** — unblocks Track 3's fetch/sensors. |
 | Tree diff / patch protocol | P1→**dropped** | L | **Measured (`treediff.bench`): 200 rows = ~13 KB, ~0.04 ms/serialize.** In-process serialize+decode is negligible and SwiftUI re-diffs the decoded tree regardless, so a patch protocol is **not warranted** at this scale — confirmed, not built. The no-op bailout is the cheap partial already in place. Revisit only if a profile on a real device shows commit cost (e.g. thousands of nodes). |
 | Minified/bytecode shipped artifact + CI size budget | P1 | S | Ship minified (`build:min`, ~halves it) or `.qbc` for production; keep unminified default for readable on-watch traces. Add a CI byte-size budget check. |
-| Richer dev error overlay | P2 | S | Build on the existing banner: stack frames, tap-to-dismiss already there; add source context in DEBUG. |
+| Richer dev error overlay | P2 | S | **JS layer shipped:** ErrorBoundary forwards `componentStack`; the remote inspector rings errors (message/stack/componentStack + `console.error` tee) into an ERRORS panel. Remaining: surface it in the native on-device banner (macOS-build-gated). |
 | Lazy navigation (native-backed) | P2 | M | **Option B.** Screens mount eagerly today — every route is serialized at all times — because the native push is *optimistic*: `RoutedNavigationStack` pushes on `pendingPath` and runs its `navigationDestination` a bridge hop *before* JS commits the new active route, so an inactive route must already carry its subtree (see `navigation.tsx` NavigationRoute + the `eager mounting` test). True lazy mounting (à la react-native-screens / SwiftUI's lazy `navigationDestination`) needs a native change — defer the destination render until JS confirms the path, or carry the pushed subtree across the bridge — then gate `NavigationRoute` children on `active`. **Shipped mitigation:** `useFocusEffect`/`useIsFocused` already gate focus-scoped side effects (the real symptom, e.g. BLE-at-launch), so this is a memory/perf optimization, not correctness. Needs on-device validation. |
 
 ## Track 3 — Platform integration & connectivity
