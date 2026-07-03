@@ -94,4 +94,30 @@ describe("invoke timeout net (NF-01)", () => {
       vi.useRealTimers();
     }
   });
+
+  it("a custom timeoutMs overrides the default watchdog", async () => {
+    // User-mediated ops (permission/purchase) block on a system sheet and pass a
+    // longer bound, so they must NOT reject at the 30 s default — only at theirs.
+    vi.useFakeTimers();
+    try {
+      const host = installMockHost();
+      host.invoke.mockImplementation(() => {
+        // Native accepted and is waiting on the user; no reply yet.
+      });
+      const promise = invoke("purchase", { productId: "p" }, {
+        timeoutMs: 5 * 60_000,
+      });
+      const assertion = expect(promise).rejects.toMatchObject({
+        code: "INTERNAL",
+        message: expect.stringContaining("300000ms"),
+      });
+      // Past the default deadline: still pending (a deliberating user isn't a hang).
+      await vi.advanceTimersByTimeAsync(30_000);
+      // Only its own longer deadline settles it.
+      await vi.advanceTimersByTimeAsync(5 * 60_000 - 30_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

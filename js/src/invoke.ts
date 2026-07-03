@@ -49,6 +49,22 @@ const pending = new Map<
  */
 const INVOKE_TIMEOUT_MS = 30_000;
 
+/**
+ * Watchdog bound for user-mediated ops (permission prompt, StoreKit purchase):
+ * their native callback intentionally blocks on the user answering a system
+ * sheet, which routinely outlasts the 30 s default — a blanket watchdog would
+ * falsely reject a granted permission or a completed purchase. 5 min still
+ * bounds a genuinely stuck bridge (the never-hangs guarantee holds), it just
+ * doesn't mistake a deliberating user for a hang.
+ */
+export const USER_MEDIATED_INVOKE_TIMEOUT_MS = 5 * 60_000;
+
+/** Per-call overrides. `timeoutMs` raises the last-resort watchdog for
+ *  user-mediated ops (see {@link USER_MEDIATED_INVOKE_TIMEOUT_MS}). */
+export interface InvokeOptions {
+  timeoutMs?: number;
+}
+
 /** The single settle path — drops the id from the pending map FIRST, so a
  *  duplicate native reply for the same id is a silent no-op (settle once). */
 function settle(id: number, ok: boolean, json: string): void {
@@ -96,6 +112,7 @@ function installInvokeBridge(): void {
 export function invoke<T = unknown>(
   method: string,
   payload?: unknown,
+  options?: InvokeOptions,
 ): Promise<T> {
   const host = getHost();
   if (!host?.invoke) {
@@ -121,6 +138,7 @@ export function invoke<T = unknown>(
     );
   }
   installInvokeBridge();
+  const timeoutMs = options?.timeoutMs ?? INVOKE_TIMEOUT_MS;
   return new Promise<T>((resolve, reject) => {
     const id = nextInvokeId++;
     const timer = setTimeout(() => {
@@ -128,10 +146,10 @@ export function invoke<T = unknown>(
       reject(
         invokeError(
           "INTERNAL",
-          `${method} got no native reply within ${INVOKE_TIMEOUT_MS}ms`,
+          `${method} got no native reply within ${timeoutMs}ms`,
         ),
       );
-    }, INVOKE_TIMEOUT_MS);
+    }, timeoutMs);
     pending.set(id, {
       resolve: resolve as (v: unknown) => void,
       reject,

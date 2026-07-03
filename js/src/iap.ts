@@ -1,4 +1,4 @@
-import { invoke } from "./invoke";
+import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
 
 /**
  * In-app purchase (StoreKit 2). Products and entitlements are resolved
@@ -37,7 +37,11 @@ export function getProducts(productIds: string[]): Promise<IAPProduct[]> {
 /** Starts a purchase. A user cancel resolves `{ status: "userCancelled" }`;
  *  a StoreKit error rejects. */
 export function purchase(productId: string): Promise<PurchaseResult> {
-  return invoke<PurchaseResult>("purchase", { productId });
+  // The StoreKit payment sheet blocks on the user (and possibly Apple ID
+  // re-auth), so bound it at the user-mediated ceiling, not the 30 s default.
+  return invoke<PurchaseResult>("purchase", { productId }, {
+    timeoutMs: USER_MEDIATED_INVOKE_TIMEOUT_MS,
+  });
 }
 
 /** The product ids the user is currently entitled to (owned non-consumables +
@@ -49,5 +53,9 @@ export function currentEntitlements(): Promise<string[]> {
 /** Restores previous purchases (syncs with the App Store); resolves with the
  *  refreshed entitlement id list. */
 export function restorePurchases(): Promise<string[]> {
-  return invoke<string[]>("restorePurchases");
+  // Can trigger an App Store / Apple ID sign-in sheet, so it too can outlast
+  // the default watchdog while the user authenticates.
+  return invoke<string[]>("restorePurchases", undefined, {
+    timeoutMs: USER_MEDIATED_INVOKE_TIMEOUT_MS,
+  });
 }
