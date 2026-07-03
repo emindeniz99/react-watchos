@@ -98,7 +98,6 @@ export function watchBuildOptions({
  *   outfile: string,
  *   name?: string,
  *   define?: Record<string, string>,
- *   reactCompiler?: boolean,
  *   plugins?: import("esbuild").Plugin[],
  *   manifest?: { version: number, requiredFeatures?: string[], minBridgeProtocol?: number, bundleFileName?: string, signature?: string | null },
  * }>} targets
@@ -138,7 +137,6 @@ export async function buildBundles(
       plugins,
       manifest,
     } = target;
-    // (target.reactCompiler read below via ?? so a per-target flag wins.)
     if (!entry || !outfile) {
       throw new Error("buildBundles: each target needs `entry` and `outfile`");
     }
@@ -147,7 +145,7 @@ export async function buildBundles(
       entry,
       outfile,
       minify,
-      reactCompiler: target.reactCompiler ?? reactCompiler,
+      reactCompiler,
       nodePaths,
       plugins,
     });

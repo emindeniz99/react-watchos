@@ -27,8 +27,6 @@ export interface BundleTarget {
   name?: string;
   /** Extra esbuild `define`s merged into the preset's (e.g. an OTA URL). */
   define?: Record<string, string>;
-  /** Per-target React Compiler override (wins over the opts-level flag). */
-  reactCompiler?: boolean;
   /** esbuild plugins forwarded to the preset. */
   plugins?: Plugin[];
   /** Stamp `manifest.json` next to the bundle (app bundle only). */
