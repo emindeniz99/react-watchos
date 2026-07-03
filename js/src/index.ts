@@ -148,8 +148,9 @@ export {
   purchase,
   restorePurchases,
 } from "./iap";
-export type { InspectorOptions } from "./inspector";
+export type { InspectorError, InspectorOptions } from "./inspector";
 export {
+  captureError,
   captureLog,
   inspectorSnapshot,
   startInspector,

@@ -10,13 +10,54 @@
  */
 const logs: string[] = [];
 const MAX_LOGS = 200;
+const errors: InspectorError[] = [];
+const MAX_ERRORS = 50;
 let started = false;
 let teed = false;
 let stopFn: (() => void) | null = null;
 
+/** String(x) that never throws (null-prototype / throwing toString). */
+function safeString(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return "[unserializable]";
+  }
+}
+
 export function captureLog(line: string): void {
   logs.push(line);
   if (logs.length > MAX_LOGS) logs.shift();
+}
+
+/** A recorded error for the viewer's error panel. */
+export interface InspectorError {
+  message: string;
+  /** The JS Error stack, when the captured value carried one. */
+  stack?: string;
+  /** React's componentStack (which subtree threw), when captured from an
+   *  ErrorBoundary via `onError={captureError}`. */
+  componentStack?: string;
+}
+
+/**
+ * Record an error into the inspector's ring so the viewer can show WHERE the
+ * app broke, not just that a log happened. Signature matches ErrorBoundary's
+ * `onError`, so wiring is `<ErrorBoundary onError={captureError}>`; also fed by
+ * the `console.error` tee. Never throws (defensive like the log tee).
+ */
+export function captureError(
+  error: unknown,
+  info?: { componentStack?: string | null },
+): void {
+  const e = error as { message?: unknown; stack?: unknown };
+  const entry: InspectorError = {
+    message: typeof e?.message === "string" ? e.message : safeString(error),
+  };
+  if (typeof e?.stack === "string") entry.stack = e.stack;
+  if (info?.componentStack) entry.componentStack = info.componentStack;
+  errors.push(entry);
+  if (errors.length > MAX_ERRORS) errors.shift();
 }
 
 type Inspect = () => { commits: number; tree: unknown };
@@ -26,10 +67,16 @@ export function inspectorSnapshot(): {
   commits: number;
   tree: unknown;
   logs: string[];
+  errors: InspectorError[];
 } {
   const inspect = (globalThis as { __inspect?: Inspect }).__inspect;
   const snap = inspect ? inspect() : { commits: 0, tree: null };
-  return { commits: snap.commits, tree: snap.tree, logs: [...logs] };
+  return {
+    commits: snap.commits,
+    tree: snap.tree,
+    logs: [...logs],
+    errors: [...errors],
+  };
 }
 
 export interface InspectorOptions {
@@ -43,33 +90,36 @@ export function startInspector(options: InspectorOptions): () => void {
   if (started) return stopFn ?? (() => {});
   started = true;
 
-  // Tee console.log into the ring buffer once (a restart must not re-wrap an
-  // already-wrapped console).
+  // Tee console.log/console.error into the ring buffers once (a restart must
+  // not re-wrap an already-wrapped console).
   if (!teed) {
     teed = true;
-    const original = (globalThis.console?.log ?? (() => {})) as (
+    const originalLog = (globalThis.console?.log ?? (() => {})) as (
+      ...args: unknown[]
+    ) => void;
+    const originalError = (globalThis.console?.error ?? (() => {})) as (
       ...args: unknown[]
     ) => void;
     globalThis.console = {
       ...globalThis.console,
       log: (...args: unknown[]) => {
         // The tee must never break or alter the app's logging: run the real
-        // console first, then capture defensively — String(x) throws for a
-        // null-prototype object or a throwing toString, which would otherwise
-        // propagate out of console.log to the caller.
-        original(...args);
+        // console first, then capture defensively (safeString can't throw).
+        originalLog(...args);
         try {
-          captureLog(
-            args
-              .map((a) => {
-                try {
-                  return String(a);
-                } catch {
-                  return "[unserializable]";
-                }
-              })
-              .join(" "),
-          );
+          captureLog(args.map(safeString).join(" "));
+        } catch {}
+      },
+      error: (...args: unknown[]) => {
+        originalError(...args);
+        try {
+          // Prefer a thrown Error's structure (keeps its stack) when it's the
+          // sole argument; otherwise record the joined message.
+          if (args.length === 1 && args[0] instanceof Error) {
+            captureError(args[0]);
+          } else {
+            captureError({ message: args.map(safeString).join(" ") });
+          }
         } catch {}
       },
     };

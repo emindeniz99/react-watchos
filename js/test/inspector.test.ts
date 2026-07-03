@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  captureError,
   captureLog,
   inspectorSnapshot,
   startInspector,
@@ -25,6 +26,24 @@ describe("inspector snapshot", () => {
     expect(snap.tree).toEqual({ type: "VStack" });
     expect(snap.logs).toContain("hello");
     expect(snap.logs).toContain("world");
+  });
+
+  it("records an error's stack and componentStack (ErrorBoundary onError shape)", () => {
+    const err = new Error("boom-42");
+    captureError(err, { componentStack: "\n    at Boom\n    at ErrorBoundary" });
+    const entry = inspectorSnapshot().errors.find(
+      (e) => e.message === "boom-42",
+    );
+    expect(entry).toBeDefined();
+    expect(entry?.stack).toBe(err.stack);
+    expect(entry?.componentStack).toContain("Boom");
+  });
+
+  it("captures a non-Error value by its string form", () => {
+    captureError("plain failure");
+    expect(
+      inspectorSnapshot().errors.some((e) => e.message === "plain failure"),
+    ).toBe(true);
   });
 });
 
