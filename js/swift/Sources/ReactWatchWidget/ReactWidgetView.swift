@@ -289,7 +289,10 @@ public struct WidgetNodeView: View {
         if let root = routes.first(where: {
             normalizedPath($0.string("path") ?? "/") == "/"
         }) {
-            children(root)
+            // The root route renders its children directly here, so apply the
+            // route node's own a11y (matches the app's RoutedNavigationStack;
+            // else the root screen's label/hint is dropped in the widget).
+            applyA11y(children(root), root)
         } else {
             ForEach(node.children.filter { $0.type != "NavigationRoute" }) {
                 child in

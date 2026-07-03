@@ -782,6 +782,14 @@ private struct RoutedNavigationStack: View {
                     NodeView(node: child)
                 }
             }
+            // The root route renders here, not through NodeView, so apply its
+            // a11y explicitly — mirrors NavigationRouteDestination for pushed
+            // screens (else the root screen's label/hint is dropped). No-op when
+            // there's no explicit root NavigationRoute (both nil).
+            .modifier(
+                A11yModifier(
+                    label: rootRoute?.string("accessibilityLabel"),
+                    hint: rootRoute?.string("accessibilityHint")))
             .navigationTitle(rootTitle)
             .navigationDestination(for: String.self) { route in
                 if let destination = routeNode(route) {
