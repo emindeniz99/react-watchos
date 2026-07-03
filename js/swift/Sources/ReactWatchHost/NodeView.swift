@@ -814,15 +814,21 @@ private struct RoutedNavigationStack: View {
             get: { pendingPath ?? controlledPath ?? localPath },
             set: { newPath in
                 let path = normalized(newPath)
+                // Controlled stacks hold the push optimistically in pendingPath
+                // until the JS ack lands; uncontrolled ones own their state in
+                // localPath. Either way, report the change to JS so its
+                // NavigationStack tracks the active route (useParams /
+                // useIsFocused) — an uncontrolled stack would otherwise leave JS
+                // pinned at "/" on every pushed screen.
                 if controlledPath != nil {
                     pendingPath = path
-                    model.dispatch(
-                        nodeId: node.id, event: "pathChange",
-                        payload: ["path": path]
-                    )
                 } else {
                     localPath = path
                 }
+                model.dispatch(
+                    nodeId: node.id, event: "pathChange",
+                    payload: ["path": path]
+                )
             }
         )
     }

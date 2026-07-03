@@ -257,21 +257,41 @@ function bestRoutePattern(children: ReactNode, active: string): string | null {
 }
 
 /**
- * Native push stack. Publishes the active route (top of `path`) so the
+ * Native push stack. Publishes the active route (top of the stack) so the
  * matching <NavigationRoute> can expose its params via useParams().
+ *
+ * Two modes, mirroring the native RoutedNavigationStack (NodeView.swift):
+ *  - **Controlled** — you pass `path`; JS is the source of truth and the host's
+ *    `pathChange` events flow to your `onPathChange` for you to fold back in.
+ *  - **Uncontrolled** — you pass neither; the native stack drives itself
+ *    (NavigationLink pushes, swipe-back) and reports each change via
+ *    `pathChange`. We track that here so `active` follows the real stack instead
+ *    of being pinned to "/" — otherwise useParams()/useIsFocused() would be
+ *    wrong on every pushed screen. A user `onPathChange` still fires either way.
  */
 export function NavigationStack(props: NavigationStackProps) {
-  const { path } = props;
-  const top = path && path.length > 0 ? path[path.length - 1] : undefined;
+  const { path, onPathChange } = props;
+  const controlled = path !== undefined;
+  const [localPath, setLocalPath] = useState<string[]>([]);
+  const activePath = controlled ? path : localPath;
+  const top =
+    activePath.length > 0 ? activePath[activePath.length - 1] : undefined;
   const active = top ? normalizeRoute(top) : "/";
   const winner = useMemo(
     () => bestRoutePattern(props.children, active),
     [props.children, active],
   );
+  const handlePathChange = useCallback(
+    (next: string[]) => {
+      if (!controlled) setLocalPath(next);
+      onPathChange?.(next);
+    },
+    [controlled, onPathChange],
+  );
   return (
     <ActiveRouteContext.Provider value={active}>
       <WinningRouteContext.Provider value={winner}>
-        <NavigationStackHost {...props} />
+        <NavigationStackHost {...props} onPathChange={handlePathChange} />
       </WinningRouteContext.Provider>
     </ActiveRouteContext.Provider>
   );
