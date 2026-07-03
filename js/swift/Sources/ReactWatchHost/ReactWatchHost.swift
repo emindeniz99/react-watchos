@@ -889,6 +889,28 @@ final class ReactWatchModel: ObservableObject {
         case .runShipped:
             break
         }
+        // Reached here either because the policy chose shipped, or because a
+        // chosen OTA candidate was rejected (NF-35 re-verification threw, the
+        // bundle failed to execute, or a crash-loop rollback gave up) and the
+        // catches above fell through. In the latter case the earlier
+        // `.runOTA` decision is stale: the candidate no longer exists, so
+        // re-run the boot policy with NO candidate. Under a hard gate with a
+        // stale shipped bundle (below the high-water mark) that yields
+        // `.blockForUpdate` — otherwise a tampered/failed candidate would let
+        // stale JS boot and write to a newer-schema db, defeating anti-rollback
+        // (CR-17). `.disabled` has no anti-rollback by design, so it always
+        // boots shipped.
+        if updateKeyState != .disabled,
+            VersionPolicy.decide(
+                otaVersion: nil,
+                highWater: store.otaHighWater(),
+                shippedVersion: shippedBundleVersion,
+                gate: updateGate
+            ) == .blockForUpdate
+        {
+            updateRequired = true
+            return
+        }
         try loadShipped(into: js)
         if updateKeyState != .disabled {
             store.setOTAHighWater(
