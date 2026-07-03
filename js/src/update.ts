@@ -147,9 +147,13 @@ export function parseManifest(raw: unknown): UpdateManifest {
   }
   if (
     m.minBridgeProtocol !== undefined &&
-    typeof m.minBridgeProtocol !== "number"
+    (typeof m.minBridgeProtocol !== "number" ||
+      !Number.isInteger(m.minBridgeProtocol))
   ) {
-    fail("`minBridgeProtocol` must be a number when present");
+    // A protocol version is a non-negative integer. Reject NaN/Infinity/
+    // fractional explicitly: `NaN > host.bridgeProtocol` is always false, so a
+    // poisoned value would silently pass the capability gate (capabilityGap).
+    fail("`minBridgeProtocol` must be an integer when present");
   }
   return m as unknown as UpdateManifest;
 }

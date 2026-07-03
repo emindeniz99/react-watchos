@@ -306,6 +306,20 @@ describe("manifest shape validation (NF-32)", () => {
     ).rejects.toThrow(/requiredFeatures/);
   });
 
+  it("rejects a non-integer minBridgeProtocol (gate-bypass guard)", async () => {
+    // NaN/Infinity/fractional would pass a bare `typeof number` check, and
+    // `NaN > host.bridgeProtocol` is always false — silently clearing the
+    // capability gate. It must fail closed as malformed instead.
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, 1.5]) {
+      g.fetch = vi.fn(async () => ({
+        json: async () => ({ version: 2, bundle: "bundle.js", minBridgeProtocol: bad }),
+      }));
+      await expect(
+        checkForUpdate("https://x.test/manifest.json"),
+      ).rejects.toThrow(/minBridgeProtocol/);
+    }
+  });
+
   it("accepts a fully-populated valid manifest", async () => {
     g.fetch = vi.fn(async () => ({
       json: async () => ({
