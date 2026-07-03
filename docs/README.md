@@ -91,6 +91,10 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 
 - [launch-checklist.md](./launch-checklist.md) — pre-marketing gates with
   honest statuses (engineering, release, security posture, claims discipline).
+- [performance-measurement.md](./performance-measurement.md) — how to measure
+  CPU/memory/render/energy: the `tools/embed-smoke` engine harness (runs on CI),
+  `os_signpost`, Instruments on a physical watch, and why MetricKit is
+  phone-only. Read before making any perf/battery claim.
 - [announcement-draft.md](./announcement-draft.md) — launch copy (short post,
   blog outline, prewritten FAQ) written against the checklist's claims lists;
   bracketed gates must clear before publishing.
