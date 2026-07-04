@@ -504,6 +504,27 @@ signing still untested — Rule 12):**
   budget. (Point-in-time numbers, 2026-07-04 — the budget check is the
   enforced truth.)
 
+## Versioning & stability
+
+- **Pre-1.0 (`0.x`): every release may break.** Nothing has shipped to a
+  store yet and the project deliberately prefers clean breaking changes over
+  compatibility shims — pin an **exact** version (`"react-watchos": "0.1.0"`,
+  no `^`/`~`) and read the changelog before upgrading.
+- **OTA bundles are coupled to the native binary** — the fact that bites
+  adopters: a served bundle must match the binary's wire version (`tree.v`),
+  bridge protocol / capability features (ARCH-01), and signing scheme
+  (currently `v2`). Upgrading `react-watchos` in your app and shipping a new
+  binary **strands previously published OTA bundles**: an old-wire bundle is
+  refused at commit time (the wire-version reject feeds the crash-loop
+  counter, so devices self-heal to the shipped bundle rather than brick —
+  but they silently stop taking that OTA). **Ship a rebuilt + re-signed OTA
+  bundle together with every app-binary release that upgrades this library.**
+- **Signature scheme changes require re-signing.** `v1 → v2` (signed expiry)
+  already happened pre-release; when the scheme changes, every served
+  manifest/bundle must be re-signed or the fleet refuses it.
+- **Post-1.0 intent:** semver, where a change to the wire version, the bridge
+  protocol, or the signing scheme is by definition a **major**.
+
 ## Notes / learnings
 
 - React 19 + react-reconciler 0.33 run unmodified in QuickJS (even
