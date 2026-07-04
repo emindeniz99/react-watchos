@@ -248,22 +248,22 @@ public final class WidgetIntentRuntime {
     public static func renderFreshTimelines(
         appGroupId: String, now: Date = .now, maxAge: TimeInterval = 5
     ) -> PublishedWidgets? {
-        // Fast path: a fresh-enough cached payload, read under the lock.
+        // Fast path: a fresh-enough cached payload, read under the lock. The
+        // epoch snapshot makes a concurrent invalidation detectable below.
         cacheLock.lock()
         if let cache = freshCache, now.timeIntervalSince(cache.date) < maxAge {
             let payload = cache.payload
             cacheLock.unlock()
             return payload
         }
+        let startEpoch = cacheEpoch
         cacheLock.unlock()
 
         // Construct + evaluate OUTSIDE the lock (B3): init evaluates the whole
         // bundle with the publishWidgets closure already wired, and a bundle
         // that publishes during load re-enters invalidateCache — holding the
         // non-reentrant cacheLock across that was a deterministic same-thread
-        // deadlock (extension watchdog-killed, complications frozen). Cost of
-        // the narrower critical section: two providers racing past the fast
-        // path render twice; last write wins — a duplicate render, not a hang.
+        // deadlock (extension watchdog-killed, complications frozen).
         guard let runtime = WidgetIntentRuntime(appGroupId: appGroupId) else {
             return nil
         }
@@ -275,9 +275,21 @@ public final class WidgetIntentRuntime {
         else {
             return nil
         }
-        runtime.store.save(json)
+        // Persist + cache ONLY if nothing invalidated during the render: this
+        // render evaluated against the Storage state it STARTED from, so if an
+        // intent published meanwhile, writing our result would overwrite the
+        // newer payload and re-populate the cache with pre-tap data — and the
+        // intent's reloadAllTimelines would be consumed serving it. (The
+        // pre-B3 whole-function lock gave this ordering implicitly; the epoch
+        // restores it without re-introducing the deadlock.) The stale payload
+        // is still returned for THIS request — the invalidator's reload
+        // triggers a fresh provider pass right behind it. store.save under
+        // the lock is safe: no publish path holds cacheLock while saving.
         cacheLock.lock()
-        freshCache = (now, payload)
+        if cacheEpoch == startEpoch {
+            runtime.store.save(json)
+            freshCache = (now, payload)
+        }
         cacheLock.unlock()
         return payload
     }
@@ -286,11 +298,15 @@ public final class WidgetIntentRuntime {
     // Guarded by cacheLock (a short-lived burst of timeline requests shares
     // one bundle eval); the lock is the synchronization, hence unsafe.
     nonisolated(unsafe) private static var freshCache: (date: Date, payload: PublishedWidgets)?
+    /// Bumped by every invalidation (guarded by cacheLock) so an in-flight
+    /// render can tell its result was superseded before it finished.
+    nonisolated(unsafe) private static var cacheEpoch = 0
 
     /// Called when an intent handler publishes a newer payload.
     static func invalidateCache() {
         cacheLock.lock()
         freshCache = nil
+        cacheEpoch += 1
         cacheLock.unlock()
     }
 }
