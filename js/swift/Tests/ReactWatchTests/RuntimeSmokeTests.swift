@@ -227,6 +227,50 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertNil(reported, "a caught rejection must not surface: \(reported ?? "")")
     }
 
+    // M1: entries route onto the runtime's owning queue structurally — a
+    // caller on another thread is serialized (sync hop), not left to corrupt
+    // the single-threaded engine heap. A widget-target runtime owns a private
+    // queue, so this exercises the hop from both the test thread and a
+    // background thread.
+    func testEntriesFromAnyThreadSerializeOntoOwningQueue() throws {
+        let runtime = try JSRuntime(target: .widget)
+        try runtime.evaluate("globalThis.n = 41")
+        let done = expectation(description: "background entry")
+        // The runtime is confined by its owning queue, which is exactly what
+        // this test proves — hence the launder for the @Sendable closure.
+        nonisolated(unsafe) let r = runtime
+        DispatchQueue.global().async {
+            XCTAssertTrue(r.evaluateBool("++globalThis.n === 42"))
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+        XCTAssertEqual(runtime.evaluateString("globalThis.n.toString()"), "42")
+    }
+
+    // M1: timers fire on the OWNING queue, not main — the widget hazard was a
+    // non-main runtime's timer delivering __fireTimer on the main thread
+    // against a context that lives (and may die) elsewhere.
+    func testTimerFiresOnTheOwningQueue() throws {
+        let queue = DispatchQueue(label: "test.owning-queue")
+        let marker = DispatchSpecificKey<Bool>()
+        queue.setSpecific(key: marker, value: true)
+        let runtime = try JSRuntime(queue: queue)
+
+        let fired = expectation(description: "timer fired")
+        nonisolated(unsafe) var onOwningQueue: Bool?
+        runtime.bridge.log = { _ in
+            onOwningQueue = DispatchQueue.getSpecific(key: marker) ?? false
+            fired.fulfill()
+        }
+        try runtime.evaluate(
+            #"""
+            globalThis.__fireTimer = (id) => { __host.log("fired " + id); };
+            __host.setTimer(7, 10);
+            """#)
+        wait(for: [fired], timeout: 5)
+        XCTAssertEqual(onOwningQueue, true, "timer must deliver on the owning queue")
+    }
+
     // M2: a host handler that settles an invoke INLINE (on the C-trampoline
     // stack) re-enters JS while the outer statement is still suspended. The
     // nested call is by design — but draining the MICROTASK queue there

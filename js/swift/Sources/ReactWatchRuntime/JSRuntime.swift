@@ -35,6 +35,15 @@ public final class JSRuntime {
     /// Which embedding this runtime is — selects which host functions get
     /// installed on `__host` (the widget extension omits the watch-only ones).
     private let target: HostTarget
+    /// QuickJS is single-threaded, so every touch of the JS context is confined
+    /// to ONE serial queue captured at init (M1): the app runtime lives on
+    /// main; a widget runtime gets its own queue (it's created and driven from
+    /// WidgetKit provider/intent threads); throwaway validator/compiler
+    /// runtimes pass a private queue. Entries route through it structurally
+    /// (`onOwningQueue`) — already-on-queue calls run inline, off-queue calls
+    /// hop with `sync` — and timers fire on it, so a cross-thread caller can no
+    /// longer corrupt the engine heap (the old DEBUG-assert-only protection).
+    public let owningQueue: DispatchQueue
     private var pendingTimers: [Int32: DispatchWorkItem] = [:]
 
     /// Selects the Swift→JS call mechanism (CR-5). true: direct `JS_Call` on
@@ -54,13 +63,29 @@ public final class JSRuntime {
     ///   - target: which embedding this is. Defaults to `.watch` (the full app);
     ///     the widget extension passes `.widget` so only the host functions it
     ///     backs are installed on `__host`.
-    public init(memoryLimitBytes: Int? = nil, target: HostTarget = .watch) throws {
+    ///   - queue: the serial queue that owns this runtime (M1). nil = the
+    ///     target's natural home: main for `.watch` (the SwiftUI host drives
+    ///     it), a fresh private queue for `.widget` (provider/intent threads
+    ///     hop onto it). Pass an explicit queue for off-main one-shot work
+    ///     (e.g. the OTA validator) so entries don't hop to main.
+    public init(
+        memoryLimitBytes: Int? = nil, target: HostTarget = .watch,
+        queue: DispatchQueue? = nil
+    ) throws {
         guard let rt = JS_NewRuntime(), let ctx = JS_NewContext(rt) else {
             throw JSError.initialization
         }
         runtime = rt
         context = ctx
         self.target = target
+        owningQueue =
+            queue
+            ?? (target == .widget
+                ? DispatchQueue(label: "react.watch.widget-js") : .main)
+        // Tag the queue so `isOnOwningQueue` can recognize it from inside a
+        // running block (same-value re-tagging is idempotent for shared queues).
+        owningQueue.setSpecific(
+            key: Self.queueMarker, value: ObjectIdentifier(owningQueue))
         if let memoryLimitBytes {
             JS_SetMemoryLimit(rt, size_t(memoryLimitBytes))
         }
@@ -125,28 +150,29 @@ public final class JSRuntime {
     /// `evaluateBytecode`, which throws on a version mismatch so the caller can
     /// fall back to parsing the source. nil if `source` doesn't compile.
     public func compileToBytecode(_ source: String) -> Data? {
-        let compiled = source.withCString { ptr in
-            JS_Eval(
-                context, ptr, strlen(ptr), "bundle.js",
-                qjs_eval_flag_compile_only())
+        onOwningQueue {
+            let compiled = source.withCString { ptr in
+                JS_Eval(
+                    context, ptr, strlen(ptr), "bundle.js",
+                    qjs_eval_flag_compile_only())
+            }
+            defer { JS_FreeValue(context, compiled) }
+            if JS_IsException(compiled) { return nil }
+            var size = 0
+            guard
+                let buf = JS_WriteObject(
+                    context, &size, compiled, qjs_write_obj_bytecode()
+                )
+            else { return nil }
+            defer { js_free(context, buf) }
+            return Data(bytes: buf, count: size)
         }
-        defer { JS_FreeValue(context, compiled) }
-        if JS_IsException(compiled) { return nil }
-        var size = 0
-        guard
-            let buf = JS_WriteObject(
-                context, &size, compiled, qjs_write_obj_bytecode()
-            )
-        else { return nil }
-        defer { js_free(context, buf) }
-        return Data(bytes: buf, count: size)
     }
 
     public func dispatchEvent(
         nodeId: Int, event: String, payload: [String: Any]? = nil,
         seq: Int? = nil
     ) {
-        assertMainThread()
         var args: [JSArg] = [
             .int(nodeId), .string(event), .jsonOrUndefined(jsonString(payload)),
         ]
@@ -154,42 +180,24 @@ public final class JSRuntime {
         bridgeCall("__dispatchEvent", args, filename: "dispatch.js")
     }
 
-    /// QuickJS is single-threaded — every method that touches the JS context
-    /// (the Promise settles, plus the event-push/dispatch calls) MUST run on the
-    /// main thread (OP-2). This DEBUG assertion catches a background-thread call
-    /// (a URLSession/WCSession/CoreBluetooth/Task callback that forgot to hop to
-    /// main) before it corrupts the engine heap; release builds are unaffected.
-    /// `#function` defaults to the *caller*, so the trap names the offending
-    /// method. All current callers were audited on-main (connectivity + sensors
-    /// hop to main explicitly; the BLE central uses `queue: nil` → main; UI /
-    /// scenePhase / openURL run on the SwiftUI main thread).
-    private func assertMainThread(_ caller: StaticString = #function) {
-        assert(
-            Thread.isMainThread,
-            "JSRuntime.\(caller) must be called on the main thread (QuickJS is "
-                + "single-threaded); hop to DispatchQueue.main / MainActor first.")
-    }
-
-    /// Settles a JS fetch Promise. MUST be called on the main thread (the
-    /// QuickJS context lives there); URLSession completions hop here.
+    /// Settles a JS fetch Promise. Runs on the owning queue (M1); callers on
+    /// it (URLSession completions hopped to main for the app runtime) stay
+    /// inline, anything else hops.
     public func resolveFetch(id: Int, responseJson: String) {
-        assertMainThread()
         bridgeCall(
             "__resolveFetch", [.int(id), .string(responseJson)],
             filename: "fetch.js")
     }
 
     public func rejectFetch(id: Int, message: String) {
-        assertMainThread()
         bridgeCall(
             "__rejectFetch", [.int(id), .string(message)],
             filename: "fetch.js")
     }
 
-    /// Settles a generic invoke Promise (SD-1) with the op's JSON result. Call
-    /// on the main thread. resultJson must be valid JSON ("" → undefined in JS).
+    /// Settles a generic invoke Promise (SD-1) with the op's JSON result.
+    /// resultJson must be valid JSON ("" → undefined in JS).
     public func resolveInvoke(id: Int, resultJson: String) {
-        assertMainThread()
         bridgeCall(
             "__resolveInvoke", [.int(id), .string(resultJson)],
             filename: "invoke.js")
@@ -198,7 +206,6 @@ public final class JSRuntime {
     /// Rejects a generic invoke Promise with a typed reason (errorJson =
     /// {code, message}), so the caller surfaces *why* it failed (SD-1).
     public func rejectInvoke(id: Int, errorJson: String) {
-        assertMainThread()
         bridgeCall(
             "__rejectInvoke", [.int(id), .string(errorJson)],
             filename: "invoke.js")
@@ -208,7 +215,6 @@ public final class JSRuntime {
     /// the resulting UI update commits immediately. Use for non-interaction
     /// state: connectivity, sensors, app lifecycle.
     public func pushNativeEvent(_ name: String, payload: [String: Any]? = nil) {
-        assertMainThread()
         bridgeCall(
             "__pushNativeEvent",
             [.string(name), .jsonOrUndefined(jsonString(payload))],
@@ -421,7 +427,9 @@ public final class JSRuntime {
             bridgeCall("__fireTimer", [.int(Int(id))], filename: "timer.js")
         }
         pendingTimers[id] = work
-        DispatchQueue.main.asyncAfter(
+        // Fire on the OWNING queue, not main (M1): a non-main runtime's timer
+        // delivered on main would touch the context cross-thread.
+        owningQueue.asyncAfter(
             deadline: .now() + milliseconds / 1000.0, execute: work
         )
     }
@@ -443,15 +451,41 @@ public final class JSRuntime {
     /// not start a nested drain — the active outer loop picks up new jobs.
     private var isDraining = false
 
-    /// Runs `body` as one JS entry; the microtask queue drains only when the
-    /// OUTERMOST entry exits — the single place the depth rule is enforced.
+    /// Identifies the owning queue from inside a running block (set in init).
+    private static let queueMarker = DispatchSpecificKey<ObjectIdentifier>()
+
+    /// Whether the caller is already executing on the owning queue. Main is
+    /// special-cased to `Thread.isMainThread` so main-run-loop callbacks (which
+    /// aren't dispatched blocks) keep counting as "on main" — exactly the
+    /// audited pre-M1 semantics for the app runtime.
+    private var isOnOwningQueue: Bool {
+        if owningQueue === DispatchQueue.main { return Thread.isMainThread }
+        return DispatchQueue.getSpecific(key: Self.queueMarker)
+            == ObjectIdentifier(owningQueue)
+    }
+
+    /// The M1 confinement choke point: run `body` on the owning queue — inline
+    /// when the caller is already there (the common case, and what keeps
+    /// re-entrant JS entries like an inline invoke settle working), a `sync`
+    /// hop otherwise. This replaces the old DEBUG main-thread assertion with a
+    /// structural guarantee: a cross-thread caller is serialized, not trapped.
+    private func onOwningQueue<T>(_ body: () throws -> T) rethrows -> T {
+        if isOnOwningQueue { return try body() }
+        return try owningQueue.sync(execute: body)
+    }
+
+    /// Runs `body` as one JS entry on the owning queue; the microtask queue
+    /// drains only when the OUTERMOST entry exits — the single place the depth
+    /// rule is enforced.
     private func withJSEntry<T>(_ body: () throws -> T) rethrows -> T {
-        jsEntryDepth += 1
-        defer {
-            jsEntryDepth -= 1
-            if jsEntryDepth == 0 { drainJobs() }
+        try onOwningQueue {
+            jsEntryDepth += 1
+            defer {
+                jsEntryDepth -= 1
+                if jsEntryDepth == 0 { drainJobs() }
+            }
+            return try body()
         }
-        return try body()
     }
 
     private func drainJobs() {
@@ -546,16 +580,14 @@ private func promiseRejectionTracker(
 // MARK: - Swift -> JS settle (generate)
 
 extension JSRuntime {
-    /// Settles a generateText Promise on the main thread (where the context
-    /// lives). resolve/reject are Swift -> JS, so they aren't part of the
-    /// generated JS -> Swift `__host` bridge.
+    /// Settles a generateText Promise on the owning queue. resolve/reject are
+    /// Swift -> JS, so they aren't part of the generated JS -> Swift `__host`
+    /// bridge.
     public func resolveGenerate(id: Int, text: String) {
-        assertMainThread()
         bridgeCall("__resolveGenerate", [.int(id), .string(text)], filename: "ai.js")
     }
 
     public func rejectGenerate(id: Int, message: String) {
-        assertMainThread()
         bridgeCall("__rejectGenerate", [.int(id), .string(message)], filename: "ai.js")
     }
 }

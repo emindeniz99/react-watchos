@@ -136,13 +136,18 @@ final class ReactWatchModel: ObservableObject {
             // maxOTABundleBytes bounds the *source*, not allocation — an
             // unbounded validator lets a small bundle whose module init
             // allocates without limit OOM-kill the app during validation,
-            // before any of the persist/rollback protections exist.
+            // before any of the persist/rollback protections exist. Each gets
+            // a private owning queue (M1) so staging stays off main (M5).
             validate: { source in
-                let validator = try JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
+                let validator = try JSRuntime(
+                    memoryLimitBytes: 64 * 1024 * 1024,
+                    queue: DispatchQueue(label: "react.watch.ota-validate"))
                 try validator.evaluate(source)
             },
             compile: { source in
-                (try? JSRuntime(memoryLimitBytes: 64 * 1024 * 1024))?
+                (try? JSRuntime(
+                    memoryLimitBytes: 64 * 1024 * 1024,
+                    queue: DispatchQueue(label: "react.watch.ota-compile")))?
                     .compileToBytecode(source)
             }
         )
