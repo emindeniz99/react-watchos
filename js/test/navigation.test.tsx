@@ -385,6 +385,17 @@ describe("typed routes", () => {
     });
   });
 
+  it("matches non-ASCII LITERAL segments arriving percent-encoded", () => {
+    // Patterns are authored raw ("/café") but a valid deep link (widgetURL,
+    // Swift URL) must carry the segment encoded — a raw-only compare made
+    // such literals unreachable from a URL. Raw still matches too.
+    expect(matchRoute("/café/[id]", "/caf%C3%A9/7")?.params).toEqual({
+      id: "7",
+    });
+    expect(matchRoute("/café/[id]", "/café/7")?.params).toEqual({ id: "7" });
+    expect(matchRoute("/café/[id]", "/tea/7")).toBeNull();
+  });
+
   it("a malformed percent-escape falls back to the raw segment, not a throw", () => {
     // A crafted deep link like reactwatch://list/%zz must not throw out of
     // the matcher (decodeURIComponent would).

@@ -35,7 +35,14 @@ public struct RouteMatcher {
                 params[name] = rest.map(decodeParam)
                 return Match(params: params, score: score - 1)
             case .literal(let value):
-                guard i < parts.count, parts[i] == value else { return nil }
+                // Compare literals DECODED too: patterns are authored raw
+                // ("/café") while a valid URL carries the segment
+                // percent-encoded — a raw-only compare would make any
+                // non-ASCII/space literal unreachable from a deep link.
+                // Mirrors js matchRoute.
+                guard i < parts.count,
+                    parts[i] == value || decodeParam(parts[i]) == value
+                else { return nil }
                 score += 2
             case .param(let name):
                 guard i < parts.count else { return nil }

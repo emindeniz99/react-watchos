@@ -176,6 +176,15 @@ final class RouteMatcherTests: XCTestCase {
         XCTAssertNil(RouteMatcher.best(patterns: ["/list/[id]"], route: "/other"))
     }
 
+    func testMatchesEncodedNonASCIILiteralSegments() {
+        // Patterns are authored raw ("/café") but a valid deep link carries
+        // the segment percent-encoded — both spellings must match, mirroring
+        // js matchRoute.
+        XCTAssertNotNil(RouteMatcher.match(pattern: "/café/[id]", route: "/caf%C3%A9/7"))
+        XCTAssertNotNil(RouteMatcher.match(pattern: "/café/[id]", route: "/café/7"))
+        XCTAssertNil(RouteMatcher.match(pattern: "/café/[id]", route: "/tea/7"))
+    }
+
     func testPercentDecodesCapturedParams() {
         // Parity with js matchRoute: href() percent-encodes substituted params
         // ("a/b" → "a%2Fb" so the value can't change the segment structure);

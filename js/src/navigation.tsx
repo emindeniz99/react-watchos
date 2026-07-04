@@ -136,7 +136,13 @@ export function matchRoute(pattern: string, route: string): RouteMatch | null {
     const part = parts[i];
     if (part === undefined) return null;
     if (segment.kind === "literal") {
-      if (part !== segment.value) return null;
+      // Compare literals DECODED: patterns are authored raw ("/café"), but a
+      // valid deep link (widgetURL, Swift URL) must carry the segment
+      // percent-encoded — a raw compare would make any non-ASCII/space
+      // literal unreachable from a URL. Mirrored in Swift's RouteMatcher.
+      if (part !== segment.value && decodeParam(part) !== segment.value) {
+        return null;
+      }
       score += 2;
     } else {
       params[segment.name] = decodeParam(part);
