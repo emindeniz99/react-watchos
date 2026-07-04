@@ -347,9 +347,26 @@ it from outside the workspace — a different repo/folder linking it via
 `file:`/`link:`, or a registry `npm i` — works without building anything: your
 bundler compiles the `.ts` directly.
 
-A linked package resolves through a symlink (realpath), so for `file:`/`link:`
-your tools also need to dedupe React across that boundary. Three settings, and
-that's the whole integration (none needed for a registry install):
+**The source-shipping tsconfig contract (applies to EVERY consumer, registry
+installs included):** because you compile our `.ts` as part of your program,
+`skipLibCheck` does not exempt it — your tsconfig must be able to type-check
+it. Concretely, the renderer source references Node-typed globals
+(`setTimeout`, `console`, `process` guards), so a strict consumer needs
+`@types/node` visible:
+
+```jsonc
+// tsconfig.json — required for every consumer of this package
+{ "compilerOptions": { "types": ["node"] } }
+```
+
+and `@types/node` in your devDependencies (Expo templates already have it).
+Without it, a strict config fails with ~25 `TS2304/TS2580` errors *inside the
+package*. Both in-repo examples carry this setting.
+
+A linked package additionally resolves through a symlink (realpath), so for
+`file:`/`link:` your tools also need to dedupe React across that boundary.
+Three settings, and that's the whole integration (not needed for a registry
+install):
 
 ```js
 // esbuild build: resolve the renderer's `react` to YOUR copy
@@ -368,8 +385,9 @@ export default defineConfig({ resolve: { dedupe: ["react", "react-reconciler"] }
 Without `preserveSymlinks`, `tsc` type-checks the renderer's `.ts` source at
 its real path (outside your `node_modules`) and can't resolve `react` there.
 The first two prevent a second React copy in the bundle/tests (which silently
-breaks hooks). Published to a registry (a normal `npm i`, no symlink) none of
-this is needed — it's specific to linked local packages.
+breaks hooks). Published to a registry (a normal `npm i`, no symlink) only the
+`types: ["node"]` contract above applies — the symlink settings are specific
+to linked local packages.
 
 ### Type safety & linting
 

@@ -154,6 +154,19 @@ helpers — see the demo (`app/targets/widget`).
 - `react-watchos/testing` — `findByType` / `findByText` for asserting
   on committed trees with `runApp(element, new MemoryHost())`.
 
+## Consumer tsconfig contract (source-shipping)
+
+This package ships raw `.ts` — your compiler type-checks it as part of your
+program (`skipLibCheck` doesn't exempt it). The source references Node-typed
+globals, so every consumer needs `@types/node` in devDependencies and:
+
+```jsonc
+{ "compilerOptions": { "types": ["node"] } }
+```
+
+Without it, a strict tsconfig fails with `TS2304/TS2580` errors inside the
+package (`setTimeout`, `process`, `console`).
+
 ## React dedupe (single instance)
 
 Inside this repo's pnpm workspace, `workspace:*` dedupes React automatically.
