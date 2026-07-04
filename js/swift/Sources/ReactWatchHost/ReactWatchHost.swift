@@ -1301,7 +1301,18 @@ final class ReactWatchModel: ObservableObject {
     }
 
     #if DEBUG
-    private static let devBundleURL = URL(string: "http://127.0.0.1:8788/bundle.js")!
+    /// The dev-server bundle URL a DEBUG build polls (the `react-watchos dev`
+    /// contract). Overridable via the `ReactWatchDevServerURL` Info.plist key
+    /// (M11) — a physical watch needs the Mac's LAN IP, not localhost.
+    private static let devBundleURL: URL = {
+        if let s = Bundle.main.object(
+            forInfoDictionaryKey: "ReactWatchDevServerURL") as? String,
+            let url = URL(string: s)
+        {
+            return url
+        }
+        return URL(string: "http://127.0.0.1:8788/bundle.js")!
+    }()
     private var devTask: Task<Void, Never>?
     private var lastDevBundle: String?
 

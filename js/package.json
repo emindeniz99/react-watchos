@@ -72,7 +72,7 @@
     "build": "node scripts/build.mjs",
     "build:min": "node scripts/build.mjs --minify",
     "dev": "node scripts/dev.mjs",
-    "inspector": "node scripts/inspector.mjs",
+    "inspector": "node bin/inspector-server.mjs",
     "build:bytecode": "sh ../tools/qjs-compile/run.sh",
     "bench:qjs": "sh ../tools/embed-smoke/bench.sh",
     "ota:keygen": "node scripts/ota-keygen.mjs",

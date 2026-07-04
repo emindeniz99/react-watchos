@@ -1,9 +1,10 @@
 import { createServer } from "node:http";
 
-// Remote inspector server. A DEBUG watch build (startInspector) POSTs
-// snapshots here; open http://127.0.0.1:8099 in a browser to watch the live
-// React tree + console logs. The watch simulator shares the Mac's network,
-// so 127.0.0.1 works.
+// Remote inspector server (SHIPPED in the npm tarball — `react-watchos
+// inspector` starts it). A DEBUG watch build (startInspector) POSTs snapshots
+// here; open http://127.0.0.1:8099 in a browser to watch the live React tree +
+// console logs. The watch simulator shares the Mac's network, so 127.0.0.1
+// works.
 const PORT = Number(process.env.INSPECTOR_PORT ?? 8099);
 let latest = { commits: 0, tree: null, logs: [], errors: [], at: 0 };
 

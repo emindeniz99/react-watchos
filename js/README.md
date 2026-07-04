@@ -154,6 +154,31 @@ helpers — see the demo (`app/targets/widget`).
 - `react-watchos/testing` — `findByType` / `findByText` for asserting
   on committed trees with `runApp(element, new MemoryHost())`.
 
+## Dev loop (hot restart + inspector)
+
+Ships as CLI subcommands (M11) — a registry install gets the same loop the
+demo uses:
+
+```sh
+npx react-watchos dev --entry watch-ui/entry.tsx        # live-reload server
+npx react-watchos inspector                             # live tree/log/error UI
+npx react-watchos build --entry watch-ui/entry.tsx \
+  --asset targets/watch/assets/bundle.js                # one-shot build + copy
+```
+
+**The polling contract:** a DEBUG watch build polls
+`http://127.0.0.1:8788/bundle.js` every 2 seconds and hot-restarts its QuickJS
+runtime when the bytes change. `dev` serves exactly that URL; the watch
+simulator shares the Mac's network, so localhost works out of the box. For a
+physical watch, run `dev --host 0.0.0.0` and set the **`ReactWatchDevServerURL`**
+Info.plist key on the watch target (via the plugin's `infoPlist` option) to
+`http://<your-mac-lan-ip>:8788/bundle.js`. Release builds compile the polling
+out entirely (`#if DEBUG`).
+
+`inspector` receives what a DEBUG build's `startInspector()` posts — the live
+committed tree, `console.log` tee, and captured errors (with componentStack) —
+at `http://127.0.0.1:8099`.
+
 ## Consumer tsconfig contract (source-shipping)
 
 This package ships raw `.ts` — your compiler type-checks it as part of your

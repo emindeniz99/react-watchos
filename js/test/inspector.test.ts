@@ -52,9 +52,11 @@ describe("inspector snapshot", () => {
 describe("inspector server", () => {
   it("accepts a POSTed snapshot and serves it back + the HTML page", async () => {
     const port = 8731;
+    // The server moved into bin/ (shipped in the tarball; `react-watchos
+    // inspector` starts it — M11).
     const server = spawn(
       "node",
-      [join(__dirname, "../scripts/inspector.mjs")],
+      [join(__dirname, "../bin/inspector-server.mjs")],
       {
         env: { ...process.env, INSPECTOR_PORT: String(port) },
         stdio: "ignore",
