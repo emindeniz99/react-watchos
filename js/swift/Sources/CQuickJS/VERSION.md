@@ -25,3 +25,7 @@ headers we vendor (leaving our `quickjs-swift-shim.h` alone) and the LICENSE,
 and bumps the version line + source URL above. Then review the prose in this
 file, bump the version in `js/swift/README.md`, and run
 `tools/embed-smoke/run.sh` to prove the new engine still embeds.
+
+Tarball SHA-256: c4e813951b7c46845096a948e978c620b11ab4cf5fd622ca09c727ec31f42623
+(recorded 2026-07-04; verified by re-downloading the tagged tarball — future
+re-vendors verify BEFORE extraction via tools/vendor-quickjs/run.sh)
