@@ -218,12 +218,25 @@ function currentReleaseId(): string | null {
  *  release, see the manifest as "fresh", and re-download the same bundle
  *  (battery + radio waste on a watch). Cleared implicitly: once the staged
  *  bundle boots, currentReleaseId matches it anyway; if it's rolled back by
- *  the crash-loop guard, suppressing a re-download of that same bundle is the
- *  right call too. */
+ *  the crash-loop guard, suppressing a re-download of that same bundle is
+ *  right too — BUT only for a while: the marker expires after 24h so a
+ *  rolled-back release isn't suppressed forever when the crash was
+ *  environmental and later fixed (an OS or app-binary update the marker
+ *  can't observe). A retry that still crash-loops re-stages the marker, so
+ *  the worst case is one download per expiry window. */
 const STAGED_RELEASE_KEY = "update.stagedReleaseId";
+const STAGED_RELEASE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function stagedReleaseId(): string | null {
-  return Storage.get<string>(STAGED_RELEASE_KEY);
+  const record = Storage.get<{ id: string; at: number }>(STAGED_RELEASE_KEY);
+  if (
+    typeof record?.id !== "string" ||
+    typeof record.at !== "number" ||
+    Date.now() - record.at > STAGED_RELEASE_TTL_MS
+  ) {
+    return null;
+  }
+  return record.id;
 }
 
 /**
@@ -314,9 +327,10 @@ export async function fetchAndApplyUpdate(
   // Downloaded, but the watch refused it at save (e.g. signature/capability):
   // report not-staged rather than a version that won't take effect.
   if (!result.accepted) return null;
-  // Remember what's staged so checks before the relaunch don't re-download it.
+  // Remember what's staged so checks before the relaunch don't re-download it
+  // (timestamped: the marker expires after STAGED_RELEASE_TTL_MS).
   if (manifest.releaseId !== undefined) {
-    Storage.set(STAGED_RELEASE_KEY, manifest.releaseId);
+    Storage.set(STAGED_RELEASE_KEY, { id: manifest.releaseId, at: Date.now() });
   }
   return manifest.version;
 }

@@ -254,6 +254,49 @@ describe("OTA freshness by releaseId (CX-025)", () => {
       (await checkForUpdate("https://x.test/manifest.json")).updateAvailable,
     ).toBe(true);
   });
+
+  it("the staged marker expires, so a rolled-back release isn't suppressed forever", async () => {
+    // The suppression edge: stage R, native crash-loop rolls it back, and the
+    // crash was ENVIRONMENTAL (later fixed by an OS/binary update the marker
+    // can't observe). Without an expiry the same manifest is skipped forever.
+    vi.useFakeTimers();
+    try {
+      const host = installMockHost();
+      const backing = new Map<string, string>();
+      host.getItem.mockImplementation((k: string) => backing.get(k) ?? null);
+      host.setItem.mockImplementation((k: string, v: string) => {
+        backing.set(k, v);
+      });
+      g.__bundleReleaseId = "aaaa";
+      const manifest = {
+        version: BUNDLE_VERSION,
+        bundle: "bundle.js",
+        releaseId: "bbbb",
+      };
+      g.fetch = vi.fn(
+        async () =>
+          ({
+            json: async () => manifest,
+            text: async () => "globalThis.x=2;",
+          }) as unknown,
+      );
+
+      await fetchAndApplyUpdate("https://x.test/manifest.json");
+      // Inside the window: suppressed (still awaiting relaunch / rolled back).
+      expect(
+        (await checkForUpdate("https://x.test/manifest.json")).updateAvailable,
+      ).toBe(false);
+
+      // Past the 24h window (never relaunched onto it → it was rolled back):
+      // the release becomes offerable again.
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1);
+      expect(
+        (await checkForUpdate("https://x.test/manifest.json")).updateAvailable,
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // ARCH-01: a bundle that needs a native capability this binary lacks can't be
