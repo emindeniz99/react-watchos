@@ -133,11 +133,18 @@ function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
       [MOD_NAME]: cp.BaseMods.provider({
         isIntrospective: false,
         // _internal is optional on the config TYPE, but prebuild always sets
-        // projectRoot before mods run — the cwd fallback is for the type only.
-        getFilePath: ({ _internal }) =>
-          cp.IOSConfig.Paths.getPBXProjectPath(
-            _internal?.projectRoot ?? process.cwd(),
-          ),
+        // projectRoot before mods run. Fail LOUDLY if that assumption breaks
+        // (Rule 12) — a cwd fallback could silently edit the wrong pbxproj.
+        getFilePath: ({ _internal }) => {
+          const projectRoot = _internal?.projectRoot;
+          if (typeof projectRoot !== "string") {
+            throw new Error(
+              "[react-watchos] config._internal.projectRoot is missing in " +
+                "the native-wiring base mod — Expo prebuild should have set it.",
+            );
+          }
+          return cp.IOSConfig.Paths.getPBXProjectPath(projectRoot);
+        },
         read: (filePath) => {
           const project = xcode.project(filePath);
           project.parseSync();
