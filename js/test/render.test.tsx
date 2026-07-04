@@ -84,6 +84,33 @@ describe("render", () => {
     expect(new Set(ids).size).toBe(ids.length); // no duplicates
   });
 
+  it("reordering a keyed child to front/middle doesn't duplicate it (insertBefore move)", () => {
+    // The complementary path (2026-07-04 review §5.7): moving a keyed child
+    // FORWARD goes through insertBefore, not appendChild — a splice that
+    // forgot to remove the old position would leave the node in twice.
+    function List({ order }: { order: string[] }) {
+      return (
+        <VStack>
+          {order.map((k) => (
+            <Text key={k}>{k}</Text>
+          ))}
+        </VStack>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<List order={["a", "b", "c"]} />);
+    root.render(<List order={["c", "a", "b"]} />); // "c" moves to FRONT
+    let texts = host.lastCommit!.root!.children;
+    expect(texts.map((t) => t.props.text)).toEqual(["c", "a", "b"]);
+    expect(new Set(texts.map((t) => t.id)).size).toBe(texts.length);
+
+    root.render(<List order={["c", "b", "a"]} />); // "b" moves to MIDDLE
+    texts = host.lastCommit!.root!.children;
+    expect(texts.map((t) => t.props.text)).toEqual(["c", "b", "a"]);
+    expect(new Set(texts.map((t) => t.id)).size).toBe(texts.length);
+  });
+
   it("serializes a Dynamic Type textStyle", () => {
     const host = new MemoryHost();
     new WatchRoot(host).render(<Text textStyle="headline">Title</Text>);

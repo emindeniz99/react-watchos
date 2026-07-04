@@ -51,7 +51,9 @@ describe("inspector snapshot", () => {
 
 describe("inspector server", () => {
   it("accepts a POSTed snapshot and serves it back + the HTML page", async () => {
-    const port = 8731;
+    // Semi-random port so parallel/repeated runs don't collide on a fixed one
+    // (the suite's old flake vector, 2026-07-04 review §5.7).
+    const port = 20000 + Math.floor(Math.random() * 20000);
     // The server moved into bin/ (shipped in the tarball; `react-watchos
     // inspector` starts it — M11).
     const server = spawn(
@@ -63,8 +65,19 @@ describe("inspector server", () => {
       },
     );
     try {
-      await new Promise((r) => setTimeout(r, 400));
       const base = `http://127.0.0.1:${port}`;
+      // Poll readiness instead of a fixed boot sleep (the other half of the
+      // flake): a slow CI runner gets up to 5s, a fast machine ~10ms.
+      const deadline = Date.now() + 5000;
+      for (;;) {
+        try {
+          await fetch(`${base}/snapshot`);
+          break;
+        } catch {
+          if (Date.now() > deadline) throw new Error("server never came up");
+          await new Promise((r) => setTimeout(r, 25));
+        }
+      }
       await fetch(`${base}/snapshot`, {
         method: "POST",
         headers: { "content-type": "application/json" },
