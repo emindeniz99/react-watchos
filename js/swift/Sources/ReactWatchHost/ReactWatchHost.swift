@@ -75,18 +75,16 @@ final class ReactWatchModel: ObservableObject {
     /// app has exactly one; weak so it doesn't outlive the scene. Main-isolated.
     static weak var shared: ReactWatchModel?
 
-    /// OTA verification config (CR-4 / CR-17). `updatePublicKeys` empty =
-    /// fail-open (load unsigned + warn); otherwise it's the trusted
-    /// `keyId -> publicKey` map (CX-007) — an OTA's `keyId` selects the key, and
-    /// an unknown one fails closed. `updateGate` .hard refuses to boot stale JS;
-    /// `shippedBundleVersion` is the compatibility version of the bundle in the
-    /// app binary, used for the anti-rollback boot decision.
-    private let updatePublicKeys: [String: Curve25519.Signing.PublicKey]
-    /// Whether signing is disabled / enforced / misconfigured (CX-003).
+    /// Whether signing is disabled / enforced / misconfigured (CX-003). The
+    /// full OTA policy (trusted keys, gate, shipped version) lives inside
+    /// `otaSequencer`; the host keeps only this for the fail-open warning.
     private let updateKeyState: OTAKeyState
-    private let updateGate: OTAGate
-    private let shippedBundleVersion: Int
     private let updateManifestURL: String?
+    /// The OTA staging + boot orchestration (M5), extracted to Linux-tested
+    /// ReactWatchSupport. The host injects the App-Group file IO, the
+    /// SharedWidgetStore counters, CryptoKit verification, and throwaway
+    /// JSRuntime validate/compile closures.
+    private let otaSequencer: OTABootSequencer
     /// CR-5 A/B selector for the Swift→JS bridge, applied to each runtime.
     private let useJSCallBridge: Bool
 
@@ -97,22 +95,57 @@ final class ReactWatchModel: ObservableObject {
             Data(base64Encoded: $0)
                 .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
         }
-        updatePublicKeys = keys
         // CX-003: distinguish "no keys" (fail-open) from "keys configured but all
         // malformed" (fail CLOSED) — a base64 typo must not silently disable
         // signature enforcement the developer opted into.
-        updateKeyState = OTAKeyState.classify(
+        let keyState = OTAKeyState.classify(
             configuredCount: ota.signerPublicKeys.count, validCount: keys.count,
             allowUnsigned: ota.allowUnsignedUpdates)
+        updateKeyState = keyState
         if keys.count < ota.signerPublicKeys.count {
             print(
                 "[ReactWatch] WARNING: \(ota.signerPublicKeys.count - keys.count) OTA "
                     + "signing key(s) failed to decode and were dropped (CX-003).")
         }
-        updateGate = ota.gate
-        shippedBundleVersion = ota.shippedVersion
         updateManifestURL = ota.manifestURL
         self.useJSCallBridge = useJSCallBridge
+        // Filenames come from the shared OTAFiles so the widget reads the same
+        // paths; nil appGroupId disables OTA persistence (writes fail loudly).
+        let otaFile: (String) -> URL? = { name in
+            appGroupId.flatMap { OTAFiles.url(appGroupId: $0, name) }
+        }
+        otaSequencer = OTABootSequencer(
+            config: .init(
+                keyState: keyState, gate: ota.gate, shippedVersion: ota.shippedVersion,
+                nativeBridgeProtocol: RNWire.bridgeProtocol,
+                nativeFeatures: HostFeatures.watch,
+                maxBundleBytes: Self.maxOTABundleBytes,
+                maxBootAttempts: Self.maxOTABootAttempts),
+            active: FileOTASlotStore(
+                recordURL: otaFile(OTAFiles.activeRecord),
+                bytecodeURL: otaFile(OTAFiles.activeBytecode)),
+            knownGood: FileOTASlotStore(
+                recordURL: otaFile(OTAFiles.knownGoodRecord),
+                bytecodeURL: otaFile(OTAFiles.knownGoodBytecode)),
+            counters: store,
+            hasKey: { keys[$0] != nil },
+            verify: { keyId, message, signature in
+                keys[keyId]?.isValidSignature(signature, for: message) ?? false
+            },
+            // Same heap cap as the live runtime for both throwaway runtimes:
+            // maxOTABundleBytes bounds the *source*, not allocation — an
+            // unbounded validator lets a small bundle whose module init
+            // allocates without limit OOM-kill the app during validation,
+            // before any of the persist/rollback protections exist.
+            validate: { source in
+                let validator = try JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
+                try validator.evaluate(source)
+            },
+            compile: { source in
+                (try? JSRuntime(memoryLimitBytes: 64 * 1024 * 1024))?
+                    .compileToBytecode(source)
+            }
+        )
     }
 
     func start() {
@@ -246,38 +279,10 @@ final class ReactWatchModel: ObservableObject {
         )
     }
 
-    /// The persisted active OTA bundle (js/src/update.ts): source + metadata in
-    /// ONE atomically-written record (OTARecord), so an apply can't half-land.
-    /// Filenames come from the shared OTAFiles so the widget reads the same paths.
-    private var otaRecordURL: URL? {
-        appGroupFile(OTAFiles.activeRecord)
-    }
-
-    /// On-device-compiled bytecode cache for the OTA bundle (CR-17), so a cold
-    /// start skips the parser. Pinned to the record by `bytecodeHash`.
-    private var otaBytecodeURL: URL? {
-        appGroupFile(OTAFiles.activeBytecode)
-    }
-
-    /// Previous-known-good OTA snapshot (ARCH-04): the last OTA record that
-    /// reached a healthy commit, kept so a crash-looping bundle can roll back to
-    /// a build that worked on this device instead of all the way to shipped.
-    private var otaKnownGoodURL: URL? { appGroupFile(OTAFiles.knownGoodRecord) }
-    private var otaKnownGoodBytecodeURL: URL? {
-        appGroupFile(OTAFiles.knownGoodBytecode)
-    }
-
     /// The OTA record this launch actually booted (nil = running shipped). Set in
     /// `load`; read in the first-healthy-commit handler to promote it to the
     /// known-good snapshot.
     private var bootedOTARecord: OTARecord?
-
-    private func appGroupFile(_ name: String) -> URL? {
-        guard let group = store.appGroupId else { return nil }
-        return FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: group)?
-            .appendingPathComponent(name)
-    }
 
     /// Ceiling for an OTA bundle. The app parses the whole source through
     /// QuickJS at launch, so a multi-MB bundle risks an out-of-memory kill on a
@@ -346,21 +351,44 @@ final class ReactWatchModel: ObservableObject {
         }
     }
 
-    /// Runs saveUpdate and *resolves* the invoke with a SaveUpdateResult (CX-005):
-    /// a refusal (bad signature, capability gap, downgrade, write failure) is a
-    /// normal `{accepted:false}` result — not an invoke rejection — so the reason
-    /// reaches applyUpdate instead of vanishing.
+    /// Runs the staging pipeline and *resolves* the invoke with a
+    /// SaveUpdateResult (CX-005): a refusal (bad signature, capability gap,
+    /// downgrade, write failure) is a normal `{accepted:false}` result — not an
+    /// invoke rejection — so the reason reaches applyUpdate instead of
+    /// vanishing. Staging (validator eval + bytecode compile) runs OFF the main
+    /// thread (M5); the settle hops back to main, generation-guarded (CX-008).
     private func handleSaveUpdate(id: Int, payload: String) {
-        if saveUpdate(payload) {
-            runtime?.resolveInvoke(id: id, resultJson: #"{"accepted":true}"#)
-        } else {
-            let result: [String: Any] = [
-                "accepted": false,
-                "code": "rejected",
-                "message": runtimeError ?? "OTA update rejected",
-            ]
-            runtime?.resolveInvoke(id: id, resultJson: Self.jsonObject(result))
+        let gen = generation
+        Task { [weak self] in
+            guard let self else { return }
+            let outcome = await self.stageUpdate(payload)
+            guard gen == self.generation else { return }
+            switch outcome {
+            case .accepted:
+                self.runtime?.resolveInvoke(id: id, resultJson: #"{"accepted":true}"#)
+            case .rejected(let reason):
+                self.runtimeError = reason
+                let result: [String: Any] = [
+                    "accepted": false, "code": "rejected", "message": reason,
+                ]
+                self.runtime?.resolveInvoke(id: id, resultJson: Self.jsonObject(result))
+            }
         }
+    }
+
+    /// Stages an OTA payload through the sequencer on a background executor —
+    /// the validator eval and bytecode compile are the two heavyweight steps
+    /// that used to run synchronously on main (M5). The sequencer is Sendable
+    /// (App-Group file IO + UserDefaults counters + throwaway runtimes), so the
+    /// detached hop is safe.
+    private func stageUpdate(_ payload: String) async -> StageOutcome {
+        if updateKeyState == .disabled {
+            print(
+                "[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
+                    + "verification — set OTAConfig.signerPublicKeys to enforce (CR-4).")
+        }
+        let sequencer = otaSequencer
+        return await Task.detached(priority: .utility) { sequencer.stage(payload) }.value
     }
 
     /// Requests notification permission and resolves the invoke with the real
@@ -448,215 +476,6 @@ final class ReactWatchModel: ObservableObject {
         .flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
     }
 
-    /// Persists an OTA bundle (CR-4 / CR-17). An OTA bundle is arbitrary JS with
-    /// the full host surface, so with a key configured the signature is verified
-    /// over `scheme:version:js` *before* it's written — the version is inside the
-    /// signed bytes, so it can't be relabelled (anti-rollback in `load` can trust
-    /// it). An unsigned or bad bundle is refused. With no key it's fail-open:
-    /// persisted with a loud warning so an un-updated consumer keeps working.
-    /// Returns whether the bundle was accepted + persisted (false = rejected,
-    /// with `runtimeError` set) — the native recovery path reboots only on true.
-    @discardableResult
-    private func saveUpdate(_ payload: String) -> Bool {
-        guard otaRecordURL != nil else { return false }
-        let plan = UpdatePlan(payload: payload)
-        let size = plan.js.utf8.count
-        guard size <= Self.maxOTABundleBytes else {
-            runtimeError =
-                "OTA update rejected: bundle is \(size) bytes, over the "
-                + "\(Self.maxOTABundleBytes)-byte limit"
-            return false
-        }
-        // Capability gate (ARCH-01): refuse a bundle needing features this
-        // binary doesn't provide, even if validly signed — OTA can't add native
-        // code, so the user must update the app. Defense-in-depth behind the JS
-        // pre-download gate (update.ts).
-        if case .updateAppRequired(let missing) = CapabilityGate.decide(
-            bundleBridgeProtocol: plan.minBridgeProtocol,
-            bundleFeatures: Set(plan.requiredFeatures),
-            nativeBridgeProtocol: RNWire.bridgeProtocol,
-            nativeFeatures: HostFeatures.watch
-        ) {
-            runtimeError =
-                "OTA update rejected: needs capabilities this app "
-                + "lacks (\(missing.joined(separator: ", "))) — update the app"
-            return false
-        }
-        // NF-29: the secure zero-config default — no keys and no explicit dev
-        // opt-in means new OTA bundles are refused, not silently accepted.
-        if updateKeyState == .unconfigured {
-            runtimeError =
-                "OTA update rejected: no signing keys configured — set "
-                + "OTAConfig.signerPublicKeys (or allowUnsignedUpdates for dev builds)"
-            return false
-        }
-        // CX-003: keys were configured but none decoded — the developer opted
-        // into enforcement but misconfigured it. Refuse loudly; never fall
-        // through to the fail-open branch below.
-        if updateKeyState == .misconfigured {
-            runtimeError =
-                "OTA update rejected: signing keys are misconfigured (every "
-                + "configured key failed to decode) — fix OTAConfig.signerPublicKeys"
-            return false
-        }
-        if updateKeyState == .enforced {
-            // Fail closed on an unknown key id (CX-007): an attacker-supplied
-            // `keyId` can only ever resolve to a key in the baked-in map — never
-            // outside the pinned trust set (the JWT `kid`-confusion lesson). The
-            // same `keyId` selects the key AND is bound into `signedMessage`, so
-            // the verified bytes commit to *which* key signed *this* bundle.
-            guard let keyId = plan.keyId, let key = updatePublicKeys[keyId] else {
-                runtimeError = "OTA update rejected: unknown or missing signing key id"
-                return false
-            }
-            guard let signature = plan.signature, let version = plan.version,
-                let message = plan.signedMessage(),
-                key.isValidSignature(signature, for: message)
-            else {
-                runtimeError = "OTA update rejected: signature/version missing or invalid"
-                return false
-            }
-            let highWater = store.otaHighWater()
-            guard VersionPolicy.accepts(incoming: version, highWater: highWater) else {
-                runtimeError =
-                    "OTA update rejected: version \(version) is older than the "
-                    + "installed \(highWater) (downgrade blocked)"
-                return false
-            }
-            return persistOTA(
-                js: plan.js, keyId: keyId, version: version,
-                signature: signature.base64EncodedString()
-            )
-        } else {
-            print(
-                "[ReactWatch] WARNING: persisting OTA bundle WITHOUT signature "
-                    + "verification — set OTAConfig.signerPublicKeys to enforce (CR-4).")
-            return persistOTA(
-                js: plan.js, keyId: plan.keyId, version: plan.version, signature: nil)
-        }
-    }
-
-    private func persistOTA(
-        js: String, keyId: String?, version: Int?, signature: String?
-    ) -> Bool {
-        guard let recordURL = otaRecordURL else { return false }
-        // Read-only validation (ARCH-04): eval the candidate in a throwaway
-        // runtime whose host callbacks are all nil (so commit/setItem/publish are
-        // no-ops). A bundle that throws on load is caught BEFORE we persist it,
-        // and its module init can't mutate the real App Group storage here.
-        // Same heap cap as the live runtime: maxOTABundleBytes bounds the
-        // *source*, not allocation — an unbounded validator lets a small bundle
-        // whose module init allocates without limit OOM-kill the app during
-        // validation, before any of the persist/rollback protections exist.
-        guard let validator = try? JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
-        else { return false }
-        do {
-            try validator.evaluate(js)
-        } catch {
-            runtimeError = "OTA update rejected: bundle failed to evaluate: \(error)"
-            return false
-        }
-        // Compile the bytecode first so the record can pin the exact blob written
-        // (OP-1); a nil hash just means load will parse the source.
-        let bytecodeHash = cacheOTABytecode(source: js)
-        let record = OTARecord(
-            js: js, keyId: keyId, version: version, signature: signature,
-            bytecodeHash: bytecodeHash
-        )
-        // ONE atomic write is the commit point (ARCH-04): a crash before it
-        // leaves the previous record (or none) intact — never a new source paired
-        // with a stale version/signature, the half-applied state the old two-file
-        // (.js + .json) write could produce.
-        guard let data = try? JSONEncoder().encode(record),
-            (try? data.write(to: recordURL, options: .atomic)) != nil
-        else {
-            runtimeError = "OTA update rejected: could not write bundle record"
-            return false
-        }
-        return true
-    }
-
-    /// Compiles the just-verified OTA source to bytecode now (CR-17) so the next
-    /// cold start skips the parser. Compiled in a throwaway runtime — the same
-    /// quickjs-ng, so it's version-matched — to avoid touching the live context.
-    /// Returns the hash of the blob written (to pin it in the record), or nil if
-    /// compilation/write failed — then the stale cache is dropped and load falls
-    /// back to the source.
-    private func cacheOTABytecode(source: String) -> String? {
-        guard let bcURL = otaBytecodeURL else { return nil }
-        // Capped like the validator: compilation only parses (no module init),
-        // but a hostile source can still exhaust the parser's heap.
-        if let bytecode = (try? JSRuntime(memoryLimitBytes: 64 * 1024 * 1024))?
-            .compileToBytecode(source),
-            (try? bytecode.write(to: bcURL, options: .atomic)) != nil
-        {
-            return ContentHash.of(bytecode)
-        }
-        try? FileManager.default.removeItem(at: bcURL)
-        return nil
-    }
-
-    private func loadOTARecord() -> OTARecord? {
-        guard let recordURL = otaRecordURL,
-            let data = try? Data(contentsOf: recordURL)
-        else { return nil }
-        return try? JSONDecoder().decode(OTARecord.self, from: data)
-    }
-
-    private func dropOTA() {
-        if let url = otaRecordURL { try? FileManager.default.removeItem(at: url) }
-        if let bcURL = otaBytecodeURL { try? FileManager.default.removeItem(at: bcURL) }
-    }
-
-    private func loadKnownGoodRecord() -> OTARecord? {
-        guard let url = otaKnownGoodURL, let data = try? Data(contentsOf: url)
-        else { return nil }
-        return try? JSONDecoder().decode(OTARecord.self, from: data)
-    }
-
-    /// Snapshot the active OTA bundle as the known-good rollback target (ARCH-04),
-    /// called on the first healthy commit. Idempotent: skips the write when the
-    /// snapshot already equals the active record, so repeated boots don't churn.
-    private func promoteToKnownGood(_ record: OTARecord) {
-        guard let url = otaKnownGoodURL else { return }
-        if loadKnownGoodRecord() == record { return }
-        guard let data = try? JSONEncoder().encode(record),
-            (try? data.write(to: url, options: .atomic)) != nil
-        else { return }
-        // Carry the bytecode too so the rollback boot also skips the parser; a
-        // missing/failed copy just means the restored bundle parses its source.
-        copyFile(from: otaBytecodeURL, to: otaKnownGoodBytecodeURL)
-    }
-
-    /// Restore the known-good snapshot as the active OTA bundle (ARCH-04
-    /// crash-loop rollback). Returns the restored record so the caller can boot
-    /// it this launch, or nil if there was nothing to restore.
-    private func restoreKnownGood() -> OTARecord? {
-        guard let good = loadKnownGoodRecord(), let activeURL = otaRecordURL,
-            let data = try? JSONEncoder().encode(good),
-            (try? data.write(to: activeURL, options: .atomic)) != nil
-        else { return nil }
-        copyFile(from: otaKnownGoodBytecodeURL, to: otaBytecodeURL)
-        return good
-    }
-
-    private func dropKnownGood() {
-        if let url = otaKnownGoodURL { try? FileManager.default.removeItem(at: url) }
-        if let bc = otaKnownGoodBytecodeURL {
-            try? FileManager.default.removeItem(at: bc)
-        }
-    }
-
-    /// Replace `dst` with a copy of `src` (best-effort); removes `dst` first so
-    /// the copy can't fail on an existing file, and clears a stale `dst` when
-    /// `src` is absent (so bytecode never outlives its record).
-    private func copyFile(from src: URL?, to dst: URL?) {
-        guard let dst else { return }
-        try? FileManager.default.removeItem(at: dst)
-        guard let src, FileManager.default.fileExists(atPath: src.path) else { return }
-        try? FileManager.default.copyItem(at: src, to: dst)
-    }
-
     /// Remote manifest served at `OTAConfig.manifestURL` ({version, bundle,
     /// signature}); `bundle` is absolute or relative to the manifest URL.
     private struct RemoteManifest: Decodable {
@@ -700,9 +519,12 @@ final class ReactWatchModel: ObservableObject {
             if let signature = manifest.signature { payload["signature"] = signature }
             if let keyId = manifest.keyId { payload["keyId"] = keyId }
             guard let payloadData = try? JSONSerialization.data(withJSONObject: payload),
-                let payloadString = String(data: payloadData, encoding: .utf8),
-                saveUpdate(payloadString)
+                let payloadString = String(data: payloadData, encoding: .utf8)
             else { return }
+            if case .rejected(let reason) = await stageUpdate(payloadString) {
+                runtimeError = reason
+                return
+            }
             boot()  // re-load; the staged bundle (>= high-water) now runs
         } catch {
             runtimeError = "update check failed: \(error.localizedDescription)"
@@ -786,221 +608,45 @@ final class ReactWatchModel: ObservableObject {
     /// before it's rolled back to shipped (ARCH-04 crash-loop guard).
     private static let maxOTABootAttempts = 3
 
+    /// Delegates the boot decision + fallback chain (anti-rollback, crash-loop
+    /// recovery, bytecode trust, high-water bumps) to the Linux-tested
+    /// sequencer (M5); this shell just binds the eval closures to the live
+    /// runtime and maps the outcome onto the published UI state.
     private func load(into js: JSRuntime) throws {
-        let candidate = otaCandidate()
-        let decision: BootDecision =
-            if updateKeyState == .disabled {
-                // Fail-open ONLY on the explicit allowUnsignedUpdates dev opt-in
-                // (CX-003/NF-29): versions are unverified, so no anti-rollback —
-                // run the OTA bundle if present, else shipped.
-                candidate != nil ? .runOTA : .runShipped
-            } else if updateKeyState == .misconfigured || updateKeyState == .unconfigured {
-                // Fail CLOSED (CX-003): with no usable signing key we cannot
-                // authenticate a stored record from the writable App Group, so
-                // never run an OTA candidate — an attacker-planted record would
-                // otherwise execute unverified (the NF-35 hole). Run shipped. The
-                // candidate is KEPT, not dropped: once the key config is fixed the
-                // enforced path re-verifies and runs it. verifyStoredRecord only
-                // *verifies* under .enforced, so without this gate these states
-                // would reach evaluateOTA and skip the signature check entirely.
-                .runShipped
-            } else {
-                VersionPolicy.decide(
-                    otaVersion: candidate.flatMap(\.version),
-                    highWater: store.otaHighWater(),
-                    shippedVersion: shippedBundleVersion,
-                    gate: updateGate
-                )
-            }
-        switch decision {
-        case .runOTA:
-            if let c = candidate {
-                // Crash-loop rollback (ARCH-04): the JS-throw path is caught
-                // below, but a *native* crash on boot (QuickJS OOM, a Swift trap
-                // in a host callback) kills the process before that catch — a
-                // bundle that does so bricks every launch. otaBootAttempts counts
-                // boots that haven't reached a healthy commit (which resets it);
-                // once it hits the cap, roll back — to a previously-healthy OTA if
-                // there is one (and it doesn't break anti-rollback), else shipped.
-                if store.otaBootAttempts() >= Self.maxOTABootAttempts {
-                    let knownGood = loadKnownGoodRecord()
-                    let recovery = VersionPolicy.crashLoopRecovery(
-                        hasKnownGood: knownGood != nil,
-                        knownGoodMatchesActive: knownGood == c,
-                        knownGoodVersion: knownGood?.version,
-                        highWater: store.otaHighWater(),
-                        shippedVersion: shippedBundleVersion,
-                        gate: updateGate,
-                        enforcing: updateKeyState != .disabled
-                    )
-                    if recovery == .rollBackToKnownGood, let good = restoreKnownGood() {
-                        // This launch is the restored bundle's first boot attempt;
-                        // if it ALSO crash-loops, next time knownGood == active →
-                        // dropToShipped (so the rollback can't loop forever).
-                        store.setOTABootAttempts(1)
-                        do {
-                            try evaluateOTA(good, into: js)
-                            bootedOTARecord = good
-                            if let v = good.version {
-                                store.setOTAHighWater(
-                                    VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v))
-                            }
-                            runtimeError =
-                                "OTA bundle crash-looped — rolled back to the "
-                                + "previous working bundle"
-                            return
-                        } catch {
-                            dropOTA()
-                            dropKnownGood()
-                            store.setOTABootAttempts(0)
-                            runtimeError =
-                                "OTA rollback bundle also failed, using shipped: \(error)"
-                        }
-                    } else {
-                        dropOTA()
-                        dropKnownGood()
-                        store.setOTABootAttempts(0)
-                        runtimeError =
-                            "OTA bundle rolled back: failed to boot "
-                            + "\(Self.maxOTABootAttempts)× — using shipped bundle"
-                    }
-                } else {
-                    store.setOTABootAttempts(store.otaBootAttempts() + 1)
-                    do {
-                        try evaluateOTA(c, into: js)
-                        bootedOTARecord = c
-                        if let v = c.version {
-                            store.setOTAHighWater(
-                                VersionPolicy.bumpedHighWater(store.otaHighWater(), booted: v)
-                            )
-                        }
-                        return
-                    } catch {
-                        dropOTA()
-                        store.setOTABootAttempts(0)
-                        runtimeError = "OTA bundle failed, using shipped bundle: \(error)"
-                    }
-                }
-            }
-        case .blockForUpdate:
-            // Hard gate: the only available bundle is older than one already
-            // applied — refuse to boot it so it can't write to a newer-schema db.
+        let outcome = try otaSequencer.boot(
+            evalSource: { source in
+                Self.setBundleReleaseId(source, into: js)
+                try js.evaluate(source)
+            },
+            evalBytecode: { bytecode, source in
+                Self.setBundleReleaseId(source, into: js)
+                try js.evaluateBytecode(bytecode)
+            },
+            evalShipped: { try self.loadShipped(into: js) }
+        )
+        switch outcome {
+        case .ranOTA(let record, let notice):
+            bootedOTARecord = record
+            if let notice { runtimeError = notice }
+        case .ranShipped(let notice):
+            if let notice { runtimeError = notice }
+        case .blockForUpdate(let notice):
+            // Hard gate: every available bundle is older than one already
+            // applied — refuse to boot stale JS so it can't write to a
+            // newer-schema db; show the native "update required" screen.
+            if let notice { runtimeError = notice }
             updateRequired = true
-            return
-        case .runShipped:
-            break
-        }
-        // Reached here either because the policy chose shipped, or because a
-        // chosen OTA candidate was rejected (NF-35 re-verification threw, the
-        // bundle failed to execute, or a crash-loop rollback gave up) and the
-        // catches above fell through. In the latter case the earlier
-        // `.runOTA` decision is stale: the candidate no longer exists, so
-        // re-run the boot policy with NO candidate. Under a hard gate with a
-        // stale shipped bundle (below the high-water mark) that yields
-        // `.blockForUpdate` — otherwise a tampered/failed candidate would let
-        // stale JS boot and write to a newer-schema db, defeating anti-rollback
-        // (CR-17). `.disabled` has no anti-rollback by design, so it always
-        // boots shipped.
-        if updateKeyState != .disabled,
-            VersionPolicy.decide(
-                otaVersion: nil,
-                highWater: store.otaHighWater(),
-                shippedVersion: shippedBundleVersion,
-                gate: updateGate
-            ) == .blockForUpdate
-        {
-            updateRequired = true
-            return
-        }
-        try loadShipped(into: js)
-        if updateKeyState != .disabled {
-            store.setOTAHighWater(
-                VersionPolicy.bumpedHighWater(
-                    store.otaHighWater(),
-                    booted: shippedBundleVersion
-                )
-            )
         }
     }
 
-    /// The persisted OTA bundle + its version. Verified at save (the network
-    /// boundary) AND re-verified at every boot when keys are enforced
-    /// (verifyStoredRecord, NF-35); unsigned records exist only under the
-    /// explicit dev opt-in. nil if none.
-    private func otaCandidate() -> OTARecord? {
-        guard let record = loadOTARecord(), !record.js.isEmpty else { return nil }
-        return record
-    }
-
-    /// Runs the OTA bundle, preferring the on-device bytecode cache (no parser);
-    /// falls back to parsing the source if the cache is missing or stale (e.g.
-    /// the embedded quickjs-ng changed in a native release, so the cached
-    /// bytecode no longer loads).
     /// Exposes the loaded bundle's content id to JS (CX-025) so `checkForUpdate`
     /// can compare it to the server manifest's `releaseId` and detect a
     /// non-breaking fix that kept the same `version`. The id is FNV-1a hex
     /// (matching the build's `contentHash`), set BEFORE the bundle runs.
-    private func setBundleReleaseId(_ source: String, into js: JSRuntime) {
+    private static func setBundleReleaseId(_ source: String, into js: JSRuntime) {
         try? js.evaluate(
             "globalThis.__bundleReleaseId='\(ContentHash.of(source))';",
             filename: "release-id.js")
-    }
-
-    /// NF-35: with keys enforced, a stored record must re-verify at every
-    /// boot — otherwise "verified at save" silently degrades to "whoever can
-    /// write the App Group container owns the runtime". The signature covers only
-    /// the SOURCE (scheme:keyId:version:js); the on-device `.qbc` bytecode is NOT
-    /// signed, so evaluateOTA refuses to trust it under enforcement and runs the
-    /// re-verified source. Unsigned records under the explicit dev opt-in
-    /// (.disabled) skip this by design; .unconfigured/.misconfigured never reach
-    /// here for an OTA candidate (load() fails them closed to the shipped bundle).
-    private func verifyStoredRecord(_ record: OTARecord) throws {
-        guard updateKeyState == .enforced else { return }
-        guard let keyId = record.keyId, let key = updatePublicKeys[keyId],
-            let signatureB64 = record.signature,
-            let signature = Data(base64Encoded: signatureB64),
-            let message = record.signedMessage(),
-            key.isValidSignature(signature, for: message)
-        else {
-            throw OTAVerifyError.storedRecordFailedVerification
-        }
-    }
-
-    private enum OTAVerifyError: Error, CustomStringConvertible {
-        case storedRecordFailedVerification
-
-        var description: String {
-            "stored OTA record failed signature re-verification — dropped"
-        }
-    }
-
-    private func evaluateOTA(_ record: OTARecord, into js: JSRuntime) throws {
-        // Every OTA boot path (the candidate and the crash-loop known-good
-        // restore) funnels through here, so this is the one choke point.
-        try verifyStoredRecord(record)
-        setBundleReleaseId(record.js, into: js)
-        // Trust the cached App-Group bytecode ONLY when keys aren't enforced.
-        // The signature covers the SOURCE (scheme:keyId:version:js) — NOT the
-        // on-device-compiled `.qbc`, whose only integrity check is the record's
-        // OWN `bytecodeHash`, an unsigned field an App-Group writer also controls.
-        // Under enforcement, trusting that hash would let such a writer pin it to
-        // a malicious blob and run arbitrary bytecode despite a valid signature
-        // (defeats NF-35), so we always run the boot-re-verified source instead.
-        // The bytecode fast-path stays valid off-enforcement (dev/unsigned, no
-        // security claim) and for the shipped bundle (inside the signed app
-        // bundle — see loadShipped — where no untrusted writer exists).
-        if updateKeyState != .enforced,
-            let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL),
-            record.bytecodeHash == ContentHash.of(data)
-        {
-            do {
-                try js.evaluateBytecode(data)
-                return
-            } catch {
-                try? FileManager.default.removeItem(at: bcURL)  // engine-version stale
-            }
-        }
-        try js.evaluate(record.js)
     }
 
     private func loadShipped(into js: JSRuntime) throws {
@@ -1008,7 +654,7 @@ final class ReactWatchModel: ObservableObject {
         // precompiled bytecode runs below — so JS always learns its content id.
         let source = Bundle.main.url(forResource: "bundle", withExtension: "js")
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
-        if let source { setBundleReleaseId(source, into: js) }
+        if let source { Self.setBundleReleaseId(source, into: js) }
 
         if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
             let data = try? Data(contentsOf: qbc)
@@ -1073,16 +719,10 @@ final class ReactWatchModel: ObservableObject {
                     }
                     // A committed tree means the bundle booted healthily — clear
                     // the crash-loop counter so only *boot* failures accumulate
-                    // (ARCH-04). Idempotent; after the first reset it's a no-op.
-                    if self.store.otaBootAttempts() != 0 {
-                        self.store.setOTABootAttempts(0)
-                        // First healthy commit this launch: snapshot the running
-                        // OTA bundle as the known-good rollback target (no-op when
-                        // running shipped, or when the snapshot already matches).
-                        if let booted = self.bootedOTARecord {
-                            self.promoteToKnownGood(booted)
-                        }
-                    }
+                    // (ARCH-04), and snapshot the running OTA bundle as the
+                    // known-good rollback target (no-op when running shipped, or
+                    // when the snapshot already matches).
+                    self.otaSequencer.markHealthy(bootedRecord: self.bootedOTARecord)
                     if tree.seq > self.ackedSeq {
                         self.ackedSeq = tree.seq
                         self.optimistic.ack(throughSeq: tree.seq)
