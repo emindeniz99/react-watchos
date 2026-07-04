@@ -71,6 +71,19 @@ public final class WidgetIntentRuntime {
         js.onError = { print("[react-watch-widget]", $0) }
         // The intent entrypoint must not mount UI; ignore any commit.
         js.bridge.commit = { _ in }
+        // Intent-mode JS has NO timers (M1): this runtime is created, evaluated
+        // and discarded on a WidgetKit provider/intent thread, but the default
+        // timer scheduling delivers __fireTimer on MAIN — a timer armed here
+        // would fire on the wrong thread against a possibly-freed context.
+        // Widget JS is a short-lived render/intent pass; a timer could never
+        // usefully fire anyway, so refuse loudly instead of crashing later.
+        // (Full owning-queue confinement is the roadmap follow-up.)
+        js.bridge.setTimer = { id, ms in
+            print(
+                "[react-watch-widget] setTimer(\(id), \(ms)) ignored — "
+                    + "intent-mode JS has no timers")
+        }
+        js.bridge.clearTimer = { _ in }
         js.bridge.publishWidgets = { [store] json in
             store.save(json)
             WidgetIntentRuntime.invalidateCache()
