@@ -1,6 +1,7 @@
 // watchOS-only host (WatchKit/UIKit/HealthKit/SwiftUI). The #if compiles this
 // file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
 #if os(watchOS)
+import Charts
 import MapKit
 import os
 import ReactWatchCore
@@ -41,6 +42,7 @@ struct NodeView: View {
             // the prop as `true` when a handler exists) is read-only: disable it
             // so it can't show a local value React will never accept (CX-010).
             .disabled(isHandlerlessControl)
+            .modifier(LayoutModifier(node: node))
             .modifier(GlassModifier(glass: node.bool("glass") == true))
             .modifier(
                 A11yModifier(
@@ -70,11 +72,26 @@ struct NodeView: View {
     @ViewBuilder private var rendered: some View {
         switch node.type {
         case "VStack":
-            VStack(spacing: cgFloat("spacing")) { childViews }
+            VStack(
+                alignment: Self.horizontalAlignment(node.string("alignment")),
+                spacing: cgFloat("spacing")
+            ) { childViews }
         case "HStack":
-            HStack(spacing: cgFloat("spacing")) { childViews }
+            HStack(
+                alignment: Self.verticalAlignment(node.string("alignment")),
+                spacing: cgFloat("spacing")
+            ) { childViews }
         case "Text":
-            styled(Text(node.string("text") ?? ""))
+            // Rich text: element children are styled segments concatenated
+            // into ONE Text (scalar-only children folded into props.text).
+            if node.children.isEmpty {
+                styled(Text(node.string("text") ?? ""))
+            } else {
+                styled(
+                    node.children.reduce(Text(node.string("text") ?? "")) {
+                        $0 + Self.textSegment($1)
+                    })
+            }
         case "TimerText":
             timerText
         case "Button":
@@ -86,7 +103,9 @@ struct NodeView: View {
         case "Image":
             imageView
         case "ZStack":
-            ZStack { childViews }
+            ZStack(alignment: Self.zAlignment(node.string("alignment"))) {
+                childViews
+            }
         case "ScrollView":
             ScrollView { childViews }
         case "List":
@@ -109,6 +128,79 @@ struct NodeView: View {
             navigationLink
         case "NavigationRoute":
             NavigationRouteDestination(node: node)
+        case "Alert":
+            AlertNode(node: node, dialog: false)
+        case "ConfirmationDialog":
+            AlertNode(node: node, dialog: true)
+        case "AlertAction":
+            // Only meaningful as an Alert/ConfirmationDialog child, where the
+            // parent renders it as a system button; standalone it is nothing.
+            EmptyView()
+        case "Sheet":
+            SheetNode(node: node)
+        case "Section":
+            Section {
+                childViews
+            } header: {
+                if let header = node.string("header") { Text(header) }
+            } footer: {
+                if let footer = node.string("footer") { Text(footer) }
+            }
+        case "Label":
+            SwiftUI.Label(
+                node.string("label") ?? "",
+                systemImage: node.string("systemName") ?? "circle"
+            )
+            .foregroundStyle(color(node.string("color")) ?? .primary)
+        case "Grid":
+            Grid(
+                horizontalSpacing: cgFloat("horizontalSpacing"),
+                verticalSpacing: cgFloat("verticalSpacing")
+            ) {
+                ForEach(node.children.filter { $0.type == "GridRow" }) { row in
+                    GridRow {
+                        ForEach(row.children) { NodeView(node: $0) }
+                    }
+                    // The row node is expanded here rather than rendered through
+                    // NodeView, so apply its a11y explicitly or it's dropped.
+                    .modifier(
+                        A11yModifier(
+                            label: row.string("accessibilityLabel"),
+                            hint: row.string("accessibilityHint")))
+                }
+            }
+        case "GridRow":
+            // Only meaningful as a direct <Grid> child (rendered there); a
+            // stray row degrades to its cells side by side.
+            HStack { childViews }
+        case "ShareLink":
+            shareLink
+        case "Chart":
+            chartView
+        case "LabeledContent":
+            LabeledContent(node.string("label") ?? "") {
+                if node.children.isEmpty {
+                    Text(node.string("value") ?? "")
+                } else {
+                    childViews
+                }
+            }
+        case "ContentUnavailable":
+            ContentUnavailableView {
+                SwiftUI.Label(
+                    node.string("title") ?? "",
+                    systemImage: node.string("systemName") ?? "circle"
+                )
+            } description: {
+                if let description = node.string("description") {
+                    Text(description)
+                }
+            }
+        case "Toolbar":
+            ToolbarNode(node: node)
+        case "ToolbarItem":
+            // Only meaningful as a <Toolbar> child (rendered there).
+            EmptyView()
         case "TextField":
             OptimisticTextField(node: node)
         case "Picker":
@@ -127,17 +219,22 @@ struct NodeView: View {
         case "CrownRotation":
             CrownRotationView(node: node)
         case "Slider":
+            // Normalize bounds: a reversed from/through would trap building the
+            // ClosedRange and crash the whole render, not just this node.
             let lo = node.double("from") ?? 0
             let hi = node.double("through") ?? 1
+            let range = lo <= hi ? lo...hi : hi...lo
             if let step = node.double("step") {
-                Slider(value: doubleBinding, in: lo...hi, step: step)
+                Slider(value: doubleBinding, in: range, step: step)
             } else {
-                Slider(value: doubleBinding, in: lo...hi)
+                Slider(value: doubleBinding, in: range)
             }
         case "Stepper":
+            let lo = node.double("from") ?? 0
+            let hi = node.double("through") ?? 100
             Stepper(
                 value: doubleBinding,
-                in: (node.double("from") ?? 0)...(node.double("through") ?? 100),
+                in: lo <= hi ? lo...hi : hi...lo,
                 step: node.double("step") ?? 1
             ) { Text(node.string("label") ?? "") }
         case "DatePicker":
@@ -162,9 +259,31 @@ struct NodeView: View {
             action: { model.dispatch(nodeId: node.id, event: "press") }
         ) { childViews }
         if node.bool("primaryAction") == true, #available(watchOS 11.0, *) {
-            accessibleButton(button).handGestureShortcut(.primaryAction)
+            glassStyled(accessibleButton(button)).handGestureShortcut(.primaryAction)
         } else {
-            accessibleButton(button)
+            glassStyled(accessibleButton(button))
+        }
+    }
+
+    /// Liquid Glass button styles (GlassButtonStyle, verified watchOS 26.0);
+    /// a no-op on older OSes and for the default style, so the same JS runs
+    /// everywhere.
+    @ViewBuilder private func glassStyled(_ button: some View) -> some View {
+        switch node.string("buttonStyle") {
+        case "glass":
+            if #available(watchOS 26.0, *) {
+                button.buttonStyle(.glass)
+            } else {
+                button
+            }
+        case "glassProminent":
+            if #available(watchOS 26.0, *) {
+                button.buttonStyle(.glassProminent)
+            } else {
+                button
+            }
+        default:
+            button
         }
     }
 
@@ -255,6 +374,66 @@ struct NodeView: View {
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
     }
 
+    @ViewBuilder private var shareLink: some View {
+        let item = node.string("item") ?? ""
+        if node.children.isEmpty {
+            ShareLink(item: item)
+        } else {
+            ShareLink(item: item) { childViews }
+        }
+    }
+
+    /// Minimal Swift Charts binding: one mark type over one series. Points
+    /// with string `x` chart as categories; numeric/absent `x` as positions.
+    @ViewBuilder private var chartView: some View {
+        let points = RNStyle.chartPoints(from: node.props["points"])
+        let kind = node.string("type") ?? "line"
+        let seriesColor = color(node.string("color")) ?? Color.accentColor
+        Chart(Array(points.enumerated()), id: \.offset) { index, point in
+            Self.chartMark(
+                kind: kind, point: point, index: index, color: seriesColor)
+        }
+    }
+
+    /// PlottableValue is generic over the x type, so categorical (String) and
+    /// positional (Double) points branch here rather than share a variable.
+    @ChartContentBuilder private static func chartMark(
+        kind: String, point: RNStyle.ChartPoint, index: Int, color: Color
+    ) -> some ChartContent {
+        if let label = point.label {
+            switch kind {
+            case "bar":
+                BarMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "area":
+                AreaMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "point":
+                PointMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            default:
+                LineMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            }
+        } else {
+            let x = point.x ?? Double(index)
+            switch kind {
+            case "bar":
+                BarMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "area":
+                AreaMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "point":
+                PointMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            default:
+                LineMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            }
+        }
+    }
+
     /// Self-ticking label: SwiftUI updates the digits natively (no per-frame
     /// JS). `until` counts down to a deadline; otherwise count up from `since`.
     @ViewBuilder private var timerText: some View {
@@ -302,8 +481,10 @@ struct NodeView: View {
     }
 
     @ViewBuilder private var gauge: some View {
-        let min = node.double("min") ?? 0
-        let max = node.double("max") ?? 1
+        // Normalize bounds so a reversed min/max can't trap building the range.
+        let rawMin = node.double("min") ?? 0
+        let rawMax = node.double("max") ?? 1
+        let (min, max) = rawMin <= rawMax ? (rawMin, rawMax) : (rawMax, rawMin)
         let value = Swift.min(Swift.max(node.double("value") ?? 0, min), max)
         let base = Gauge(value: value, in: min...max) {
             Text(node.string("label") ?? "")
@@ -322,7 +503,34 @@ struct NodeView: View {
         RNStyle.formatValue(value)
     }
 
-    private func semanticFont(_ style: String) -> Font {
+    /// One rich-text segment (a Text child of <Text>) as a concatenable
+    /// Text — only Text-returning modifiers, and color only when the segment
+    /// sets one, so plain segments inherit the outer Text's style.
+    static func textSegment(_ node: RNNode) -> Text {
+        // Recurse: a segment with element children has text="" (serialize forces
+        // it) and carries its content as nested <Text> — fold those in first, then
+        // layer this node's own styling on top (concatenated segments keep their
+        // own attributes; this node's fill the rest).
+        var text =
+            node.children.isEmpty
+            ? Text(node.string("text") ?? "")
+            : node.children.reduce(Text(node.string("text") ?? "")) {
+                $0 + Self.textSegment($1)
+            }
+        if node.bool("bold") == true { text = text.bold() }
+        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
+        if let style = node.string("textStyle") {
+            text = text.font(semanticFont(style))
+        } else if let size = node.double("size") {
+            text = text.font(.system(size: CGFloat(size)))
+        }
+        if let color = styleColor(node.string("color")) {
+            text = text.foregroundStyle(color)
+        }
+        return text
+    }
+
+    private static func semanticFont(_ style: String) -> Font {
         switch RNStyle.fontStyle(style) {
         case .largeTitle: .largeTitle
         case .title: .title
@@ -487,11 +695,47 @@ struct NodeView: View {
     /// widget interpreter via RNStyle so the two can't drift (CX-018); this only
     /// maps the parsed value to SwiftUI.
     private func color(_ name: String?) -> Color? {
+        Self.styleColor(name)
+    }
+
+    /// Static so LayoutModifier (a separate ViewModifier) shares it.
+    static func styleColor(_ name: String?) -> Color? {
         guard let value = RNStyle.color(name) else { return nil }
         switch value {
         case .named(let named): return Self.systemColor(named)
         case .rgba(let r, let g, let b, let a):
             return Color(red: r, green: g, blue: b, opacity: a)
+        }
+    }
+
+    static func horizontalAlignment(_ name: String?) -> HorizontalAlignment {
+        switch name {
+        case "leading": .leading
+        case "trailing": .trailing
+        default: .center
+        }
+    }
+
+    static func verticalAlignment(_ name: String?) -> VerticalAlignment {
+        switch name {
+        case "top": .top
+        case "bottom": .bottom
+        case "firstTextBaseline": .firstTextBaseline
+        default: .center
+        }
+    }
+
+    static func zAlignment(_ name: String?) -> Alignment {
+        switch name {
+        case "topLeading": .topLeading
+        case "top": .top
+        case "topTrailing": .topTrailing
+        case "leading": .leading
+        case "trailing": .trailing
+        case "bottomLeading": .bottomLeading
+        case "bottom": .bottom
+        case "bottomTrailing": .bottomTrailing
+        default: .center
         }
     }
 
@@ -515,6 +759,7 @@ struct NodeView: View {
         case "black": .black
         case "primary": .primary
         case "secondary": .secondary
+        case "accentColor": .accentColor
         default: .primary
         }
     }
@@ -537,6 +782,14 @@ private struct RoutedNavigationStack: View {
                     NodeView(node: child)
                 }
             }
+            // The root route renders here, not through NodeView, so apply its
+            // a11y explicitly — mirrors NavigationRouteDestination for pushed
+            // screens (else the root screen's label/hint is dropped). No-op when
+            // there's no explicit root NavigationRoute (both nil).
+            .modifier(
+                A11yModifier(
+                    label: rootRoute?.string("accessibilityLabel"),
+                    hint: rootRoute?.string("accessibilityHint")))
             .navigationTitle(rootTitle)
             .navigationDestination(for: String.self) { route in
                 if let destination = routeNode(route) {
@@ -561,15 +814,21 @@ private struct RoutedNavigationStack: View {
             get: { pendingPath ?? controlledPath ?? localPath },
             set: { newPath in
                 let path = normalized(newPath)
+                // Controlled stacks hold the push optimistically in pendingPath
+                // until the JS ack lands; uncontrolled ones own their state in
+                // localPath. Either way, report the change to JS so its
+                // NavigationStack tracks the active route (useParams /
+                // useIsFocused) — an uncontrolled stack would otherwise leave JS
+                // pinned at "/" on every pushed screen.
                 if controlledPath != nil {
                     pendingPath = path
-                    model.dispatch(
-                        nodeId: node.id, event: "pathChange",
-                        payload: ["path": path]
-                    )
                 } else {
                     localPath = path
                 }
+                model.dispatch(
+                    nodeId: node.id, event: "pathChange",
+                    payload: ["path": path]
+                )
             }
         )
     }
@@ -624,6 +883,12 @@ private struct NavigationRouteDestination: View {
 
     var body: some View {
         content.navigationTitle(node.string("title") ?? "")
+            // The route node renders here, not through NodeView, so apply its
+            // a11y explicitly (else a pushed screen's label is dropped).
+            .modifier(
+                A11yModifier(
+                    label: node.string("accessibilityLabel"),
+                    hint: node.string("accessibilityHint")))
     }
 
     @ViewBuilder private var content: some View {
@@ -715,12 +980,15 @@ private struct CrownRotationView: View {
     @EnvironmentObject private var model: ReactWatchModel
 
     var body: some View {
-        VStack { ForEach(node.children) { NodeView(node: $0) } }
+        // Normalize bounds so a reversed from/through can't trap the crown range.
+        let lo = node.double("from") ?? 0
+        let hi = node.double("through") ?? 100
+        return VStack { ForEach(node.children) { NodeView(node: $0) } }
             .focusable()
             .digitalCrownRotation(
                 binding,
-                from: node.double("from") ?? 0,
-                through: node.double("through") ?? 100,
+                from: Swift.min(lo, hi),
+                through: Swift.max(lo, hi),
                 by: node.double("step") ?? 1,
                 sensitivity: .medium,
                 isContinuous: false,
@@ -872,6 +1140,264 @@ private struct EdgeSwipeActionModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// Screen toolbar: <ToolbarItem placement> children land in the watchOS
+/// top-bar/bottom-bar slots. Anchor-based like the presentation nodes — the
+/// .toolbar modifier just needs a view inside the navigation content.
+private struct ToolbarNode: View {
+    let node: RNNode
+
+    var body: some View {
+        Color.clear.frame(width: 0, height: 0)
+            .toolbar {
+                ToolbarItemGroup(placement: .topBarLeading) {
+                    items(in: "topBarLeading")
+                }
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    items(in: "topBarTrailing")
+                }
+                ToolbarItemGroup(placement: .bottomBar) {
+                    items(in: "bottomBar")
+                }
+            }
+    }
+
+    @ViewBuilder private func items(in placement: String) -> some View {
+        ForEach(
+            node.children.filter {
+                $0.type == "ToolbarItem" && $0.string("placement") == placement
+            }
+        ) { item in
+            ForEach(item.children) { NodeView(node: $0) }
+        }
+    }
+}
+
+/// System alert / confirmation dialog (`dialog: true`), React-controlled the
+/// same way as Toggle: `presented` is the source of truth, dismissal
+/// dispatches an optimistic change(false), and each <AlertAction> child
+/// becomes a system button whose tap dispatches press on ITS node id. The
+/// anchor is a zero-size clear view — presentation modifiers just need any
+/// view in the hierarchy.
+private struct AlertNode: View {
+    let node: RNNode
+    let dialog: Bool
+    @EnvironmentObject private var model: ReactWatchModel
+
+    var body: some View {
+        let title = node.string("title") ?? ""
+        let anchor = Color.clear.frame(width: 0, height: 0)
+        if dialog {
+            anchor.confirmationDialog(
+                title, isPresented: presentedBinding(node: node, model: model)
+            ) {
+                alertActionButtons(node: node, model: model)
+            }
+        } else {
+            anchor.alert(
+                title, isPresented: presentedBinding(node: node, model: model)
+            ) {
+                alertActionButtons(node: node, model: model)
+            } message: {
+                if let message = node.string("message") { Text(message) }
+            }
+        }
+    }
+}
+
+/// Modal sheet (full-screen on watchOS), controlled like AlertNode; the
+/// node's children are the sheet content.
+private struct SheetNode: View {
+    let node: RNNode
+    @EnvironmentObject private var model: ReactWatchModel
+
+    var body: some View {
+        Color.clear.frame(width: 0, height: 0)
+            .sheet(isPresented: presentedBinding(node: node, model: model)) {
+                ForEach(node.children) { child in
+                    NodeView(node: child)
+                }
+            }
+    }
+}
+
+/// The controlled `presented` binding shared by Alert/ConfirmationDialog/
+/// Sheet — the Toggle pattern: optimistic local value until React acks.
+@MainActor private func presentedBinding(
+    node: RNNode, model: ReactWatchModel
+) -> Binding<Bool> {
+    Binding(
+        get: {
+            // Without an onChange handler React can never observe the
+            // dismissal, so the CX-010 ack would snap `presented` back to
+            // true and the system would re-present forever. A handler-less
+            // presentation therefore never presents (the read-only rule the
+            // other controlled inputs get via .disabled).
+            guard node.bool("onChange") == true else { return false }
+            return model.optimisticBool(node.id) ?? node.bool("presented") ?? false
+        },
+        set: { newValue in
+            model.dispatchOptimistic(
+                nodeId: node.id, value: .bool(newValue),
+                payload: ["value": newValue]
+            )
+        }
+    )
+}
+
+/// <AlertAction> children -> system buttons. The system dismisses on tap
+/// (which fires the binding's change(false)); the action's own press is
+/// dispatched against the ACTION node so React runs the right handler.
+@MainActor @ViewBuilder private func alertActionButtons(
+    node: RNNode, model: ReactWatchModel
+) -> some View {
+    ForEach(node.children.filter { $0.type == "AlertAction" }) { action in
+        Button(
+            action.string("label") ?? "",
+            role: buttonRole(action.string("role"))
+        ) {
+            _ = model.dispatch(nodeId: action.id, event: "press")
+        }
+        // The action node is expanded here, not rendered through NodeView, so
+        // apply its a11y explicitly (else dropped).
+        .modifier(
+            A11yModifier(
+                label: action.string("accessibilityLabel"),
+                hint: action.string("accessibilityHint")))
+    }
+}
+
+private func buttonRole(_ name: String?) -> ButtonRole? {
+    switch name {
+    case "destructive": .destructive
+    case "cancel": .cancel
+    default: nil
+    }
+}
+
+/// Design-system Tier 1: the layout/appearance modifier props every visual
+/// node supports (padding/frame/background/cornerRadius/opacity/tint).
+/// Parsing is RNStyle (pure, Linux-tested, shared with the widget
+/// interpreter); this only maps values to SwiftUI. Application order is the
+/// documented contract in components.ts: padding -> background+cornerRadius
+/// -> frame -> opacity -> tint.
+struct LayoutModifier: ViewModifier {
+    let node: RNNode
+
+    func body(content: Content) -> some View {
+        animated(
+            content
+                .modifier(
+                    PaddingModifier(insets: RNStyle.padding(from: node.props["padding"]))
+                )
+                .modifier(
+                    BackgroundModifier(
+                        background: NodeView.styleColor(node.string("background")),
+                        cornerRadius: node.double("cornerRadius").map { CGFloat($0) }
+                    )
+                )
+                .modifier(FrameModifier(frame: RNStyle.frame(from: node.props["frame"])))
+                .opacity(node.double("opacity") ?? 1)
+                .modifier(TintModifier(tint: NodeView.styleColor(node.string("tint"))))
+        )
+    }
+
+    /// Attaches `.animation(_:value:)` ONLY when this node actually declares an
+    /// animation. An unconditional `.animation(nil, value: node)` on every node
+    /// isn't a no-op — it sets an explicit nil transaction that shadows an
+    /// ancestor's animation for the entire subtree, so a parent could never
+    /// animate its children's changes. RNNode is Equatable, so any prop/subtree
+    /// change is the trigger.
+    @ViewBuilder private func animated(_ styled: some View) -> some View {
+        if let animation = swiftUIAnimation(
+            RNStyle.animation(from: node.props["animation"]))
+        {
+            styled.animation(animation, value: node)
+        } else {
+            styled
+        }
+    }
+
+    private func swiftUIAnimation(_ spec: RNStyle.AnimationSpec?) -> Animation? {
+        guard let spec else { return nil }
+        return switch (spec.kind, spec.duration) {
+        case (.spring, let d?): .spring(duration: d)
+        case (.spring, nil): .spring
+        case (.ease, let d?): .easeInOut(duration: d)
+        case (.ease, nil): .easeInOut
+        case (.easeIn, let d?): .easeIn(duration: d)
+        case (.easeIn, nil): .easeIn
+        case (.easeOut, let d?): .easeOut(duration: d)
+        case (.easeOut, nil): .easeOut
+        case (.linear, let d?): .linear(duration: d)
+        case (.linear, nil): .linear
+        }
+    }
+}
+
+private struct PaddingModifier: ViewModifier {
+    let insets: RNStyle.Insets?
+
+    func body(content: Content) -> some View {
+        if let all = insets?.all {
+            content.padding(CGFloat(all))
+        } else if let insets, insets.horizontal != nil || insets.vertical != nil {
+            content
+                .padding(.horizontal, insets.horizontal.map { CGFloat($0) } ?? 0)
+                .padding(.vertical, insets.vertical.map { CGFloat($0) } ?? 0)
+        } else {
+            content
+        }
+    }
+}
+
+private struct BackgroundModifier: ViewModifier {
+    let background: Color?
+    let cornerRadius: CGFloat?
+
+    func body(content: Content) -> some View {
+        if let background, let cornerRadius {
+            content.background(background, in: RoundedRectangle(cornerRadius: cornerRadius))
+        } else if let background {
+            content.background(background)
+        } else if let cornerRadius {
+            // No background: clip the content itself (e.g. a remote Image).
+            content.clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        } else {
+            content
+        }
+    }
+}
+
+private struct FrameModifier: ViewModifier {
+    let frame: RNStyle.Frame?
+
+    func body(content: Content) -> some View {
+        if let frame {
+            content
+                .frame(
+                    width: frame.width.map { CGFloat($0) },
+                    height: frame.height.map { CGFloat($0) }
+                )
+                .frame(
+                    maxWidth: frame.maxWidthInfinity
+                        ? .infinity : frame.maxWidth.map { CGFloat($0) },
+                    maxHeight: frame.maxHeightInfinity
+                        ? .infinity : frame.maxHeight.map { CGFloat($0) }
+                )
+        } else {
+            content
+        }
+    }
+}
+
+private struct TintModifier: ViewModifier {
+    let tint: Color?
+
+    func body(content: Content) -> some View {
+        if let tint { content.tint(tint) } else { content }
     }
 }
 

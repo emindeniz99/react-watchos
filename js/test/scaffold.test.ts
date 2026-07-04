@@ -13,6 +13,10 @@ describe("scaffold (DX-3)", () => {
     // Non-identifier chars are stripped; an empty name falls back.
     expect(structName("My-Watch 2!")).toBe("MyWatch2App");
     expect(structName("")).toBe("ReactWatchApp");
+    // A leading digit is invalid at the head of a Swift identifier, so it's
+    // prefixed rather than emitted as an uncompilable `2WatchApp`.
+    expect(structName("2 Watch")).toBe("App2WatchApp");
+    expect(widgetStructName("2 Watch")).toBe("App2WatchWidgets");
   });
 
   it("generates a compilable @main App embedding ReactWatchRootView", () => {
@@ -23,6 +27,10 @@ describe("scaffold (DX-3)", () => {
     expect(src).toContain("import ReactWatchHost");
     expect(src).toContain("@main");
     expect(src).toContain("struct ExpoWatchApp: App {");
+    // Background-refresh delivery is wired by default (harmless if unused).
+    expect(src).toContain(
+      "@WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self)",
+    );
     // The App Group must be threaded into ReactWatchRootView verbatim.
     expect(src).toContain(
       'ReactWatchRootView(appGroupId: "group.com.example.expowatch")',

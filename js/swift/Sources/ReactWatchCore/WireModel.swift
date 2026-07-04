@@ -134,8 +134,9 @@ public enum RNWire {
 /// runs only if its required features are a subset (see CapabilityGate).
 public enum HostFeatures {
     public static let watch: Set<String> = [
-        "ai", "bluetooth", "connectivity", "core", "haptics", "network", "notifications", "ota",
-        "sensors", "storage", "widgets",
+        "ai", "audio", "background", "bluetooth", "connectivity", "core", "device", "haptics",
+        "iap", "keychain", "network", "notifications", "ota", "runtime", "sensors", "speech",
+        "storage", "widgets",
     ]
     public static let widget: Set<String> = ["core", "storage", "widgets"]
 }

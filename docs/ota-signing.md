@@ -28,9 +28,13 @@ Prints a **key id** (`kid`) plus two base64 values:
   private key.** It is the only thing that lets you ship a bundle the watch will
   run — treat it like a code-signing key.
 
-With an **empty** `signerPublicKeys` the app is *fail-open*: it loads unsigned
-bundles and logs a warning. Configure at least one key to enforce signatures +
-the anti-rollback gate.
+With an **empty** `signerPublicKeys` the app **refuses new OTA saves** (NF-29
+secure default) — an example copied without keys cannot be hijacked by whoever
+answers its manifest URL. For local development you can opt into the old
+fail-open behavior explicitly with `OTAConfig(allowUnsignedUpdates: true)`
+(unsigned bundles load with a loud warning); never ship a release with it set.
+Configure at least one key to enforce signatures + the anti-rollback gate —
+keys always win over the opt-in.
 
 ### Key rotation (CX-007)
 
@@ -93,3 +97,26 @@ won't boot at all (it shows a native "update required" screen, recoverable via
 `OTASigningInteropTests` (Swift) verifies a Node-produced signature with
 CryptoKit over `UpdatePlan.signedMessage`, so the signer and the verifier can't
 silently drift apart.
+
+## Threat-model note: the manifest itself is NOT signed (freeze exposure)
+
+The signature covers `v1:<keyId>:<version>:<bundle-js>` — the **bundle
+content and its compatibility version**, which is what stops in-sandbox RCE
+and version swaps. The **manifest JSON is not signed**, so an on-path
+attacker who can answer the manifest URL cannot inject code, but CAN:
+
+- serve a stale manifest forever (a **freeze/suppression attack** — clients
+  report "up to date" while a real fix exists), or
+- flip `requiredFeatures`/`minBridgeProtocol` to make the gate stricter and
+  suppress an applicable update the same way.
+
+Neither path executes code (a tampered bundle URL still fails signature
+verification, and NF-32 makes a malformed manifest throw loudly instead of
+reading as "up to date"). Stored records are also re-verified at every boot
+when keys are enforced (NF-35), so even an actor who can write the App Group
+container cannot swap in unsigned code. Mitigations, in order of value: serve the manifest
+over HTTPS from an origin you control (the baseline assumption), keep
+manifest cache times short, and monitor fleet version/releaseId telemetry for
+staleness. Signing the manifest body is the structural fix if the freeze
+risk ever matters for your deployment — pre-release, extending
+`signedMessage` to cover it is a schema change away.

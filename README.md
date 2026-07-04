@@ -37,10 +37,14 @@ ecosystem libraries won't run here — and the component vocabulary is
 SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `TimerText`, `Button`,
 `Toggle`, `Spacer`, `Image`, `ScrollView`, `List`, `Divider`, `Gauge`,
 `ProgressView`, `NavigationStack`, `NavigationRoute`, `NavigationLink`, `TextField`,
-`Picker`, `TabView`), with SwiftUI layout rather than flexbox. Beyond
+`Picker`, `TabView`, `Alert`, `ConfirmationDialog`, `Sheet`, `Section`,
+`Label`, `Grid`, `ShareLink`, `Chart`, `LabeledContent`,
+`ContentUnavailable`, `Toolbar`), with SwiftUI layout rather than flexbox. Beyond
 views there's `Storage` (App Group UserDefaults), `playHaptic`,
 `scheduleNotification` (local notifications with permission request and
-cancel), `registerNativeListener` (instant native→React pushes), widget
+cancel), `registerNativeListener` (instant native→React pushes),
+`getDeviceInfo`, `Keychain`, `speak` (TTS), `scheduleBackgroundRefresh`,
+extended-runtime sessions, StoreKit 2 in-app purchase, widget
 timelines, and control intents — all bridged through the same
 registered-message host surface.
 
@@ -95,6 +99,23 @@ live instances. Same producer/consumer pattern as
 [react-tvml](https://github.com/sergioramos/react-tvml), and Raycast
 (whose extension architecture is reviewed in
 [docs/research.md](./docs/research.md)).
+
+## Theming (semantic tokens)
+
+Tokens resolve in JS — the wire and the Swift interpreter only ever see
+concrete values, so theming needs no native code and is fully testable off-
+device. `defaultTheme` uses SwiftUI semantic colors + Dynamic-Type text
+styles, so zero config already looks native; `createTheme` overrides one
+section at a time.
+
+```tsx
+const t = useTheme(); // wrap the app in <ThemeProvider theme={createTheme(...)}> to customize
+<VStack spacing={t.space.sm} padding={t.space.md}
+        background={t.colors.surface} cornerRadius={t.radius.md}>
+  <Text {...t.text.title}>Water</Text>
+  <Text {...t.text.muted}>2 of 8 glasses</Text>
+</VStack>
+```
 
 ## Navigation & deep links
 
@@ -349,9 +370,10 @@ this is needed — it's specific to linked local packages.
   are excluded so it never fights codegen. Non-null assertions and `any` are
   allowed only under `test/**`.
 - **Swift** contract tests build in Swift 6 language mode (strict
-  concurrency) with `-warnings-as-errors`. `.swiftformat` + `.swiftlint.yml`
-  cover the watch/widget targets and run on the macOS workflow (SourceKit
-  isn't available on the Linux CI).
+  concurrency) with `-warnings-as-errors`. Codegen formats generated Swift
+  with Apple's `swift format` (`.swift-format`); the macOS workflow
+  additionally lints with SwiftFormat + SwiftLint (`.swiftlint.yml`) —
+  SourceKit isn't available on the Linux CI.
 
 With `npm run dev` running, DEBUG builds of the watch app poll the dev
 server every 2s and hot-restart the QuickJS runtime when the bundle
@@ -409,7 +431,10 @@ signing still untested — Rule 12):**
 ## Limitations (honest list)
 
 - **Not RN core.** No RN components, no RN ecosystem libraries, no Yoga
-  flexbox. Eighteen SwiftUI-like primitives.
+  flexbox. Thirty-nine SwiftUI-like primitives, each accepting shared
+  layout-modifier props (`padding`, `frame`, `background`,
+  `cornerRadius`, `opacity`, `tint`, per-node `animation`, and stack
+  `alignment`).
 - **Controls require watchOS 26**; gated with `#available`, everything
   else runs on watchOS 10+.
 - **Input round-trips**: Toggle/Picker/TextField keep optimistic local
@@ -428,8 +453,10 @@ signing still untested — Rule 12):**
   work; don't mine bitcoin in `useEffect`.
 - Full-tree commits: ideal for watch-sized screens; large lists would want
   the diffing optimization noted in docs/research.md.
-- Bundle is ~460KB unminified (minify would roughly halve it); QuickJS
-  itself adds ~1MB of code — comfortably inside the watch app budget.
+- Demo app bundle is ~555KB unminified / ~174KB minified (CI enforces a
+  200KB minified budget; the widget bundle is 144KB against 160KB);
+  QuickJS itself adds ~1MB of code — comfortably inside the watch app
+  budget.
 
 ## Notes / learnings
 
@@ -452,12 +479,14 @@ signing still untested — Rule 12):**
   so React's scheduler captures `setTimeout` at module init — the QuickJS
   shims are therefore force-prepended via esbuild's `inject` option
   (`scripts/config.mjs`), not by import-order convention.
-- The build runs the **React Compiler** (`babel-plugin-react-compiler`) over
-  our source via an esbuild plugin (`scripts/react-compiler-plugin.mjs`).
-  Auto-memoization means React re-renders less and emits fewer commits —
-  fewer serialize/decode trips across the bridge, compounding with the
-  renderer's no-op-commit bailout. React 19 ships the compiler runtime, so
-  it adds ~7 KB minified and no new runtime dependency.
+- The build runs the **React Compiler** (`babel-plugin-react-compiler`) —
+  a published preset flag, so consumers get it too:
+  `watchBuildOptions({ reactCompiler: true })` (needs the Babel dev deps —
+  see `esbuild/react-compiler.mjs`; the demo and the expo example both
+  enable it). Auto-memoization means React re-renders less and emits fewer
+  commits — fewer serialize/decode trips across the bridge, compounding
+  with the renderer's wire-identical commit skip. React 19 ships the
+  compiler runtime, so it adds ~7 KB minified and no new runtime dependency.
 - `npm run build:bytecode` precompiles the bundle to QuickJS bytecode
   (`bundle.qbc`) so cold start skips the parser — the watch-sized analog of
   Hermes AOT. The watch/widget runtimes load `.qbc` if present and fall back

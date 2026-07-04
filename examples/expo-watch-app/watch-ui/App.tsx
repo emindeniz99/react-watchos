@@ -7,6 +7,7 @@ import {
   sendToPhone,
   Storage,
   Text,
+  useTheme,
   VStack,
 } from "react-native-watchos";
 
@@ -57,34 +58,26 @@ export function App() {
       setOtaStatus("update check failed");
     }
   };
+  // Theme tokens instead of magic numbers: spacing from the scale, text
+  // variants (Dynamic Type via textStyle, never fixed sizes) — the default
+  // theme needs no ThemeProvider. This is the pattern to copy.
+  const t = useTheme();
   return (
-    <VStack spacing={6}>
-      <Text bold size={16}>
-        From phone
-      </Text>
-      <Text size={12} color="secondary">
-        {fromPhone}
-      </Text>
+    <VStack spacing={t.space.sm}>
+      <Text {...t.text.headline}>From phone</Text>
+      <Text {...t.text.muted}>{fromPhone}</Text>
       <Button onPress={ping}>
         <Text>Ping phone</Text>
       </Button>
-      {sendStatus ? (
-        <Text size={12} color="secondary">
-          {sendStatus}
-        </Text>
-      ) : null}
+      {sendStatus ? <Text {...t.text.muted}>{sendStatus}</Text> : null}
       <Button onPress={checkForUpdate}>
         <Text>Check for update</Text>
       </Button>
-      {otaStatus ? (
-        <Text size={12} color="secondary">
-          {otaStatus}
-        </Text>
-      ) : null}
+      {otaStatus ? <Text {...t.text.muted}>{otaStatus}</Text> : null}
       <Button onPress={bump}>
         <Text>Tap +1 (updates widget)</Text>
       </Button>
-      <Text size={12} color="secondary">
+      <Text {...t.text.muted}>
         Taps: {taps} — live on the "taps" complication
       </Text>
     </VStack>

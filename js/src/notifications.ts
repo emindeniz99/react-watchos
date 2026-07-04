@@ -1,5 +1,9 @@
 import { getHost } from "./host";
-import { type InvokeError, invoke } from "./invoke";
+import {
+  type InvokeError,
+  invoke,
+  USER_MEDIATED_INVOKE_TIMEOUT_MS,
+} from "./invoke";
 
 /**
  * Local notifications scheduled from React, delivered by the watch even
@@ -44,8 +48,13 @@ export type NotificationPermission =
  */
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
   try {
+    // The native request blocks on the user answering the system permission
+    // sheet, which routinely outlasts the default 30 s watchdog — bound it at
+    // the user-mediated ceiling so a deliberating user isn't mistaken for a hang.
     return await invoke<NotificationPermission>(
       "requestNotificationPermission",
+      undefined,
+      { timeoutMs: USER_MEDIATED_INVOKE_TIMEOUT_MS },
     );
   } catch (error) {
     if ((error as InvokeError).code === "UNAVAILABLE") return "unavailable";

@@ -1,7 +1,6 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { watchBuildOptions } from "../esbuild/preset.mjs";
-import { reactCompilerPlugin } from "./react-compiler-plugin.mjs";
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -69,13 +68,14 @@ export const bundleVersion = 1;
 export function buildOptions({ minify = false, target = targets[0] } = {}) {
   const otaUrl = process.env.REACT_WATCH_OTA_URL ?? "";
   // The demo build is the shared QuickJS preset (shim inject, es2020,
-  // neutral IIFE) plus the React Compiler plugin, which auto-memoizes our
-  // components (fewer re-renders -> fewer commits). Runs before bundling.
+  // neutral IIFE) with the React Compiler enabled — the same published flag
+  // consumers use (NF-28), auto-memoizing components so React re-renders
+  // less and emits fewer commits. Runs before bundling.
   const options = watchBuildOptions({
     entry: target.entry,
     outfile: target.outfile,
     minify,
-    plugins: [reactCompilerPlugin()],
+    reactCompiler: true,
   });
   options.define = {
     ...options.define,

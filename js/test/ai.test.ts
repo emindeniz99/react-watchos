@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateText, isOnDeviceAIAvailable } from "../src/index";
 import { installMockHost } from "./helpers";
 
@@ -44,6 +44,20 @@ describe("on-device AI (generateText)", () => {
 
   it("rejects when on-device AI is unavailable", async () => {
     await expect(generateText("hi")).rejects.toThrow(/unavailable/);
+  });
+
+  it("rejects (never hangs) if native accepts but never replies (CX-022)", async () => {
+    vi.useFakeTimers();
+    try {
+      installMockHost(); // generate mock records the call but never settles
+      const expectation = expect(generateText("hi")).rejects.toThrow(
+        /no native reply/,
+      );
+      await vi.advanceTimersByTimeAsync(60_000);
+      await expectation;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // CX-002 capability query: a runtime availability check (distinct from the

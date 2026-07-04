@@ -62,7 +62,13 @@ public struct CoordinatedCounterStore: Sendable {
         ensureDirectory(url.deletingLastPathComponent())
         var result = min
         coordinatedWrite(url) { current in
-            result = Self.clamp((current ?? 0) + delta, min: min, max: max)
+            // Saturate BEFORE clamping: Swift's `+` traps on overflow, so a huge
+            // delta or a corrupt/oversized file value would crash the process
+            // (both the app and the widget extension run this) instead of
+            // bounding to the range. addingReportingOverflow never traps.
+            let (sum, overflowed) = (current ?? 0).addingReportingOverflow(delta)
+            let saturated = overflowed ? (delta > 0 ? Int.max : Int.min) : sum
+            result = Self.clamp(saturated, min: min, max: max)
             return result
         }
         return result

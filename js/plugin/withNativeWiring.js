@@ -36,7 +36,20 @@ function mergeTargetInfoPlists(projectRoot) {
     const infoPlist = config.infoPlist;
     if (!infoPlist || Object.keys(infoPlist).length === 0) continue;
     const plistPath = path.join(projectRoot, "targets", dir, "Info.plist");
-    if (!fs.existsSync(plistPath)) continue;
+    if (!fs.existsSync(plistPath)) {
+      // A target that DECLARES infoPlist keys but has no generated Info.plist
+      // means apple-targets' write ordering changed under us. Silently
+      // skipping would ship a build missing keys like
+      // WKRunsIndependentlyOfCompanionApp or the deep-link URL scheme, which
+      // only resurfaces as baffling runtime behavior — fail the prebuild
+      // loudly instead (NF-31, same policy as the SwiftPM link).
+      throw new Error(
+        `[react-native-watchos] targets/${dir}/expo-target.config.js declares ` +
+          "infoPlist keys, but apple-targets wrote no Info.plist at " +
+          `${plistPath} — @bacons/apple-targets ordering may have changed; ` +
+          "pin it to a tested version (see the plugin's peerDependencies).",
+      );
+    }
     const current = plist.parse(fs.readFileSync(plistPath, "utf8"));
     const before = plist.build(current);
     const after = plist.build(deepMerge(current, infoPlist));

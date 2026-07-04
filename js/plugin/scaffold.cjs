@@ -8,7 +8,10 @@
 /** The identifier core of a target name ("Expo Watch" -> "ExpoWatch"),
  *  falling back to "ReactWatch" when the name has no identifier characters. */
 function identifierBase(name) {
-  return String(name).replace(/[^A-Za-z0-9]/g, "") || "ReactWatch";
+  const base = String(name).replace(/[^A-Za-z0-9]/g, "") || "ReactWatch";
+  // A Swift identifier can't start with a digit ("2Watch" -> invalid @main
+  // struct name), so prefix one when the surviving head is numeric.
+  return /^[0-9]/.test(base) ? `App${base}` : base;
 }
 
 /** A valid Swift type name derived from the target name.
@@ -35,8 +38,16 @@ import SwiftUI
 // the native bridges all live in the package.
 @main
 struct ${structName(name)}: App {
+    // Forwards background-refresh tasks (scheduleBackgroundRefresh) to JS's
+    // onBackgroundRefresh. Harmless if you never schedule one.
+    @WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
+            // OTA updates are refused until you trust a signing key (secure
+            // default). Your build script prints the dev key line on first
+            // build; production keys come from 'npm run ota:keygen':
+            //   ota: .init(signerPublicKeys: ["<keyId>": "<publicKeyBase64>"])
             ReactWatchRootView(appGroupId: "${appGroupId}")
         }
     }
@@ -64,6 +75,16 @@ import WidgetKit
 // reactSnapshotEntry helpers — see the demo (app/targets/widget) and the README.
 @main
 struct ${widgetStructName(name)}: WidgetBundle {
+    init() {
+        // OTA trust for the widget (NF-35): the widget re-verifies the known-good
+        // bundle it renders. Trust the SAME keys your watch app passes to
+        // ReactWatchRootView(ota:) — until then the widget shows the shipped
+        // bundle and won't run an OTA bundle it can't verify (secure default):
+        //   ReactWatchWidgetOTA.configure(signerPublicKeys: ["<keyId>": "<publicKeyBase64>"])
+        // For unsigned dev updates (matching allowUnsignedUpdates on the app):
+        //   ReactWatchWidgetOTA.configure(allowUnsignedUpdates: true)
+    }
+
     var body: some Widget {
         ExampleWidget()
     }

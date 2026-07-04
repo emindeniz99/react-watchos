@@ -43,6 +43,22 @@ describe("ErrorBoundary", () => {
     expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
   });
 
+  it("surfaces the React componentStack to onError", () => {
+    // The component stack is the 'where did it break' signal a dev overlay /
+    // remote inspector needs — the boundary must forward it, not drop it.
+    const onError = vi.fn();
+    const host = new MemoryHost();
+    new WatchRoot(host).render(
+      <ErrorBoundary fallback={<Text>recovered</Text>} onError={onError}>
+        <Boom />
+      </ErrorBoundary>,
+    );
+    const info = onError.mock.calls[0][1];
+    expect(typeof info.componentStack).toBe("string");
+    // The failing component appears in the stack React hands us.
+    expect(info.componentStack).toContain("Boom");
+  });
+
   it("passes the error to a function fallback", () => {
     const host = new MemoryHost();
     new WatchRoot(host).render(
@@ -51,6 +67,21 @@ describe("ErrorBoundary", () => {
       </ErrorBoundary>,
     );
     expect(host.lastCommit!.root!.props.text).toBe("oops: kaboom");
+  });
+
+  it("gives the function fallback the componentStack after componentDidCatch", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(
+      <ErrorBoundary
+        fallback={(e, info) =>
+          <Text>{`${e.message}@${info?.componentStack ? "Boom" : "none"}`}</Text>
+        }
+      >
+        <Boom />
+      </ErrorBoundary>,
+    );
+    // The re-render triggered by componentDidCatch's setState carries the stack.
+    expect(host.lastCommit!.root!.props.text).toBe("kaboom@Boom");
   });
 
   it("renders children normally when nothing throws", () => {

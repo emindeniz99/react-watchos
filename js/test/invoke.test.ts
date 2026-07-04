@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "../src/invoke";
 import { installMockHost } from "./helpers";
 
@@ -29,6 +29,19 @@ describe("invoke channel (SD-1)", () => {
     });
   });
 
+  it("rejects a non-serializable payload with INVALID_REQUEST and never dispatches", async () => {
+    // A circular ref (or BigInt) makes JSON.stringify throw. That must reject
+    // cleanly BEFORE arming the pending entry + 30s timer, so nothing leaks and
+    // native is never called (CX-022 no-leak).
+    const host = installMockHost();
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+    await expect(invoke("saveUpdate", circular)).rejects.toMatchObject({
+      code: "INVALID_REQUEST",
+    });
+    expect(host.invoke).not.toHaveBeenCalled();
+  });
+
   it("settles exactly once — a duplicate native reply is ignored", async () => {
     const host = installMockHost();
     let capturedId = 0;
@@ -44,5 +57,67 @@ describe("invoke channel (SD-1)", () => {
         '"second"',
       ),
     ).not.toThrow();
+  });
+});
+
+describe("invoke timeout net (NF-01)", () => {
+  it("rejects INTERNAL when native accepts the call but never replies", async () => {
+    vi.useFakeTimers();
+    try {
+      const host = installMockHost();
+      host.invoke.mockImplementation(() => {
+        // Native accepted the invoke and then dropped it on the floor.
+      });
+      const promise = invoke("requestNotificationPermission");
+      const assertion = expect(promise).rejects.toMatchObject({
+        code: "INTERNAL",
+        message: expect.stringContaining("no native reply"),
+      });
+      await vi.advanceTimersByTimeAsync(30_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a settle before the deadline cancels the timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const host = installMockHost();
+      host.invoke.mockImplementation((id: number) => {
+        (g.__resolveInvoke as (i: number, j: string) => void)(id, '"ok"');
+      });
+      await expect(invoke("requestNotificationPermission")).resolves.toBe("ok");
+      // Advancing past the deadline must not surface a late rejection.
+      await vi.advanceTimersByTimeAsync(60_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a custom timeoutMs overrides the default watchdog", async () => {
+    // User-mediated ops (permission/purchase) block on a system sheet and pass a
+    // longer bound, so they must NOT reject at the 30 s default — only at theirs.
+    vi.useFakeTimers();
+    try {
+      const host = installMockHost();
+      host.invoke.mockImplementation(() => {
+        // Native accepted and is waiting on the user; no reply yet.
+      });
+      const promise = invoke("purchase", { productId: "p" }, {
+        timeoutMs: 5 * 60_000,
+      });
+      const assertion = expect(promise).rejects.toMatchObject({
+        code: "INTERNAL",
+        message: expect.stringContaining("300000ms"),
+      });
+      // Past the default deadline: still pending (a deliberating user isn't a hang).
+      await vi.advanceTimersByTimeAsync(30_000);
+      // Only its own longer deadline settles it.
+      await vi.advanceTimersByTimeAsync(5 * 60_000 - 30_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

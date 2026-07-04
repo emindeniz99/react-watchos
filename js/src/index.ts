@@ -5,6 +5,18 @@ import { WatchRoot } from "./renderer";
 
 export type { GenerateOptions } from "./ai";
 export { generateText, isOnDeviceAIAvailable } from "./ai";
+export type { PlayAudioOptions } from "./audio";
+export {
+  AUDIO_FINISHED_EVENT,
+  onAudioFinished,
+  playAudio,
+  stopAudio,
+} from "./audio";
+export {
+  BACKGROUND_REFRESH_EVENT,
+  onBackgroundRefresh,
+  scheduleBackgroundRefresh,
+} from "./background";
 export type { BleState, BleWriteOptions } from "./bluetooth";
 export {
   BLE_NOTIFY_EVENT,
@@ -17,13 +29,23 @@ export {
   onBleState,
 } from "./bluetooth";
 export type {
+  AlertActionProps,
+  AlertProps,
   ButtonProps,
+  ChartPoint,
+  ChartProps,
+  ConfirmationDialogProps,
+  ContentUnavailableProps,
   CrownRotationProps,
   DatePickerProps,
   DividerProps,
   GaugeProps,
+  GridProps,
+  GridRowProps,
   HStackProps,
   ImageProps,
+  LabeledContentProps,
+  LabelProps,
   ListProps,
   MapAnnotation,
   MapProps,
@@ -33,6 +55,9 @@ export type {
   PickerProps,
   ProgressViewProps,
   ScrollViewProps,
+  SectionProps,
+  ShareLinkProps,
+  SheetProps,
   SliderProps,
   SpacerProps,
   StepperProps,
@@ -42,23 +67,37 @@ export type {
   TextProps,
   TimerTextProps,
   ToggleProps,
+  ToolbarItemProps,
+  ToolbarProps,
   VStackProps,
   ZStackProps,
 } from "./components";
 export {
+  Alert,
+  AlertAction,
   Button,
+  Chart,
+  ConfirmationDialog,
+  ContentUnavailable,
   CrownRotation,
   DatePicker,
   Divider,
   Gauge,
+  Grid,
+  GridRow,
   HStack,
   Image,
+  Label,
+  LabeledContent,
   List,
   MapView,
   NavigationLink,
   Picker,
   ProgressView,
   ScrollView,
+  Section,
+  ShareLink,
+  Sheet,
   Slider,
   Spacer,
   Stepper,
@@ -67,6 +106,8 @@ export {
   TextField,
   TimerText,
   Toggle,
+  Toolbar,
+  ToolbarItem,
   VStack,
   ZStack,
 } from "./components";
@@ -77,7 +118,17 @@ export {
   PHONE_MESSAGE_EVENT,
   sendToPhone,
 } from "./connectivity";
+export type { DeviceInfo } from "./device";
+export { enableWaterLock, getDeviceInfo } from "./device";
 export { ErrorBoundary } from "./errorBoundary";
+export {
+  onRuntimeSessionState,
+  onRuntimeSessionWillExpire,
+  RUNTIME_STATE_EVENT,
+  RUNTIME_WILL_EXPIRE_EVENT,
+  startExtendedRuntimeSession,
+  stopExtendedRuntimeSession,
+} from "./extendedRuntime";
 export { Headers } from "./fetch";
 export { WIRE_VERSION } from "./generated/wire";
 export type { HapticType } from "./haptics";
@@ -90,8 +141,16 @@ export type {
   WatchEvent,
 } from "./host";
 export { getHost, MemoryHost } from "./host";
-export type { InspectorOptions } from "./inspector";
+export type { IAPProduct, PurchaseResult } from "./iap";
 export {
+  currentEntitlements,
+  getProducts,
+  purchase,
+  restorePurchases,
+} from "./iap";
+export type { InspectorError, InspectorOptions } from "./inspector";
+export {
+  captureError,
   captureLog,
   inspectorSnapshot,
   startInspector,
@@ -103,6 +162,7 @@ export {
   registerIntent,
   unregisterAllIntents,
 } from "./intents";
+export { Keychain } from "./keychain";
 export type { NativeEventHandler, Unsubscribe } from "./nativeEvents";
 export {
   dispatchNativeEvent,
@@ -156,7 +216,16 @@ export {
   startSensor,
   stopSensor,
 } from "./sensors";
+export type { SpeakOptions } from "./speech";
+export {
+  onSpeechFinished,
+  SPEECH_FINISHED_EVENT,
+  speak,
+  stopSpeaking,
+} from "./speech";
 export { Storage } from "./storage";
+export type { TextVariant, ThemeOverrides, WatchTheme } from "./theme";
+export { createTheme, defaultTheme, ThemeProvider, useTheme } from "./theme";
 export {
   applyUpdate,
   BUNDLE_VERSION,

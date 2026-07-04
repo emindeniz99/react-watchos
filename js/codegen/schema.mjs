@@ -46,7 +46,10 @@ export const components = [
   { name: "Spacer", widget: "full" },
   { name: "Divider", widget: "full" },
   { name: "Text", widget: "full" },
-  { name: "TimerText", widget: "full" },
+  // degraded, not full: the `milliseconds` mode falls back to seconds in a
+  // widget — WidgetKit timelines can't live-tick sub-second (see the widget
+  // interpreter's timerText). Plain mm:ss timers render fully.
+  { name: "TimerText", widget: "degraded" },
   { name: "Image", widget: "full" },
   { name: "Map", widget: "degraded" },
   { name: "Gauge", widget: "full" },
@@ -62,6 +65,23 @@ export const components = [
   { name: "NavigationStack", widget: "degraded" },
   { name: "NavigationLink", widget: "degraded" },
   { name: "NavigationRoute", widget: "degraded" },
+  // Presentation surfaces (system-presented; widgets can't present -> degraded
+  // to nothing) + grouping/label primitives.
+  { name: "Alert", widget: "degraded" },
+  { name: "AlertAction", widget: "degraded" },
+  { name: "ConfirmationDialog", widget: "degraded" },
+  { name: "Sheet", widget: "degraded" },
+  { name: "Section", widget: "degraded" },
+  { name: "Label", widget: "full" },
+  // Layout/data-display vocabulary (watchOS 9/10 APIs within the v10 floor).
+  { name: "Grid", widget: "full" },
+  { name: "GridRow", widget: "full" },
+  { name: "ShareLink", widget: "degraded" },
+  { name: "Chart", widget: "full" },
+  { name: "LabeledContent", widget: "full" },
+  { name: "ContentUnavailable", widget: "full" },
+  { name: "Toolbar", widget: "degraded" },
+  { name: "ToolbarItem", widget: "degraded" },
 ];
 
 /** Plain structs, rendered for both Swift and TS from `fields`. */
@@ -433,6 +453,131 @@ export const hostMethods = [
     name: "aiAvailability",
     targets: ["watch"],
     feature: "ai",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Device info (WKInterfaceDevice): a snapshot query; battery + wrist
+  //     changes stream on the push channel (device.battery / device.wrist). ---
+  {
+    name: "getDeviceInfo",
+    targets: ["watch"],
+    feature: "device",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "enableWaterLock",
+    targets: ["watch"],
+    feature: "device",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Background app refresh: schedule a wake-up; the fire arrives on the
+  //     push channel as `backgroundRefresh`. ---
+  {
+    name: "scheduleBackgroundRefresh",
+    targets: ["watch"],
+    feature: "background",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Extended runtime session (WKExtendedRuntimeSession): keep running
+  //     briefly after backgrounding; state on `runtimeSession.*` push events. ---
+  {
+    name: "startExtendedRuntimeSession",
+    targets: ["watch"],
+    feature: "runtime",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "stopExtendedRuntimeSession",
+    targets: ["watch"],
+    feature: "runtime",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Keychain secure storage (Security framework), distinct from Storage's
+  //     App-Group UserDefaults: for tokens/secrets. ---
+  {
+    name: "keychainSet",
+    targets: ["watch"],
+    feature: "keychain",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "keychainGet",
+    targets: ["watch"],
+    feature: "keychain",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "keychainDelete",
+    targets: ["watch"],
+    feature: "keychain",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Speech synthesis (AVSpeechSynthesizer): speak/stop; completion on the
+  //     push channel as `speech.finished`. ---
+  {
+    name: "speak",
+    targets: ["watch"],
+    feature: "speech",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "stopSpeaking",
+    targets: ["watch"],
+    feature: "speech",
+    since: 1,
+    via: "invoke",
+  },
+  // --- Audio playback (AVAudioPlayer over AVAudioSession .playback):
+  //     play a sound from an https URL; completion on `audio.finished`. ---
+  {
+    name: "playAudio",
+    targets: ["watch"],
+    feature: "audio",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "stopAudio",
+    targets: ["watch"],
+    feature: "audio",
+    since: 1,
+    via: "invoke",
+  },
+  // --- In-app purchase (StoreKit 2). ---
+  {
+    name: "getProducts",
+    targets: ["watch"],
+    feature: "iap",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "purchase",
+    targets: ["watch"],
+    feature: "iap",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "currentEntitlements",
+    targets: ["watch"],
+    feature: "iap",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "restorePurchases",
+    targets: ["watch"],
+    feature: "iap",
     since: 1,
     via: "invoke",
   },

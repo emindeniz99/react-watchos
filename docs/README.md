@@ -79,9 +79,30 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   seam, why it's deferred (no failing scenario today), and the shape to build.
 
 - [code-review-2026-06-27-deep-dive.md](./code-review-2026-06-27-deep-dive.md) — adversarially-verified code+design+DX review (64 confirmed findings; the blocker is fixed).
+- [code-review-2026-07-02-self-review-cycles.md](./code-review-2026-07-02-self-review-cycles.md) — three adversarial self-review cycles over the session's blind-written Swift/JS (capability, render-pipeline, core); 20 confirmed+fixed so far incl. a critical Swift-6 compile break.
+- [system-architecture-review-2026-07-01-alternatives.md](./system-architecture-review-2026-07-01-alternatives.md) —
+  full-system review + strategic alternatives (NF-01…36): engine
+  (quickjs-ng vs XS/Moddable vs Hermes, argued in depth), UI model (React
+  vs SolidJS/signals — verdict: the wire protocol is the real seam),
+  design-system layer spec, and a prioritized P0–P2 plan.
+- [full-project-review-2026-07-04.md](./full-project-review-2026-07-04.md) —
+  **the production-readiness review** (all 8 dimensions, adversarially
+  verified): 4 blockers (dark CI pipeline, npm name taken, widget-runtime
+  deadlock, Swift-6 compile breakers), 19 confirmed majors, per-dimension
+  scorecard, ordered action plan, and roadmap. Newest review; supersedes
+  earlier ones where they disagree.
 
 ## Reference / background
 
+- [launch-checklist.md](./launch-checklist.md) — pre-marketing gates with
+  honest statuses (engineering, release, security posture, claims discipline).
+- [performance-measurement.md](./performance-measurement.md) — how to measure
+  CPU/memory/render/energy: the `tools/embed-smoke` engine harness (runs on CI),
+  `os_signpost`, Instruments on a physical watch, and why MetricKit is
+  phone-only. Read before making any perf/battery claim.
+- [announcement-draft.md](./announcement-draft.md) — launch copy (short post,
+  blog outline, prewritten FAQ) written against the checklist's claims lists;
+  bracketed gates must clear before publishing.
 - [status.md](./status.md) — verified current capabilities (the "is it real?"
   matrix; superseding "shipped" claims elsewhere).
 - [roadmap.md](./roadmap.md), [publishing.md](./publishing.md),

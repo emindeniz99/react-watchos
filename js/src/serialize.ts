@@ -2,9 +2,13 @@ import { WIRE_VERSION } from "./generated/wire";
 import type { SerializedNode, SerializedTree } from "./host";
 import type { Container, Instance } from "./renderer";
 
-function textContent(children: unknown): string {
-  if (children == null) return "";
+export function textContent(children: unknown): string {
+  // Match React: null/undefined/booleans render as nothing, so the idiomatic
+  // `{cond && "…"}` guard folds to "" (not the literal "false") when cond is off.
+  if (children == null || typeof children === "boolean") return "";
   if (Array.isArray(children)) return children.map(textContent).join("");
+  // Element children (rich text) serialize as child nodes, not folded text.
+  if (typeof children === "object") return "";
   return String(children);
 }
 
@@ -17,7 +21,12 @@ export function serializeInstance(instance: Instance): SerializedNode {
     props[key] = typeof value === "function" ? true : value;
   }
   if (instance.type === "Text") {
-    props.text = textContent(instance.props.children);
+    // Rich text: with element children every segment (raw strings included)
+    // is a child instance — folding here too would render the scalars twice.
+    props.text =
+      instance.children.length === 0
+        ? textContent(instance.props.children)
+        : "";
   }
   return {
     id: instance.id,

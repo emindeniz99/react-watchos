@@ -1,4 +1,5 @@
 import Foundation
+import ReactWatchCore
 
 /// Pure, SwiftUI-free parsing of the styling props shared by the app interpreter
 /// (NodeView) and the widget interpreter (WidgetNodeView). Keeping this in one
@@ -18,7 +19,7 @@ public enum RNStyle {
     public static let namedColors: Set<String> = [
         "red", "orange", "yellow", "green", "mint", "teal", "cyan", "blue",
         "indigo", "purple", "pink", "brown", "white", "gray", "black",
-        "primary", "secondary",
+        "primary", "secondary", "accentColor",
     ]
 
     /// Resolves a `color` prop: a known name, or `#RRGGBB`/`#RRGGBBAA` hex.
@@ -73,5 +74,144 @@ public enum RNStyle {
         let seconds = (totalMs / 1000) % 60
         let millis = totalMs % 1000
         return String(format: "%02d:%02d.%03d", minutes, seconds, millis)
+    }
+}
+
+// MARK: - Layout modifiers (design-system Tier 1)
+
+extension RNStyle {
+    /// Parsed `padding` prop: a scalar (`padding={8}`) applies to all edges;
+    /// an object (`padding={{horizontal: 8, vertical: 2}}`) per axis.
+    public struct Insets: Equatable, Sendable {
+        public let all: Double?
+        public let horizontal: Double?
+        public let vertical: Double?
+
+        public init(all: Double? = nil, horizontal: Double? = nil, vertical: Double? = nil) {
+            self.all = all
+            self.horizontal = horizontal
+            self.vertical = vertical
+        }
+    }
+
+    public static func padding(from value: JSONValue?) -> Insets? {
+        switch value {
+        case .number(let n):
+            return Insets(all: n)
+        case .object(let fields):
+            let h = fields["horizontal"].flatMap(Self.number)
+            let v = fields["vertical"].flatMap(Self.number)
+            if h == nil && v == nil { return nil }
+            return Insets(horizontal: h, vertical: v)
+        default:
+            return nil
+        }
+    }
+
+    /// Parsed `frame` prop. `maxWidth`/`maxHeight` accept the string
+    /// `"infinity"` (SwiftUI's `.frame(maxWidth: .infinity)` fill idiom).
+    public struct Frame: Equatable, Sendable {
+        public let width: Double?
+        public let height: Double?
+        public let maxWidth: Double?
+        public let maxHeight: Double?
+        public let maxWidthInfinity: Bool
+        public let maxHeightInfinity: Bool
+
+        public init(
+            width: Double? = nil, height: Double? = nil,
+            maxWidth: Double? = nil, maxHeight: Double? = nil,
+            maxWidthInfinity: Bool = false, maxHeightInfinity: Bool = false
+        ) {
+            self.width = width
+            self.height = height
+            self.maxWidth = maxWidth
+            self.maxHeight = maxHeight
+            self.maxWidthInfinity = maxWidthInfinity
+            self.maxHeightInfinity = maxHeightInfinity
+        }
+
+        public var isEmpty: Bool {
+            width == nil && height == nil && maxWidth == nil && maxHeight == nil
+                && !maxWidthInfinity && !maxHeightInfinity
+        }
+    }
+
+    public static func frame(from value: JSONValue?) -> Frame? {
+        guard case .object(let fields)? = value else { return nil }
+        let frame = Frame(
+            width: fields["width"].flatMap(Self.number),
+            height: fields["height"].flatMap(Self.number),
+            maxWidth: fields["maxWidth"].flatMap(Self.number),
+            maxHeight: fields["maxHeight"].flatMap(Self.number),
+            maxWidthInfinity: fields["maxWidth"] == .string("infinity"),
+            maxHeightInfinity: fields["maxHeight"] == .string("infinity")
+        )
+        return frame.isEmpty ? nil : frame
+    }
+
+    /// Parsed `animation` prop: how this node's changes animate
+    /// (`.animation(_:value:)` in the app interpreter; widgets are static
+    /// snapshots, so the widget interpreter ignores it by design).
+    public struct AnimationSpec: Equatable, Sendable {
+        public enum Kind: String, Sendable {
+            case spring
+            case ease
+            case easeIn
+            case easeOut
+            case linear
+        }
+
+        public let kind: Kind
+        /// Seconds; nil = the kind's SwiftUI default.
+        public let duration: Double?
+
+        public init(kind: Kind, duration: Double? = nil) {
+            self.kind = kind
+            self.duration = duration
+        }
+    }
+
+    public static func animation(from value: JSONValue?) -> AnimationSpec? {
+        guard case .object(let fields)? = value,
+            case .string(let kindName)? = fields["kind"],
+            let kind = AnimationSpec.Kind(rawValue: kindName)
+        else { return nil }
+        return AnimationSpec(
+            kind: kind, duration: fields["duration"].flatMap(Self.number))
+    }
+
+    /// One <Chart> data point: `y` is required; `x` is either a numeric
+    /// position or a category label (strings chart as discrete categories).
+    public struct ChartPoint: Equatable, Sendable {
+        public let x: Double?
+        public let label: String?
+        public let y: Double
+
+        public init(x: Double? = nil, label: String? = nil, y: Double) {
+            self.x = x
+            self.label = label
+            self.y = y
+        }
+    }
+
+    /// Parses a <Chart> `points` prop; malformed entries are dropped (a chart
+    /// with a bad point renders the rest, matching Map's annotation policy).
+    public static func chartPoints(from value: JSONValue?) -> [ChartPoint] {
+        guard case .array(let entries)? = value else { return [] }
+        return entries.compactMap { entry in
+            guard case .object(let fields) = entry,
+                let y = fields["y"].flatMap(Self.number)
+            else { return nil }
+            if case .string(let label)? = fields["x"] {
+                return ChartPoint(label: label, y: y)
+            }
+            return ChartPoint(x: fields["x"].flatMap(Self.number), y: y)
+        }
+    }
+
+    private static func number(_ value: JSONValue) -> Double? {
+        if case .number(let n) = value { return n }
+        return nil
     }
 }

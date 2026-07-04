@@ -1,4 +1,5 @@
 #if os(watchOS)
+import Charts
 import ReactWatchCore
 import ReactWatchSupport
 import SwiftUI
@@ -39,7 +40,10 @@ public struct WidgetNodeView: View {
 
     public var body: some View {
         if let node {
-            applyA11y(render(node), node)
+            // Same wrapping order as the app's NodeView chain (layout inner,
+            // a11y outermost), so the accessibility element spans the padded/
+            // filled region in both interpreters.
+            applyA11y(applyLayout(render(node), node), node)
         } else {
             // Placeholder/redacted state before the app publishes data.
             Image(systemName: "drop")
@@ -62,16 +66,65 @@ public struct WidgetNodeView: View {
         }
     }
 
+    /// Design-system Tier 1 parity with NodeView.LayoutModifier — same props,
+    /// same RNStyle parsing, same application order (padding -> background +
+    /// cornerRadius -> frame -> opacity -> tint).
+    @ViewBuilder private func applyLayout(
+        _ content: some View, _ node: RNNode
+    ) -> some View {
+        let insets = RNStyle.padding(from: node.props["padding"])
+        let frame = RNStyle.frame(from: node.props["frame"])
+        let background = color(node.string("background"))
+        let radius = node.double("cornerRadius").map { CGFloat($0) }
+        let tint = color(node.string("tint"))
+        padded(content, insets)
+            .modifier(WidgetBackground(background: background, cornerRadius: radius))
+            .modifier(WidgetFrame(frame: frame))
+            .opacity(node.double("opacity") ?? 1)
+            .modifier(WidgetTint(tint: tint))
+    }
+
+    @ViewBuilder private func padded(
+        _ content: some View, _ insets: RNStyle.Insets?
+    ) -> some View {
+        if let all = insets?.all {
+            content.padding(CGFloat(all))
+        } else if let insets, insets.horizontal != nil || insets.vertical != nil {
+            content
+                .padding(.horizontal, insets.horizontal.map { CGFloat($0) } ?? 0)
+                .padding(.vertical, insets.vertical.map { CGFloat($0) } ?? 0)
+        } else {
+            content
+        }
+    }
+
     @ViewBuilder private func render(_ node: RNNode) -> some View {
         switch node.type {
         case "VStack":
-            VStack(spacing: cgFloat(node, "spacing")) { children(node) }
+            VStack(
+                alignment: horizontalAlignment(node.string("alignment")),
+                spacing: cgFloat(node, "spacing")
+            ) { children(node) }
         case "HStack":
-            HStack(spacing: cgFloat(node, "spacing")) { children(node) }
+            HStack(
+                alignment: verticalAlignment(node.string("alignment")),
+                spacing: cgFloat(node, "spacing")
+            ) { children(node) }
         case "ZStack":
-            ZStack { children(node) }
+            ZStack(alignment: zAlignment(node.string("alignment"))) {
+                children(node)
+            }
         case "Text":
-            styled(node, Text(node.string("text") ?? ""))
+            // Rich text parity with NodeView: element children concatenate
+            // into one Text, each segment styled independently.
+            if node.children.isEmpty {
+                styled(node, Text(node.string("text") ?? ""))
+            } else {
+                styled(
+                    node, node.children.reduce(Text(node.string("text") ?? "")) {
+                        $0 + textSegment($1)
+                    })
+            }
         case "TimerText":
             timerText(node)
         case "Image":
@@ -96,22 +149,110 @@ public struct WidgetNodeView: View {
             gauge(node)
         case "ProgressView":
             if let value = node.double("value") {
-                ProgressView(value: value, total: node.double("total") ?? 1)
+                ProgressView(value: value, total: node.double("total") ?? 1) {
+                    Text(node.string("label") ?? "")
+                }
             } else {
                 ProgressView()
             }
         // Interactive/navigation nodes degrade to their content.
         case "Button":
             button(node)
-        case "NavigationStack", "NavigationLink", "NavigationRoute",
-            "ScrollView", "List", "TabView", "CrownRotation":
+        case "NavigationStack":
+            // Match the watch: only the root ("/") route renders inline; other
+            // routes are off-screen destinations and must not leak into the
+            // complication (widget has no navigation).
+            navigationStackRoot(node)
+        case "NavigationLink":
+            // Mirror NodeView.navigationLinkLabel: the label-based form (no
+            // children) must still show its visible text.
+            if let label = node.string("label") {
+                Text(label)
+            } else if node.children.isEmpty {
+                Text(node.string("to") ?? "")
+            } else {
+                children(node)
+            }
+        case "NavigationRoute", "ScrollView", "List", "TabView", "CrownRotation":
             children(node)
+        // Widgets cannot present anything — presentation surfaces degrade to
+        // nothing (their content only exists while presented in the app).
+        case "Alert", "AlertAction", "ConfirmationDialog", "Sheet":
+            EmptyView()
+        case "Section":
+            // Degraded grouping: header text above the rows, no List styling.
+            VStack(alignment: .leading, spacing: 2) {
+                if let header = node.string("header") {
+                    Text(header).font(.footnote).foregroundStyle(.secondary)
+                }
+                children(node)
+                if let footer = node.string("footer") {
+                    Text(footer).font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+        case "Label":
+            SwiftUI.Label(
+                node.string("label") ?? "",
+                systemImage: node.string("systemName") ?? "circle"
+            )
+            .foregroundStyle(color(node.string("color")) ?? .primary)
+        case "Grid":
+            Grid(
+                horizontalSpacing: cgFloat(node, "horizontalSpacing"),
+                verticalSpacing: cgFloat(node, "verticalSpacing")
+            ) {
+                ForEach(node.children.filter { $0.type == "GridRow" }) { row in
+                    // The row node is expanded here, not rendered through
+                    // WidgetNodeView, so apply its a11y explicitly (else dropped).
+                    applyA11y(
+                        GridRow {
+                            ForEach(row.children) { child in
+                                WidgetNodeView(node: child, appGroupId: appGroupId)
+                            }
+                        }, row)
+                }
+            }
+        case "GridRow":
+            HStack { children(node) }
+        case "ShareLink":
+            // Widgets can't present a share sheet: degrade to the label.
+            if node.children.isEmpty {
+                Image(systemName: "square.and.arrow.up")
+            } else {
+                children(node)
+            }
+        case "Chart":
+            chart(node)
+        case "LabeledContent":
+            LabeledContent(node.string("label") ?? "") {
+                if node.children.isEmpty {
+                    Text(node.string("value") ?? "")
+                } else {
+                    children(node)
+                }
+            }
+        case "ContentUnavailable":
+            ContentUnavailableView {
+                SwiftUI.Label(
+                    node.string("title") ?? "",
+                    systemImage: node.string("systemName") ?? "circle"
+                )
+            } description: {
+                if let description = node.string("description") {
+                    Text(description)
+                }
+            }
+        case "Toolbar", "ToolbarItem":
+            // No toolbar chrome in a widget.
+            EmptyView()
         case "Toggle":
             Text(node.string("label") ?? "")
         case "Slider", "Stepper":
-            // Read-only in widgets: show the value as a fraction.
+            // Read-only in widgets: show the value as a fraction. Defaults mirror
+            // the app interpreter — Slider spans 0...1, Stepper 0...100 — so the
+            // implicit-range fraction reads the same in both.
             let lo = node.double("from") ?? 0
-            let hi = node.double("through") ?? 1
+            let hi = node.double("through") ?? (node.type == "Stepper" ? 100 : 1)
             let v = node.double("value") ?? 0
             ProgressView(value: max(0, min(1, hi > lo ? (v - lo) / (hi - lo) : 0)))
         case "DatePicker":
@@ -137,6 +278,33 @@ public struct WidgetNodeView: View {
         ForEach(node.children) { child in
             WidgetNodeView(node: child, appGroupId: appGroupId)
         }
+    }
+
+    /// The root ("/") route's content of a NavigationStack, mirroring the watch's
+    /// RoutedNavigationStack.rootChildren: render only the root route (destination
+    /// routes stay hidden), or the non-route children when there is no explicit
+    /// root NavigationRoute.
+    @ViewBuilder private func navigationStackRoot(_ node: RNNode) -> some View {
+        let routes = node.children.filter { $0.type == "NavigationRoute" }
+        if let root = routes.first(where: {
+            normalizedPath($0.string("path") ?? "/") == "/"
+        }) {
+            // The root route renders its children directly here, so apply the
+            // route node's own a11y (matches the app's RoutedNavigationStack;
+            // else the root screen's label/hint is dropped in the widget).
+            applyA11y(children(root), root)
+        } else {
+            ForEach(node.children.filter { $0.type != "NavigationRoute" }) {
+                child in
+                WidgetNodeView(node: child, appGroupId: appGroupId)
+            }
+        }
+    }
+
+    /// Path normalization matching NodeView.normalized(_ route:).
+    private func normalizedPath(_ route: String) -> String {
+        if route.isEmpty || route == "/" { return "/" }
+        return route.hasPrefix("/") ? route : "/\(route)"
     }
 
     /// An interactive widget button (watchOS 11+): a tap runs the React intent
@@ -189,6 +357,71 @@ public struct WidgetNodeView: View {
         return text.foregroundStyle(color(node.string("color")) ?? .primary)
     }
 
+    /// Minimal Swift Charts binding, parity with NodeView.chartView.
+    @ViewBuilder private func chart(_ node: RNNode) -> some View {
+        let points = RNStyle.chartPoints(from: node.props["points"])
+        let kind = node.string("type") ?? "line"
+        let seriesColor = color(node.string("color")) ?? Color.accentColor
+        Chart(Array(points.enumerated()), id: \.offset) { index, point in
+            Self.chartMark(
+                kind: kind, point: point, index: index, color: seriesColor)
+        }
+    }
+
+    @ChartContentBuilder private static func chartMark(
+        kind: String, point: RNStyle.ChartPoint, index: Int, color: Color
+    ) -> some ChartContent {
+        if let label = point.label {
+            switch kind {
+            case "bar":
+                BarMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "area":
+                AreaMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "point":
+                PointMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            default:
+                LineMark(x: .value("x", label), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            }
+        } else {
+            let x = point.x ?? Double(index)
+            switch kind {
+            case "bar":
+                BarMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "area":
+                AreaMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            case "point":
+                PointMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            default:
+                LineMark(x: .value("x", x), y: .value("y", point.y))
+                    .foregroundStyle(color)
+            }
+        }
+    }
+
+    /// One rich-text segment as a concatenable Text — color only when the
+    /// segment sets one, so plain segments inherit the outer style.
+    private func textSegment(_ node: RNNode) -> Text {
+        var text = Text(node.string("text") ?? "")
+        if node.bool("bold") == true { text = text.bold() }
+        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
+        if let style = node.string("textStyle") {
+            text = text.font(semanticFont(style))
+        } else if let size = node.double("size") {
+            text = text.font(.system(size: CGFloat(size)))
+        }
+        if let segmentColor = color(node.string("color")) {
+            text = text.foregroundStyle(segmentColor)
+        }
+        return text
+    }
+
     private func semanticFont(_ style: String) -> Font {
         switch RNStyle.fontStyle(style) {
         case .largeTitle: .largeTitle
@@ -205,7 +438,11 @@ public struct WidgetNodeView: View {
     }
 
     /// Auto-updating timer label; valid in widgets (Text(timerInterval:) is
-    /// one of the few views WidgetKit ticks without a timeline reload).
+    /// one of the few views WidgetKit ticks without a timeline reload). The
+    /// `milliseconds` mode is deliberately NOT honored here: WidgetKit can't
+    /// live-tick sub-second, so a frozen ms snapshot would show stale digits —
+    /// the widget degrades to the clean seconds-granularity timer instead
+    /// (TimerText is `widget: "degraded"` in the contract for this reason).
     @ViewBuilder private func timerText(_ node: RNNode) -> some View {
         if let until = node.double("until") {
             let end = Date(timeIntervalSince1970: until / 1000)
@@ -270,6 +507,7 @@ public struct WidgetNodeView: View {
         case "black": .black
         case "primary": .primary
         case "secondary": .secondary
+        case "accentColor": .accentColor
         default: .primary
         }
     }
@@ -291,4 +529,83 @@ public struct WidgetNodeView: View {
         view
     }
 }
+private func horizontalAlignment(_ name: String?) -> HorizontalAlignment {
+    switch name {
+    case "leading": .leading
+    case "trailing": .trailing
+    default: .center
+    }
+}
+
+private func verticalAlignment(_ name: String?) -> VerticalAlignment {
+    switch name {
+    case "top": .top
+    case "bottom": .bottom
+    case "firstTextBaseline": .firstTextBaseline
+    default: .center
+    }
+}
+
+private func zAlignment(_ name: String?) -> Alignment {
+    switch name {
+    case "topLeading": .topLeading
+    case "top": .top
+    case "topTrailing": .topTrailing
+    case "leading": .leading
+    case "trailing": .trailing
+    case "bottomLeading": .bottomLeading
+    case "bottom": .bottom
+    case "bottomTrailing": .bottomTrailing
+    default: .center
+    }
+}
+
+private struct WidgetBackground: ViewModifier {
+    let background: Color?
+    let cornerRadius: CGFloat?
+
+    func body(content: Content) -> some View {
+        if let background, let cornerRadius {
+            content.background(
+                background, in: RoundedRectangle(cornerRadius: cornerRadius))
+        } else if let background {
+            content.background(background)
+        } else if let cornerRadius {
+            content.clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        } else {
+            content
+        }
+    }
+}
+
+private struct WidgetFrame: ViewModifier {
+    let frame: RNStyle.Frame?
+
+    func body(content: Content) -> some View {
+        if let frame {
+            content
+                .frame(
+                    width: frame.width.map { CGFloat($0) },
+                    height: frame.height.map { CGFloat($0) }
+                )
+                .frame(
+                    maxWidth: frame.maxWidthInfinity
+                        ? .infinity : frame.maxWidth.map { CGFloat($0) },
+                    maxHeight: frame.maxHeightInfinity
+                        ? .infinity : frame.maxHeight.map { CGFloat($0) }
+                )
+        } else {
+            content
+        }
+    }
+}
+
+private struct WidgetTint: ViewModifier {
+    let tint: Color?
+
+    func body(content: Content) -> some View {
+        if let tint { content.tint(tint) } else { content }
+    }
+}
+
 #endif

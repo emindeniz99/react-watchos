@@ -529,6 +529,8 @@ final class CapabilityGateTests: XCTestCase {
 final class RNStyleTests: XCTestCase {
     func testNamedColor() {
         XCTAssertEqual(RNStyle.color("green"), .named("green"))
+        // The theme layer's default accent (Tier 2) must stay resolvable.
+        XCTAssertEqual(RNStyle.color("accentColor"), .named("accentColor"))
     }
 
     func testHexColor6And8Digits() {
@@ -735,33 +737,58 @@ final class SharedWidgetStoreTests: XCTestCase {
 }
 
 // CX-003: a configured-but-malformed signing key must not silently degrade to
-// fail-open. The pure classifier keeps the three states distinct; the host wires
+// fail-open. The pure classifier keeps the states distinct; the host wires
 // `.misconfigured` to "refuse all OTA loudly" and `.disabled` to fail-open.
 final class OTAKeyStateTests: XCTestCase {
-    func testNoKeysConfiguredIsDisabled() {
+    func testNoKeysWithoutOptInIsUnconfigured() {
+        // NF-29: the zero-config default is secure — no keys and no explicit
+        // opt-in refuses new OTA saves instead of silently loading unsigned.
         XCTAssertEqual(
-            OTAKeyState.classify(configuredCount: 0, validCount: 0), .disabled)
+            OTAKeyState.classify(configuredCount: 0, validCount: 0, allowUnsigned: false),
+            .unconfigured)
+    }
+
+    func testNoKeysWithOptInIsDisabled() {
+        // Dev fail-open requires the explicit allowUnsignedUpdates opt-in.
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 0, validCount: 0, allowUnsigned: true),
+            .disabled)
+    }
+
+    func testOptInIsIgnoredOnceKeysAreConfigured() {
+        // Configured keys always enforce; the dev opt-in can't weaken them.
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 2, validCount: 2, allowUnsigned: true),
+            .enforced)
     }
 
     func testAllKeysValidEnforces() {
         XCTAssertEqual(
-            OTAKeyState.classify(configuredCount: 2, validCount: 2), .enforced)
+            OTAKeyState.classify(configuredCount: 2, validCount: 2, allowUnsigned: false),
+            .enforced)
     }
 
     func testSomeValidStillEnforces() {
         // A partially-bad keyset still enforces on its valid keys (the bad one is
         // dropped + warned) — only an ALL-bad keyset is misconfigured.
         XCTAssertEqual(
-            OTAKeyState.classify(configuredCount: 2, validCount: 1), .enforced)
+            OTAKeyState.classify(configuredCount: 2, validCount: 1, allowUnsigned: false),
+            .enforced)
     }
 
     func testConfiguredButNoneValidIsMisconfigured() {
         // The CX-003 trap: keys were set (enforcement intended) but every one
-        // failed to decode — must be fail-closed, NOT the same as `.disabled`.
+        // failed to decode — must be fail-closed, NOT the same as `.disabled`,
+        // and the dev opt-in must not soften it either.
         XCTAssertEqual(
-            OTAKeyState.classify(configuredCount: 1, validCount: 0), .misconfigured)
+            OTAKeyState.classify(configuredCount: 1, validCount: 0, allowUnsigned: false),
+            .misconfigured)
+        XCTAssertEqual(
+            OTAKeyState.classify(configuredCount: 1, validCount: 0, allowUnsigned: true),
+            .misconfigured)
         XCTAssertNotEqual(
-            OTAKeyState.classify(configuredCount: 1, validCount: 0), .disabled)
+            OTAKeyState.classify(configuredCount: 1, validCount: 0, allowUnsigned: false),
+            .disabled)
     }
 }
 
@@ -815,6 +842,23 @@ final class CoordinatedCounterStoreTests: XCTestCase {
         XCTAssertEqual(store.add(-8, toKey: "g", min: 0, max: 8), 0)
     }
 
+    func testAddSaturatesInsteadOfTrappingOnOverflow() {
+        // A huge delta or a corrupt/oversized stored value must clamp to the
+        // range, never trap the process on Int overflow (both app + widget
+        // extension run this — ARCH-05). The old `(current) + delta` before the
+        // clamp would crash here.
+        let (store, dir) = tempStore()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        // Seed at Int.max, then a positive add overflows Int -> clamps to max.
+        XCTAssertEqual(
+            store.add(Int.max, toKey: "g", min: 0, max: Int.max), Int.max)
+        XCTAssertEqual(store.add(1, toKey: "g", min: 0, max: 8), 8)
+        // Symmetric underflow: seed Int.min, a negative add underflows -> min.
+        XCTAssertEqual(
+            store.add(Int.min, toKey: "h", min: Int.min, max: 0), Int.min)
+        XCTAssertEqual(store.add(-1, toKey: "h", min: 0, max: 8), 0)
+    }
+
     func testKeysAreIsolated() {
         let (store, dir) = tempStore()
         defer { try? FileManager.default.removeItem(at: dir) }
@@ -842,7 +886,9 @@ final class WidgetBundleChoiceTests: XCTestCase {
 
     func testNoKnownGoodRecordFallsBackToShipped() {
         XCTAssertEqual(
-            WidgetBundleChoice.decide(knownGood: nil, bytecodeHashMatches: true),
+            WidgetBundleChoice.decide(
+                knownGood: nil, bytecodeHashMatches: true,
+                keyState: .disabled, recordVerified: false),
             .shipped)
     }
 
@@ -850,20 +896,51 @@ final class WidgetBundleChoiceTests: XCTestCase {
         // A record with no source is unusable — don't run an empty bundle.
         XCTAssertEqual(
             WidgetBundleChoice.decide(
-                knownGood: record(""), bytecodeHashMatches: true),
+                knownGood: record(""), bytecodeHashMatches: true,
+                keyState: .disabled, recordVerified: false),
             .shipped)
     }
 
     func testRunsPinnedBytecodeOnlyWhenHashMatches() {
+        // .disabled = the unsigned dev opt-in, so the app-promoted record runs.
         XCTAssertEqual(
             WidgetBundleChoice.decide(
-                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true),
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true,
+                keyState: .disabled, recordVerified: false),
             .knownGoodBytecode)
         // Stale/absent bytecode → parse the source, never run unpinned bytecode.
         XCTAssertEqual(
             WidgetBundleChoice.decide(
-                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: false),
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: false,
+                keyState: .disabled, recordVerified: false),
             .knownGoodSource)
+    }
+
+    func testEnforcedRunsKnownGoodOnlyWhenSignatureVerifies() {
+        // NF-35: with keys enforced, the App-Group known-good record must
+        // re-verify in the extension. Verified → run it...
+        XCTAssertEqual(
+            WidgetBundleChoice.decide(
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true,
+                keyState: .enforced, recordVerified: true),
+            .knownGoodBytecode)
+        // ...unverified (attacker-overwritten record) → shipped, NOT the record.
+        XCTAssertEqual(
+            WidgetBundleChoice.decide(
+                knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true,
+                keyState: .enforced, recordVerified: false),
+            .shipped)
+    }
+
+    func testMisconfiguredOrUnconfiguredKeysFailClosedToShipped() {
+        // No usable key to authenticate the record → never run it.
+        for state in [OTAKeyState.misconfigured, .unconfigured] {
+            XCTAssertEqual(
+                WidgetBundleChoice.decide(
+                    knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true,
+                    keyState: state, recordVerified: false),
+                .shipped)
+        }
     }
 
     func testKnownGoodFilesAreDistinctFromTheActiveOnes() {
@@ -871,5 +948,119 @@ final class WidgetBundleChoiceTests: XCTestCase {
         // ones — a swap would make a crash-looping bundle brick the complication.
         XCTAssertNotEqual(OTAFiles.knownGoodRecord, OTAFiles.activeRecord)
         XCTAssertNotEqual(OTAFiles.knownGoodBytecode, OTAFiles.activeBytecode)
+    }
+}
+
+// Design-system Tier 1: pure parsing for the layout-modifier props
+// (padding/frame), shared by NodeView and WidgetNodeView via RNStyle so the
+// two interpreters can't drift (the CX-018 lesson).
+final class RNStyleModifierTests: XCTestCase {
+    func testScalarPaddingAppliesToAllEdges() {
+        XCTAssertEqual(
+            RNStyle.padding(from: .number(8)), RNStyle.Insets(all: 8))
+    }
+
+    func testObjectPaddingPerAxis() {
+        XCTAssertEqual(
+            RNStyle.padding(from: .object(["horizontal": .number(8), "vertical": .number(2)])),
+            RNStyle.Insets(horizontal: 8, vertical: 2))
+        XCTAssertEqual(
+            RNStyle.padding(from: .object(["horizontal": .number(6)])),
+            RNStyle.Insets(horizontal: 6))
+    }
+
+    func testMalformedPaddingIsNil() {
+        XCTAssertNil(RNStyle.padding(from: nil))
+        XCTAssertNil(RNStyle.padding(from: .string("8")))
+        XCTAssertNil(RNStyle.padding(from: .object(["top": .number(1)])))
+    }
+
+    func testFrameParsesNumbersAndInfinity() {
+        let frame = RNStyle.frame(
+            from: .object([
+                "width": .number(40), "maxWidth": .string("infinity"),
+            ]))
+        XCTAssertEqual(frame?.width, 40)
+        XCTAssertEqual(frame?.maxWidthInfinity, true)
+        XCTAssertNil(frame?.maxWidth)
+        XCTAssertNil(frame?.height)
+    }
+
+    func testEmptyOrMalformedFrameIsNil() {
+        XCTAssertNil(RNStyle.frame(from: nil))
+        XCTAssertNil(RNStyle.frame(from: .number(40)))
+        XCTAssertNil(RNStyle.frame(from: .object(["width": .string("40")])))
+    }
+}
+
+final class RNStyleAnimationTests: XCTestCase {
+    func testParsesKindAndDuration() {
+        XCTAssertEqual(
+            RNStyle.animation(
+                from: .object(["kind": .string("spring"), "duration": .number(0.3)])),
+            RNStyle.AnimationSpec(kind: .spring, duration: 0.3))
+        XCTAssertEqual(
+            RNStyle.animation(from: .object(["kind": .string("linear")])),
+            RNStyle.AnimationSpec(kind: .linear))
+    }
+
+    func testMalformedAnimationIsNil() {
+        XCTAssertNil(RNStyle.animation(from: nil))
+        XCTAssertNil(RNStyle.animation(from: .string("spring")))
+        XCTAssertNil(RNStyle.animation(from: .object(["kind": .string("bounce")])))
+        XCTAssertNil(RNStyle.animation(from: .object(["duration": .number(1)])))
+    }
+}
+
+// NF-35: the stored record's signedMessage must be byte-identical to
+// UpdatePlan's, or save-time verification and boot-time re-verification
+// could accept different bytes.
+final class OTARecordSignedMessageTests: XCTestCase {
+    func testMatchesUpdatePlanFormat() {
+        let record = OTARecord(
+            js: "globalThis.x=1", keyId: "abc123", version: 4, signature: "s")
+        let plan = UpdatePlan(
+            payload: #"{"js":"globalThis.x=1","keyId":"abc123","version":4}"#)
+        XCTAssertEqual(record.signedMessage(), plan.signedMessage())
+        XCTAssertEqual(
+            record.signedMessage(),
+            Data("v1:abc123:4:globalThis.x=1".utf8))
+    }
+
+    func testUnsignedOrInvalidRecordsHaveNoMessage() {
+        XCTAssertNil(
+            OTARecord(js: "x", keyId: nil, version: 1, signature: nil)
+                .signedMessage())
+        XCTAssertNil(
+            OTARecord(js: "x", keyId: "abc123", version: nil, signature: nil)
+                .signedMessage())
+        XCTAssertNil(
+            OTARecord(js: "x", keyId: "bad:colon", version: 1, signature: nil)
+                .signedMessage())
+    }
+}
+
+final class RNStyleChartTests: XCTestCase {
+    func testParsesNumericAndCategoricalPoints() {
+        let points = RNStyle.chartPoints(
+            from: .array([
+                .object(["x": .number(1), "y": .number(10)]),
+                .object(["x": .string("Mon"), "y": .number(3)]),
+            ]))
+        XCTAssertEqual(points, [
+            RNStyle.ChartPoint(x: 1, y: 10),
+            RNStyle.ChartPoint(label: "Mon", y: 3),
+        ])
+    }
+
+    func testDropsMalformedPointsKeepsRest() {
+        let points = RNStyle.chartPoints(
+            from: .array([
+                .object(["x": .number(1)]),  // no y -> dropped
+                .string("junk"),
+                .object(["y": .number(5)]),  // x optional (index-less)
+            ]))
+        XCTAssertEqual(points, [RNStyle.ChartPoint(y: 5)])
+        XCTAssertEqual(RNStyle.chartPoints(from: nil), [])
     }
 }

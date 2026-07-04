@@ -19,6 +19,8 @@ final class FetchPlanTests: XCTestCase {
         XCTAssertEqual(plan.request.httpMethod, "POST")
         XCTAssertEqual(plan.request.value(forHTTPHeaderField: "X-A"), "1")
         XCTAssertEqual(plan.request.httpBody, Data("hello".utf8))
+        // NF-34: hung sockets bound at 30s, not URLSession's 60s default.
+        XCTAssertEqual(plan.request.timeoutInterval, 30)
     }
 
     func testNoBodyOrHeaders() throws {

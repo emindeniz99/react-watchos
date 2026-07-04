@@ -8,7 +8,7 @@ import {
 } from "react-reconciler/constants";
 import { dispatchToInstance } from "./events";
 import type { HostBridge, SerializedTree, WatchEvent } from "./host";
-import { serializeTree } from "./serialize";
+import { serializeTree, textContent } from "./serialize";
 
 export interface Instance {
   id: number;
@@ -16,6 +16,9 @@ export interface Instance {
   props: Record<string, unknown>;
   children: Instance[];
   container: Container;
+  /** True for a raw text segment React created inside a rich <Text> — only
+   *  ever legal as a Text child (guarded at every attach point). */
+  rawText?: boolean;
 }
 
 export interface Container {
@@ -24,6 +27,10 @@ export interface Container {
   nextId: number;
   /** Highest event seq processed; acked on every commit (tree.seq). */
   lastSeq: number;
+  /** True when a mutation since the last serialize changed what the wire
+   *  would carry (NF-21) — lets onCommit skip the O(tree) serialize +
+   *  stringify for effect-only or value-identical commits entirely. */
+  dirty: boolean;
   onCommit: () => void;
 }
 
@@ -36,6 +43,45 @@ function insertInto(list: Instance[], child: Instance, before: Instance): void {
   removeFrom(list, child);
   const index = list.indexOf(before);
   list.splice(index < 0 ? list.length : index, 0, child);
+}
+
+/** A React element child (vs a scalar) — the rich-text trigger. */
+function hasElementChild(children: unknown): boolean {
+  if (Array.isArray(children)) return children.some(hasElementChild);
+  return typeof children === "object" && children !== null;
+}
+
+/** Raw text segments are only legal under a <Text> parent (fail loud). */
+function assertTextParent(parent: Instance, child: Instance): void {
+  if (child.rawText && parent.type !== "Text") {
+    throw new Error("Raw text must be wrapped in a <Text> element");
+  }
+}
+
+/**
+ * Whether two props objects serialize to the same wire bytes (NF-21):
+ * `children` is structural (folded to `text` only for Text), functions
+ * collapse to `true`, `undefined` values are omitted. Non-scalar values
+ * compare by identity — a fresh array/object counts as changed
+ * (conservative: never skips a real change, may serialize needlessly).
+ */
+function wirePropsEqual(
+  type: string,
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): boolean {
+  if (a !== b) {
+    for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+      if (key === "children") continue;
+      const av = typeof a[key] === "function" ? true : a[key];
+      const bv = typeof b[key] === "function" ? true : b[key];
+      if (av === undefined && bv === undefined) continue;
+      if (!Object.is(av, bv)) return false;
+    }
+  }
+  if (type === "Text")
+    return textContent(a.children) === textContent(b.children);
+  return true;
 }
 
 let currentUpdatePriority: number = NoEventPriority;
@@ -87,35 +133,74 @@ const hostConfig = {
     rootContainer.instances.set(instance.id, instance);
     return instance;
   },
-  createTextInstance(): never {
-    throw new Error("Raw text must be wrapped in a <Text> element");
+  // Rich text: a raw string inside a mixed <Text> becomes a Text segment
+  // instance. It is only legal under a Text parent — enforced at the attach
+  // points below, where the parent is known (createTextInstance isn't told).
+  createTextInstance(text: string, rootContainer: Container): Instance {
+    const instance: Instance = {
+      id: rootContainer.nextId++,
+      type: "Text",
+      props: { children: text },
+      children: [],
+      container: rootContainer,
+      rawText: true,
+    };
+    rootContainer.instances.set(instance.id, instance);
+    return instance;
   },
-  // Text folds its string children into props.text at serialization, so
-  // React must not create child fibers for them.
-  shouldSetTextContent: (type: string) => type === "Text",
+  // Text folds its string children into props.text at serialization — UNLESS
+  // an element child is present (rich text), when React must create child
+  // fibers so each <Text> segment carries its own style.
+  shouldSetTextContent: (type: string, props: Record<string, unknown>) =>
+    type === "Text" && !hasElementChild(props.children),
   appendInitialChild: (parent: Instance, child: Instance) => {
+    assertTextParent(parent, child);
     parent.children.push(child);
+    parent.container.dirty = true;
   },
   finalizeInitialChildren: () => false,
   commitMount() {},
   commitUpdate(
     instance: Instance,
-    _type: string,
-    _oldProps: Record<string, unknown>,
+    type: string,
+    oldProps: Record<string, unknown>,
     newProps: Record<string, unknown>,
   ) {
+    // React flags an Update whenever the props OBJECT identity changes, so
+    // this fires on every re-render of the node. Only wire-visible value
+    // changes make the commit worth serializing (NF-21).
+    if (!wirePropsEqual(type, oldProps, newProps)) {
+      instance.container.dirty = true;
+    }
     instance.props = newProps;
   },
-  commitTextUpdate() {},
+  commitTextUpdate(textInstance: Instance, _old: string, next: string) {
+    textInstance.props = { children: next };
+    textInstance.container.dirty = true;
+  },
   resetTextContent() {},
   appendChild: (parent: Instance, child: Instance) => {
+    assertTextParent(parent, child);
+    // Move semantics: react-reconciler reuses appendChild to reorder a keyed
+    // child to the LAST position (getHostSibling returns null) with no preceding
+    // removeChild, so a plain push would duplicate it — remove any existing
+    // occurrence first, mirroring insertInto.
+    removeFrom(parent.children, child);
     parent.children.push(child);
+    parent.container.dirty = true;
   },
   appendChildToContainer: (container: Container, child: Instance) => {
+    if (child.rawText) {
+      throw new Error("Raw text must be wrapped in a <Text> element");
+    }
+    removeFrom(container.children, child);
     container.children.push(child);
+    container.dirty = true;
   },
   insertBefore: (parent: Instance, child: Instance, before: Instance) => {
+    assertTextParent(parent, child);
     insertInto(parent.children, child, before);
+    parent.container.dirty = true;
   },
   insertInContainerBefore: (
     container: Container,
@@ -123,15 +208,19 @@ const hostConfig = {
     before: Instance,
   ) => {
     insertInto(container.children, child, before);
+    container.dirty = true;
   },
   removeChild(parent: Instance, child: Instance) {
     removeFrom(parent.children, child);
+    parent.container.dirty = true;
   },
   removeChildFromContainer(container: Container, child: Instance) {
     removeFrom(container.children, child);
+    container.dirty = true;
   },
   clearContainer(container: Container) {
     container.children = [];
+    container.dirty = true;
   },
   // React calls this for every deleted instance, so the event-target map
   // cleanup lives here rather than in removeChild*.
@@ -213,6 +302,7 @@ export class WatchRoot {
   private uncaughtError: unknown = null;
   private commitCount = 0;
   private lastCommitJson: string | null = null;
+  private lastCommittedSeq = 0;
 
   constructor(host: HostBridge) {
     const container: Container = {
@@ -220,9 +310,44 @@ export class WatchRoot {
       instances: new Map(),
       nextId: 1,
       lastSeq: 0,
+      dirty: false,
       onCommit: () => {
-        const tree = serializeTree(container);
+        // NF-21: a commit with no wire-visible mutation (effect-only commit,
+        // or prop updates whose values are identical — e.g. a sensor reading
+        // that rounds to the same displayed string) skips the O(tree)
+        // serialize + stringify entirely. A seq advance must still be acked
+        // (CX-010), so it forces the serialize even on a clean tree.
+        if (
+          !container.dirty &&
+          this.lastCommitJson !== null &&
+          container.lastSeq === this.lastCommittedSeq
+        ) {
+          return;
+        }
+        let tree: SerializedTree;
+        try {
+          tree = serializeTree(container);
+        } catch (error) {
+          // onCommit runs inside React's commit phase (resetAfterCommit);
+          // throwing here unwinds the reconciler's module-level commit state
+          // and corrupts EVERY later root in the runtime (NF-06). Route the
+          // multi-root guard through uncaughtError instead — flush() rethrows
+          // it right after the commit machinery finishes, so the failure is
+          // just as loud but the engine stays usable. A commit driven by the
+          // scheduler never passes through flush(), so mirror the
+          // onUncaughtError microtask fallback (no-op when flush consumed it).
+          this.uncaughtError = error;
+          queueMicrotask(() => {
+            if (this.uncaughtError === error) {
+              this.uncaughtError = null;
+              throw error;
+            }
+          });
+          return;
+        }
         const json = JSON.stringify(tree);
+        container.dirty = false;
+        this.lastCommittedSeq = container.lastSeq;
         // Bail on no-op commits: a re-render that produces a byte-identical
         // payload (seq is in the payload, so identity covers both tree and
         // ack) needs no native decode or SwiftUI invalidation. Every
@@ -246,6 +371,20 @@ export class WatchRoot {
       "",
       (error: unknown) => {
         this.uncaughtError = error;
+        // A commit driven by the scheduler (an effect-scheduled render on a
+        // host-timer turn) never passes through flush(), so without a
+        // fallback the stored error would sit until the *next* native
+        // event — delayed and misattributed, or silent forever. If a
+        // synchronous flush doesn't consume it first, rethrow from a
+        // microtask: QuickJS's job drain surfaces it to the host onError,
+        // vitest fails the test. A sync flush clears the field, making
+        // this a no-op.
+        queueMicrotask(() => {
+          if (this.uncaughtError === error) {
+            this.uncaughtError = null;
+            throw error;
+          }
+        });
       },
       reconciler.defaultOnCaughtError,
       reconciler.defaultOnRecoverableError,
@@ -329,6 +468,13 @@ export class WatchRoot {
 
   private flush(): void {
     reconciler.flushSyncWork();
+    // One passive pass is the most a synchronous flush can do: React forces
+    // update priority to Default while passive effects run, so a render
+    // scheduled *by* an effect always lands on the scheduler's next turn
+    // (one host-timer hop — the documented model in README "Updating the
+    // UI"). Looping flushPassiveEffects here cannot pull those commits
+    // forward; errors from those later turns are surfaced by the
+    // onUncaughtError microtask fallback in the constructor.
     reconciler.flushPassiveEffects();
     reconciler.flushSyncWork();
     if (this.uncaughtError != null) {

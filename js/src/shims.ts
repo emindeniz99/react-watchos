@@ -26,6 +26,12 @@ export function installShims(): void {
       intervalMs?: number | undefined;
     }
     const timers = new Map<number, Timer>();
+    // Browsers/Node clamp bad delays to 0; forward the same to the host so a
+    // setTimeout(fn, -5) or NaN delay never reaches native verbatim.
+    const clampDelay = (ms: number | undefined): number => {
+      const n = Number(ms);
+      return n > 0 ? n : 0;
+    };
     const arm = (
       fn: (...args: unknown[]) => void,
       ms: number | undefined,
@@ -34,7 +40,7 @@ export function installShims(): void {
     ): number => {
       const id = nextTimerId++;
       timers.set(id, { run: () => fn(...args), intervalMs });
-      g.__host?.setTimer(id, ms ?? 0);
+      g.__host?.setTimer(id, clampDelay(ms));
       return id;
     };
     g.setTimeout = (
@@ -49,7 +55,7 @@ export function installShims(): void {
       fn: (...args: unknown[]) => void,
       ms?: number,
       ...args: unknown[]
-    ): number => arm(fn, ms, args, ms ?? 0);
+    ): number => arm(fn, ms, args, clampDelay(ms));
     g.clearTimeout = (id: number) => {
       timers.delete(id);
       g.__host?.clearTimer?.(id);
@@ -62,9 +68,13 @@ export function installShims(): void {
         timers.delete(id);
         timer.run();
       } else {
+        // Re-arm BEFORE running: the period stays fixed instead of drifting
+        // by the callback's duration, and a throwing callback can't silently
+        // kill the interval (the exception still propagates to the host's
+        // onError). A callback that calls clearInterval wins — clearTimeout
+        // cancels the just-armed host timer too.
+        g.__host?.setTimer(id, timer.intervalMs);
         timer.run();
-        // Re-arm unless the callback cleared the interval.
-        if (timers.has(id)) g.__host?.setTimer(id, timer.intervalMs);
       }
     };
   }

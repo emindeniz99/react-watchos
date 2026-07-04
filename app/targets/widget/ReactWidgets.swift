@@ -92,6 +92,15 @@ struct AddGlassControl: ControlWidget {
 
 @main
 struct ReactWidgetBundle: WidgetBundle {
+    init() {
+        // Mirror the watch app's OTA trust so the widget re-verifies the
+        // known-good bundle it renders (NF-35). The app opts into unsigned dev
+        // updates (WatchApp.swift `allowUnsignedUpdates: true`), so the widget
+        // does too; a real app passes `signerPublicKeys:` instead (the same keys
+        // it gives ReactWatchRootView).
+        ReactWatchWidgetOTA.configure(allowUnsignedUpdates: true)
+    }
+
     var body: some Widget {
         HydrationWidget()
         ShoppingWidget()

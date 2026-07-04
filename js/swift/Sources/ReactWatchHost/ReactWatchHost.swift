@@ -57,6 +57,11 @@ final class ReactWatchModel: ObservableObject {
     private let connectivity = PhoneConnectivity()
     private let bluetooth = BluetoothBridge()
     private let sensors = SensorBridge()
+    /// Capability bridges (device/keychain/speech/runtime/background/iap),
+    /// all routed through the invoke channel — see CapabilityBridges.swift.
+    private let speechBridge = SpeechBridge()
+    private let audioBridge = AudioBridge()
+    private let extendedRuntime = ExtendedRuntimeBridge()
     private var fetchTasks: [Int: URLSessionDataTask] = [:]
     /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
     /// the JS-assigned id of a request whose id space resets with the runtime, so
@@ -64,6 +69,11 @@ final class ReactWatchModel: ObservableObject {
     /// request in the new one. Each async op captures the generation it started
     /// in and drops its result if it no longer matches.
     private var generation = 0
+
+    /// The live model, so the package's WKApplicationDelegate can forward a
+    /// fired background-refresh task to JS (`deliverBackgroundRefresh`). A watch
+    /// app has exactly one; weak so it doesn't outlive the scene. Main-isolated.
+    static weak var shared: ReactWatchModel?
 
     /// OTA verification config (CR-4 / CR-17). `updatePublicKeys` empty =
     /// fail-open (load unsigned + warn); otherwise it's the trusted
@@ -92,7 +102,8 @@ final class ReactWatchModel: ObservableObject {
         // malformed" (fail CLOSED) — a base64 typo must not silently disable
         // signature enforcement the developer opted into.
         updateKeyState = OTAKeyState.classify(
-            configuredCount: ota.signerPublicKeys.count, validCount: keys.count)
+            configuredCount: ota.signerPublicKeys.count, validCount: keys.count,
+            allowUnsigned: ota.allowUnsignedUpdates)
         if keys.count < ota.signerPublicKeys.count {
             print(
                 "[ReactWatch] WARNING: \(ota.signerPublicKeys.count - keys.count) OTA "
@@ -106,6 +117,7 @@ final class ReactWatchModel: ObservableObject {
 
     func start() {
         guard runtime == nil else { return }
+        Self.shared = self
         connectivity.onMessage = { [weak self] message in
             self?.pushNativeEvent("watchConnectivity", payload: message)
         }
@@ -113,11 +125,14 @@ final class ReactWatchModel: ObservableObject {
         bluetooth.onState = { [weak self] state in
             self?.pushNativeEvent("ble.state", payload: ["state": state])
         }
-        bluetooth.onNotify = { [weak self] characteristic, value in
-            self?.pushNativeEvent(
-                "ble.notify",
-                payload: ["characteristic": characteristic, "value": value]
-            )
+        bluetooth.onNotify = { [weak self] characteristic, value, binary in
+            var payload: [String: Any] = [
+                "characteristic": characteristic, "value": value,
+            ]
+            // Only stamped for the base64 fallback, so existing text-protocol
+            // consumers see an unchanged payload shape.
+            if binary { payload["binary"] = true }
+            self?.pushNativeEvent("ble.notify", payload: payload)
         }
         // Settle bleConnect/bleWrite/bleSubscribe invokes (CX-022). CoreBluetooth
         // delegates fire on the main queue (CBCentralManager queue: nil), so this
@@ -132,6 +147,20 @@ final class ReactWatchModel: ObservableObject {
         }
         sensors.onReading = { [weak self] kind, payload in
             self?.pushNativeEvent("sensor.\(kind)", payload: payload)
+        }
+        speechBridge.onFinished = { [weak self] text in
+            self?.pushNativeEvent("speech.finished", payload: ["text": text])
+        }
+        audioBridge.onFinished = { [weak self] in
+            self?.pushNativeEvent("audio.finished")
+        }
+        extendedRuntime.onState = { [weak self] state, reason in
+            var payload: [String: Any] = ["state": state]
+            if let reason { payload["reason"] = reason }
+            self?.pushNativeEvent("runtimeSession.state", payload: payload)
+        }
+        extendedRuntime.onWillExpire = { [weak self] in
+            self?.pushNativeEvent("runtimeSession.willExpire")
         }
         boot()
         #if DEBUG
@@ -158,6 +187,14 @@ final class ReactWatchModel: ObservableObject {
         fetchTasks.removeAll()
         sensors.stopAll()
         bluetooth.resetPendingForReload()
+        // Stop native media/session resources tied to the outgoing generation so
+        // they can't drain battery or push stale finish/state events into the
+        // fresh runtime (audio download+player+session, in-flight speech, and the
+        // extended-runtime session). `silent:` suppresses the teardown-only
+        // lifecycle event for the two that emit one on cancel/invalidate.
+        audioBridge.stop()
+        speechBridge.stop(silent: true)
+        extendedRuntime.stop(silent: true)
         runtime = nil
         root = nil
         runtimeError = nil
@@ -166,6 +203,15 @@ final class ReactWatchModel: ObservableObject {
         ackedSeq = 0
         nextSeq = 1
         optimistic = OptimisticStore()
+        // One warning per BOOT, not per model lifetime (NF-15): without the
+        // reset, a second bad bundle after a dev hot-reload would be rejected
+        // with no banner at all.
+        warnedWireMismatch = false
+        // Only the .runOTA branches repopulate this; without the reset a later
+        // .runShipped or DEBUG dev-code boot retains the previous OTA record,
+        // and the first-healthy-commit handler could promote a bundle that is
+        // not the one actually running to known-good.
+        bootedOTARecord = nil
         do {
             let js = try makeRuntime()
             runtime = js
@@ -259,6 +305,39 @@ final class ReactWatchModel: ObservableObject {
             bluetooth.handleInvoke(id: id, method: method, payload: payload)
         case "bleSubscribe":
             bluetooth.handleInvoke(id: id, method: method, payload: payload)
+        case "getDeviceInfo":
+            handleGetDeviceInfo(id: id)
+        case "enableWaterLock":
+            DeviceSnapshot.enableWaterLock()
+            runtime?.resolveInvoke(id: id, resultJson: "null")
+        case "scheduleBackgroundRefresh":
+            handleScheduleBackgroundRefresh(id: id, payload: payload)
+        case "startExtendedRuntimeSession":
+            handleStartExtendedRuntimeSession(id: id)
+        case "stopExtendedRuntimeSession":
+            handleStopExtendedRuntimeSession(id: id)
+        case "keychainSet":
+            handleKeychainSet(id: id, payload: payload)
+        case "keychainGet":
+            handleKeychainGet(id: id, payload: payload)
+        case "keychainDelete":
+            handleKeychainDelete(id: id, payload: payload)
+        case "speak":
+            handleSpeak(id: id, payload: payload)
+        case "stopSpeaking":
+            handleStopSpeaking(id: id)
+        case "playAudio":
+            handlePlayAudio(id: id, payload: payload)
+        case "stopAudio":
+            handleStopAudio(id: id)
+        case "getProducts":
+            handleGetProducts(id: id, payload: payload)
+        case "purchase":
+            handlePurchase(id: id, payload: payload)
+        case "currentEntitlements":
+            handleCurrentEntitlements(id: id)
+        case "restorePurchases":
+            handleRestorePurchases(id: id)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -402,6 +481,14 @@ final class ReactWatchModel: ObservableObject {
                 + "lacks (\(missing.joined(separator: ", "))) — update the app"
             return false
         }
+        // NF-29: the secure zero-config default — no keys and no explicit dev
+        // opt-in means new OTA bundles are refused, not silently accepted.
+        if updateKeyState == .unconfigured {
+            runtimeError =
+                "OTA update rejected: no signing keys configured — set "
+                + "OTAConfig.signerPublicKeys (or allowUnsignedUpdates for dev builds)"
+            return false
+        }
         // CX-003: keys were configured but none decoded — the developer opted
         // into enforcement but misconfigured it. Refuse loudly; never fall
         // through to the fail-open branch below.
@@ -456,7 +543,12 @@ final class ReactWatchModel: ObservableObject {
         // runtime whose host callbacks are all nil (so commit/setItem/publish are
         // no-ops). A bundle that throws on load is caught BEFORE we persist it,
         // and its module init can't mutate the real App Group storage here.
-        guard let validator = try? JSRuntime() else { return false }
+        // Same heap cap as the live runtime: maxOTABundleBytes bounds the
+        // *source*, not allocation — an unbounded validator lets a small bundle
+        // whose module init allocates without limit OOM-kill the app during
+        // validation, before any of the persist/rollback protections exist.
+        guard let validator = try? JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
+        else { return false }
         do {
             try validator.evaluate(js)
         } catch {
@@ -491,7 +583,10 @@ final class ReactWatchModel: ObservableObject {
     /// back to the source.
     private func cacheOTABytecode(source: String) -> String? {
         guard let bcURL = otaBytecodeURL else { return nil }
-        if let bytecode = (try? JSRuntime())?.compileToBytecode(source),
+        // Capped like the validator: compilation only parses (no module init),
+        // but a hostile source can still exhaust the parser's heap.
+        if let bytecode = (try? JSRuntime(memoryLimitBytes: 64 * 1024 * 1024))?
+            .compileToBytecode(source),
             (try? bytecode.write(to: bcURL, options: .atomic)) != nil
         {
             return ContentHash.of(bytecode)
@@ -587,6 +682,15 @@ final class ReactWatchModel: ObservableObject {
                 return
             }
             let (jsData, _) = try await URLSession.shared.data(from: bundleURL)
+            // Enforce the size cap BEFORE materializing a String — saveUpdate
+            // checks it too, but only after this path has already doubled the
+            // allocation for a hostile/erroneous manifest's bundle (NF-33).
+            guard jsData.count <= Self.maxOTABundleBytes else {
+                runtimeError =
+                    "update bundle is \(jsData.count) bytes — over the "
+                    + "\(Self.maxOTABundleBytes)-byte limit"
+                return
+            }
             guard let js = String(data: jsData, encoding: .utf8) else {
                 runtimeError = "update bundle was not UTF-8 text"
                 return
@@ -685,11 +789,20 @@ final class ReactWatchModel: ObservableObject {
         let candidate = otaCandidate()
         let decision: BootDecision =
             if updateKeyState == .disabled {
-                // Fail-open ONLY when no keys are configured (CX-003): versions are
-                // unverified, so no anti-rollback — run the OTA bundle if present,
-                // else shipped. A misconfigured keyset still enforces anti-rollback
-                // here (and saveUpdate refuses new unsigned bundles).
+                // Fail-open ONLY on the explicit allowUnsignedUpdates dev opt-in
+                // (CX-003/NF-29): versions are unverified, so no anti-rollback —
+                // run the OTA bundle if present, else shipped.
                 candidate != nil ? .runOTA : .runShipped
+            } else if updateKeyState == .misconfigured || updateKeyState == .unconfigured {
+                // Fail CLOSED (CX-003): with no usable signing key we cannot
+                // authenticate a stored record from the writable App Group, so
+                // never run an OTA candidate — an attacker-planted record would
+                // otherwise execute unverified (the NF-35 hole). Run shipped. The
+                // candidate is KEPT, not dropped: once the key config is fixed the
+                // enforced path re-verifies and runs it. verifyStoredRecord only
+                // *verifies* under .enforced, so without this gate these states
+                // would reach evaluateOTA and skip the signature check entirely.
+                .runShipped
             } else {
                 VersionPolicy.decide(
                     otaVersion: candidate.flatMap(\.version),
@@ -776,6 +889,28 @@ final class ReactWatchModel: ObservableObject {
         case .runShipped:
             break
         }
+        // Reached here either because the policy chose shipped, or because a
+        // chosen OTA candidate was rejected (NF-35 re-verification threw, the
+        // bundle failed to execute, or a crash-loop rollback gave up) and the
+        // catches above fell through. In the latter case the earlier
+        // `.runOTA` decision is stale: the candidate no longer exists, so
+        // re-run the boot policy with NO candidate. Under a hard gate with a
+        // stale shipped bundle (below the high-water mark) that yields
+        // `.blockForUpdate` — otherwise a tampered/failed candidate would let
+        // stale JS boot and write to a newer-schema db, defeating anti-rollback
+        // (CR-17). `.disabled` has no anti-rollback by design, so it always
+        // boots shipped.
+        if updateKeyState != .disabled,
+            VersionPolicy.decide(
+                otaVersion: nil,
+                highWater: store.otaHighWater(),
+                shippedVersion: shippedBundleVersion,
+                gate: updateGate
+            ) == .blockForUpdate
+        {
+            updateRequired = true
+            return
+        }
         try loadShipped(into: js)
         if updateKeyState != .disabled {
             store.setOTAHighWater(
@@ -787,10 +922,10 @@ final class ReactWatchModel: ObservableObject {
         }
     }
 
-    /// The persisted OTA bundle + its version. The signature was verified at
-    /// save (the network boundary); the App Group is a trusted local sandbox,
-    /// so load doesn't re-verify — which is what lets it run the unsigned local
-    /// bytecode cache. nil if none.
+    /// The persisted OTA bundle + its version. Verified at save (the network
+    /// boundary) AND re-verified at every boot when keys are enforced
+    /// (verifyStoredRecord, NF-35); unsigned records exist only under the
+    /// explicit dev opt-in. nil if none.
     private func otaCandidate() -> OTARecord? {
         guard let record = loadOTARecord(), !record.js.isEmpty else { return nil }
         return record
@@ -810,13 +945,51 @@ final class ReactWatchModel: ObservableObject {
             filename: "release-id.js")
     }
 
+    /// NF-35: with keys enforced, a stored record must re-verify at every
+    /// boot — otherwise "verified at save" silently degrades to "whoever can
+    /// write the App Group container owns the runtime". The signature covers only
+    /// the SOURCE (scheme:keyId:version:js); the on-device `.qbc` bytecode is NOT
+    /// signed, so evaluateOTA refuses to trust it under enforcement and runs the
+    /// re-verified source. Unsigned records under the explicit dev opt-in
+    /// (.disabled) skip this by design; .unconfigured/.misconfigured never reach
+    /// here for an OTA candidate (load() fails them closed to the shipped bundle).
+    private func verifyStoredRecord(_ record: OTARecord) throws {
+        guard updateKeyState == .enforced else { return }
+        guard let keyId = record.keyId, let key = updatePublicKeys[keyId],
+            let signatureB64 = record.signature,
+            let signature = Data(base64Encoded: signatureB64),
+            let message = record.signedMessage(),
+            key.isValidSignature(signature, for: message)
+        else {
+            throw OTAVerifyError.storedRecordFailedVerification
+        }
+    }
+
+    private enum OTAVerifyError: Error, CustomStringConvertible {
+        case storedRecordFailedVerification
+
+        var description: String {
+            "stored OTA record failed signature re-verification — dropped"
+        }
+    }
+
     private func evaluateOTA(_ record: OTARecord, into js: JSRuntime) throws {
+        // Every OTA boot path (the candidate and the crash-loop known-good
+        // restore) funnels through here, so this is the one choke point.
+        try verifyStoredRecord(record)
         setBundleReleaseId(record.js, into: js)
-        // Trust the cached bytecode only if the blob on disk hashes to what this
-        // record was saved with (OP-1): a `.qbc` left by a previous bundle, or a
-        // partial write, won't match and is reparsed — so stale bytecode can
-        // never run as if it were this bundle.
-        if let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL),
+        // Trust the cached App-Group bytecode ONLY when keys aren't enforced.
+        // The signature covers the SOURCE (scheme:keyId:version:js) — NOT the
+        // on-device-compiled `.qbc`, whose only integrity check is the record's
+        // OWN `bytecodeHash`, an unsigned field an App-Group writer also controls.
+        // Under enforcement, trusting that hash would let such a writer pin it to
+        // a malicious blob and run arbitrary bytecode despite a valid signature
+        // (defeats NF-35), so we always run the boot-re-verified source instead.
+        // The bytecode fast-path stays valid off-enforcement (dev/unsigned, no
+        // security claim) and for the shipped bundle (inside the signed app
+        // bundle — see loadShipped — where no untrusted writer exists).
+        if updateKeyState != .enforced,
+            let bcURL = otaBytecodeURL, let data = try? Data(contentsOf: bcURL),
             record.bytecodeHash == ContentHash.of(data)
         {
             do {
@@ -890,7 +1063,13 @@ final class ReactWatchModel: ObservableObject {
                         }
                         return
                     }
-                    self.root = tree.root
+                    // @Published fires objectWillChange on every assignment
+                    // regardless of equality; guard so an ack-only or
+                    // value-identical commit (high-frequency sensor pushes)
+                    // doesn't re-diff the whole SwiftUI tree (NF-22).
+                    if self.root != tree.root {
+                        self.root = tree.root
+                    }
                     // A committed tree means the bundle booted healthily — clear
                     // the crash-loop counter so only *boot* failures accumulate
                     // (ARCH-04). Idempotent; after the first reset it's a no-op.
@@ -932,8 +1111,15 @@ final class ReactWatchModel: ObservableObject {
         js.bridge.generate = { [weak self] id, reqJson in
             self?.generate(id: id, requestJson: reqJson)
         }
+        // Capture the generation NOW (makeRuntime runs under the boot that
+        // just bumped it): reading it when the error fires would see the new
+        // generation after a swap and defeat the guard (CX-008 / NF-14).
+        let gen = generation
         js.onError = { [weak self] message in
-            DispatchQueue.main.async { self?.runtimeError = message }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, gen == self.generation else { return }
+                self.runtimeError = message
+            }
         }
         js.bridge.playHaptic = { type in
             let haptic: WKHapticType =
@@ -1149,9 +1335,10 @@ final class ReactWatchModel: ObservableObject {
 /// OTA verification + rollback policy for `ReactWatchRootView` (CR-4 / CR-17).
 public struct OTAConfig: Sendable {
     /// Trusted OTA signing keys (CX-007): `keyId -> base64 Ed25519 public key`.
-    /// Empty = fail-open (bundles load unsigned with a loud warning); set it to
-    /// enforce signed updates + anti-rollback. Multiple entries enable key
-    /// rotation — trust `{old, new}` while you migrate signing to `new`, then
+    /// Empty = OTA saves are REFUSED unless `allowUnsignedUpdates` is set
+    /// (NF-29 secure default); set keys to enforce signed updates +
+    /// anti-rollback. Multiple entries enable key rotation — trust `{old, new}`
+    /// while you migrate signing to `new`, then
     /// drop `old` in a later app release (rotate-then-revoke with an overlap
     /// window so no device is stranded). This map ships INSIDE the code-signed
     /// app binary: it's the trust anchor, so it must never come from a source
@@ -1168,15 +1355,22 @@ public struct OTAConfig: Sendable {
     /// gate's "Check for update" recover natively — re-fetching a current bundle
     /// when stale JS is blocked and the JS app isn't running to fetch. HTTPS.
     public var manifestURL: String?
+    /// Explicit dev opt-in to load UNSIGNED OTA bundles when no keys are
+    /// configured (NF-29). Never ship a release build with this set: anyone
+    /// who can answer the manifest URL gets the full host surface. Ignored
+    /// once `signerPublicKeys` is non-empty — keys always enforce.
+    public var allowUnsignedUpdates: Bool
 
     public init(
         signerPublicKeys: [String: String] = [:], gate: OTAGate = .soft,
-        shippedVersion: Int = 1, manifestURL: String? = nil
+        shippedVersion: Int = 1, manifestURL: String? = nil,
+        allowUnsignedUpdates: Bool = false
     ) {
         self.signerPublicKeys = signerPublicKeys
         self.gate = gate
         self.shippedVersion = shippedVersion
         self.manifestURL = manifestURL
+        self.allowUnsignedUpdates = allowUnsignedUpdates
     }
 }
 
@@ -1265,4 +1459,261 @@ public struct ReactWatchRootView: View {
         }
     }
 }
+
+/// The package's WKApplicationDelegate: forwards a fired background-refresh
+/// task to JS (`onBackgroundRefresh`). Wire it in your @main App with
+/// `@WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self)` — the
+/// `react-native-watchos scaffold` command writes this for you. Without it,
+/// `scheduleBackgroundRefresh` still schedules the wake, but the fire event
+/// never reaches JS (a scenePhase `active` wake does).
+public final class ReactWatchAppDelegate: NSObject, WKApplicationDelegate {
+    public override init() { super.init() }
+
+    public func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
+        // WatchKit delivers background tasks on the main thread; deliver to JS
+        // SYNCHRONOUSLY (a pushNativeEvent commit), THEN complete the task, so
+        // watchOS doesn't suspend mid-commit.
+        for task in backgroundTasks {
+            if let refresh = task as? WKApplicationRefreshBackgroundTask {
+                let userInfo = Self.decodeUserInfo(refresh.userInfo)
+                MainActor.assumeIsolated {
+                    ReactWatchModel.shared?.deliverBackgroundRefresh(userInfo: userInfo)
+                }
+            }
+            // No snapshot: we changed no UI directly (JS republishes widgets).
+            task.setTaskCompletedWithSnapshot(false)
+        }
+    }
+
+    /// The userInfo we scheduled with is carried as a JSON NSString (see
+    /// handleScheduleBackgroundRefresh); decode it back to a dictionary.
+    private static func decodeUserInfo(_ raw: NSSecureCoding?) -> [String: Any]? {
+        guard let json = raw as? NSString,
+            let data = (json as String).data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return obj
+    }
+}
+
+// MARK: - Capability invoke handlers (device/background/runtime/keychain/
+// speech/iap). Same-file extension so the generation guard (private) is
+// visible; the native bits live in CapabilityBridges.swift.
+extension ReactWatchModel {
+    func handleGetDeviceInfo(id: Int) {
+        runtime?.resolveInvoke(
+            id: id, resultJson: Self.jsonObject(DeviceSnapshot.current()))
+    }
+
+    func handleScheduleBackgroundRefresh(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        let afterMs = (fields["afterMs"] as? Double) ?? 0
+        let date = Date().addingTimeInterval(max(0, afterMs) / 1000)
+        // userInfo must be (NSSecureCoding & NSObjectProtocol)?: carry the JSON
+        // userInfo as an NSString so it round-trips to the fire event verbatim.
+        var info: (NSSecureCoding & NSObjectProtocol)?
+        if let userInfo = fields["userInfo"],
+            let data = try? JSONSerialization.data(withJSONObject: userInfo),
+            let json = String(data: data, encoding: .utf8)
+        {
+            info = json as NSString
+        }
+        let gen = generation
+        WKApplication.shared().scheduleBackgroundRefresh(
+            withPreferredDate: date, userInfo: info
+        ) { [weak self] error in
+            DispatchQueue.main.async {
+                guard let self, gen == self.generation else { return }
+                if let error {
+                    self.runtime?.rejectInvoke(
+                        id: id,
+                        errorJson: Self.errorJSON(
+                            code: "INTERNAL", message: error.localizedDescription))
+                } else {
+                    self.runtime?.resolveInvoke(id: id, resultJson: "null")
+                }
+            }
+        }
+    }
+
+    /// Delivery hook for a fired background refresh -> JS `onBackgroundRefresh`.
+    /// Called by ReactWatchAppDelegate.handle(_:) when watchOS runs a task
+    /// scheduled by `scheduleBackgroundRefresh` (wire the adaptor in @main App).
+    func deliverBackgroundRefresh(userInfo: [String: Any]?) {
+        pushNativeEvent("backgroundRefresh", payload: ["userInfo": userInfo ?? [:]])
+    }
+
+    func handleStartExtendedRuntimeSession(id: Int) {
+        extendedRuntime.start()
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleStopExtendedRuntimeSession(id: Int) {
+        extendedRuntime.stop()
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleKeychainSet(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let key = fields["key"] as? String,
+            let value = fields["value"] as? String
+        else {
+            rejectInvalid(id: id, message: "keychainSet needs key + value")
+            return
+        }
+        if KeychainStore.set(key: key, value: value) {
+            runtime?.resolveInvoke(id: id, resultJson: "null")
+        } else {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: "INTERNAL", message: "keychain write failed"))
+        }
+    }
+
+    func handleKeychainGet(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let key = fields["key"] as? String else {
+            rejectInvalid(id: id, message: "keychainGet needs key")
+            return
+        }
+        if let value = KeychainStore.get(key: key) {
+            runtime?.resolveInvoke(id: id, resultJson: Self.jsonString(value))
+        } else {
+            runtime?.resolveInvoke(id: id, resultJson: "null")
+        }
+    }
+
+    func handleKeychainDelete(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let key = fields["key"] as? String else {
+            rejectInvalid(id: id, message: "keychainDelete needs key")
+            return
+        }
+        KeychainStore.delete(key: key)
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleSpeak(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let text = fields["text"] as? String, !text.isEmpty else {
+            rejectInvalid(id: id, message: "speak needs text")
+            return
+        }
+        speechBridge.speak(
+            text: text,
+            rate: fields["rate"] as? Double,
+            pitch: fields["pitch"] as? Double,
+            language: fields["language"] as? String,
+            volume: fields["volume"] as? Double
+        )
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleStopSpeaking(id: Int) {
+        speechBridge.stop()
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handlePlayAudio(id: Int, payload: String) {
+        let fields = Self.decodeObject(payload)
+        guard let raw = fields["url"] as? String, let url = URL(string: raw) else {
+            rejectInvalid(id: id, message: "playAudio needs a url")
+            return
+        }
+        let gen = generation
+        audioBridge.play(
+            url: url,
+            volume: fields["volume"] as? Double,
+            loop: fields["loop"] as? Bool ?? false
+        ) { [weak self] error in
+            guard let self, gen == self.generation else { return }
+            if let error {
+                self.runtime?.rejectInvoke(
+                    id: id,
+                    errorJson: Self.errorJSON(code: "INTERNAL", message: error))
+            } else {
+                self.runtime?.resolveInvoke(id: id, resultJson: "null")
+            }
+        }
+    }
+
+    func handleStopAudio(id: Int) {
+        audioBridge.stop()
+        runtime?.resolveInvoke(id: id, resultJson: "null")
+    }
+
+    func handleGetProducts(id: Int, payload: String) {
+        let ids = (Self.decodeObject(payload)["productIds"] as? [Any])?
+            .compactMap { $0 as? String } ?? []
+        let gen = generation
+        Task { [weak self] in
+            let result = await StoreKitBridge.products(for: ids)
+            await MainActor.run {
+                guard let self, gen == self.generation else { return }
+                self.settleStoreKit(id: id, result: result)
+            }
+        }
+    }
+
+    func handlePurchase(id: Int, payload: String) {
+        guard let productId = Self.decodeObject(payload)["productId"] as? String else {
+            rejectInvalid(id: id, message: "purchase needs productId")
+            return
+        }
+        let gen = generation
+        Task { [weak self] in
+            let result = await StoreKitBridge.purchase(productId: productId)
+            await MainActor.run {
+                guard let self, gen == self.generation else { return }
+                self.settleStoreKit(id: id, result: result)
+            }
+        }
+    }
+
+    func handleCurrentEntitlements(id: Int) {
+        let gen = generation
+        Task { [weak self] in
+            let result = await StoreKitBridge.currentEntitlements()
+            await MainActor.run {
+                guard let self, gen == self.generation else { return }
+                self.settleStoreKit(id: id, result: result)
+            }
+        }
+    }
+
+    func handleRestorePurchases(id: Int) {
+        let gen = generation
+        Task { [weak self] in
+            let result = await StoreKitBridge.restore()
+            await MainActor.run {
+                guard let self, gen == self.generation else { return }
+                self.settleStoreKit(id: id, result: result)
+            }
+        }
+    }
+
+    private func settleStoreKit(id: Int, result: StoreKitBridge.Result) {
+        switch result {
+        case .ok(let json):
+            runtime?.resolveInvoke(id: id, resultJson: json)
+        case .error(let message):
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: "INTERNAL", message: message))
+        }
+    }
+
+    static func decodeObject(_ json: String) -> [String: Any] {
+        (try? JSONSerialization.jsonObject(with: Data(json.utf8)))
+            as? [String: Any] ?? [:]
+    }
+
+    /// Shared INVALID_REQUEST rejection for the capability handlers.
+    private func rejectInvalid(id: Int, message: String) {
+        runtime?.rejectInvoke(
+            id: id,
+            errorJson: Self.errorJSON(code: "INVALID_REQUEST", message: message))
+    }
+}
+
 #endif

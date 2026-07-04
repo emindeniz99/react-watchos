@@ -1,9 +1,33 @@
 #if os(watchOS)
+import CryptoKit
 import Foundation
 import ReactWatchCore
 import ReactWatchRuntime
 import ReactWatchSupport
 import WidgetKit
+
+/// Trusted OTA signer keys for the widget extension (NF-35). Set ONCE at
+/// extension startup — from the widget bundle's `@main` init — with the SAME
+/// `signerPublicKeys` the watch app passes to `ReactWatchRootView(ota:)`. Unlike
+/// the App Group id (threaded per-call because a host can have two App Groups),
+/// the signer keyset is one build-time constant, so a write-once global is
+/// unambiguous. Critically these keys live in the code-signed extension binary,
+/// NOT in the writable App Group — so `WidgetIntentRuntime` can re-verify a
+/// known-good record the way the app does at boot. Without configuration (empty
+/// keys, no dev opt-in) the widget can't authenticate an App-Group OTA record
+/// and shows the shipped bundle — secure by default.
+public enum ReactWatchWidgetOTA {
+    nonisolated(unsafe) static var signerPublicKeys: [String: String] = [:]
+    nonisolated(unsafe) static var allowUnsignedUpdates = false
+
+    public static func configure(
+        signerPublicKeys: [String: String] = [:],
+        allowUnsignedUpdates: Bool = false
+    ) {
+        self.signerPublicKeys = signerPublicKeys
+        self.allowUnsignedUpdates = allowUnsignedUpdates
+    }
+}
 
 /// Short-lived QuickJS instance for the widget extension. Reuses the shared
 /// `ReactWatchRuntime.JSRuntime` — the same engine embedding the watch app
@@ -98,8 +122,19 @@ public final class WidgetIntentRuntime {
         } else {
             bytecodeHashMatches = false
         }
+        // NF-35 in the extension process: the known-good record lives in the
+        // writable App Group, so re-verify its signature here (the app does the
+        // same at boot) with keys baked into this signed extension. An unverified
+        // record under enforcement degrades to the shipped bundle.
+        let keys = ReactWatchWidgetOTA.signerPublicKeys
+        let validKeyCount = keys.values.filter { decodeKey($0) != nil }.count
+        let keyState = OTAKeyState.classify(
+            configuredCount: keys.count, validCount: validKeyCount,
+            allowUnsigned: ReactWatchWidgetOTA.allowUnsignedUpdates)
+        let recordVerified = record.map { verifyRecord($0, keys: keys) } ?? false
         switch WidgetBundleChoice.decide(
-            knownGood: record, bytecodeHashMatches: bytecodeHashMatches)
+            knownGood: record, bytecodeHashMatches: bytecodeHashMatches,
+            keyState: keyState, recordVerified: recordVerified)
         {
         case .shipped:
             try loadShippedBundle()
@@ -121,6 +156,26 @@ public final class WidgetIntentRuntime {
             }
             try js.evaluate(record.js)
         }
+    }
+
+    /// Decodes a base64 raw Ed25519 public key, or nil if malformed (matching the
+    /// app's key setup so OTAKeyState.classify sees the same valid count).
+    private func decodeKey(_ base64: String) -> Curve25519.Signing.PublicKey? {
+        Data(base64Encoded: base64)
+            .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
+    }
+
+    /// Re-verifies a record's Ed25519 signature over its signedMessage — the same
+    /// check as the app's verifyStoredRecord (NF-35), so save-time, app-boot, and
+    /// widget verification can never diverge.
+    private func verifyRecord(_ record: OTARecord, keys: [String: String]) -> Bool {
+        guard let keyId = record.keyId, let base64 = keys[keyId],
+            let key = decodeKey(base64),
+            let sigB64 = record.signature,
+            let signature = Data(base64Encoded: sigB64),
+            let message = record.signedMessage()
+        else { return false }
+        return key.isValidSignature(signature, for: message)
     }
 
     /// The last OTA record the app promoted as known-good, from the App Group.

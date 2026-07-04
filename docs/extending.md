@@ -45,9 +45,11 @@ export function onTorchState(cb: (on: boolean) => void) {
 }
 ```
 
-If you're adding the op to the renderer itself, declare it on
-`QuickJSHostGlobal` (in `src/host.ts`) instead of the inline cast, and add it to
-`codegen/schema.mjs`'s `hostMethods` so the Swift install is cross-checked.
+If you're adding the op to the renderer itself, add it to
+`codegen/schema.mjs`'s `hostMethods` and run `pnpm codegen` —
+`QuickJSHostGlobal` is GENERATED (`src/generated/wire.ts`, re-exported from
+`src/host.ts`), so hand-editing the type gets overwritten; the schema is the
+source of truth and the Swift install is cross-checked from it.
 
 **2. Swift side** installs the op and pushes events. In the SwiftPM package
 (`swift/`), `ReactWatchRuntime/JSRuntime.swift` installs the `__host` methods
@@ -70,3 +72,44 @@ arbitrary native code, only the ops the host installed. Events commit through
 `runSync`, so external state lands on screen instantly without a polling loop.
 Keep payloads JSON-serializable — strings are all that cross the QuickJS↔Swift
 boundary.
+
+## Built-in capabilities (2026-07 additions)
+
+Beyond the recipe above, these ship as first-class modules — all routed
+through the same invoke channel:
+
+| Module | API | Feature |
+|---|---|---|
+| Device info | `getDeviceInfo()` → battery/wrist/screen/model + accessibility (reduceMotion/voiceOver/text-size) snapshot; `enableWaterLock()` (watchOS has no battery/a11y-change notification; poll it) | `device` |
+| Background refresh | `scheduleBackgroundRefresh(afterMs, userInfo?)`, `onBackgroundRefresh(cb)` | `background` |
+| Extended runtime | `startExtendedRuntimeSession()`, `stop…`, `onRuntimeSessionState/WillExpire` | `runtime` |
+| Keychain | `Keychain.set/get/delete` (encrypted; distinct from `Storage`) | `keychain` |
+| Speech (TTS) | `speak(text, opts?)`, `stopSpeaking()`, `onSpeechFinished(cb)` | `speech` |
+| Audio | `playAudio(url, opts?)`, `stopAudio()`, `onAudioFinished(cb)` (AVAudioPlayer; downloads the URL, routes to Bluetooth/speaker) | `audio` |
+| In-app purchase | `getProducts`, `purchase`, `currentEntitlements`, `restorePurchases` (StoreKit 2) | `iap` |
+
+Two honest caveats:
+
+- **Background refresh** is fully wired: `scheduleBackgroundRefresh`
+  registers the wake-up, and the package's `ReactWatchAppDelegate` forwards
+  the fired `WKApplicationRefreshBackgroundTask` to JS's
+  `onBackgroundRefresh` (with your userInfo). It needs the delegate adaptor
+  in your `@main` App — `@WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self)`
+  — which `react-native-watchos scaffold` writes for you. Keep the handler
+  short; the app suspends again when it returns.
+- **Extended runtime sessions** require the consumer to declare the session
+  reason in the target's Info.plist; without it the system invalidates the
+  session immediately, which surfaces as a `runtimeSession.state` event with
+  `state: "invalidated"`.
+
+## App Shortcuts / Siri — a native AppIntents concern, not a runtime binding
+
+Registering Siri phrases / App Shortcuts is **compile-time** metadata
+(`AppShortcutsProvider` + `AppIntent` types declared in Swift), not something
+a JS bundle can register at runtime — the phrases are indexed by the system
+from the app binary at install time. So it does not fit the invoke/push
+bridge model, and there is deliberately no `registerSiriPhrase` API. The
+*execution* surface you'd want is already covered: `registerIntent(name, …)`
+runs your React handler for a widget/Control AppIntent. A watch-app-level App
+Shortcut is a scaffold step (add the `AppShortcutsProvider` Swift alongside
+`WatchApp.swift`) — a candidate for the scaffold CLI, tracked on the roadmap.

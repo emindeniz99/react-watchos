@@ -16,13 +16,25 @@ public struct OTARecord: Codable, Sendable, Equatable {
     public let keyId: String?
     /// Compatibility/anti-rollback version (nil when running unsigned/fail-open).
     public let version: Int?
-    /// base64 Ed25519 over `UpdatePlan.signedMessage` — recorded for audit /
-    /// key rotation; load trusts the App Group, so it isn't re-verified.
+    /// base64 Ed25519 over `UpdatePlan.signedMessage` — re-verified at every
+    /// boot when keys are enforced (NF-35), so an actor who can write the App
+    /// Group container cannot swap in unsigned code.
     public let signature: String?
     /// `ContentHash.of` the cached bytecode blob this record was saved with; load
     /// trusts the `.qbc` only when the on-disk blob hashes to this. nil = no
     /// trustworthy bytecode, parse the source.
     public var bytecodeHash: String?
+
+    /// The exact bytes this record's `signature` covers — the SAME format as
+    /// `UpdatePlan.signedMessage` (scheme:keyId:version:js), so save-time and
+    /// boot-time verification can never diverge. nil when the record has no
+    /// verifiable identity (unsigned/dev records).
+    public func signedMessage() -> Data? {
+        guard let version, let keyId, UpdatePlan.isValidKeyId(keyId) else {
+            return nil
+        }
+        return Data("\(UpdatePlan.scheme):\(keyId):\(version):\(js)".utf8)
+    }
 
     public init(
         js: String, keyId: String? = nil, version: Int?, signature: String?,

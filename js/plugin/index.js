@@ -162,9 +162,19 @@ function withEasAppExtensions(config, opts) {
     else ios.appExtensions.push(entry);
   };
 
+  // Derive the extension bundle id the SAME way @bacons/apple-targets does
+  // (with-widget.js): a leading-dot suffix is appended to the app id; any other
+  // suffix is used verbatim. Unconditional concatenation would disagree with
+  // apple-targets for a non-dot suffix, producing a DUPLICATE EAS appExtensions
+  // entry (it upserts by bundle id) and a non-namespaced bundle id.
+  const bundleIdFor = (suffix) =>
+    String(suffix).startsWith(".")
+      ? `${opts.bundleIdentifier}${suffix}`
+      : String(suffix);
+
   upsert({
     targetName: opts.name,
-    bundleIdentifier: `${opts.bundleIdentifier}${opts.watchBundleSuffix}`,
+    bundleIdentifier: bundleIdFor(opts.watchBundleSuffix),
     entitlements: {
       "com.apple.security.application-groups": [opts.appGroup],
       ...(opts.healthKit ? { "com.apple.developer.healthkit": true } : {}),
@@ -173,7 +183,7 @@ function withEasAppExtensions(config, opts) {
   if (opts.widget) {
     upsert({
       targetName: opts.widgetName,
-      bundleIdentifier: `${opts.bundleIdentifier}${opts.widgetBundleSuffix}`,
+      bundleIdentifier: bundleIdFor(opts.widgetBundleSuffix),
       entitlements: {
         "com.apple.security.application-groups": [opts.appGroup],
       },

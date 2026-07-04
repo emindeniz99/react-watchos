@@ -7,9 +7,16 @@
 /// collapses that into the SAME state as "no keys configured" → fail-open, so the
 /// watch quietly accepts unsigned bundles. These three states keep them distinct.
 public enum OTAKeyState: Equatable, Sendable {
-    /// No keys configured at all — intentional dev/fail-open mode (load unsigned
-    /// with a warning).
+    /// No keys configured AND the developer explicitly opted into unsigned
+    /// updates (`allowUnsignedUpdates`) — dev fail-open mode (load unsigned
+    /// with a warning). Never the zero-config default (NF-29): an example
+    /// copied without keys must not silently accept any bundle an attacker
+    /// serves at the manifest URL.
     case disabled
+    /// No keys configured and no explicit opt-in — the secure default: refuse
+    /// to SAVE new OTA bundles loudly until keys are configured (or the dev
+    /// opt-in is set). Loading keeps normal anti-rollback semantics.
+    case unconfigured
     /// At least one configured key decoded — enforce signatures (a key that
     /// failed to decode is dropped + warned, but valid keys still work).
     case enforced
@@ -18,9 +25,12 @@ public enum OTAKeyState: Equatable, Sendable {
     case misconfigured
 
     /// `configuredCount` = entries in `signerPublicKeys`; `validCount` = how many
-    /// decoded to a usable key.
-    public static func classify(configuredCount: Int, validCount: Int) -> OTAKeyState {
-        if configuredCount == 0 { return .disabled }
+    /// decoded to a usable key; `allowUnsigned` = the explicit
+    /// `OTAConfig.allowUnsignedUpdates` dev opt-in.
+    public static func classify(
+        configuredCount: Int, validCount: Int, allowUnsigned: Bool
+    ) -> OTAKeyState {
+        if configuredCount == 0 { return allowUnsigned ? .disabled : .unconfigured }
         if validCount == 0 { return .misconfigured }
         return .enforced
     }

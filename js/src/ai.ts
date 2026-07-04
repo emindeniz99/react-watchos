@@ -16,21 +16,35 @@ import { invoke } from "./invoke";
  */
 const pending = new Map<
   number,
-  { resolve: (text: string) => void; reject: (error: unknown) => void }
+  {
+    resolve: (text: string) => void;
+    reject: (error: unknown) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }
 >();
 let nextId = 1;
+
+/**
+ * Last-resort settle if native accepts a generate and never replies — a stuck
+ * LanguageModelSession, an exception before the callback, a torn-down runtime.
+ * Generous (on-device generation is slow) but bounded, so the promise + pending
+ * entry can't leak for the runtime's life (CX-022 "never hangs").
+ */
+const GENERATE_TIMEOUT_MS = 60_000;
 
 const g = globalThis as Record<string, unknown>;
 g.__resolveGenerate = (id: number, text: string) => {
   const p = pending.get(id);
   if (!p) return;
   pending.delete(id);
+  clearTimeout(p.timer);
   p.resolve(text);
 };
 g.__rejectGenerate = (id: number, message: string) => {
   const p = pending.get(id);
   if (!p) return;
   pending.delete(id);
+  clearTimeout(p.timer);
   p.reject(new Error(message));
 };
 
@@ -71,7 +85,15 @@ export function generateText(
       return;
     }
     const id = nextId++;
-    pending.set(id, { resolve, reject });
+    const timer = setTimeout(() => {
+      if (!pending.delete(id)) return;
+      reject(
+        new Error(
+          `generateText got no native reply within ${GENERATE_TIMEOUT_MS}ms`,
+        ),
+      );
+    }, GENERATE_TIMEOUT_MS);
+    pending.set(id, { resolve, reject, timer });
     host.generate(id, JSON.stringify({ prompt, ...options }));
   });
 }

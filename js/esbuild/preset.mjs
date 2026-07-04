@@ -13,6 +13,9 @@ import { mkdirSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { writeOTAManifest } from "./manifest.mjs";
+import { reactCompilerPlugin } from "./react-compiler.mjs";
+
+export { reactCompilerPlugin } from "./react-compiler.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -29,21 +32,26 @@ export const shimEntry = join(rendererRoot, "src/install-shims.ts");
  * @param {string} opts.entry         App entry (e.g. src/entry.tsx).
  * @param {string} opts.outfile       Where to write the IIFE bundle.
  * @param {boolean} [opts.minify]     Minify (≈halves size; off keeps traces).
+ * @param {boolean} [opts.reactCompiler] Run the React Compiler over app +
+ *                                    renderer source (auto-memoization ->
+ *                                    fewer commits). Needs Babel dev deps —
+ *                                    see esbuild/react-compiler.mjs.
  * @param {string[]} [opts.nodePaths] Extra resolution roots (consumer's
  *                                    node_modules, for single-React dedupe).
- * @param {import("esbuild").Plugin[]} [opts.plugins] Extra plugins (e.g. the
- *                                    React Compiler, which the demo adds).
+ * @param {import("esbuild").Plugin[]} [opts.plugins] Extra plugins.
  * @returns {import("esbuild").BuildOptions}
  */
 export function watchBuildOptions({
   entry,
   outfile,
   minify = false,
+  reactCompiler = false,
   nodePaths,
   plugins = [],
 } = {}) {
   if (!entry) throw new Error("watchBuildOptions: `entry` is required");
   if (!outfile) throw new Error("watchBuildOptions: `outfile` is required");
+  if (reactCompiler) plugins = [reactCompilerPlugin(), ...plugins];
   return {
     entryPoints: [entry],
     outfile,
@@ -93,12 +101,12 @@ export function watchBuildOptions({
  *   plugins?: import("esbuild").Plugin[],
  *   manifest?: { version: number, requiredFeatures?: string[], minBridgeProtocol?: number, bundleFileName?: string, signature?: string | null },
  * }>} targets
- * @param {{ minify?: boolean, nodePaths?: string[] }} [opts]
+ * @param {{ minify?: boolean, reactCompiler?: boolean, nodePaths?: string[] }} [opts]
  * @returns {Promise<Array<{ name: string, outfile: string, sizeKB: number, manifest?: object }>>}
  */
 export async function buildBundles(
   targets,
-  { minify = false, nodePaths } = {},
+  { minify = false, reactCompiler = false, nodePaths } = {},
 ) {
   if (!Array.isArray(targets) || targets.length === 0) {
     throw new Error("buildBundles: pass a non-empty array of targets");
@@ -137,6 +145,7 @@ export async function buildBundles(
       entry,
       outfile,
       minify,
+      reactCompiler,
       nodePaths,
       plugins,
     });

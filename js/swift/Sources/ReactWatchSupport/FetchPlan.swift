@@ -30,6 +30,11 @@ public struct FetchPlan: Sendable {
             parsed.scheme != nil
         else { return nil }
         var request = URLRequest(url: parsed)
+        // Bound a hung socket at 30s instead of URLSession's 60s default —
+        // a watch fetch slot is scarce (NF-34). JS-side cancellation
+        // (AbortController / the `timeout` option) still fires earlier when
+        // the caller asks for it.
+        request.timeoutInterval = 30
         request.httpMethod = payload.method
         payload.headers?.forEach {
             request.setValue($0.value, forHTTPHeaderField: $0.key)

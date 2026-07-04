@@ -48,12 +48,31 @@ describe("codegen", () => {
       join(swiftRoot, "Sources/ReactWatchHost/ReactWatchHost.swift"),
       "utf8",
     );
+    // Scope the case scan to the handleInvoke dispatcher (from the func to the
+    // first `default:` that closes its switch) so string cases in unrelated
+    // switches — haptic direction, notification-action, StoreKit outcome — don't
+    // leak into the reverse check below.
+    const dispatchStart = src.indexOf("func handleInvoke(");
+    const dispatch = src.slice(
+      dispatchStart,
+      src.indexOf("default:", dispatchStart),
+    );
     const routed = new Set<string>();
-    for (const m of src.matchAll(/case\s+"(\w+)"\s*:/g)) {
+    for (const m of dispatch.matchAll(/case\s+"(\w+)"\s*:/g)) {
       routed.add(m[1] as string);
     }
-    for (const m of hostMethods.filter((m) => m.via === "invoke")) {
+    const invokeMethods = hostMethods.filter((m) => m.via === "invoke");
+    // Forward: every schema invoke method has a routing case.
+    for (const m of invokeMethods) {
       expect(routed.has(m.name)).toBe(true);
+    }
+    // Reverse: every routing case is a declared schema invoke method — so a
+    // hand-written Swift `case "foo"` with no schema entry (the enableWaterLock
+    // gap) fails here instead of silently rejecting with UNKNOWN_METHOD at
+    // runtime.
+    const declared = new Set(invokeMethods.map((m) => m.name));
+    for (const name of routed) {
+      expect(declared.has(name)).toBe(true);
     }
   });
 });

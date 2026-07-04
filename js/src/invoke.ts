@@ -32,8 +32,38 @@ function invokeError(code: InvokeErrorCode, message: string): InvokeError {
 let nextInvokeId = 1;
 const pending = new Map<
   number,
-  { resolve: (value: unknown) => void; reject: (error: unknown) => void }
+  {
+    resolve: (value: unknown) => void;
+    reject: (error: unknown) => void;
+    timer: ReturnType<typeof setTimeout>;
+  }
 >();
+
+/**
+ * Last-resort settle when native accepts an invoke and then never replies (an
+ * exception before the callback, a dropped delegate). Every native path is
+ * supposed to settle exactly once (CX-022), but that invariant depends on
+ * each bridge author's diligence — without this net, one miss hangs the JS
+ * promise and leaks its closures for the runtime's life. Paths with tighter
+ * native semantics (BLE connect's 15 s) settle first and win.
+ */
+const INVOKE_TIMEOUT_MS = 30_000;
+
+/**
+ * Watchdog bound for user-mediated ops (permission prompt, StoreKit purchase):
+ * their native callback intentionally blocks on the user answering a system
+ * sheet, which routinely outlasts the 30 s default — a blanket watchdog would
+ * falsely reject a granted permission or a completed purchase. 5 min still
+ * bounds a genuinely stuck bridge (the never-hangs guarantee holds), it just
+ * doesn't mistake a deliberating user for a hang.
+ */
+export const USER_MEDIATED_INVOKE_TIMEOUT_MS = 5 * 60_000;
+
+/** Per-call overrides. `timeoutMs` raises the last-resort watchdog for
+ *  user-mediated ops (see {@link USER_MEDIATED_INVOKE_TIMEOUT_MS}). */
+export interface InvokeOptions {
+  timeoutMs?: number;
+}
 
 /** The single settle path — drops the id from the pending map FIRST, so a
  *  duplicate native reply for the same id is a silent no-op (settle once). */
@@ -41,6 +71,7 @@ function settle(id: number, ok: boolean, json: string): void {
   const entry = pending.get(id);
   if (!entry) return;
   pending.delete(id);
+  clearTimeout(entry.timer);
   if (ok) {
     try {
       entry.resolve(json ? JSON.parse(json) : undefined);
@@ -81,6 +112,7 @@ function installInvokeBridge(): void {
 export function invoke<T = unknown>(
   method: string,
   payload?: unknown,
+  options?: InvokeOptions,
 ): Promise<T> {
   const host = getHost();
   if (!host?.invoke) {
@@ -91,14 +123,38 @@ export function invoke<T = unknown>(
       ),
     );
   }
+  // Serialize BEFORE arming the timer / pending entry: a non-serializable
+  // payload (BigInt, circular ref) must reject cleanly, not orphan a 30s timer
+  // + pending entry that only clear when the timeout fires (CX-022 no-leak).
+  let payloadJson: string;
+  try {
+    payloadJson = payload === undefined ? "" : JSON.stringify(payload);
+  } catch (error) {
+    return Promise.reject(
+      invokeError(
+        "INVALID_REQUEST",
+        `${method} payload not serializable: ${(error as Error).message}`,
+      ),
+    );
+  }
   installInvokeBridge();
+  const timeoutMs = options?.timeoutMs ?? INVOKE_TIMEOUT_MS;
   return new Promise<T>((resolve, reject) => {
     const id = nextInvokeId++;
-    pending.set(id, { resolve: resolve as (v: unknown) => void, reject });
-    host.invoke?.(
-      id,
-      method,
-      payload === undefined ? "" : JSON.stringify(payload),
-    );
+    const timer = setTimeout(() => {
+      if (!pending.delete(id)) return;
+      reject(
+        invokeError(
+          "INTERNAL",
+          `${method} got no native reply within ${timeoutMs}ms`,
+        ),
+      );
+    }, timeoutMs);
+    pending.set(id, {
+      resolve: resolve as (v: unknown) => void,
+      reject,
+      timer,
+    });
+    host.invoke?.(id, method, payloadJson);
   });
 }

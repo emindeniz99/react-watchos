@@ -58,7 +58,15 @@ public func reactTimeline(
     else {
         return Timeline(entries: [.placeholder], policy: .atEnd)
     }
-    let entries = timeline.entries.map(reactEntry(from:))
+    // Drop entries already in the past — except the one applicable NOW
+    // (WidgetSnapshot's rule, NF-17): handing WidgetKit stale leading entries
+    // shows an out-of-date first frame until it advances. All-future
+    // timelines keep every entry (currentIndex points at the earliest).
+    let published = timeline.entries
+    let start =
+        WidgetSnapshot.currentIndex(
+            dates: published.map(\.entryDate), now: Date()) ?? 0
+    let entries = published[start...].map(reactEntry(from:))
     let policy: TimelineReloadPolicy =
         timeline.reloadAfterDate.map { .after($0) } ?? .atEnd
     return Timeline(entries: entries, policy: policy)

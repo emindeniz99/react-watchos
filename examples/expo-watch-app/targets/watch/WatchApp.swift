@@ -8,8 +8,15 @@ import SwiftUI
 // the native bridges all live in the package.
 @main
 struct ExpoWatchApp: App {
+    // Delivers scheduled background refreshes to JS's onBackgroundRefresh.
+    @WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
+            // OTA updates are refused until you trust a signing key (secure
+            // default). `npm run build:targets` prints your dev key's line on
+            // first build (persisted at .ota-dev-key.json, gitignored):
+            //   ota: .init(signerPublicKeys: ["<keyId>": "<publicKeyBase64>"])
             ReactWatchRootView(appGroupId: "group.com.example.expowatch")
         }
     }

@@ -7,9 +7,19 @@ import SwiftUI
 /// interpreter, and the native bridges all live in the package.
 @main
 struct ReactWatchApp: App {
+    // Delivers scheduled background refreshes to JS's onBackgroundRefresh.
+    @WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self) private var appDelegate
+
     var body: some Scene {
         WindowGroup {
-            ReactWatchRootView(appGroupId: "group.com.emindeniz99.reactwatch")
+            // The repo's own dev demo opts into unsigned OTA explicitly so the
+            // Updates screen works against the local dev server without key
+            // setup (NF-29 made refusal the zero-config default). A real app
+            // sets signerPublicKeys instead — see docs/ota-signing.md.
+            ReactWatchRootView(
+                appGroupId: "group.com.emindeniz99.reactwatch",
+                ota: .init(allowUnsignedUpdates: true)
+            )
         }
     }
 }

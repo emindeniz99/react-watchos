@@ -16,6 +16,7 @@ import {
   Toggle,
   unregisterAllNativeListeners,
   useFocusEffect,
+  useIsFocused,
   useNavigate,
   useNavigation,
   useParams,
@@ -170,6 +171,94 @@ describe("useParams", () => {
       host,
     );
     expect(findByText(host.lastCommit!.root!, "id=42")).toHaveLength(1);
+  });
+
+  it("focuses only the best-scoring route when patterns overlap", () => {
+    // The native host renders only the highest-scoring match (RouteMatcher.best),
+    // so JS must focus only that one — else a losing overlapping route (here the
+    // optional catch-all) fires useFocusEffect + reports useIsFocused() on a
+    // screen the user never sees.
+    function FocusProbe({ tag }: { tag: string }) {
+      const focused = useIsFocused();
+      return <Text>{`${tag}:${focused}`}</Text>;
+    }
+    const host = new MemoryHost();
+    runApp(
+      <NavigationStack path={["/shop/nike"]}>
+        <NavigationRoute path="/shop/[name]">
+          <FocusProbe tag="concrete" />
+        </NavigationRoute>
+        <NavigationRoute path="/shop/[name]/[[...rest]]">
+          <FocusProbe tag="catchall" />
+        </NavigationRoute>
+      </NavigationStack>,
+      host,
+    );
+    const root = host.lastCommit!.root!;
+    expect(findByText(root, "concrete:true")).toHaveLength(1); // score 3 wins
+    expect(findByText(root, "catchall:false")).toHaveLength(1); // score 2 loses
+  });
+});
+
+describe("uncontrolled NavigationStack", () => {
+  it("tracks the native path so params and focus follow pushed screens", () => {
+    // No `path` prop: the native stack drives itself (NavigationLink pushes,
+    // swipe-back) and reports each change via pathChange. JS must fold that in,
+    // or `active` stays pinned at "/" and useParams()/useIsFocused() are wrong
+    // on every pushed screen — the whole point of the fix.
+    function ListProbe() {
+      const { id } = useParams<{ id: string }>();
+      const focused = useIsFocused();
+      return <Text>{`list:${id ?? "none"}:${focused}`}</Text>;
+    }
+    const host = new MemoryHost();
+    const root = runApp(
+      <NavigationStack>
+        <NavigationRoute path="/">
+          <Text>home</Text>
+        </NavigationRoute>
+        <NavigationRoute path="/list/[id]">
+          <ListProbe />
+        </NavigationRoute>
+      </NavigationStack>,
+      host,
+    );
+    // Before any native push the stack is at root; /list is neither focused nor
+    // carrying params.
+    expect(findByText(host.lastCommit!.root!, "list:none:false")).toHaveLength(
+      1,
+    );
+
+    // Native pushes /list/42 and reports it through pathChange.
+    const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
+    root.dispatchEvent({
+      nodeId: stack.id,
+      event: "pathChange",
+      payload: { path: ["/list/42"] },
+    });
+    expect(findByText(host.lastCommit!.root!, "list:42:true")).toHaveLength(1);
+  });
+
+  it("still forwards pathChange to a user onPathChange handler", () => {
+    // Observing-but-not-controlling (onPathChange without path) must both update
+    // local tracking AND fire the user handler.
+    const seen: string[][] = [];
+    const host = new MemoryHost();
+    const root = runApp(
+      <NavigationStack onPathChange={(p) => seen.push(p)}>
+        <NavigationRoute path="/">
+          <Text>home</Text>
+        </NavigationRoute>
+      </NavigationStack>,
+      host,
+    );
+    const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
+    root.dispatchEvent({
+      nodeId: stack.id,
+      event: "pathChange",
+      payload: { path: ["/x"] },
+    });
+    expect(seen).toEqual([["/x"]]);
   });
 });
 

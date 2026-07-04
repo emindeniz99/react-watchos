@@ -423,6 +423,20 @@ describe("withEasAppExtensions (EAS extra-target signing)", () => {
     ]);
   });
 
+  it("uses a non-dot suffix verbatim, matching apple-targets' derivation", () => {
+    // apple-targets appends a leading-dot suffix to the app id but uses any
+    // other suffix as the whole id. The EAS entry must agree, or its bundle-id
+    // upsert would push a duplicate instead of reconciling.
+    const opts = resolveOptions(config, {
+      watchBundleSuffix: "watch2",
+      widget: false,
+    });
+    const list = extensionsOf(
+      withEasAppExtensions({ ...config }, opts),
+    ) as Array<{ bundleIdentifier: string }>;
+    expect(list[0].bundleIdentifier).toBe("watch2");
+  });
+
   it("drops the widget entry and HealthKit when those options are off", () => {
     const opts = resolveOptions(config, { widget: false, healthKit: false });
     const list = extensionsOf(
@@ -545,6 +559,36 @@ describe("mergeTargetInfoPlists (in-prebuild plist merge)", () => {
   it("is idempotent (already-merged plist reports no change)", () => {
     const { root } = stage({ WKRunsIndependentlyOfCompanionApp: true });
     expect(mergeTargetInfoPlists(root)).toEqual(["watch"]);
+    expect(mergeTargetInfoPlists(root)).toEqual([]);
+  });
+
+  it("fails loud when a target declares infoPlist but no Info.plist exists (NF-31)", () => {
+    // apple-targets writes each target's Info.plist before our base mod
+    // fires; a missing file means its ordering changed under us. Silently
+    // skipping used to drop keys like WKRunsIndependentlyOfCompanionApp
+    // from the build with no error.
+    const root = mkdtempSync(join(tmpdir(), "rnw-plist-"));
+    const dir = join(root, "targets", "watch");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "expo-target.config.js"),
+      `module.exports = ${JSON.stringify({
+        type: "watch",
+        name: "W",
+        infoPlist: { WKRunsIndependentlyOfCompanionApp: true },
+      })};\n`,
+    );
+    expect(() => mergeTargetInfoPlists(root)).toThrow(/wrote no Info\.plist/);
+  });
+
+  it("stays quiet for a target with no infoPlist keys and no Info.plist", () => {
+    const root = mkdtempSync(join(tmpdir(), "rnw-plist-"));
+    const dir = join(root, "targets", "widget");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      join(dir, "expo-target.config.js"),
+      'module.exports = { type: "widget", name: "W" };\n',
+    );
     expect(mergeTargetInfoPlists(root)).toEqual([]);
   });
 });

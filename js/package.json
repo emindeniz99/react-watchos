@@ -68,11 +68,13 @@
     "bin"
   ],
   "scripts": {
+    "prepublishOnly": "pnpm run typecheck && pnpm run lint && pnpm run check:size",
     "build": "node scripts/build.mjs",
     "build:min": "node scripts/build.mjs --minify",
     "dev": "node scripts/dev.mjs",
     "inspector": "node scripts/inspector.mjs",
     "build:bytecode": "sh ../tools/qjs-compile/run.sh",
+    "bench:qjs": "sh ../tools/embed-smoke/bench.sh",
     "ota:keygen": "node scripts/ota-keygen.mjs",
     "ota:sign": "node scripts/ota-sign.mjs",
     "check:size": "node scripts/check-size.mjs",
@@ -87,13 +89,20 @@
     "format:swift": "swift format -i -r swift/Sources swift/Tests ../app/targets",
     "format:swift:check": "swift format lint -s -r -p swift/Sources swift/Tests ../app/targets"
   },
+  "dependencies": {
+    "plist": "^3.1.0"
+  },
   "peerDependencies": {
-    "@bacons/apple-targets": ">=4.0.0",
+    "@bacons/apple-targets": "^4.0.0",
     "@expo/config-plugins": ">=56.0.0",
     "esbuild": ">=0.27.0",
     "expo": ">=56.0.0",
     "react": "^19.2.0",
-    "react-reconciler": "0.33.0"
+    "react-reconciler": "0.33.0",
+    "@babel/core": "^7.20.0 || ^8.0.0",
+    "@babel/preset-react": "^7.18.0 || ^8.0.0",
+    "@babel/preset-typescript": "^7.18.0 || ^8.0.0",
+    "babel-plugin-react-compiler": ">=1.0.0"
   },
   "peerDependenciesMeta": {
     "@bacons/apple-targets": {
@@ -106,6 +115,18 @@
       "optional": true
     },
     "expo": {
+      "optional": true
+    },
+    "@babel/core": {
+      "optional": true
+    },
+    "@babel/preset-react": {
+      "optional": true
+    },
+    "@babel/preset-typescript": {
+      "optional": true
+    },
+    "babel-plugin-react-compiler": {
       "optional": true
     }
   },
@@ -126,5 +147,9 @@
   },
   "bin": {
     "react-native-watchos": "./bin/react-native-watchos.cjs"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

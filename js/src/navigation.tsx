@@ -1,7 +1,10 @@
 import {
+  Children,
   createContext,
   type EffectCallback,
   type FC,
+  Fragment,
+  isValidElement,
   type ReactNode,
   useCallback,
   useContext,
@@ -132,6 +135,10 @@ const EMPTY_PARAMS: RouteParams = {};
 const ActiveRouteContext = createContext<string>("/");
 const RouteParamsContext = createContext<RouteParams>(EMPTY_PARAMS);
 const FocusContext = createContext<boolean>(false);
+/** The single winning `<NavigationRoute path>` for the active route (the same
+ * one the native host renders), or null when none matches. Lets NavigationRoute
+ * focus exclusively instead of every route whose pattern happens to match. */
+const WinningRouteContext = createContext<string | null>(null);
 
 /**
  * Param object inferred from a route template, matching parsePattern's bracket
@@ -222,17 +229,70 @@ const NavigationStackHost =
 const NavigationRouteHost =
   "NavigationRoute" as unknown as FC<NavigationRouteProps>;
 
+/** The single highest-scoring `<NavigationRoute path>` among `children` for the
+ * active route — the JS mirror of Swift RouteMatcher.best / NodeView.routeNode,
+ * which render only the best match. Ties go to the first declared (strict `>`).
+ * Recurses fragments so it sees the same flattened child set the serializer
+ * hands the native host. */
+function bestRoutePattern(children: ReactNode, active: string): string | null {
+  let bestPath: string | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  const visit = (nodes: ReactNode): void => {
+    for (const child of Children.toArray(nodes)) {
+      if (!isValidElement(child)) continue;
+      if (child.type === NavigationRoute) {
+        const childPath = (child.props as NavigationRouteProps).path;
+        const m = matchRoute(childPath, active);
+        if (m && m.score > bestScore) {
+          bestScore = m.score;
+          bestPath = childPath;
+        }
+      } else if (child.type === Fragment) {
+        visit((child.props as { children?: ReactNode }).children);
+      }
+    }
+  };
+  visit(children);
+  return bestPath;
+}
+
 /**
- * Native push stack. Publishes the active route (top of `path`) so the
+ * Native push stack. Publishes the active route (top of the stack) so the
  * matching <NavigationRoute> can expose its params via useParams().
+ *
+ * Two modes, mirroring the native RoutedNavigationStack (NodeView.swift):
+ *  - **Controlled** — you pass `path`; JS is the source of truth and the host's
+ *    `pathChange` events flow to your `onPathChange` for you to fold back in.
+ *  - **Uncontrolled** — you pass neither; the native stack drives itself
+ *    (NavigationLink pushes, swipe-back) and reports each change via
+ *    `pathChange`. We track that here so `active` follows the real stack instead
+ *    of being pinned to "/" — otherwise useParams()/useIsFocused() would be
+ *    wrong on every pushed screen. A user `onPathChange` still fires either way.
  */
 export function NavigationStack(props: NavigationStackProps) {
-  const { path } = props;
-  const top = path && path.length > 0 ? path[path.length - 1] : undefined;
+  const { path, onPathChange } = props;
+  const controlled = path !== undefined;
+  const [localPath, setLocalPath] = useState<string[]>([]);
+  const activePath = controlled ? path : localPath;
+  const top =
+    activePath.length > 0 ? activePath[activePath.length - 1] : undefined;
   const active = top ? normalizeRoute(top) : "/";
+  const winner = useMemo(
+    () => bestRoutePattern(props.children, active),
+    [props.children, active],
+  );
+  const handlePathChange = useCallback(
+    (next: string[]) => {
+      if (!controlled) setLocalPath(next);
+      onPathChange?.(next);
+    },
+    [controlled, onPathChange],
+  );
   return (
     <ActiveRouteContext.Provider value={active}>
-      <NavigationStackHost {...props} />
+      <WinningRouteContext.Provider value={winner}>
+        <NavigationStackHost {...props} onPathChange={handlePathChange} />
+      </WinningRouteContext.Provider>
     </ActiveRouteContext.Provider>
   );
 }
@@ -260,10 +320,16 @@ export function NavigationStack(props: NavigationStackProps) {
 export function NavigationRoute(props: NavigationRouteProps) {
   const { path } = props;
   const active = useContext(ActiveRouteContext);
+  const winner = useContext(WinningRouteContext);
   const match = useMemo(() => matchRoute(path, active), [path, active]);
-  const params = match?.params ?? EMPTY_PARAMS;
+  // Focus (and expose params for) ONLY the single best-scoring route — the one
+  // the native host actually renders — not every route whose pattern matches.
+  // Otherwise an overlapping route (e.g. a catch-all beside a concrete path)
+  // would fire useFocusEffect + report useIsFocused() on a screen never shown.
+  const focused = match !== null && path === winner;
+  const params = focused ? (match?.params ?? EMPTY_PARAMS) : EMPTY_PARAMS;
   return (
-    <FocusContext.Provider value={match !== null}>
+    <FocusContext.Provider value={focused}>
       <RouteParamsContext.Provider value={params}>
         <NavigationRouteHost {...props} />
       </RouteParamsContext.Provider>

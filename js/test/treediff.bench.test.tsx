@@ -3,10 +3,12 @@ import { List, MemoryHost, Text, VStack, WatchRoot } from "../src/index";
 
 // Measure-first gate for the tree-diff/patch protocol (docs/roadmap.md E):
 // prove the full-tree serialize+commit cost of a large List before building
-// a patch protocol. Result (200 rows): ~13 KB, ~0.04 ms/serialize — the
-// in-process serialize+decode cost is negligible and SwiftUI re-diffs the
-// decoded tree regardless, so a patch protocol is NOT warranted at this
-// scale. This stays as a regression guard.
+// a patch protocol. Result (200 rows): ~13 KB, ~0.04 ms/serialize — BUT this
+// runs under V8/JIT; the shipping engine is an interpreter, ~25x slower on
+// this path (NF-20). The decision-grade numbers come from
+// tools/embed-smoke/bench.sh, which runs the real demo bundle inside the
+// vendored quickjs-ng (CI step "Tree-commit bench"). This stays only as a
+// V8-side regression guard on tree size.
 
 const ROWS = 200;
 
