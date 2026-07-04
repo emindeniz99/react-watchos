@@ -4,6 +4,7 @@ import {
   BUNDLE_VERSION,
   checkForUpdate,
   fetchAndApplyUpdate,
+  getUpdateState,
   Storage,
 } from "../src/index";
 import { installMockHost } from "./helpers";
@@ -17,6 +18,40 @@ afterEach(() => {
   delete g.__hostFeatures;
   delete g.__bridgeProtocol;
   delete g.__bundleReleaseId;
+});
+
+describe("OTA observability (getUpdateState)", () => {
+  it("reports the native state merged with the running releaseId", async () => {
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number, method: string) => {
+      const g = globalThis as {
+        __resolveInvoke?: (id: number, resultJson: string) => void;
+      };
+      if (method === "getUpdateState") {
+        g.__resolveInvoke?.(
+          id,
+          JSON.stringify({
+            source: "ota",
+            version: 4,
+            keyId: "k1",
+            highWater: 4,
+          }),
+        );
+      }
+    });
+    g.__bundleReleaseId = "abc123";
+    expect(await getUpdateState()).toEqual({
+      source: "ota",
+      version: 4,
+      keyId: "k1",
+      highWater: 4,
+      releaseId: "abc123",
+    });
+  });
+
+  it("degrades to shipped/0 with no invoke-capable host, never rejects", async () => {
+    expect(await getUpdateState()).toEqual({ source: "shipped", highWater: 0 });
+  });
 });
 
 describe("OTA applyUpdate", () => {

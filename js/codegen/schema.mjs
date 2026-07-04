@@ -439,6 +439,17 @@ export const hostMethods = [
     since: 1,
     via: "invoke",
   },
+  // OTA observability (review §6.11b): which bundle is actually running —
+  // source/version/keyId/expiresAt + the device's anti-rollback high-water —
+  // so an app can ship fleet telemetry, making the staleness/freeze monitoring
+  // that docs/ota-signing.md recommends actually implementable.
+  {
+    name: "getUpdateState",
+    targets: ["watch"],
+    feature: "ota",
+    since: 1,
+    via: "invoke",
+  },
   {
     name: "generate",
     targets: ["watch"],

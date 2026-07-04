@@ -148,6 +148,10 @@ public final class WidgetIntentRuntime {
             keyState: keyState, recordVerified: recordVerified)
         {
         case .shipped:
+            // Observability (review §6.11b): the widget process has no invoke
+            // channel, so its bundle identity is logged — visible in Console/
+            // sysdiagnose when diagnosing a fleet's complication spread.
+            print("[react-watch-widget] bundle: shipped")
             try loadShippedBundle()
         case .knownGoodBytecode:
             // decide returns this only when a hash-matching .good.qbc exists.
@@ -155,6 +159,7 @@ public final class WidgetIntentRuntime {
                 try loadShippedBundle()
                 return
             }
+            logBundleIdentity(record)
             do {
                 try js.evaluateBytecode(bytecode)
             } catch {
@@ -165,8 +170,20 @@ public final class WidgetIntentRuntime {
                 try loadShippedBundle()
                 return
             }
+            logBundleIdentity(record)
             try js.evaluate(record.js)
         }
+    }
+
+    /// One line of OTA identity per runtime creation (review §6.11b): which
+    /// known-good bundle this widget renders, matchable against the app's
+    /// getUpdateState() in fleet logs.
+    private func logBundleIdentity(_ record: OTARecord) {
+        let version = record.version.map(String.init) ?? "unsigned"
+        let keyId = record.keyId ?? "-"
+        print(
+            "[react-watch-widget] bundle: known-good OTA "
+                + "version=\(version) keyId=\(keyId)")
     }
 
     /// Decodes a base64 raw Ed25519 public key, or nil if malformed (matching the

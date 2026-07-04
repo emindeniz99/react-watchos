@@ -49,6 +49,11 @@ export function installMockHost() {
         g.__resolveInvoke?.(id, JSON.stringify({ ok: true }));
       } else if (method === "scheduleNotification") {
         g.__resolveInvoke?.(id, "null");
+      } else if (method === "getUpdateState") {
+        g.__resolveInvoke?.(
+          id,
+          JSON.stringify({ source: "shipped", highWater: 0 }),
+        );
       } else if (
         method === "bleConnect" ||
         method === "bleWrite" ||

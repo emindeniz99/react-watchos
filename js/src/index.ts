@@ -233,7 +233,9 @@ export {
   BUNDLE_VERSION,
   checkForUpdate,
   fetchAndApplyUpdate,
+  getUpdateState,
   type UpdateManifest,
+  type UpdateState,
 } from "./update";
 export type {
   ControlDefinition,

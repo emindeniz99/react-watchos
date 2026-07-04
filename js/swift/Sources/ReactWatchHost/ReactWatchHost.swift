@@ -301,6 +301,8 @@ final class ReactWatchModel: ObservableObject {
         switch method {
         case "saveUpdate":
             handleSaveUpdate(id: id, payload: payload)
+        case "getUpdateState":
+            handleGetUpdateState(id: id)
         case "requestNotificationPermission":
             requestNotificationPermission(id: id)
         case "sendToPhone":
@@ -354,6 +356,23 @@ final class ReactWatchModel: ObservableObject {
                 errorJson: Self.errorJSON(
                     code: "UNKNOWN_METHOD", message: "no invoke handler for \(method)"))
         }
+    }
+
+    /// OTA observability (review §6.11b): reports which bundle this launch
+    /// actually booted — source/version/keyId/expiresAt + the anti-rollback
+    /// high-water mark — so an app can ship fleet telemetry. JS merges the
+    /// running bundle's content id (`__bundleReleaseId`) on its side.
+    private func handleGetUpdateState(id: Int) {
+        var result: [String: Any] = [
+            "source": bootedOTARecord != nil ? "ota" : "shipped",
+            "highWater": store.otaHighWater(),
+        ]
+        if let record = bootedOTARecord {
+            if let version = record.version { result["version"] = version }
+            if let keyId = record.keyId { result["keyId"] = keyId }
+            if let expiresAt = record.expiresAt { result["expiresAt"] = expiresAt }
+        }
+        runtime?.resolveInvoke(id: id, resultJson: Self.jsonObject(result))
     }
 
     /// Runs the staging pipeline and *resolves* the invoke with a

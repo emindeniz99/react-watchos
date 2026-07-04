@@ -43,6 +43,46 @@ export interface SaveUpdateResult {
   message?: string;
 }
 
+/** What the watch is actually running — the OTA observability surface
+ *  (fleet telemetry): report these fields to your backend to know each
+ *  device's bundle spread and to implement the staleness/freeze monitoring
+ *  docs/ota-signing.md recommends. */
+export interface UpdateState {
+  /** Which bundle booted this launch. */
+  source: "ota" | "shipped";
+  /** The running OTA record's compatibility version (absent when shipped or
+   *  running an unsigned dev bundle). */
+  version?: number;
+  /** The signing key that shipped the running OTA bundle. */
+  keyId?: string;
+  /** The running record's signed expiry (epoch seconds; absent/0 = never). */
+  expiresAt?: number;
+  /** The device's anti-rollback high-water mark. */
+  highWater: number;
+  /** Content id of the RUNNING bundle (same value as the manifest
+   *  `releaseId` for identical bytes) — merged in from the host-injected
+   *  `__bundleReleaseId`, so it's present even for the shipped bundle. */
+  releaseId?: string;
+}
+
+/**
+ * Reports which bundle this launch actually booted + the device's OTA state
+ * (review §6.11b — observability). Never rejects: with no invoke-capable host
+ * (tests/Node) it resolves a bare `{ source: "shipped", highWater: 0 }` so
+ * telemetry code can run unconditionally.
+ */
+export async function getUpdateState(): Promise<UpdateState> {
+  let state: UpdateState;
+  try {
+    state = await invoke<UpdateState>("getUpdateState", {});
+  } catch {
+    state = { source: "shipped", highWater: 0 };
+  }
+  const releaseId = currentReleaseId();
+  if (releaseId !== null) state.releaseId = releaseId;
+  return state;
+}
+
 /**
  * Stages an OTA bundle and resolves whether the watch accepted it (CX-005).
  * Resolves (never rejects) with `{ accepted }` — a refusal from the native side
