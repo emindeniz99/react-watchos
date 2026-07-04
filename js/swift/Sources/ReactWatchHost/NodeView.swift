@@ -1333,6 +1333,10 @@ private func buttonRole(_ name: String?) -> ButtonRole? {
 /// -> frame -> opacity -> tint.
 struct LayoutModifier: ViewModifier {
     let node: RNNode
+    /// Honor the user's Reduce Motion accessibility setting: a node's
+    /// `animation` prop is suppressed when it's on (see `animated`). SwiftUI
+    /// updates this live, so toggling the setting re-renders without a poll.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         animated(
@@ -1359,8 +1363,12 @@ struct LayoutModifier: ViewModifier {
     /// animate its children's changes. RNNode is Equatable, so any prop/subtree
     /// change is the trigger.
     @ViewBuilder private func animated(_ styled: some View) -> some View {
-        if let animation = swiftUIAnimation(
-            RNStyle.animation(from: node.props["animation"]))
+        // Suppress the declared animation under Reduce Motion (accessibility):
+        // the value change still commits, it just isn't animated. getDeviceInfo
+        // also exposes `reduceMotion` so JS-driven transitions can honor it too.
+        if !reduceMotion,
+            let animation = swiftUIAnimation(
+                RNStyle.animation(from: node.props["animation"]))
         {
             styled.animation(animation, value: node)
         } else {

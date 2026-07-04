@@ -30,7 +30,10 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
   inspector captures errors (message + stack + componentStack, `console.error`
   teed) into an ERRORS panel. Remaining: enriching the native on-device banner
   to show it (macOS-build-gated).
-- **VoiceOver labels** (`A11yProps`). Remaining: Dynamic Type, reduce-motion.
+- **VoiceOver labels** (`A11yProps`), **Dynamic Type** (`textStyle` scales
+  automatically; `preferredContentSizeCategory` exposed via `getDeviceInfo`),
+  and **reduce-motion** (native `animated()` suppresses a node's `animation`
+  under `@Environment(\.accessibilityReduceMotion)`; also on `getDeviceInfo`).
 - **TimerText**, **runSync / native-event push**, **codegen wire contract**,
   **bytecode precompile**, **no-op commit bailout**, **Linux CI + swift
   contract tests**.
@@ -120,7 +123,7 @@ Owns the companion app, new `__host` methods, native-event streams.
 | **WatchConnectivity bridge** | P0 → **wired** | M | Both sides in place: phone→watch via `registerNativeListener`/`__pushNativeEvent`, watch→phone via `sendToPhone` (invoke channel), and the companion app's `react-native-watch-connectivity` listener replies so the watch promise settles. Accept criterion (a phone message updates watch UI live) still needs a paired sim/device run — ③ in status.md. |
 | Networking (`fetch`) | P1 | M | A `fetch` shim backed by `URLSession` through a new async `__host` method. Promise-based → **depends on Track 2's async/`setInterval` work** for deterministic flush. |
 | Sensors / HealthKit | P1 | M-L | Heart rate, motion, workout sessions as native-event streams on the push channel. HealthKit adds entitlement/privacy plumbing. Builds directly on `__pushNativeEvent`. |
-| Dynamic Type + reduce-motion | P2 | S | Labels already done; add scaled fonts and motion-reduction honoring. |
+| Dynamic Type + reduce-motion | P2 → **shipped** | S | Labels done; `textStyle` gives Dynamic Type scaling for free (semantic fonts), and `getDeviceInfo` exposes `preferredContentSizeCategory`. Reduce-motion now honored natively: `LayoutModifier.animated()` skips a node's `animation` under `@Environment(\.accessibilityReduceMotion)`, and the flag is on `getDeviceInfo` for JS-driven transitions. On-device feel is ③. |
 | Live Activities / Smart Stack+ | P2 | M | Extends the existing widget timeline pipeline. |
 | **i18n track (M7)** | P1 → **shipped** | M | QuickJS has no `Intl`; the gap was undocumented until the 2026-07-04 review. Step 1 SHIPPED: `locale`/`language`/`is24Hour` in `getDeviceInfo()` + README limitation. Step 2 SHIPPED: `<FormattedText>` — a declarative date/number primitive rendered natively with the device locale (shared `RNFormat` kernel in Support, Linux-tested; full widget support). Step 3 SHIPPED: `createTranslations`/`TranslationProvider`/`useTranslation` — a message translation layer (typed `t()`, `{placeholder}` interpolation, an app-supplied plural-rule seam since there's no `Intl.PluralRules`), plain data + one context resolved in JS like the theme layer, Linux-tested. |
 | **API reference (M12)** | P1 → **shipped** | M | ~110 value exports + ~80 types with no consumer reference doc; a large slice of the public surface (Slider/Stepper/DatePicker/Map/CrownRotation/SwipeAction/ErrorBoundary/sensors/defineMessages/startInspector) appears in no consumer document. Generate `docs/api.md` from the TS types/JSDoc (typedoc) and emit the capability table from the codegen schema so it can't drift. |
