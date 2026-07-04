@@ -54,7 +54,18 @@ export const Storage = {
   },
 
   set(key: string, value: unknown): void {
-    this.setString(key, JSON.stringify(value));
+    const json = JSON.stringify(value);
+    // JSON.stringify(undefined | function | symbol) returns undefined — the
+    // typed bridge would then persist the literal string "undefined", which
+    // get() can never parse back. Fail loud instead of corrupting; store an
+    // explicit null to clear a value (get() returns null for it).
+    if (json === undefined) {
+      throw new TypeError(
+        `Storage.set("${key}"): value is not JSON-serializable ` +
+          "(undefined/function/symbol) — set null to clear the key",
+      );
+    }
+    this.setString(key, json);
   },
 
   /**

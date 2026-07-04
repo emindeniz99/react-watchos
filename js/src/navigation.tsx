@@ -58,7 +58,12 @@ export function routeFromURL(
   const prefix = `${scheme}://`;
   if (!url.startsWith(prefix)) return null;
   const rest = url.slice(prefix.length).split(/[?#]/, 1)[0] ?? "";
-  const route = normalizeRoute(decodeURIComponent(rest.replace(/^\/+/, "")));
+  // Keep the path PERCENT-ENCODED: decoding the whole string here would (a)
+  // throw on a malformed escape in a crafted deep link and (b) let an encoded
+  // "/" (%2F) change the segment structure before matching. The matchers
+  // (matchRoute + Swift RouteMatcher) decode each captured param instead —
+  // the same rule href() encodes by.
+  const route = normalizeRoute(rest.replace(/^\/+/, ""));
   return route === "/" ? null : route;
 }
 
@@ -103,6 +108,18 @@ function parsePattern(pattern: string): PatternSegment[] {
  * Mirrored in Swift's RouteMatcher so the host renders the same destination
  * useParams() resolves.
  */
+/** Percent-decode a captured param segment, throw-proof: a malformed escape
+ *  ("%zz" in a crafted deep link) falls back to the raw text instead of
+ *  throwing out of the matcher. Mirrored in Swift's RouteMatcher — the two
+ *  must resolve identical params for the same route. */
+function decodeParam(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
 export function matchRoute(pattern: string, route: string): RouteMatch | null {
   const segments = parsePattern(pattern);
   const parts = splitSegments(route);
@@ -113,7 +130,7 @@ export function matchRoute(pattern: string, route: string): RouteMatch | null {
     if (segment.kind === "catchAll") {
       const rest = parts.slice(i);
       if (!segment.optional && rest.length === 0) return null;
-      params[segment.name] = rest;
+      params[segment.name] = rest.map(decodeParam);
       return { params, score: score - 1 };
     }
     const part = parts[i];
@@ -122,7 +139,7 @@ export function matchRoute(pattern: string, route: string): RouteMatch | null {
       if (part !== segment.value) return null;
       score += 2;
     } else {
-      params[segment.name] = part;
+      params[segment.name] = decodeParam(part);
       score += 1;
     }
     i++;
@@ -186,19 +203,24 @@ export function href<S extends string>(
   params: ParamsOf<S>,
 ): string {
   const values = params as RouteParams;
+  // Percent-encode each substituted value: a "/" or "%" inside a param would
+  // otherwise change the SEGMENT structure of the route (an id like "a/b"
+  // silently becomes two segments and never matches [id]). The matchers
+  // (matchRoute here + Swift RouteMatcher) decode captured params back.
+  const enc = (v: unknown) => encodeURIComponent(String(v));
   const segments = template.split("/").flatMap((seg) => {
     const optional = /^\[\[\.\.\.(.+)\]\]$/.exec(seg)?.[1];
     if (optional) {
       const value = values[optional];
-      return Array.isArray(value) ? value : [];
+      return Array.isArray(value) ? value.map(enc) : [];
     }
     const rest = /^\[\.\.\.(.+)\]$/.exec(seg)?.[1];
     if (rest) {
       const value = values[rest];
-      return Array.isArray(value) ? value : [String(value)];
+      return Array.isArray(value) ? value.map(enc) : [enc(value)];
     }
     const param = /^\[(.+)\]$/.exec(seg)?.[1];
-    if (param) return [String(values[param])];
+    if (param) return [enc(values[param])];
     return [seg];
   });
   return segments.join("/") || "/";

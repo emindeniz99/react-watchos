@@ -32,20 +32,28 @@ public struct RouteMatcher {
             case .catchAll(let name, let optional):
                 let rest = Array(parts[min(i, parts.count)...])
                 if !optional, rest.isEmpty { return nil }
-                params[name] = rest
+                params[name] = rest.map(decodeParam)
                 return Match(params: params, score: score - 1)
             case .literal(let value):
                 guard i < parts.count, parts[i] == value else { return nil }
                 score += 2
             case .param(let name):
                 guard i < parts.count else { return nil }
-                params[name] = [parts[i]]
+                params[name] = [decodeParam(parts[i])]
                 score += 1
             }
             i += 1
         }
         if parts.count != segments.count { return nil }
         return Match(params: params, score: score)
+    }
+
+    /// Percent-decode a captured param segment, falling back to the raw text
+    /// on a malformed escape — mirrors js `decodeParam` exactly, so
+    /// `useParams()` and the host resolve identical values for the params
+    /// `href()` percent-encodes.
+    private static func decodeParam(_ segment: String) -> String {
+        segment.removingPercentEncoding ?? segment
     }
 
     /// Picks the highest-scoring pattern that matches `route`, so a concrete

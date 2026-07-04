@@ -129,6 +129,73 @@ describe("fetch shim (QuickJS environment)", () => {
     await expect(promise).rejects.toMatchObject({ name: "AbortError" });
   });
 
+  it("composes signal + timeout — the timeout still fires under a caller signal", async () => {
+    // The old code silently DROPPED `timeout` when `signal` was also passed —
+    // the caller thought they had a deadline and had none.
+    const fetch = g.fetch as (url: string, o?: unknown) => Promise<unknown>;
+    const Controller = g.AbortController as new () => {
+      signal: unknown;
+      abort: () => void;
+    };
+    const controller = new Controller();
+    const promise = fetch("https://slow.test", {
+      signal: controller.signal,
+      timeout: 5,
+    });
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("composes signal + timeout — the caller abort still wins too", async () => {
+    const fetch = g.fetch as (url: string, o?: unknown) => Promise<unknown>;
+    const Controller = g.AbortController as new () => {
+      signal: unknown;
+      abort: (reason?: unknown) => void;
+    };
+    const controller = new Controller();
+    const promise = fetch("https://slow.test", {
+      signal: controller.signal,
+      timeout: 60_000,
+    });
+    controller.abort();
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    const [id] = hostFetch.mock.calls[0];
+    expect(hostAbort).toHaveBeenCalledWith(id);
+  });
+
+  it("arms a default last-resort watchdog when no timeout is given", async () => {
+    // fetch was the one async channel with NO bound (invoke=30s, generate=60s);
+    // the default watchdog closes the "never hangs" gap. Cleared on settle.
+    vi.useFakeTimers();
+    try {
+      const fetch = g.fetch as (url: string, o?: unknown) => Promise<unknown>;
+      const promise = fetch("https://hang.test");
+      expect(vi.getTimerCount()).toBe(1); // the 120s watchdog is armed
+      vi.advanceTimersByTime(120_000);
+      await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("timeout: Infinity opts out of the watchdog", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetch = g.fetch as (url: string, o?: unknown) => Promise<any>;
+      const promise = fetch("https://api.test/x", {
+        timeout: Number.POSITIVE_INFINITY,
+      });
+      expect(vi.getTimerCount()).toBe(0); // no watchdog armed
+      const [id] = hostFetch.mock.calls[0];
+      (g.__resolveFetch as (i: number, j: string) => void)(
+        id,
+        JSON.stringify({ status: 200, body: "ok" }),
+      );
+      await expect(promise).resolves.toMatchObject({ status: 200 });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("cancels the timeout timer when the response arrives first", async () => {
     // The abort listener is dropped on settle, so a leaked timer fires
     // harmlessly — but on the watch every timer round-trips to the native host,

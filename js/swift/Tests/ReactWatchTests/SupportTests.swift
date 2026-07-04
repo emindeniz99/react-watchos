@@ -132,6 +132,29 @@ final class RouteMatcherTests: XCTestCase {
         XCTAssertEqual(winner?.pattern, "/shop/[name]")
         XCTAssertNil(RouteMatcher.best(patterns: ["/list/[id]"], route: "/other"))
     }
+
+    func testPercentDecodesCapturedParams() {
+        // Parity with js matchRoute: href() percent-encodes substituted params
+        // ("a/b" → "a%2Fb" so the value can't change the segment structure);
+        // both matchers decode captures so useParams() and the host resolve
+        // the SAME values. A malformed escape falls back to the raw text.
+        XCTAssertEqual(
+            RouteMatcher.match(pattern: "/list/[id]", route: "/list/a%2Fb%20100%25")?
+                .params,
+            ["id": ["a/b 100%"]]
+        )
+        XCTAssertEqual(
+            RouteMatcher.match(
+                pattern: "/shop/[name]/[...rest]", route: "/shop/caf%C3%A9/a%2Fb/c"
+            )?.params,
+            ["name": ["café"], "rest": ["a/b", "c"]]
+        )
+        // Malformed escape → raw segment, never a crash or a nil match.
+        XCTAssertEqual(
+            RouteMatcher.match(pattern: "/list/[id]", route: "/list/%zz")?.params,
+            ["id": ["%zz"]]
+        )
+    }
 }
 
 // CR-10: the BLE bridge keyed characteristics by the raw string, so a write/

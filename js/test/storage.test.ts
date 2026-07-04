@@ -16,6 +16,16 @@ describe("Storage", () => {
     expect(Storage.get("obj")).toEqual({ a: [1, 2] });
   });
 
+  it("throws on a non-JSON-serializable value instead of corrupting", () => {
+    // JSON.stringify(undefined) is undefined — the old code persisted the
+    // literal string "undefined", which get() could never parse back.
+    expect(() => Storage.set("k", undefined)).toThrow(TypeError);
+    expect(() => Storage.set("k", () => {})).toThrow(TypeError);
+    expect(Storage.get("k")).toBeNull(); // nothing was written
+    Storage.set("k", null); // the documented way to clear
+    expect(Storage.get("k")).toBeNull();
+  });
+
   it("uses the host storage bridge when available", () => {
     const backing = new Map<string, string>();
     const host = installMockHost();

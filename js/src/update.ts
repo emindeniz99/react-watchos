@@ -1,4 +1,5 @@
 import { type InvokeError, invoke } from "./invoke";
+import { Storage } from "./storage";
 
 /**
  * Over-the-air UI updates. The dev live-reload (DEBUG) and this production
@@ -211,6 +212,20 @@ function currentReleaseId(): string | null {
   return typeof id === "string" ? id : null;
 }
 
+/** The releaseId last STAGED by fetchAndApplyUpdate (persisted in Storage) —
+ *  staged bundles only take effect on the next launch, so without this marker
+ *  every check between apply and relaunch would compare against the RUNNING
+ *  release, see the manifest as "fresh", and re-download the same bundle
+ *  (battery + radio waste on a watch). Cleared implicitly: once the staged
+ *  bundle boots, currentReleaseId matches it anyway; if it's rolled back by
+ *  the crash-loop guard, suppressing a re-download of that same bundle is the
+ *  right call too. */
+const STAGED_RELEASE_KEY = "update.stagedReleaseId";
+
+function stagedReleaseId(): string | null {
+  return Storage.get<string>(STAGED_RELEASE_KEY);
+}
+
 /**
  * Whether the manifest's bundle is a newer release than the one running
  * (CX-025) — the FRESHNESS check, decoupled from the rollback gate. A higher
@@ -220,6 +235,14 @@ function currentReleaseId(): string | null {
  * to the version compare when releaseId isn't exposed on both sides.
  */
 function isFresherRelease(manifest: UpdateManifest): boolean {
+  // Already staged and waiting for the next launch — not fresh, don't
+  // re-download it on every check between apply and relaunch.
+  if (
+    manifest.releaseId !== undefined &&
+    manifest.releaseId === stagedReleaseId()
+  ) {
+    return false;
+  }
   if (manifest.version > BUNDLE_VERSION) return true;
   if (manifest.version < BUNDLE_VERSION) return false;
   const current = currentReleaseId();
@@ -290,5 +313,10 @@ export async function fetchAndApplyUpdate(
   );
   // Downloaded, but the watch refused it at save (e.g. signature/capability):
   // report not-staged rather than a version that won't take effect.
-  return result.accepted ? manifest.version : null;
+  if (!result.accepted) return null;
+  // Remember what's staged so checks before the relaunch don't re-download it.
+  if (manifest.releaseId !== undefined) {
+    Storage.set(STAGED_RELEASE_KEY, manifest.releaseId);
+  }
+  return manifest.version;
 }

@@ -77,6 +77,27 @@ describe("timer shims (QuickJS environment)", () => {
     });
   });
 
+  it("floors the setInterval re-arm period so interval(0) can't hot-loop", () => {
+    withBareEngine(({ armed, fire }) => {
+      const g = globalThis as Record<string, unknown>;
+      let ticks = 0;
+      const id = (g.setInterval as (fn: () => void, ms: number) => number)(
+        () => ticks++,
+        0,
+      );
+      // The FIRST fire may come immediately (browser-like)…
+      expect(armed[armed.length - 1]).toEqual({ id, ms: 0 });
+      fire(id);
+      // …but every RE-ARM is floored to 4ms — a 0ms period would otherwise
+      // round-trip a native timer per fire in a tight loop, pinning the
+      // watch CPU (browsers clamp to ~4ms for the same reason).
+      expect(armed[armed.length - 1]).toEqual({ id, ms: 4 });
+      fire(id);
+      expect(armed[armed.length - 1]).toEqual({ id, ms: 4 });
+      expect(ticks).toBe(2);
+    });
+  });
+
   it("setTimeout fires once and does not re-arm", () => {
     withBareEngine(({ armed, fire }) => {
       let calls = 0;
@@ -224,6 +245,20 @@ describe("console shim (QuickJS environment)", () => {
       expect(logged.length).toBe(0);
       c.assert(false, "boom");
       expect(logged).toEqual(["Assertion failed: boom"]);
+    });
+  });
+
+  it("never throws on an unprintable argument (null-prototype object)", () => {
+    withBareConsole((logged) => {
+      const c = (globalThis as Record<string, unknown>).console as Record<
+        string,
+        (...a: unknown[]) => void
+      >;
+      // String(Object.create(null)) throws (no toString) — a LOGGING call
+      // must never crash the app.
+      expect(() => c.log("value:", Object.create(null))).not.toThrow();
+      expect(logged[0]).toContain("value:");
+      expect(logged[0]).toContain("[object Object]");
     });
   });
 });

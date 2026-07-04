@@ -366,4 +366,37 @@ describe("typed routes", () => {
     const path = href("/list/[id]", { id: "42" });
     expect(matchRoute("/list/[id]", path)?.params).toEqual({ id: "42" });
   });
+
+  it("percent-encodes params so '/' and '%' can't break segment structure", () => {
+    // An id like "a/b" used to silently become TWO segments and never match
+    // [id]; a "%" produced an invalid escape downstream. href encodes, the
+    // matchers decode — values round-trip exactly.
+    const path = href("/list/[id]", { id: "a/b 100%" });
+    expect(path).toBe("/list/a%2Fb%20100%25");
+    expect(matchRoute("/list/[id]", path)?.params).toEqual({ id: "a/b 100%" });
+    // Catch-all elements encode per element and decode back as an array.
+    const rest = href("/shop/[name]/[...rest]", {
+      name: "café",
+      rest: ["a/b", "c"],
+    });
+    expect(matchRoute("/shop/[name]/[...rest]", rest)?.params).toEqual({
+      name: "café",
+      rest: ["a/b", "c"],
+    });
+  });
+
+  it("a malformed percent-escape falls back to the raw segment, not a throw", () => {
+    // A crafted deep link like reactwatch://list/%zz must not throw out of
+    // the matcher (decodeURIComponent would).
+    expect(matchRoute("/list/[id]", "/list/%zz")?.params).toEqual({
+      id: "%zz",
+    });
+  });
+
+  it("routeFromURL keeps the path percent-encoded for the matchers", () => {
+    // Decoding the whole URL up front let an encoded "/" change the segment
+    // structure before matching (and threw on malformed escapes).
+    expect(routeFromURL("reactwatch://list/a%2Fb")).toBe("/list/a%2Fb");
+    expect(routeFromURL("reactwatch://list/%zz")).toBe("/list/%zz"); // no throw
+  });
 });

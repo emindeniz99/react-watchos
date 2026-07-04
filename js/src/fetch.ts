@@ -139,12 +139,19 @@ class WatchAbortController {
 
 type Global = Record<string, unknown> & { __host?: QuickJSHostGlobal };
 
+/** Last-resort watchdog when no `timeout:` is given — a fetch must never hang
+ *  forever (invoke=30s / generate=60s follow the same invariant). Generous vs
+ *  the 5 MiB body cap on a watch network; `timeout: Infinity` opts out. */
+const DEFAULT_FETCH_TIMEOUT_MS = 120_000;
+
 interface FetchOptions {
   method?: string;
   headers?: HeadersInit;
   body?: string;
   signal?: WatchAbortSignal;
-  /** Sugar: abort after this many ms (rejects with an AbortError). */
+  /** Abort after this many ms (rejects with an AbortError). Composes with
+   *  `signal` — whichever aborts first wins. Defaults to the 120 s watchdog;
+   *  pass `Infinity` for no time limit. */
   timeout?: number;
 }
 
@@ -209,12 +216,13 @@ export function installFetch(g: Global): void {
   interface Pending {
     resolve: (response: unknown) => void;
     reject: (error: unknown) => void;
-    signal?: WatchAbortSignal;
+    /** The caller's signal, if any — shared, so only the listener is removed. */
+    signal?: WatchAbortSignal | undefined;
+    /** The watchdog signal this fetch CREATED (from `timeout:` or the default
+     *  cap) — always fetch-owned, so settle tears its timer down too. It
+     *  composes with `signal`: whichever aborts first settles the fetch. */
+    timeoutSignal?: WatchAbortSignal | undefined;
     onAbort?: () => void;
-    /** True only when this fetch created the signal via the `timeout:` sugar,
-     *  so it owns the timer and may tear it down on settle. A caller-passed
-     *  signal may be shared across fetches — leave its timer alone. */
-    ownsTimer?: boolean;
   }
   const pending = new Map<number, Pending>();
 
@@ -222,16 +230,18 @@ export function installFetch(g: Global): void {
     const p = pending.get(id);
     if (!p) return undefined;
     pending.delete(id);
-    if (p.signal && p.onAbort) p.signal.removeEventListener("abort", p.onAbort);
-    // Cancel the timeout-sugar timer so it can't fire (and round-trip to the
-    // native timer host) after the fetch already settled — but ONLY when this
-    // fetch owns it. A caller-shared AbortSignal.timeout must keep ticking for
-    // the other fetches still using it.
-    if (p.ownsTimer && p.signal?.timerId !== undefined) {
+    if (p.onAbort) {
+      p.signal?.removeEventListener("abort", p.onAbort);
+      p.timeoutSignal?.removeEventListener("abort", p.onAbort);
+    }
+    // Cancel the owned watchdog timer so it can't fire (and round-trip to the
+    // native timer host) after the fetch already settled. The caller's signal
+    // may be shared across fetches — its timer (if any) is left alone.
+    if (p.timeoutSignal?.timerId !== undefined) {
       (globalThis as { clearTimeout?: (id: number) => void }).clearTimeout?.(
-        p.signal.timerId,
+        p.timeoutSignal.timerId,
       );
-      p.signal.timerId = undefined;
+      p.timeoutSignal.timerId = undefined;
     }
     return p;
   };
@@ -292,13 +302,7 @@ export function installFetch(g: Global): void {
 
   g.fetch = (url: string, options?: FetchOptions): Promise<unknown> =>
     new Promise((resolve, reject) => {
-      // Only the `timeout:` sugar path produces a signal this fetch owns.
-      const ownsTimer = !options?.signal && options?.timeout !== undefined;
-      const signal =
-        options?.signal ??
-        (options?.timeout
-          ? WatchAbortSignal.timeout(options.timeout)
-          : undefined);
+      const signal = options?.signal;
       if (signal?.aborted) {
         reject(signalReason(signal));
         return;
@@ -315,17 +319,35 @@ export function installFetch(g: Global): void {
         );
         return;
       }
+      // The watchdog: `timeout:` when given, else a last-resort default so a
+      // fetch can NEVER hang forever (the "never hangs" invariant invoke=30s /
+      // generate=60s already follow — fetch was the ∞ outlier). It COMPOSES
+      // with a caller signal instead of being dropped by it: whichever aborts
+      // first wins. `timeout: Infinity` opts out of the watchdog explicitly.
+      // Created AFTER the early rejects so they can't leak an armed timer.
+      const timeoutMs = options?.timeout ?? DEFAULT_FETCH_TIMEOUT_MS;
+      const timeoutSignal = Number.isFinite(timeoutMs)
+        ? WatchAbortSignal.timeout(timeoutMs)
+        : undefined;
       const id = nextId++;
-      const entry: Pending = { resolve, reject, ownsTimer };
-      if (signal) {
+      const entry: Pending = { resolve, reject };
+      if (signal || timeoutSignal) {
         entry.signal = signal;
+        entry.timeoutSignal = timeoutSignal;
         entry.onAbort = () => {
           if (settle(id)) {
             g.__host?.abortFetch?.(id);
-            reject(signalReason(signal));
+            // Report whichever signal actually fired (the caller's abort
+            // reason, or the watchdog's timeout error).
+            reject(
+              signal?.aborted
+                ? signalReason(signal)
+                : signalReason(timeoutSignal as WatchAbortSignal),
+            );
           }
         };
-        signal.addEventListener("abort", entry.onAbort);
+        signal?.addEventListener("abort", entry.onAbort);
+        timeoutSignal?.addEventListener("abort", entry.onAbort);
       }
       pending.set(id, entry);
       g.__host?.fetch?.(

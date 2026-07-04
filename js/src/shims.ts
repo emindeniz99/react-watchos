@@ -55,7 +55,11 @@ export function installShims(): void {
       fn: (...args: unknown[]) => void,
       ms?: number,
       ...args: unknown[]
-    ): number => arm(fn, ms, args, clampDelay(ms));
+    ): number =>
+      // Floor the RE-ARM period like browsers (~4ms): setInterval(fn, 0)
+      // would otherwise hot-loop the native timer bridge — every fire
+      // immediately re-arms a 0ms host timer, pinning the watch's CPU.
+      arm(fn, ms, args, Math.max(4, clampDelay(ms)));
     g.clearTimeout = (id: number) => {
       timers.delete(id);
       g.__host?.clearTimer?.(id);
@@ -80,8 +84,21 @@ export function installShims(): void {
   }
 
   if (typeof g.console === "undefined") {
+    // String(arg) throws on a null-prototype object (no toString) — a logging
+    // call must never crash the app, so fall back to the tag/spec default.
+    const safeString = (arg: unknown): string => {
+      try {
+        return String(arg);
+      } catch {
+        try {
+          return Object.prototype.toString.call(arg);
+        } catch {
+          return "[unprintable]";
+        }
+      }
+    };
     const write = (...args: unknown[]) =>
-      g.__host?.log(args.map(String).join(" "));
+      g.__host?.log(args.map(safeString).join(" "));
     const noop = () => {};
     // React dev builds and libraries reach for more than log/info/warn/error;
     // the rest are `undefined` in bare QuickJS and throw on call. Alias the

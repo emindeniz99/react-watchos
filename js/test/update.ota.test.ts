@@ -4,12 +4,14 @@ import {
   BUNDLE_VERSION,
   checkForUpdate,
   fetchAndApplyUpdate,
+  Storage,
 } from "../src/index";
 import { installMockHost } from "./helpers";
 
 const g = globalThis as Record<string, unknown>;
 
 afterEach(() => {
+  Storage.clearMemoryFallback(); // the staged-release marker must not leak
   delete g.__host;
   delete g.fetch;
   delete g.__hostFeatures;
@@ -203,6 +205,54 @@ describe("OTA freshness by releaseId (CX-025)", () => {
       BUNDLE_VERSION,
     );
     expect(host.invoke).toHaveBeenCalled();
+  });
+
+  it("does not re-download a release that is already staged (awaiting relaunch)", async () => {
+    // Staged bundles only take effect next launch; without the staged marker
+    // every check between apply and relaunch saw the manifest as "fresh" and
+    // re-downloaded the same bundle — battery + radio waste on a watch.
+    const host = installMockHost();
+    const backing = new Map<string, string>();
+    host.getItem.mockImplementation((k: string) => backing.get(k) ?? null);
+    host.setItem.mockImplementation((k: string, v: string) => {
+      backing.set(k, v);
+    });
+    g.__bundleReleaseId = "aaaa"; // running release
+    const manifest = {
+      version: BUNDLE_VERSION,
+      bundle: "bundle.js",
+      releaseId: "bbbb", // the update
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ json: async () => manifest })
+      .mockResolvedValueOnce({ text: async () => "globalThis.x=2;" })
+      .mockResolvedValue({ json: async () => manifest });
+    g.fetch = fetchMock;
+
+    // First apply downloads + stages (2 fetches: manifest + bundle).
+    expect(await fetchAndApplyUpdate("https://x.test/manifest.json")).toBe(
+      BUNDLE_VERSION,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    // Still not relaunched: the same release is neither "available"…
+    expect(
+      (await checkForUpdate("https://x.test/manifest.json")).updateAvailable,
+    ).toBe(false);
+    // …nor re-downloaded (only the manifest is fetched, not the bundle).
+    expect(await fetchAndApplyUpdate("https://x.test/manifest.json")).toBe(
+      null,
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(4); // +2 manifests, no bundle
+
+    // A genuinely NEWER release (different id) still comes through.
+    fetchMock.mockResolvedValue({
+      json: async () => ({ ...manifest, releaseId: "cccc" }),
+    });
+    expect(
+      (await checkForUpdate("https://x.test/manifest.json")).updateAvailable,
+    ).toBe(true);
   });
 });
 
