@@ -103,11 +103,18 @@ static const char *epilogue =
     "    findAll(b, 'Text').some((t) => t.props.text === '+'));\n"
     "  const handled = globalThis.__dispatchEvent(plus.id, 'press');\n"
     "  const after = JSON.parse(__commits[__commits.length - 1]);\n"
-    "  return JSON.stringify({\n"
-    "    handled,\n"
-    "    initialCount: countText(initial.root).props.text,\n"
-    "    countAfterPress: countText(after.root).props.text,\n"
-    "  });\n"
+    "  const initialCount = countText(initial.root).props.text;\n"
+    "  const countAfterPress = countText(after.root).props.text;\n"
+    "  // Assert, don't just report (M14): this is the ONLY run of the\n"
+    "  // production bundle inside the real vendored engine — exiting 0 on a\n"
+    "  // wrong result made the whole gate decorative.\n"
+    "  if (handled !== true)\n"
+    "    throw new Error('press dispatch not handled: ' + handled);\n"
+    "  const n = (s) => Number(String(s).slice('Count: '.length));\n"
+    "  if (n(countAfterPress) !== n(initialCount) + 1)\n"
+    "    throw new Error('count did not advance: ' +\n"
+    "      initialCount + ' -> ' + countAfterPress);\n"
+    "  return JSON.stringify({ handled, initialCount, countAfterPress });\n"
     "})()";
 
 int main(int argc, char **argv) {
