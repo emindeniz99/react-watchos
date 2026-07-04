@@ -407,7 +407,12 @@ describe("withEasAppExtensions (EAS extra-target signing)", () => {
     (cfg as EasExtra).extra?.eas?.build?.experimental?.ios?.appExtensions;
 
   it("declares the watch app + widget with bundle ids and entitlements", () => {
-    const cfg = withEasAppExtensions({ ...config }, resolveOptions(config, {}));
+    // healthKit: true is the explicit opt-in (M13 flipped the default to
+    // false); this test covers the entitlement PROPAGATION into EAS.
+    const cfg = withEasAppExtensions(
+      { ...config },
+      resolveOptions(config, { healthKit: true }),
+    );
     expect(extensionsOf(cfg)).toEqual([
       {
         targetName: "React Watch",
