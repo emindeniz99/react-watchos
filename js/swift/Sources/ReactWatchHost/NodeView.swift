@@ -481,11 +481,11 @@ struct NodeView: View {
     }
 
     @ViewBuilder private var gauge: some View {
-        // Normalize bounds so a reversed min/max can't trap building the range.
-        let rawMin = node.double("min") ?? 0
-        let rawMax = node.double("max") ?? 1
-        let (min, max) = rawMin <= rawMax ? (rawMin, rawMax) : (rawMax, rawMin)
-        let value = Swift.min(Swift.max(node.double("value") ?? 0, min), max)
+        // Bounds/value normalization is shared RNStyle.gaugeBounds so the app
+        // and widget interpreters cannot drift on it (M4).
+        let (min, max, value) = RNStyle.gaugeBounds(
+            min: node.double("min"), max: node.double("max"),
+            value: node.double("value"))
         let base = Gauge(value: value, in: min...max) {
             Text(node.string("label") ?? "")
         } currentValueLabel: {
@@ -676,7 +676,9 @@ struct NodeView: View {
     private var pickerBinding: Binding<Int> {
         Binding(
             get: {
-                model.optimisticInt(node.id) ?? Int(node.double("value") ?? 0)
+                // clampedInt: a huge JS value would trap the plain Int() (M3).
+                model.optimisticInt(node.id)
+                    ?? RNStyle.clampedInt(node.double("value") ?? 0)
             },
             set: { newValue in
                 model.dispatchOptimistic(
@@ -789,7 +791,8 @@ private struct RoutedNavigationStack: View {
             .modifier(
                 A11yModifier(
                     label: rootRoute?.string("accessibilityLabel"),
-                    hint: rootRoute?.string("accessibilityHint")))
+                    hint: rootRoute?.string("accessibilityHint"))
+            )
             .navigationTitle(rootTitle)
             .navigationDestination(for: String.self) { route in
                 if let destination = routeNode(route) {

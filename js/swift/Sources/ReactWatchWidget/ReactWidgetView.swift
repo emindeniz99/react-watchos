@@ -121,7 +121,8 @@ public struct WidgetNodeView: View {
                 styled(node, Text(node.string("text") ?? ""))
             } else {
                 styled(
-                    node, node.children.reduce(Text(node.string("text") ?? "")) {
+                    node,
+                    node.children.reduce(Text(node.string("text") ?? "")) {
                         $0 + textSegment($1)
                     })
             }
@@ -326,9 +327,12 @@ public struct WidgetNodeView: View {
     }
 
     @ViewBuilder private func gauge(_ node: RNNode) -> some View {
-        let min = node.double("min") ?? 0
-        let max = node.double("max") ?? 1
-        let value = Swift.min(Swift.max(node.double("value") ?? 0, min), max)
+        // Shared normalization (M4): the widget building `min...max` raw while
+        // the app normalized meant the same wire tree rendered in-app but
+        // trapped the extension on reversed bounds.
+        let (min, max, value) = RNStyle.gaugeBounds(
+            min: node.double("min"), max: node.double("max"),
+            value: node.double("value"))
         let base = Gauge(value: value, in: min...max) {
             Text(node.string("label") ?? "")
         } currentValueLabel: {
@@ -463,7 +467,9 @@ public struct WidgetNodeView: View {
 
     private func pickerSummary(_ node: RNNode) -> String {
         let options = node.stringArray("options") ?? []
-        let index = Int(node.double("value") ?? 0)
+        // clampedInt: a huge JS value would trap the plain Int() (M3); the
+        // saturated index just falls to the label branch below.
+        let index = RNStyle.clampedInt(node.double("value") ?? 0)
         if options.indices.contains(index) { return options[index] }
         return node.string("label") ?? ""
     }

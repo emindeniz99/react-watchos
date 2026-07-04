@@ -60,16 +60,46 @@ public enum RNStyle {
         return style
     }
 
+    /// A wire-controlled Double as an Int without trapping: `Int(1e300)` (and
+    /// anything at/past ±2^63) is a runtime trap, and every number this is used
+    /// on comes straight from JS props — a plain prop bug must not crash the
+    /// app or the widget extension (M3). Non-finite → 0; out of range saturates.
+    public static func clampedInt(_ value: Double) -> Int {
+        guard value.isFinite else { return 0 }
+        // 0x1p63 == Double(Int.max) rounded up — Int() traps from this value on.
+        if value >= 0x1p63 { return Int.max }
+        if value < -0x1p63 { return Int.min }
+        return Int(value)
+    }
+
+    /// Normalized Gauge inputs: bounds ordered (a reversed `min/max` from JS
+    /// must not trap building the ClosedRange) and the value clamped inside.
+    /// Shared so the app and widget interpreters CANNOT drift on it — the
+    /// widget building `min...max` raw while the app normalized was exactly
+    /// the M4 crash (same wire tree: renders in-app, traps the extension).
+    public static func gaugeBounds(
+        min rawMin: Double?, max rawMax: Double?, value rawValue: Double?
+    ) -> (min: Double, max: Double, value: Double) {
+        var lo = (rawMin?.isFinite == true) ? rawMin! : 0
+        var hi = (rawMax?.isFinite == true) ? rawMax! : 1
+        if lo > hi { swap(&lo, &hi) }
+        let raw = (rawValue?.isFinite == true) ? rawValue! : lo
+        return (lo, hi, Swift.min(Swift.max(raw, lo), hi))
+    }
+
     /// Gauge/value label: integers print without a decimal, else one place.
+    /// The integer branch is gated to the Int-representable range — an integral
+    /// 1e300 would otherwise trap the `Int()` (M3).
     public static func formatValue(_ value: Double) -> String {
-        value.truncatingRemainder(dividingBy: 1) == 0
+        value.truncatingRemainder(dividingBy: 1) == 0 && value.magnitude < 0x1p63
             ? String(Int(value)) : String(format: "%.1f", value)
     }
 
     /// mm:ss.SSS for the millisecond TimerText mode (shared so the widget can
-    /// match the app instead of silently ignoring `milliseconds`).
+    /// match the app instead of silently ignoring `milliseconds`). Clamped: a
+    /// far-future `until` would otherwise trap on every TimelineView tick (M3).
     public static func formatTimer(_ interval: TimeInterval) -> String {
-        let totalMs = Int((interval * 1000).rounded(.down))
+        let totalMs = clampedInt((interval * 1000).rounded(.down))
         let minutes = totalMs / 60000
         let seconds = (totalMs / 1000) % 60
         let millis = totalMs % 1000

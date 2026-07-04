@@ -564,6 +564,61 @@ final class RNStyleTests: XCTestCase {
         XCTAssertEqual(RNStyle.formatTimer(0), "00:00.000")
         XCTAssertEqual(RNStyle.formatTimer(65.25), "01:05.250")
     }
+
+    // M3: every one of these numbers arrives from JS props — adversarial
+    // magnitudes must degrade, never trap the app or the widget extension.
+
+    func testClampedIntSaturatesInsteadOfTrapping() {
+        XCTAssertEqual(RNStyle.clampedInt(3.9), 3)
+        XCTAssertEqual(RNStyle.clampedInt(-3.9), -3)
+        XCTAssertEqual(RNStyle.clampedInt(1e300), Int.max)
+        XCTAssertEqual(RNStyle.clampedInt(-1e300), Int.min)
+        // The exact boundary: Double(Int.max) rounds UP to 2^63, which the
+        // plain Int() initializer traps on.
+        XCTAssertEqual(RNStyle.clampedInt(0x1p63), Int.max)
+        XCTAssertEqual(RNStyle.clampedInt(-0x1p63), Int.min)
+        XCTAssertEqual(RNStyle.clampedInt(.nan), 0)
+        XCTAssertEqual(RNStyle.clampedInt(.infinity), 0)
+    }
+
+    func testFormatValueHugeIntegralDoesNotTrap() {
+        // 1e300 is integral, so the old `Int(value)` branch trapped on it.
+        XCTAssertFalse(RNStyle.formatValue(1e300).isEmpty)
+        XCTAssertFalse(RNStyle.formatValue(-1e300).isEmpty)
+        XCTAssertEqual(RNStyle.formatValue(0x1p63), String(format: "%.1f", 0x1p63))
+    }
+
+    func testFormatTimerFarFutureDoesNotTrap() {
+        // A far-future `until` made every TimelineView tick trap in Int().
+        XCTAssertFalse(RNStyle.formatTimer(1e300).isEmpty)
+        XCTAssertFalse(RNStyle.formatTimer(-1e300).isEmpty)
+    }
+
+    // M4: bounds normalization is shared so the interpreters can't drift —
+    // the widget building `min...max` raw trapped on a reversed range the
+    // app-side normalization survived.
+
+    func testGaugeBoundsNormalizesReversedRange() {
+        let (lo, hi, v) = RNStyle.gaugeBounds(min: 10, max: 0, value: 3)
+        XCTAssertEqual(lo, 0)
+        XCTAssertEqual(hi, 10)
+        XCTAssertEqual(v, 3)
+    }
+
+    func testGaugeBoundsClampsValueAndDefaults() {
+        let (lo, hi, v) = RNStyle.gaugeBounds(min: nil, max: nil, value: 7)
+        XCTAssertEqual(lo, 0)
+        XCTAssertEqual(hi, 1)
+        XCTAssertEqual(v, 1)  // clamped into 0...1
+    }
+
+    func testGaugeBoundsSurvivesNonFinite() {
+        let (lo, hi, v) = RNStyle.gaugeBounds(
+            min: .nan, max: .infinity, value: .nan)
+        XCTAssertEqual(lo, 0)
+        XCTAssertEqual(hi, 1)
+        XCTAssertEqual(v, 0)
+    }
 }
 
 // CX-016: snapshots must show the entry applicable *now*, not the last
@@ -1047,10 +1102,12 @@ final class RNStyleChartTests: XCTestCase {
                 .object(["x": .number(1), "y": .number(10)]),
                 .object(["x": .string("Mon"), "y": .number(3)]),
             ]))
-        XCTAssertEqual(points, [
-            RNStyle.ChartPoint(x: 1, y: 10),
-            RNStyle.ChartPoint(label: "Mon", y: 3),
-        ])
+        XCTAssertEqual(
+            points,
+            [
+                RNStyle.ChartPoint(x: 1, y: 10),
+                RNStyle.ChartPoint(label: "Mon", y: 3),
+            ])
     }
 
     func testDropsMalformedPointsKeepsRest() {
