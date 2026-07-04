@@ -381,11 +381,23 @@ final class ReactWatchModel: ObservableObject {
         }
     }
 
-    /// Stages an OTA payload through the sequencer on a background executor —
+    /// One SERIAL queue for all staging work: two concurrent saveUpdate
+    /// invokes (or saveUpdate racing checkForUpdateNatively) must not
+    /// interleave their gate-check → write sequences, or both could report
+    /// `{accepted:true}` while the OLDER record lands last — the device would
+    /// claim v6 applied but boot v5. Serializing whole stage() calls keeps
+    /// acceptance reporting truthful. (boot() itself can't overlap a LIVE
+    /// stage from the same runtime — saveUpdate only arrives from running JS,
+    /// after load — and a stale pre-reload stage racing a dev-reload boot is
+    /// benign: its settle is generation-dropped and its record is re-verified
+    /// or re-offered on the next check.)
+    private let otaStagingQueue = DispatchQueue(
+        label: "react.watch.ota-staging", qos: .utility)
+
+    /// Stages an OTA payload through the sequencer OFF the main thread (M5) —
     /// the validator eval and bytecode compile are the two heavyweight steps
-    /// that used to run synchronously on main (M5). The sequencer is Sendable
-    /// (App-Group file IO + UserDefaults counters + throwaway runtimes), so the
-    /// detached hop is safe.
+    /// that used to run synchronously on main. The sequencer is Sendable
+    /// (App-Group file IO + UserDefaults counters + throwaway runtimes).
     private func stageUpdate(_ payload: String) async -> StageOutcome {
         if updateKeyState == .disabled {
             print(
@@ -393,7 +405,11 @@ final class ReactWatchModel: ObservableObject {
                     + "verification — set OTAConfig.signerPublicKeys to enforce (CR-4).")
         }
         let sequencer = otaSequencer
-        return await Task.detached(priority: .utility) { sequencer.stage(payload) }.value
+        return await withCheckedContinuation { continuation in
+            otaStagingQueue.async {
+                continuation.resume(returning: sequencer.stage(payload))
+            }
+        }
     }
 
     /// Requests notification permission and resolves the invoke with the real
@@ -618,17 +634,28 @@ final class ReactWatchModel: ObservableObject {
     /// sequencer (M5); this shell just binds the eval closures to the live
     /// runtime and maps the outcome onto the published UI state.
     private func load(into js: JSRuntime) throws {
-        let outcome = try otaSequencer.boot(
-            evalSource: { source in
-                Self.setBundleReleaseId(source, into: js)
-                try js.evaluate(source)
-            },
-            evalBytecode: { bytecode, source in
-                Self.setBundleReleaseId(source, into: js)
-                try js.evaluateBytecode(bytecode)
-            },
-            evalShipped: { try self.loadShipped(into: js) }
-        )
+        let outcome: BootOutcome
+        do {
+            outcome = try otaSequencer.boot(
+                evalSource: { source in
+                    Self.setBundleReleaseId(source, into: js)
+                    try js.evaluate(source)
+                },
+                evalBytecode: { bytecode, source in
+                    Self.setBundleReleaseId(source, into: js)
+                    try js.evaluateBytecode(bytecode)
+                },
+                evalShipped: { try self.loadShipped(into: js) }
+            )
+        } catch let failure as OTABootSequencer.BootFailure {
+            // Shipped ALSO failed after an OTA detour: surface why the OTA
+            // isn't running (the notice) alongside the startup error the
+            // caller sets from the rethrow — matching pre-M5 behavior, where
+            // runtimeError was assigned at the catch site before trying
+            // shipped.
+            if let notice = failure.notice { runtimeError = notice }
+            throw failure.underlying
+        }
         switch outcome {
         case .ranOTA(let record, let notice):
             bootedOTARecord = record

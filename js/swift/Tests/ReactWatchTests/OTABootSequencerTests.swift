@@ -490,3 +490,32 @@ final class OTABootSequencerTests: XCTestCase {
         XCTAssertNil(knownGood.record)
     }
 }
+
+extension OTABootSequencerTests {
+    func testShippedFailureAfterOTADropStillCarriesTheNotice() {
+        // Double failure: the candidate is dropped (bad signature), THEN the
+        // shipped bundle also fails to load. The throw must carry the OTA
+        // notice — losing it would leave only the shipped error, hiding WHY
+        // the OTA isn't running.
+        storeRecord(
+            OTARecord(js: "evil()", keyId: "k1", version: 2, signature: "ZXZpbA=="),
+            in: active)
+        struct ShippedBoom: Error {}
+        let seq = makeSequencer()
+        XCTAssertThrowsError(
+            try seq.boot(
+                evalSource: { _ in },
+                evalBytecode: { _, _ in },
+                evalShipped: { throw ShippedBoom() }
+            )
+        ) { error in
+            guard let failure = error as? OTABootSequencer.BootFailure else {
+                return XCTFail("expected BootFailure, got \(error)")
+            }
+            XCTAssertTrue(
+                failure.notice?.contains("re-verification") == true,
+                "notice lost: \(failure.notice ?? "nil")")
+            XCTAssertTrue(failure.underlying is ShippedBoom)
+        }
+    }
+}

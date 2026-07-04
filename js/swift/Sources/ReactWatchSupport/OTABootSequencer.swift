@@ -98,6 +98,16 @@ public enum BootOutcome: Equatable, Sendable {
 }
 
 public struct OTABootSequencer: Sendable {
+    /// Thrown when the SHIPPED bundle fails to load (nothing left to fall
+    /// back to). Carries the `notice` from an OTA detour taken earlier in the
+    /// SAME boot (a dropped candidate, a failed rollback) — without it the
+    /// throw would erase the explanation of why the OTA isn't running, and
+    /// the user would only see the shipped-load error.
+    public struct BootFailure: Error {
+        public let underlying: any Error
+        public let notice: String?
+    }
+
     public struct Config: Sendable {
         public let keyState: OTAKeyState
         public let gate: OTAGate
@@ -403,7 +413,14 @@ public struct OTABootSequencer: Sendable {
         {
             return .blockForUpdate(notice: notice)
         }
-        try evalShipped()
+        do {
+            try evalShipped()
+        } catch {
+            // Wrap so the OTA-detour notice survives the throw (the host
+            // surfaces both: the notice as runtimeError, the underlying
+            // error as startupError).
+            throw BootFailure(underlying: error, notice: notice)
+        }
         if config.keyState != .disabled {
             bumpHighWater(config.shippedVersion)
         }
