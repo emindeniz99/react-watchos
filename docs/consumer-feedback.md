@@ -8,28 +8,26 @@ the wins from actually consuming the renderer, with concrete asks. Priorities:
 
 ## New findings — the BLE bridge (from a deeper read of `BluetoothBridge.swift`)
 
-Two reliability gaps in the otherwise-great BLE central, worth a look:
+Two reliability gaps in the otherwise-great BLE central — **both now
+resolved ✅**:
 
-1. **Writes are `.withoutResponse` only.** `write(...)` always uses
-   `type: .withoutResponse` (an ATT Write Command): no flow control and no
-   delivery guarantee, so under buffer pressure a write can be dropped silently.
-   For a *remote* that's user-visible — a missed "Next" means a stuck slide. For
-   low-frequency taps it'll usually be fine, but consider either using
-   `.withResponse` (reliable, and unambiguously delivered to the peripheral's
-   `didReceiveWrite`) or exposing the write type as a `bleWrite` option so the
-   consumer can choose reliability vs. latency. (We picked one-byte opcodes so a
-   resend is cheap, but the JS API can't request a confirmed write today.)
+1. **Writes are `.withoutResponse` only — resolved ✅.** `bleWrite` now takes a
+   `confirm` option: `{ confirm: true }` forces an acknowledged
+   `.withResponse` write whose promise settles on the peripheral's ack
+   (correlated FIFO per characteristic in `BleSession`, Linux-tested),
+   `{ confirm: false }` forces fast fire-and-forget, and the default picks
+   `.withResponse` when the characteristic supports it. A confirmed "Next"
+   can no longer be dropped silently.
 
-2. **No auto-reconnect after a drop.** `didDisconnectPeripheral` pushes
-   `ble.state = "disconnected"` but doesn't re-`scanForPeripherals` — scanning
-   only starts in `centralManagerDidUpdateState` (power-on). So once the watch
-   and Mac drift out of range and back, the link stays down until Bluetooth
-   cycles or the app restarts. A re-scan on disconnect (and on connect failure)
-   would make the remote "just reconnect," which is what users expect.
+2. **No auto-reconnect after a drop — resolved ✅.** An unexpected drop
+   (range/power) now auto-reconnects: in-flight promises settle with a clean
+   reject, desired subscriptions are remembered and re-applied on the new
+   link, and a deliberate `bleDisconnect` stays down (the `BleSession` latch,
+   Linux-tested). A failed connect attempt also drains its queued ops instead
+   of hanging them. The remote "just reconnects," as users expect.
 
-Neither blocks us (Ctrl-A works on a fresh connect), but both will bite any
-real-world remote/sensor app. Also: thanks for adding `A11yProps` — Ctrl-A now
-labels its icon-only Prev/Next buttons with `accessibilityLabel`.
+Also: thanks for adding `A11yProps` — Ctrl-A now labels its icon-only
+Prev/Next buttons with `accessibilityLabel`.
 
 ## Update — packaging shipped, ctrl-a-remote migrated onto it ✅
 
