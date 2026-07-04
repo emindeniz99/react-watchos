@@ -94,6 +94,11 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 
 ## Reference / background
 
+- [api/](./api/README.md) — **generated API reference** (M12): every export +
+  type via typedoc (`pnpm docs:api`), plus [capabilities.md](./api/capabilities.md)
+  — the component/host-method tables emitted from `codegen/schema.mjs` so they
+  can't drift from the tested contract. Regenerate after any public-surface
+  change; the output is committed.
 - [launch-checklist.md](./launch-checklist.md) — pre-marketing gates with
   honest statuses (engineering, release, security posture, claims discipline).
 - [performance-measurement.md](./performance-measurement.md) — how to measure

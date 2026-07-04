@@ -1,0 +1,23 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / onRuntimeSessionState
+
+# Function: onRuntimeSessionState()
+
+> **onRuntimeSessionState**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
+
+Defined in: [js/src/extendedRuntime.ts:34](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/extendedRuntime.ts#L34)
+
+Session state changes: handler gets `{ state, reason? }`.
+
+## Parameters
+
+### handler
+
+[`NativeEventHandler`](../type-aliases/NativeEventHandler.md)
+
+## Returns
+
+[`Unsubscribe`](../type-aliases/Unsubscribe.md)

@@ -1,0 +1,23 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / playHaptic
+
+# Function: playHaptic()
+
+> **playHaptic**(`type?`): `void`
+
+Defined in: [js/src/haptics.ts:16](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/haptics.ts#L16)
+
+Plays a haptic on the watch. No-op where the host has no haptics.
+
+## Parameters
+
+### type?
+
+[`HapticType`](../type-aliases/HapticType.md) = `"click"`
+
+## Returns
+
+`void`

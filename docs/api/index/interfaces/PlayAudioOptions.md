@@ -1,0 +1,29 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / PlayAudioOptions
+
+# Interface: PlayAudioOptions
+
+Defined in: [js/src/audio.ts:18](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/audio.ts#L18)
+
+## Properties
+
+### loop?
+
+> `optional` **loop?**: `boolean`
+
+Defined in: [js/src/audio.ts:22](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/audio.ts#L22)
+
+Loop until stopAudio()/a new play; default false.
+
+***
+
+### volume?
+
+> `optional` **volume?**: `number`
+
+Defined in: [js/src/audio.ts:20](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/audio.ts#L20)
+
+0–1 playback volume.

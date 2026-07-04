@@ -1,0 +1,14 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / BUNDLE\_VERSION
+
+# Variable: BUNDLE\_VERSION
+
+> `const` **BUNDLE\_VERSION**: `number`
+
+Defined in: [js/src/update.ts:129](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/update.ts#L129)
+
+This bundle's OTA compatibility version (CR-17), injected at build from
+ scripts/config.mjs. Compared against the server manifest's `version`.

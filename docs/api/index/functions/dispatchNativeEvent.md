@@ -1,0 +1,27 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / dispatchNativeEvent
+
+# Function: dispatchNativeEvent()
+
+> **dispatchNativeEvent**(`name`, `payload?`): `boolean`
+
+Defined in: [js/src/nativeEvents.ts:48](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/nativeEvents.ts#L48)
+
+Invokes every listener for `name`; returns false if none is registered.
+
+## Parameters
+
+### name
+
+`string`
+
+### payload?
+
+`Record`\<`string`, `unknown`\>
+
+## Returns
+
+`boolean`

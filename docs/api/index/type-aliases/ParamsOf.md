@@ -1,0 +1,19 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / ParamsOf
+
+# Type Alias: ParamsOf\<S\>
+
+> **ParamsOf**\<`S`\> = `{ [K in keyof SegsParams<S>]: SegsParams<S>[K] }`
+
+Defined in: [js/src/navigation.tsx:186](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/navigation.tsx#L186)
+
+Params inferred from a route template: `ParamsOf<"/list/[id]">` = `{ id: string }`.
+
+## Type Parameters
+
+### S
+
+`S` *extends* `string`

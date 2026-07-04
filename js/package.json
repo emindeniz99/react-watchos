@@ -79,6 +79,7 @@
     "ota:sign": "node scripts/ota-sign.mjs",
     "check:size": "node scripts/check-size.mjs",
     "codegen": "node codegen/generate.mjs",
+    "docs:api": "typedoc && node scripts/gen-capability-table.mjs",
     "test": "vitest run",
     "test:swift": "cd swift && swift test",
     "test:swift:watch": "bash scripts/test-watch.sh",
@@ -93,16 +94,16 @@
     "plist": "^3.1.0"
   },
   "peerDependencies": {
-    "@bacons/apple-targets": "^4.0.0",
-    "@expo/config-plugins": ">=56.0.0",
-    "esbuild": ">=0.27.0",
-    "expo": ">=56.0.0",
-    "react": "^19.2.0",
-    "react-reconciler": "0.33.0",
     "@babel/core": "^7.20.0 || ^8.0.0",
     "@babel/preset-react": "^7.18.0 || ^8.0.0",
     "@babel/preset-typescript": "^7.18.0 || ^8.0.0",
-    "babel-plugin-react-compiler": ">=1.0.0"
+    "@bacons/apple-targets": "^4.0.0",
+    "@expo/config-plugins": ">=56.0.0",
+    "babel-plugin-react-compiler": ">=1.0.0",
+    "esbuild": ">=0.27.0",
+    "expo": ">=56.0.0",
+    "react": "^19.2.0",
+    "react-reconciler": "0.33.0"
   },
   "peerDependenciesMeta": {
     "@bacons/apple-targets": {
@@ -142,6 +143,8 @@
     "esbuild": "^0.27.0",
     "react": "^19.2.0",
     "react-reconciler": "0.33.0",
+    "typedoc": "^0.28.19",
+    "typedoc-plugin-markdown": "^4.12.0",
     "typescript": "^5.9.0",
     "vitest": "^4.0.0"
   },
