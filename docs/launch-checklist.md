@@ -20,7 +20,7 @@ stale "done" claims here defeat its purpose (Rule 12).
 
 | # | Gate | Status | Evidence / action |
 |---|---|---|---|
-| R1 | Package wired into release-please + npm publish with provenance | ✅ | NF-27: config/manifest/workflow + `publishConfig` + `prepublishOnly`; dry-run tarball verified (655 KB, 111 files). |
+| R1 | Package wired into release-please + npm publish with provenance | ✅ | NF-27: config/manifest/workflow + `publishConfig` + `prepublishOnly`; dry-run tarball verified (709 kB, 127 files — `npm pack --dry-run`, 2026-07-04). |
 | R2 | `NPM_TOKEN` secret present and the `react-watchos` npm name actually available/owned | 🟡 | Maintainer action — check npmjs.com for the name BEFORE the first release PR merge; squatted name = rename before marketing, not after. |
 | R3 | First release cut (release-please PR merged, tag + GitHub release + npm publish job green) | 🟡 | Happens automatically on main after merge; treat the FIRST publish as a rehearsal — install the published tarball into a fresh Expo app and run the quickstart. |
 | R4 | Registry-install quickstart verified (not just workspace-linked) | 🟡 | The README documents the symlink caveats; a real `npm i react-watchos` skips them all — verify once against the published (or `npm pack`ed) tarball. |
@@ -42,18 +42,18 @@ stale "done" claims here defeat its purpose (Rule 12).
   updating from the app, `TimerText` stopwatch (zero per-frame JS), Control
   Center intent updating a complication with the app closed, dev hot-reload
   loop. All capturable on the simulator today (no device needed).
-- [x] **Numbers to quote** (each with its source, re-verified 2026-07-02):
-  488-line reconciler core (`js/src/renderer.ts` `wc -l`); 39 SwiftUI-like
+- [x] **Numbers to quote** (each with its source, re-verified 2026-07-04):
+  488-line reconciler core (`js/src/renderer.ts` `wc -l`); 40 SwiftUI-like
   primitives (`codegen/schema.mjs` `components.length`, pinned by
   `component-contract.test.ts`); 41 host methods across 18 capability features
-  (`schema.mjs` `hostMethods` / `wire.ts` `HOST_FEATURES.watch`); 177 KB minified
-  app bundle + 145 KB widget (200 KB / 160 KB CI budgets, `pnpm check:size`);
-  320 JS tests + 139 Swift test functions passing (`pnpm test`; the Swift cores
-  run on Linux via `swift test`, the SwiftUI host on the macOS build);
+  (`schema.mjs` `hostMethods` / `wire.ts` `HOST_FEATURES.watch`); 179 KB minified
+  app bundle + 146 KB widget (200 KB / 160 KB CI budgets, `pnpm check:size`);
+  351 JS tests + 188 Swift test functions passing (`pnpm test`; the Swift cores
+  run on Linux via `swift test`, the full suite — 197 with the Darwin bridges —
+  on the watchOS simulator via `pnpm test:swift:watch`);
   ~2 MB QuickJS heap for the demo app / ~6 MB widget peak (embed-host `[mem]`
-  line); 1.06 ms/dispatch on x86 quickjs-ng (until E4). NOTE: the bundle grew
-  174 KB→177 KB with the media/IAP/keychain capability bindings — re-run
-  `check:size` before quoting.
+  line); 1.06 ms/dispatch on x86 quickjs-ng (until E4). Counts drift with every
+  feature — re-derive all of these the day you quote them.
 - [ ] **Claims to make**: "React for watchOS — JSX/hooks driving native
   SwiftUI on the watch itself, standalone, with signed OTA updates and
   React-authored complications."

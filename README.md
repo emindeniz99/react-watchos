@@ -34,8 +34,9 @@ This project does the same *category* of thing with ~500 lines instead of a
 framework fork: a JS engine on the device, JSX + hooks driving real native
 widgets, events bridged back to JS. It shares no code with RN core — RN
 ecosystem libraries won't run here — and the component vocabulary is
-SwiftUI-like, all 39 primitives: `VStack`, `HStack`, `ZStack`, `ScrollView`,
-`List`, `TabView`, `Spacer`, `Divider`, `Text`, `TimerText`, `Image`, `Map`,
+SwiftUI-like, all 40 primitives: `VStack`, `HStack`, `ZStack`, `ScrollView`,
+`List`, `TabView`, `Spacer`, `Divider`, `Text`, `TimerText`, `FormattedText`,
+`Image`, `Map`,
 `Gauge`, `ProgressView`, `Button`, `Toggle`, `Slider`, `Stepper`, `Picker`,
 `DatePicker`, `TextField`, `CrownRotation`, `NavigationStack`,
 `NavigationLink`, `NavigationRoute`, `Alert`, `AlertAction`,
@@ -465,7 +466,7 @@ signing still untested — Rule 12):**
 ## Limitations (honest list)
 
 - **Not RN core.** No RN components, no RN ecosystem libraries, no Yoga
-  flexbox. Thirty-nine SwiftUI-like primitives, each accepting shared
+  flexbox. Forty SwiftUI-like primitives, each accepting shared
   layout-modifier props (`padding`, `frame`, `background`,
   `cornerRadius`, `opacity`, `tint`, per-node `animation`, and stack
   `alignment`).

@@ -18,7 +18,7 @@ Every capability sits at one level. Higher levels subsume the lower ones.
 
 | Level | Means | How it's checked |
 |---|---|---|
-| ① **Logic-tested** | Pure logic unit-tested off-device | `pnpm test` (335 JS, vitest) + `swift test` (139 test funcs, Linux/macOS: Core/Support/Runtime) — counts drift; treat as point-in-time (2026-07-04) |
+| ① **Logic-tested** | Pure logic unit-tested off-device | `pnpm test` (351 JS, vitest) + `swift test` (188 test funcs, Linux/macOS: Core/Support/Runtime) — counts drift; treat as point-in-time (2026-07-04) |
 | ② **Builds for watchOS** | The SwiftUI host/widget compiles for the watch, and the suite runs on the watch simulator | `pnpm test:swift:watch` (`xcodebuild test`, watchOS sim) — **TEST SUCCEEDED locally 2026-07-04** (watchOS 26.2 sim, Xcode 26.3). The `react-native-watchos-build.yml` CI workflow exists but has **never run** (B1 — Actions disabled at repo level); until it's green, ② evidence is these local runs. |
 | ③ **Device/sim-verified** | Exercised on a watchOS simulator or real Apple Watch | manual; noted per row |
 | ⛔ **Blocked** | Needs an unreleased OS/SDK, or hardware we don't have | noted per row |
@@ -33,7 +33,7 @@ build (②) is the real gate**, and behavioral correctness isn't guaranteed unti
 | Capability | Level | Evidence / note |
 |---|---|---|
 | React → JSON tree → SwiftUI renderer + sync commit pipeline | ② | reconciler [renderer.ts](../js/src/renderer.ts); wire decode in `swift test`; host builds green |
-| 39 UI primitives (Stack/Text/Gauge/Map/Alert/Sheet/Section/Grid/Chart/Toolbar/…) | ② | contract is single-sourced + drift-guarded ① ([component-contract.test.ts](../js/test/component-contract.test.ts)); views in `NodeView.swift` build green (②) |
+| 40 UI primitives (Stack/Text/FormattedText/Gauge/Map/Alert/Sheet/Section/Grid/Chart/Toolbar/…) | ② | contract is single-sourced + drift-guarded ① ([component-contract.test.ts](../js/test/component-contract.test.ts)); views in `NodeView.swift` build green (②) |
 | Digital Crown, gestures, Slider/Stepper/DatePicker/Picker | ② | prop decode ①; views ② — on-device feel is ③ |
 | WatchConnectivity — watch→phone (`sendToPhone`) + phone→watch | ② | `PhoneConnectivity` builds ②; iPhone side wired in the companion app (`react-native-watch-connectivity` listener **calls the reply handler**, so the watch's `sendToPhone` promise settles instead of timing out); the end-to-end paired exchange is ③ (needs a paired sim/device pair) |
 | `fetch` over URLSession (WHATWG subset) | ② | `FetchPlan` request/response parsing ① (`FetchPlanTests`); URLSession orchestration ② |
