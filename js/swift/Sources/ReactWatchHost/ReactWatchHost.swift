@@ -428,9 +428,10 @@ final class ReactWatchModel: ObservableObject {
         }
     }
 
-    /// JSON-encodes a {code, message} reject payload, escaping safely.
+    /// JSON-encodes a {code, message} reject payload, escaping safely — the
+    /// shared builder so every bridge produces identical, always-valid JSON.
     private static func errorJSON(code: String, message: String) -> String {
-        jsonObject(["code": code, "message": message])
+        InvokeErrorJSON.make(code: code, message: message)
     }
 
     /// JSON-encodes an object for an invoke result/error, escaping safely.
@@ -1277,10 +1278,15 @@ final class ReactWatchModel: ObservableObject {
         fetchTasks[id] = nil
     }
 
-    /// Dispatches a change event and remembers `value` as the node's
-    /// optimistic value until React acks this dispatch.
-    func dispatchOptimistic(nodeId: Int, value: JSONValue, payload: [String: Any]) {
-        let seq = dispatch(nodeId: nodeId, event: "change", payload: payload)
+    /// Dispatches an event and remembers `value` as the node's optimistic
+    /// value until React acks this dispatch — the release is the guaranteed
+    /// seq-ack, so a handler that DECLINES the change (keeps its state) still
+    /// snaps native back instead of leaving it diverged.
+    func dispatchOptimistic(
+        nodeId: Int, value: JSONValue, payload: [String: Any],
+        event: String = "change"
+    ) {
+        let seq = dispatch(nodeId: nodeId, event: event, payload: payload)
         optimistic.set(nodeId: nodeId, seq: seq, value: value)
     }
 
@@ -1298,6 +1304,10 @@ final class ReactWatchModel: ObservableObject {
 
     func optimisticString(_ nodeId: Int) -> String? {
         optimistic.string(nodeId)
+    }
+
+    func optimisticStringArray(_ nodeId: Int) -> [String]? {
+        optimistic.stringArray(nodeId)
     }
 
     #if DEBUG

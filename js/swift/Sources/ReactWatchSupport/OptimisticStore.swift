@@ -43,4 +43,17 @@ public struct OptimisticStore: Sendable {
         if case .string(let value)? = values[nodeId]?.value { return value }
         return nil
     }
+
+    /// A held `[String]` value (the controlled NavigationStack's optimistic
+    /// path). Non-string elements disqualify the whole entry — a wrong kind
+    /// must read as "nothing held", like the scalar accessors.
+    public func stringArray(_ nodeId: Int) -> [String]? {
+        guard case .array(let items)? = values[nodeId]?.value else { return nil }
+        var strings: [String] = []
+        for item in items {
+            guard case .string(let value) = item else { return nil }
+            strings.append(value)
+        }
+        return strings
+    }
 }

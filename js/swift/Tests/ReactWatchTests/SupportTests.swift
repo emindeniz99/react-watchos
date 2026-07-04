@@ -37,6 +37,49 @@ final class OptimisticStoreTests: XCTestCase {
         store.ack(throughSeq: 8)
         XCTAssertTrue(store.isEmpty)
     }
+
+    func testStringArrayHoldsAndReleasesLikeTheScalars() {
+        // The controlled NavigationStack's optimistic path — released by the
+        // guaranteed seq-ack, so a DECLINED navigation (handler keeps state)
+        // snaps native back instead of leaving pendingPath diverged forever.
+        var store = OptimisticStore()
+        store.set(
+            nodeId: 7, seq: 3,
+            value: .array([.string("/a"), .string("/b")]))
+        XCTAssertEqual(store.stringArray(7), ["/a", "/b"])
+        XCTAssertNil(store.string(7))  // wrong kind -> nil
+        // A non-string element disqualifies the whole entry.
+        store.set(nodeId: 8, seq: 3, value: .array([.string("/a"), .number(1)]))
+        XCTAssertNil(store.stringArray(8))
+        store.ack(throughSeq: 3)
+        XCTAssertNil(store.stringArray(7))
+    }
+}
+
+// The one way every bridge builds an invoke reject payload — the BLE bridge's
+// hand-built version escaped only double quotes, so a backslash or newline in
+// a peripheral-supplied message produced invalid errorJson (JS lost the typed
+// rejection to a JSON.parse error).
+final class InvokeErrorJSONTests: XCTestCase {
+    private func decode(_ json: String) throws -> [String: String] {
+        try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(json.utf8))
+                as? [String: String])
+    }
+
+    func testRoundTripsHostileMessages() throws {
+        let hostile = "line1\nline2 \\ \"quoted\" \t control\u{1F}"
+        let decoded = try decode(
+            InvokeErrorJSON.make(code: "UNAVAILABLE", message: hostile))
+        XCTAssertEqual(decoded["code"], "UNAVAILABLE")
+        XCTAssertEqual(decoded["message"], hostile)  // exact, not mangled to '
+    }
+
+    func testPlainMessageStaysPlain() throws {
+        let decoded = try decode(
+            InvokeErrorJSON.make(code: "INTERNAL", message: "boom"))
+        XCTAssertEqual(decoded, ["code": "INTERNAL", "message": "boom"])
+    }
 }
 
 final class NotificationPlanTests: XCTestCase {

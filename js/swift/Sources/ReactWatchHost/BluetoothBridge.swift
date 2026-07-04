@@ -146,9 +146,10 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     private func resolve(_ id: Int, _ json: String = "") { onResolve?(id, json) }
 
     private func reject(_ id: Int, _ code: String, _ message: String) {
-        // Hand-built so a peripheral-supplied message can't break the JSON.
-        let safe = message.replacingOccurrences(of: "\"", with: "'")
-        onReject?(id, "{\"code\":\"\(code)\",\"message\":\"\(safe)\"}")
+        // Shared JSON-safe builder: the hand-built version escaped only double
+        // quotes, so a backslash/newline in a peripheral-supplied message made
+        // the errorJson unparseable and JS lost the typed rejection.
+        onReject?(id, InvokeErrorJSON.make(code: code, message: message))
     }
 
     /// Reject EVERY in-flight promise — the connect AND any write/subscribe that

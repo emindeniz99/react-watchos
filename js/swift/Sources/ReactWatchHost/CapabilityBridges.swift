@@ -172,6 +172,13 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
     private var player: AVAudioPlayer?
     private var task: URLSessionDataTask?
 
+    /// Ceiling for a downloaded audio file. The whole file is buffered in
+    /// memory before AVAudioPlayer decodes it, so an unbounded URL (a podcast
+    /// episode) would jetsam the memory-tight watch app — the same reason the
+    /// fetch pipeline caps bodies at 5 MiB. Audio legitimately runs larger
+    /// than a fetch body (short music clips, prompts), so 10 MiB.
+    private static let maxAudioBytes = 10 * 1024 * 1024
+
     /// (id-less) start playback; `settle` is called with nil on success or an
     /// error message. Download + decode happen off-main; playback starts on
     /// main. URLSession's completion handler is `@Sendable`, so `self` and the
@@ -195,6 +202,15 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
             }
             guard let data else {
                 DispatchQueue.main.async { settle("no audio data") }
+                return
+            }
+            // Fail loud instead of decoding an unbounded buffer (see cap note).
+            guard data.count <= Self.maxAudioBytes else {
+                DispatchQueue.main.async {
+                    settle(
+                        "audio file too large: \(data.count) bytes exceeds the "
+                            + "\(Self.maxAudioBytes)-byte limit")
+                }
                 return
             }
             DispatchQueue.main.async {

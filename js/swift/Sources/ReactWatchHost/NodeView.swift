@@ -775,7 +775,6 @@ private struct RoutedNavigationStack: View {
     let node: RNNode
     @EnvironmentObject private var model: ReactWatchModel
     @State private var localPath: [String] = []
-    @State private var pendingPath: [String]?
 
     var body: some View {
         NavigationStack(path: pathBinding) {
@@ -802,9 +801,6 @@ private struct RoutedNavigationStack: View {
                 }
             }
         }
-        .onChange(of: controlledPath ?? []) { _, _ in
-            pendingPath = nil
-        }
     }
 
     private var controlledPath: [String]? {
@@ -814,24 +810,37 @@ private struct RoutedNavigationStack: View {
 
     private var pathBinding: Binding<[String]> {
         Binding(
-            get: { pendingPath ?? controlledPath ?? localPath },
+            get: {
+                // Controlled stacks hold the pushed path in the OptimisticStore
+                // until React acks the dispatch — the same release model every
+                // other controlled input uses. The old @State pendingPath was
+                // released only by a path-PROP change, so a handler that
+                // DECLINED the navigation (kept its state) left native showing
+                // the pushed screen forever, diverged from React.
+                model.optimisticStringArray(node.id)
+                    ?? controlledPath
+                    ?? localPath
+            },
             set: { newPath in
                 let path = normalized(newPath)
-                // Controlled stacks hold the push optimistically in pendingPath
-                // until the JS ack lands; uncontrolled ones own their state in
-                // localPath. Either way, report the change to JS so its
-                // NavigationStack tracks the active route (useParams /
-                // useIsFocused) — an uncontrolled stack would otherwise leave JS
-                // pinned at "/" on every pushed screen.
+                // Uncontrolled stacks own their state in localPath. Either way,
+                // report the change to JS so its NavigationStack tracks the
+                // active route (useParams / useIsFocused) — an uncontrolled
+                // stack would otherwise leave JS pinned at "/" on every push.
                 if controlledPath != nil {
-                    pendingPath = path
+                    model.dispatchOptimistic(
+                        nodeId: node.id,
+                        value: .array(path.map(JSONValue.string)),
+                        payload: ["path": path],
+                        event: "pathChange"
+                    )
                 } else {
                     localPath = path
+                    model.dispatch(
+                        nodeId: node.id, event: "pathChange",
+                        payload: ["path": path]
+                    )
                 }
-                model.dispatch(
-                    nodeId: node.id, event: "pathChange",
-                    payload: ["path": path]
-                )
             }
         )
     }
