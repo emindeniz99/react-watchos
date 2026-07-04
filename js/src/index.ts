@@ -143,6 +143,22 @@ export type {
   WatchEvent,
 } from "./host";
 export { getHost, MemoryHost } from "./host";
+export type {
+  Message,
+  MessageTable,
+  PluralCategory,
+  PluralForms,
+  PluralRule,
+  TranslationConfig,
+  TranslationParams,
+  Translations,
+} from "./i18n";
+export {
+  createTranslations,
+  englishPluralRule,
+  TranslationProvider,
+  useTranslation,
+} from "./i18n";
 export type { IAPProduct, PurchaseResult } from "./iap";
 export {
   currentEntitlements,

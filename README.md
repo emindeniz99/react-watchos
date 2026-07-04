@@ -480,8 +480,13 @@ signing still untested — Rule 12):**
   date (`date` + `dateStyle`/`timeStyle`) or a number (`value` +
   `format: "decimal" | "percent" | "currency"`) with the device locale via
   `DateFormatter`/`NumberFormatter` — the same philosophy as `<TimerText>`.
-  For translations, `getDeviceInfo()` exposes `locale`/`language`/`is24Hour`
-  so an app can pick its own string table.
+  For message translation, `createTranslations({ resources, fallbackLanguage,
+  language })` + `<TranslationProvider>` / `useTranslation()` give a typed
+  `t("key", { name })` with `{placeholder}` interpolation and a pluralization
+  seam (English one/other by default; supply a `pluralRule` for other
+  languages) — plain data + one context, resolved in JS so the wire never
+  sees a key, exactly like the theme layer. Feed it
+  `getDeviceInfo().language`.
 - **Input round-trips**: Toggle/Picker/TextField keep optimistic local
   state to hide the JS round-trip, released by a seq-ack protocol —
   every dispatch carries a sequence number, every commit acks the
