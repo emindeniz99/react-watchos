@@ -50,6 +50,7 @@ export function contentHash(str) {
  *   requiredFeatures?: string[],
  *   minBridgeProtocol?: number,
  *   signature?: string | null,
+ *   expiresAt?: number,
  * }} opts
  * @returns {object} the manifest written.
  */
@@ -60,6 +61,9 @@ export function writeOTAManifest({
   requiredFeatures = [],
   minBridgeProtocol = 1,
   signature = null,
+  // Epoch SECONDS after which the signature stops verifying on the watch
+  // (the revocation lever); 0 = never expires. Bound into the signed bytes.
+  expiresAt = 0,
 }) {
   const releaseId = contentHash(
     readFileSync(join(distDir, bundleFileName), "utf8"),
@@ -71,6 +75,7 @@ export function writeOTAManifest({
     releaseId,
     requiredFeatures,
     minBridgeProtocol,
+    expiresAt,
   };
   writeFileSync(
     join(distDir, "manifest.json"),
@@ -80,11 +85,14 @@ export function writeOTAManifest({
 }
 
 // The signing scheme prefix, in lockstep with Swift's UpdatePlan.scheme. The
-// signed message is `<scheme>:<keyId>:<version>:<bundle.js>` — exactly the bytes
-// ReactWatchSupport.UpdatePlan.signedMessage rebuilds and CryptoKit verifies
-// (pinned by OTASigningInteropTests). Single-sourced here so the published
-// signer and the watch's verifier can't drift.
-const SIGN_SCHEME = "v1";
+// signed message is `<scheme>:<keyId>:<version>:<expiresAt>:<bundle.js>` —
+// exactly the bytes ReactWatchSupport.UpdatePlan.signedMessage rebuilds and
+// CryptoKit verifies (pinned by OTASigningInteropTests). Single-sourced here
+// so the published signer and the watch's verifier can't drift. v2 binds an
+// expiry (epoch seconds, 0 = never) into the signature — the revocation
+// lever: an old signed bundle stops verifying after it lapses, so a leaked
+// or superseded artifact can't be replayed forever.
+const SIGN_SCHEME = "v2";
 
 // A raw 32-byte Ed25519 seed wrapped in the fixed PKCS#8 prefix (RFC 8410), so
 // Node imports it without the public half.
@@ -132,24 +140,28 @@ export function generateSigningKey() {
  * Sign a built OTA `manifest.json` in place (Ed25519), so the watch will accept
  * the bundle. Reads the manifest's OWN `version` and `bundle` (so the signed
  * bytes can't disagree with what's served), signs
- * `v1:<keyId>:<version>:<bundle.js>`, and writes `signature` + `keyId` back.
- * Run at PUBLISH time, never in a dev build — the private key must never touch
- * one. `keyId` must match a key in the app's `signerPublicKeys` and is bound
- * into the signed bytes (CX-007) so it can't be swapped.
+ * `v2:<keyId>:<version>:<expiresAt>:<bundle.js>`, and writes `signature` +
+ * `keyId` (+ `expiresAt` when given here) back. Run at PUBLISH time, never in
+ * a dev build — the private key must never touch one. `keyId` must match a key
+ * in the app's `signerPublicKeys` and is bound into the signed bytes (CX-007)
+ * so it can't be swapped; `expiresAt` (epoch seconds, 0 = never) is bound too,
+ * so an expiry can't be stripped off a signed bundle.
  *
  * @param {{
  *   distDir: string,
  *   keyId: string,
  *   privateKeySeedBase64: string,
  *   manifestFileName?: string,
+ *   expiresAt?: number,
  * }} opts
- * @returns {{ signature: string, keyId: string, version: number }}
+ * @returns {{ signature: string, keyId: string, version: number, expiresAt: number }}
  */
 export function signManifest({
   distDir,
   keyId,
   privateKeySeedBase64,
   manifestFileName = "manifest.json",
+  expiresAt,
 }) {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(keyId ?? "")) {
     throw new Error(
@@ -161,13 +173,23 @@ export function signManifest({
   const manifestPath = join(distDir, manifestFileName);
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const bundle = readFileSync(join(distDir, manifest.bundle), "utf8");
+  // The expiry the signature commits to: an explicit option wins, else the
+  // manifest's own value, else "never". Integer-coerced so the signed string
+  // is canonical.
+  const boundExpiresAt = Math.trunc(expiresAt ?? manifest.expiresAt ?? 0);
   const message = Buffer.from(
-    `${SIGN_SCHEME}:${keyId}:${manifest.version}:${bundle}`,
+    `${SIGN_SCHEME}:${keyId}:${manifest.version}:${boundExpiresAt}:${bundle}`,
     "utf8",
   );
   const signature = sign(null, message, privateKey).toString("base64"); // Ed25519
   manifest.signature = signature;
   manifest.keyId = keyId;
+  manifest.expiresAt = boundExpiresAt;
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  return { signature, keyId, version: manifest.version };
+  return {
+    signature,
+    keyId,
+    version: manifest.version,
+    expiresAt: boundExpiresAt,
+  };
 }

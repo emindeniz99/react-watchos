@@ -297,7 +297,7 @@ final class UpdatePlanTests: XCTestCase {
         // The keyId and version are inside the signed bytes (CX-007), so neither
         // can be relabelled.
         let plan = UpdatePlan(js: "code", keyId: "abc123", version: 7, signature: nil)
-        XCTAssertEqual(plan.signedMessage(), Data("v1:abc123:7:code".utf8))
+        XCTAssertEqual(plan.signedMessage(), Data("v2:abc123:7:0:code".utf8))
         // No version -> nothing to verify.
         XCTAssertNil(
             UpdatePlan(js: "code", keyId: "abc123", version: nil, signature: nil)
@@ -1154,7 +1154,7 @@ final class OTARecordSignedMessageTests: XCTestCase {
         XCTAssertEqual(record.signedMessage(), plan.signedMessage())
         XCTAssertEqual(
             record.signedMessage(),
-            Data("v1:abc123:4:globalThis.x=1".utf8))
+            Data("v2:abc123:4:0:globalThis.x=1".utf8))
     }
 
     func testUnsignedOrInvalidRecordsHaveNoMessage() {

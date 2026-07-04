@@ -148,6 +148,8 @@ public struct OTABootSequencer: Sendable {
     /// Bytecode compile in a throwaway capped runtime; nil on failure (then the
     /// record pins no bytecode and boot parses the source).
     private let compile: @Sendable (String) -> Data?
+    /// Clock seam for the signed-expiry checks (tests inject a fixed time).
+    private let now: @Sendable () -> Date
 
     public init(
         config: Config,
@@ -157,7 +159,8 @@ public struct OTABootSequencer: Sendable {
         hasKey: @escaping @Sendable (String) -> Bool,
         verify: @escaping @Sendable (String, Data, Data) -> Bool,
         validate: @escaping @Sendable (String) throws -> Void,
-        compile: @escaping @Sendable (String) -> Data?
+        compile: @escaping @Sendable (String) -> Data?,
+        now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.config = config
         self.active = active
@@ -167,6 +170,14 @@ public struct OTABootSequencer: Sendable {
         self.verify = verify
         self.validate = validate
         self.compile = compile
+        self.now = now
+    }
+
+    /// Whether a signed expiry (epoch seconds; nil/0 = never) has lapsed —
+    /// the revocation lever, enforced wherever the signature is verified.
+    private func isExpired(_ expiresAt: Int?) -> Bool {
+        guard let expiresAt, expiresAt > 0 else { return false }
+        return now().timeIntervalSince1970 > Double(expiresAt)
     }
 
     // MARK: - Staging (saveUpdate)
@@ -229,6 +240,14 @@ public struct OTABootSequencer: Sendable {
             else {
                 return .rejected("OTA update rejected: signature/version missing or invalid")
             }
+            // The revocation lever: the expiry is inside the verified bytes
+            // (scheme v2), so it can't be stripped — refuse a lapsed bundle
+            // even though its signature is valid.
+            if isExpired(plan.expiresAt) {
+                return .rejected(
+                    "OTA update rejected: the bundle's signature expired — "
+                        + "publish a freshly signed release")
+            }
             let highWater = counters.otaHighWater()
             guard VersionPolicy.accepts(incoming: version, highWater: highWater) else {
                 return .rejected(
@@ -237,16 +256,19 @@ public struct OTABootSequencer: Sendable {
             }
             return persist(
                 js: plan.js, keyId: keyId, version: version,
-                signature: signature.base64EncodedString())
+                signature: signature.base64EncodedString(),
+                expiresAt: plan.expiresAt)
         case .disabled:
             // The explicit dev fail-open: persisted unverified (the host warns).
             return persist(
-                js: plan.js, keyId: plan.keyId, version: plan.version, signature: nil)
+                js: plan.js, keyId: plan.keyId, version: plan.version,
+                signature: nil, expiresAt: nil)
         }
     }
 
     private func persist(
-        js: String, keyId: String?, version: Int?, signature: String?
+        js: String, keyId: String?, version: Int?, signature: String?,
+        expiresAt: Int?
     ) -> StageOutcome {
         // Read-only validation (ARCH-04): eval the candidate in a throwaway
         // runtime with no host callbacks, so a bundle that throws on load is
@@ -261,7 +283,7 @@ public struct OTABootSequencer: Sendable {
         let bytecodeHash = cacheBytecode(source: js)
         let record = OTARecord(
             js: js, keyId: keyId, version: version, signature: signature,
-            bytecodeHash: bytecodeHash
+            bytecodeHash: bytecodeHash, expiresAt: expiresAt
         )
         // ONE atomic write is the commit point (ARCH-04): a crash before it
         // leaves the previous record (or none) intact — never a new source paired
@@ -470,13 +492,25 @@ public struct OTABootSequencer: Sendable {
         else {
             throw OTAVerifyError.storedRecordFailedVerification
         }
+        // Checked at EVERY boot, not just at save (the revocation lever): a
+        // bundle whose signed expiry lapsed on-device stops running on the
+        // next launch and the boot falls back per the normal drop path.
+        if isExpired(record.expiresAt) {
+            throw OTAVerifyError.storedRecordExpired
+        }
     }
 
     private enum OTAVerifyError: Error, CustomStringConvertible {
         case storedRecordFailedVerification
+        case storedRecordExpired
 
         var description: String {
-            "stored OTA record failed signature re-verification — dropped"
+            switch self {
+            case .storedRecordFailedVerification:
+                "stored OTA record failed signature re-verification — dropped"
+            case .storedRecordExpired:
+                "stored OTA record's signed expiry has lapsed — dropped"
+            }
         }
     }
 

@@ -177,8 +177,10 @@ public final class WidgetIntentRuntime {
     }
 
     /// Re-verifies a record's Ed25519 signature over its signedMessage — the same
-    /// check as the app's verifyStoredRecord (NF-35), so save-time, app-boot, and
-    /// widget verification can never diverge.
+    /// check as the app's boot re-verification (NF-35), so save-time, app-boot,
+    /// and widget verification can never diverge. Includes the signed-expiry
+    /// check (the revocation lever): a lapsed bundle degrades to shipped here
+    /// too, not just in the app.
     private func verifyRecord(_ record: OTARecord, keys: [String: String]) -> Bool {
         guard let keyId = record.keyId, let base64 = keys[keyId],
             let key = decodeKey(base64),
@@ -186,6 +188,11 @@ public final class WidgetIntentRuntime {
             let signature = Data(base64Encoded: sigB64),
             let message = record.signedMessage()
         else { return false }
+        if let expiresAt = record.expiresAt, expiresAt > 0,
+            Date().timeIntervalSince1970 > Double(expiresAt)
+        {
+            return false
+        }
         return key.isValidSignature(signature, for: message)
     }
 

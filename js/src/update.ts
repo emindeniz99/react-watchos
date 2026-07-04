@@ -12,8 +12,9 @@ import { Storage } from "./storage";
  *
  * Security (CR-4 / CR-17): an OTA bundle is arbitrary JS that runs with the
  * full host surface, so an unverified one from a compromised origin is
- * in-sandbox RCE. Sign `"v1:<keyId>:<version>:<js>"` with your Ed25519 private
- * key and pass the base64 `signature`, the `keyId`, and the `version`; the
+ * in-sandbox RCE. Sign `"v2:<keyId>:<version>:<expiresAt>:<js>"` with your
+ * Ed25519 private key and pass the base64 `signature`, the `keyId`, and the
+ * `version` (+ optional `expiresAt` — the revocation lever); the
  * watch looks the `keyId` up in the trusted `keyId -> publicKey` map configured
  * on `ReactWatchRootView(ota: OTAConfig(signerPublicKeys:))` and verifies the
  * signature before persisting/evaluating. The `keyId` is bound *inside* the
@@ -58,6 +59,7 @@ export async function applyUpdate(
   keyId?: string,
   requiredFeatures?: string[],
   minBridgeProtocol?: number,
+  expiresAt?: number,
 ): Promise<SaveUpdateResult> {
   try {
     // JSON.stringify drops undefined keys, so a call without keyId/capability
@@ -69,6 +71,7 @@ export async function applyUpdate(
       keyId,
       requiredFeatures,
       minBridgeProtocol,
+      expiresAt,
     });
   } catch (error) {
     // invoke only rejects here when there's no host / the native side errored;
@@ -97,11 +100,16 @@ export interface UpdateManifest {
   releaseId?: string;
   /** Bundle URL — absolute (https), or relative to the manifest URL. */
   bundle: string;
-  /** base64 Ed25519 signature over "v1:<keyId>:<version>:<bundle-js>". */
+  /** base64 Ed25519 signature over
+   *  "v2:<keyId>:<version>:<expiresAt>:<bundle-js>". */
   signature?: string;
   /** Opaque id of the signing key (CX-007). Selects the watch's trusted public
    *  key and is bound into the signed bytes; an unknown id fails closed. */
   keyId?: string;
+  /** Epoch seconds after which the signature stops verifying on the watch
+   *  (bound into the signed bytes — the revocation lever). 0/omitted = never
+   *  expires. Set at signing time (`signManifest`/OTA_SIGNING_EXPIRES_DAYS). */
+  expiresAt?: number;
   /**
    * Capability features the bundle requires (ARCH-01), e.g. ["network",
    * "bluetooth"]. The watch refuses to apply a bundle whose features its binary
@@ -155,6 +163,15 @@ export function parseManifest(raw: unknown): UpdateManifest {
     // fractional explicitly: `NaN > host.bridgeProtocol` is always false, so a
     // poisoned value would silently pass the capability gate (capabilityGap).
     fail("`minBridgeProtocol` must be an integer when present");
+  }
+  if (
+    m.expiresAt !== undefined &&
+    (typeof m.expiresAt !== "number" || !Number.isInteger(m.expiresAt))
+  ) {
+    // Same NaN-poisoning posture: the expiry is inside the signed bytes, so a
+    // non-integer here would just fail verification later — but fail loudly at
+    // the parse boundary like every other field.
+    fail("`expiresAt` must be an integer when present");
   }
   return m as unknown as UpdateManifest;
 }
@@ -323,6 +340,7 @@ export async function fetchAndApplyUpdate(
     manifest.keyId,
     manifest.requiredFeatures,
     manifest.minBridgeProtocol,
+    manifest.expiresAt,
   );
   // Downloaded, but the watch refused it at save (e.g. signature/capability):
   // report not-staged rather than a version that won't take effect.

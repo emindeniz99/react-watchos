@@ -9,6 +9,9 @@ export interface OTAManifest {
   releaseId: string;
   requiredFeatures: string[];
   minBridgeProtocol: number;
+  /** Epoch seconds after which the signature stops verifying on the watch
+   *  (bound into the signed bytes — the revocation lever). 0 = never. */
+  expiresAt: number;
 }
 
 /** Write `<distDir>/manifest.json` for the bundle, computing `releaseId` from
@@ -20,6 +23,8 @@ export function writeOTAManifest(opts: {
   requiredFeatures?: string[];
   minBridgeProtocol?: number;
   signature?: string | null;
+  /** Epoch seconds; 0 (default) = the signature never expires. */
+  expiresAt?: number;
 }): OTAManifest;
 
 /** An Ed25519 OTA signing keypair. Keep `privateKeySeedBase64` secret; add
@@ -34,11 +39,14 @@ export interface OTASigningKey {
 export function generateSigningKey(): OTASigningKey;
 
 /** Sign `<distDir>/manifest.json` in place (Ed25519) over
- *  `v1:<keyId>:<version>:<bundle.js>` — the exact bytes the watch verifies.
- *  Run at publish time only. Returns the signature, key id, and signed version. */
+ *  `v2:<keyId>:<version>:<expiresAt>:<bundle.js>` — the exact bytes the watch
+ *  verifies. Run at publish time only. `expiresAt` (epoch seconds, 0 = never)
+ *  is the revocation lever, bound into the signed bytes so it can't be
+ *  stripped. Returns the signature, key id, signed version, and bound expiry. */
 export function signManifest(opts: {
   distDir: string;
   keyId: string;
   privateKeySeedBase64: string;
   manifestFileName?: string;
-}): { signature: string; keyId: string; version: number };
+  expiresAt?: number;
+}): { signature: string; keyId: string; version: number; expiresAt: number };

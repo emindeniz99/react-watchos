@@ -19,8 +19,11 @@ import Foundation
 /// un-updated consumer keeps working.
 public struct UpdatePlan: Equatable, Sendable {
     /// Signature/format scheme tag — bumped if the signing scheme ever changes
-    /// (crypto-agility), kept inside the signed bytes.
-    public static let scheme = "v1"
+    /// (crypto-agility), kept inside the signed bytes. v2 binds `expiresAt`
+    /// (epoch seconds, 0 = never) into the signature — the revocation lever:
+    /// an old signed bundle stops verifying after it lapses, so a leaked or
+    /// superseded artifact can't be replayed forever.
+    public static let scheme = "v2"
 
     /// A `keyId` must be colon-free (the signed message is `:`-delimited and
     /// `js` is the only free-form field) so the concatenation stays injective —
@@ -46,6 +49,9 @@ public struct UpdatePlan: Equatable, Sendable {
     public let version: Int?
     /// Raw Ed25519 signature bytes over `signedMessage` (base64 on the wire).
     public let signature: Data?
+    /// Epoch seconds after which the signature stops verifying (bound into
+    /// the signed bytes). nil/0 = never expires.
+    public let expiresAt: Int?
     /// Capability features the bundle requires (ARCH-01). The host refuses to
     /// apply a bundle whose features it doesn't provide (CapabilityGate); empty
     /// = no requirement declared.
@@ -60,11 +66,13 @@ public struct UpdatePlan: Equatable, Sendable {
         let signature: String?
         let requiredFeatures: [String]?
         let minBridgeProtocol: Int?
+        let expiresAt: Int?
     }
 
     public init(
         js: String, keyId: String? = nil, version: Int?, signature: Data?,
-        requiredFeatures: [String] = [], minBridgeProtocol: Int = 0
+        requiredFeatures: [String] = [], minBridgeProtocol: Int = 0,
+        expiresAt: Int? = nil
     ) {
         self.js = js
         self.keyId = keyId
@@ -72,6 +80,7 @@ public struct UpdatePlan: Equatable, Sendable {
         self.signature = signature
         self.requiredFeatures = requiredFeatures
         self.minBridgeProtocol = minBridgeProtocol
+        self.expiresAt = expiresAt
     }
 
     /// Parses the saveUpdate payload. The signed shape is
@@ -88,6 +97,7 @@ public struct UpdatePlan: Equatable, Sendable {
             signature = nil
             requiredFeatures = []
             minBridgeProtocol = 0
+            expiresAt = nil
             return
         }
         js = decoded.js
@@ -96,17 +106,20 @@ public struct UpdatePlan: Equatable, Sendable {
         signature = decoded.signature.flatMap { Data(base64Encoded: $0) }
         requiredFeatures = decoded.requiredFeatures ?? []
         minBridgeProtocol = decoded.minBridgeProtocol ?? 0
+        expiresAt = decoded.expiresAt
     }
 
     /// The exact bytes the signature must cover: scheme + keyId + version +
-    /// bundle, so the key id and version are bound to the bundle and can't be
-    /// tampered. nil unless the payload carries BOTH a `version` and a
+    /// expiresAt + bundle, so the key id, version, AND expiry are bound to the
+    /// bundle and can't be tampered (an expiry can't be stripped off a signed
+    /// bundle). nil unless the payload carries BOTH a `version` and a
     /// charset-valid `keyId` (nothing verifiable otherwise) — the host treats
     /// nil as "missing/invalid, reject" when keys are configured. `keyId` is the
     /// single source of truth: the same value selects the key AND is bound here,
-    /// so lookup-key and signed-key can't diverge.
+    /// so lookup-key and signed-key can't diverge. `expiresAt` is canonical as
+    /// an integer (0 = never), colon-impossible like `version`.
     public func signedMessage() -> Data? {
         guard let version, let keyId, Self.isValidKeyId(keyId) else { return nil }
-        return Data("\(Self.scheme):\(keyId):\(version):\(js)".utf8)
+        return Data("\(Self.scheme):\(keyId):\(version):\(expiresAt ?? 0):\(js)".utf8)
     }
 }

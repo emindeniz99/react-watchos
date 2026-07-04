@@ -42,6 +42,7 @@ describe("writeOTAManifest", () => {
       releaseId: contentHash(bundle),
       requiredFeatures: ["storage", "widgets"],
       minBridgeProtocol: 1,
+      expiresAt: 0, // signed-expiry default: never (the revocation lever)
     });
     // It was actually written to disk for the static host to serve.
     expect(

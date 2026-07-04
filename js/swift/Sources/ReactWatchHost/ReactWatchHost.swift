@@ -504,6 +504,7 @@ final class ReactWatchModel: ObservableObject {
         let bundle: String
         let signature: String?
         let keyId: String?
+        let expiresAt: Int?
     }
 
     /// Native OTA recovery for the hard gate (CR-17): when stale JS is blocked
@@ -539,6 +540,7 @@ final class ReactWatchModel: ObservableObject {
             var payload: [String: Any] = ["js": js, "version": manifest.version]
             if let signature = manifest.signature { payload["signature"] = signature }
             if let keyId = manifest.keyId { payload["keyId"] = keyId }
+            if let expiresAt = manifest.expiresAt { payload["expiresAt"] = expiresAt }
             guard let payloadData = try? JSONSerialization.data(withJSONObject: payload),
                 let payloadString = String(data: payloadData, encoding: .utf8)
             else { return }

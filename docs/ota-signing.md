@@ -61,10 +61,16 @@ npm run ota:sign                       # fills manifest.json's signature + keyId
 ```
 
 `ota:sign` signs the exact bytes the watch verifies —
-`"v1:<kid>:<version>:<dist/bundle.js>"` (matching Swift's
+`"v2:<kid>:<version>:<expiresAt>:<dist/bundle.js>"` (matching Swift's
 `UpdatePlan.signedMessage`) — and writes the base64 signature **and the `keyId`**
 into `dist/manifest.json`. Signing is a **separate step from `build`** on
 purpose: the private key never touches a dev build.
+
+Optional revocation lever: `OTA_SIGNING_EXPIRES_DAYS=<n>` binds an expiry
+(epoch seconds) into the signed bytes. The watch refuses a lapsed bundle at
+save AND at every boot re-verification (app and widget both), so a leaked or
+superseded artifact can't be replayed forever — re-sign and re-publish to
+extend. Unset = the signature never expires (`expiresAt: 0`).
 
 Then upload `dist/manifest.json` and `dist/bundle.js` to your update endpoint
 (serve over **HTTPS**). The app's `fetchAndApplyUpdate(manifestUrl)` /
@@ -100,9 +106,9 @@ silently drift apart.
 
 ## Threat-model note: the manifest itself is NOT signed (freeze exposure)
 
-The signature covers `v1:<keyId>:<version>:<bundle-js>` — the **bundle
-content and its compatibility version**, which is what stops in-sandbox RCE
-and version swaps. The **manifest JSON is not signed**, so an on-path
+The signature covers `v2:<keyId>:<version>:<expiresAt>:<bundle-js>` — the
+**bundle content, its compatibility version, and its expiry**, which is what
+stops in-sandbox RCE, version swaps, and expiry-stripping. The **manifest JSON is not signed**, so an on-path
 attacker who can answer the manifest URL cannot inject code, but CAN:
 
 - serve a stale manifest forever (a **freeze/suppression attack** — clients

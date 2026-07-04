@@ -65,6 +65,9 @@ final class OTABootSequencerTests: XCTestCase {
     private static let goodSignature = Data("good".utf8)
     private static let goodSignatureB64 = "Z29vZA=="
 
+    /// The fixed test clock (epoch seconds) the sequencer's expiry checks see.
+    private static let testNow = 1_000_000
+
     private func makeSequencer(
         keyState: OTAKeyState = .enforced,
         gate: OTAGate = .soft,
@@ -85,12 +88,17 @@ final class OTABootSequencerTests: XCTestCase {
             hasKey: { $0 == "k1" },
             verify: { _, _, signature in signature == Self.goodSignature },
             validate: validate,
-            compile: compile
+            compile: compile,
+            now: { Date(timeIntervalSince1970: Double(Self.testNow)) }
         )
     }
 
-    private func signedPayload(js: String = "app()", version: Int = 2) -> String {
-        #"{"js":"\#(js)","keyId":"k1","version":\#(version),"signature":"\#(Self.goodSignatureB64)"}"#
+    private func signedPayload(
+        js: String = "app()", version: Int = 2, expiresAt: Int? = nil
+    ) -> String {
+        let expiry = expiresAt.map { #","expiresAt":\#($0)"# } ?? ""
+        return
+            #"{"js":"\#(js)","keyId":"k1","version":\#(version),"signature":"\#(Self.goodSignatureB64)"\#(expiry)}"#
     }
 
     private func storeRecord(
@@ -101,11 +109,13 @@ final class OTABootSequencerTests: XCTestCase {
     }
 
     private func signedRecord(
-        js: String = "app()", version: Int = 2, bytecodeHash: String? = nil
+        js: String = "app()", version: Int = 2, bytecodeHash: String? = nil,
+        expiresAt: Int? = nil
     ) -> OTARecord {
         OTARecord(
             js: js, keyId: "k1", version: version,
-            signature: Self.goodSignatureB64, bytecodeHash: bytecodeHash)
+            signature: Self.goodSignatureB64, bytecodeHash: bytecodeHash,
+            expiresAt: expiresAt)
     }
 
     private func decodeActiveRecord() -> OTARecord? {
@@ -516,6 +526,53 @@ extension OTABootSequencerTests {
                 failure.notice?.contains("re-verification") == true,
                 "notice lost: \(failure.notice ?? "nil")")
             XCTAssertTrue(failure.underlying is ShippedBoom)
+        }
+    }
+}
+
+// The revocation lever (scheme v2): a signed expiry is enforced at save AND at
+// every boot, and can't be stripped (it's inside the signed bytes — pinned by
+// OTASigningInteropTests/UpdatePlanTests; these cover the enforcement).
+extension OTABootSequencerTests {
+    func testStageRejectsALapsedSignedExpiry() {
+        let seq = makeSequencer()
+        guard
+            case .rejected(let reason) = seq.stage(
+                signedPayload(expiresAt: 999_999))
+        else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertTrue(reason.contains("expired"), "got: \(reason)")
+        XCTAssertNil(active.record)
+    }
+
+    func testStageAcceptsAFutureExpiryAndPersistsIt() {
+        let seq = makeSequencer()
+        XCTAssertEqual(seq.stage(signedPayload(expiresAt: 2_000_000)), .accepted)
+        XCTAssertEqual(decodeActiveRecord()?.expiresAt, 2_000_000)
+    }
+
+    func testBootDropsARecordWhoseExpiryLapsedOnDevice() throws {
+        // Accepted while valid, expired by the next launch: the boot
+        // re-verification is where the revocation actually lands.
+        storeRecord(signedRecord(expiresAt: 999_999), in: active)
+        let seq = makeSequencer()
+        let run = try runBoot(seq)
+        XCTAssertTrue(run.sources.isEmpty, "a lapsed bundle must not run")
+        guard case .ranShipped(let notice) = run.outcome else {
+            return XCTFail("expected shipped fallback")
+        }
+        XCTAssertTrue(notice?.contains("expiry has lapsed") == true)
+        XCTAssertNil(active.record)
+    }
+
+    func testZeroOrAbsentExpiryNeverLapses() throws {
+        storeRecord(signedRecord(expiresAt: 0), in: active)
+        let seq = makeSequencer()
+        let run = try runBoot(seq)
+        if case .ranOTA = run.outcome {
+        } else {
+            XCTFail("expiresAt 0 must mean never, got \(run.outcome)")
         }
     }
 }

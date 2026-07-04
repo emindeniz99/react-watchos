@@ -24,26 +24,31 @@ public struct OTARecord: Codable, Sendable, Equatable {
     /// trusts the `.qbc` only when the on-disk blob hashes to this. nil = no
     /// trustworthy bytecode, parse the source.
     public var bytecodeHash: String?
+    /// Epoch seconds after which the signature stops verifying (bound into the
+    /// signed bytes — the revocation lever). nil/0 = never expires.
+    public let expiresAt: Int?
 
     /// The exact bytes this record's `signature` covers — the SAME format as
-    /// `UpdatePlan.signedMessage` (scheme:keyId:version:js), so save-time and
-    /// boot-time verification can never diverge. nil when the record has no
-    /// verifiable identity (unsigned/dev records).
+    /// `UpdatePlan.signedMessage` (scheme:keyId:version:expiresAt:js), so
+    /// save-time and boot-time verification can never diverge. nil when the
+    /// record has no verifiable identity (unsigned/dev records).
     public func signedMessage() -> Data? {
         guard let version, let keyId, UpdatePlan.isValidKeyId(keyId) else {
             return nil
         }
-        return Data("\(UpdatePlan.scheme):\(keyId):\(version):\(js)".utf8)
+        return Data(
+            "\(UpdatePlan.scheme):\(keyId):\(version):\(expiresAt ?? 0):\(js)".utf8)
     }
 
     public init(
         js: String, keyId: String? = nil, version: Int?, signature: String?,
-        bytecodeHash: String? = nil
+        bytecodeHash: String? = nil, expiresAt: Int? = nil
     ) {
         self.js = js
         self.keyId = keyId
         self.version = version
         self.signature = signature
         self.bytecodeHash = bytecodeHash
+        self.expiresAt = expiresAt
     }
 }

@@ -34,7 +34,7 @@ describe("OTA signing (consumer-facing API)", () => {
     expect(key.keyId).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
   });
 
-  it("signs v1:<kid>:<version>:<bundle> and verifies with the public key", () => {
+  it("signs v2:<kid>:<version>:<expiresAt>:<bundle> and verifies with the public key", () => {
     dir = mkdtempSync(join(tmpdir(), "rnw-sign-"));
     writeFileSync(join(dir, "bundle.js"), "globalThis.__x=42;");
     writeOTAManifest({ distDir: dir, version: 7 });
@@ -53,7 +53,7 @@ describe("OTA signing (consumer-facing API)", () => {
     // The interop contract: the signature must verify over the EXACT bytes the
     // watch rebuilds in UpdatePlan.signedMessage (pinned by Swift's
     // OTASigningInteropTests). If this format drifts, OTA breaks silently.
-    const message = Buffer.from(`v1:${keyId}:7:globalThis.__x=42;`, "utf8");
+    const message = Buffer.from(`v2:${keyId}:7:0:globalThis.__x=42;`, "utf8");
     expect(
       verify(
         null,
@@ -62,6 +62,34 @@ describe("OTA signing (consumer-facing API)", () => {
         Buffer.from(result.signature, "base64"),
       ),
     ).toBe(true);
+  });
+
+  it("binds an expiry into the signature and writes it back (revocation lever)", () => {
+    dir = mkdtempSync(join(tmpdir(), "rnw-sign-"));
+    writeFileSync(join(dir, "bundle.js"), "x");
+    writeOTAManifest({ distDir: dir, version: 3 });
+    const { keyId, publicKeyBase64, privateKeySeedBase64 } =
+      generateSigningKey();
+    const expiresAt = 4102444800; // 2100-01-01
+    const result = signManifest({
+      distDir: dir,
+      keyId,
+      privateKeySeedBase64,
+      expiresAt,
+    });
+    expect(result.expiresAt).toBe(expiresAt);
+    const manifest = JSON.parse(
+      readFileSync(join(dir, "manifest.json"), "utf8"),
+    );
+    expect(manifest.expiresAt).toBe(expiresAt);
+    // Signed over the expiry — the watch's UpdatePlan rebuilds this exact
+    // string, so a stripped or altered expiry fails verification.
+    const withExpiry = Buffer.from(`v2:${keyId}:3:${expiresAt}:x`, "utf8");
+    const stripped = Buffer.from(`v2:${keyId}:3:0:x`, "utf8");
+    const key = publicKeyFromRaw(publicKeyBase64);
+    const sig = Buffer.from(result.signature, "base64");
+    expect(verify(null, withExpiry, key, sig)).toBe(true);
+    expect(verify(null, stripped, key, sig)).toBe(false);
   });
 
   it("binds the version into the signature — a re-versioned manifest won't verify", () => {
@@ -76,7 +104,7 @@ describe("OTA signing (consumer-facing API)", () => {
       privateKeySeedBase64,
     });
 
-    const wrongVersion = Buffer.from(`v1:${keyId}:4:x`, "utf8");
+    const wrongVersion = Buffer.from(`v2:${keyId}:4:0:x`, "utf8");
     expect(
       verify(
         null,
