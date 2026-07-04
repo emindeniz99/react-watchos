@@ -63,7 +63,9 @@ const { linked } = wireLocalPackage(project, { packagePath, targetProducts });
 fs.writeFileSync(pbxPath, project.writeSync());
 
 if (linked.length) {
-  console.log(`[link-swift-package] linked SwiftPM products: ${linked.join(", ")}`);
+  console.log(
+    `[link-swift-package] linked SwiftPM products: ${linked.join(", ")}`,
+  );
 } else {
   console.log("[link-swift-package] SwiftPM products already linked (no-op)");
 }

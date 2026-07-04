@@ -139,7 +139,10 @@ function scaffold(args) {
   const options = Array.isArray(entry) ? (entry[1] ?? {}) : {};
   const opts = plugin.resolveOptions(config, options);
 
-  const { watchAppSwift, widgetBundleSwift } = require("../plugin/scaffold.cjs");
+  const {
+    watchAppSwift,
+    widgetBundleSwift,
+  } = require("../plugin/scaffold.cjs");
 
   // The watch app's @main App (always) and, when the widget target is enabled,
   // the @main WidgetBundle — both thin consumers of the package, parameterized
@@ -157,7 +160,7 @@ function scaffold(args) {
       path.join("targets", plugin.WIDGET_DIR, "ReactWidgets.swift"),
       widgetBundleSwift({ name: opts.name, appGroupId: opts.appGroup }),
       force,
-      'edit to add a widget per registered `kind`',
+      "edit to add a widget per registered `kind`",
     );
     console.log(
       "[scaffold] next: write your widget JS entry (registerWidget, no UI mount) " +
@@ -171,7 +174,9 @@ function writeGlue(projectRoot, relPath, contents, force, note) {
   const file = path.join(projectRoot, relPath);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (fs.existsSync(file) && !force) {
-    console.error(`[scaffold] ${relPath} already exists (pass --force to overwrite)`);
+    console.error(
+      `[scaffold] ${relPath} already exists (pass --force to overwrite)`,
+    );
     process.exit(1);
   }
   fs.writeFileSync(file, contents);

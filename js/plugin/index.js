@@ -1,9 +1,6 @@
 const fs = require("node:fs");
 const path = require("node:path");
-const {
-  loadConfigPlugins,
-  loadAppleTargets,
-} = require("./peerDeps");
+const { loadConfigPlugins, loadAppleTargets } = require("./peerDeps");
 const { watchTargetConfig, widgetTargetConfig } = require("./targetConfig");
 const { HOST_PRODUCTS, WIDGET_PRODUCTS } = require("./wireLocalPackage");
 const { withReactWatchNativeWiring } = require("./withNativeWiring");
@@ -122,7 +119,8 @@ function ensureTargetConfigFile(projectRoot, dir, configObject) {
 function removeGeneratedTargetConfigFile(projectRoot, dir) {
   const file = path.join(projectRoot, "targets", dir, "expo-target.config.js");
   if (!fs.existsSync(file)) return false;
-  if (!fs.readFileSync(file, "utf8").startsWith("// AUTO-GENERATED")) return false;
+  if (!fs.readFileSync(file, "utf8").startsWith("// AUTO-GENERATED"))
+    return false;
   fs.rmSync(file);
   return true;
 }
@@ -266,7 +264,8 @@ const withReactWatch = (config, options) => {
 withReactWatch.resolveOptions = resolveOptions;
 withReactWatch.targetProductsFor = targetProductsFor;
 withReactWatch.withEasAppExtensions = withEasAppExtensions;
-withReactWatch.removeGeneratedTargetConfigFile = removeGeneratedTargetConfigFile;
+withReactWatch.removeGeneratedTargetConfigFile =
+  removeGeneratedTargetConfigFile;
 withReactWatch.WATCH_DIR = WATCH_DIR;
 withReactWatch.WIDGET_DIR = WIDGET_DIR;
 

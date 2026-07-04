@@ -90,7 +90,8 @@ function wireLocalPackage(project, { packagePath, targetProducts }) {
   for (const [targetName, products] of Object.entries(targetProducts)) {
     const targetUuid = Object.keys(nativeTargets).find(
       (k) =>
-        !k.endsWith("_comment") && unquote(nativeTargets[k].name) === targetName,
+        !k.endsWith("_comment") &&
+        unquote(nativeTargets[k].name) === targetName,
     );
     if (!targetUuid) continue; // target not generated (yet) — skip quietly
     const target = nativeTargets[targetUuid];

@@ -13,6 +13,9 @@
       "scripts/**/*.mjs",
       "codegen/**/*.mjs",
       "esbuild/**/*.mjs",
+      "bin/**/*.{cjs,mjs}",
+      "plugin/**/*.{js,cjs}",
+      "app.plugin.js",
       "!src/generated",
       "!dist",
       "!**/node_modules"

@@ -19,7 +19,7 @@ function readGeneratedTargets(projectRoot) {
     delete require.cache[require.resolve(configPath)];
     const loaded = require(configPath);
     const config = typeof loaded === "function" ? loaded({}) : loaded;
-    if (config && config.type && config.name) {
+    if (config?.type && config?.name) {
       out.push({ dir, name: config.name, type: config.type, config });
     }
   }
