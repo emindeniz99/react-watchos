@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cldrPluralRule,
   createTranslations,
   englishPluralRule,
   MemoryHost,
@@ -101,6 +102,43 @@ describe("createTranslations", () => {
     expect(englishPluralRule("en", 1)).toBe("one");
     expect(englishPluralRule("en", 0)).toBe("other");
     expect(englishPluralRule("en", 5)).toBe("other");
+  });
+
+  it("cldrPluralRule gives canonical CLDR categories the English default can't", () => {
+    // The concrete gap the English default silently gets wrong — verified via
+    // plurals-cldr (no Intl). Arabic has all six categories; Slavic has few/many.
+    expect(cldrPluralRule("ar", 0)).toBe("zero");
+    expect(cldrPluralRule("ar", 2)).toBe("two");
+    expect(cldrPluralRule("ar", 6)).toBe("few");
+    expect(cldrPluralRule("ar", 15)).toBe("many");
+    expect(cldrPluralRule("ru", 5)).toBe("many");
+    expect(cldrPluralRule("ru", 21)).toBe("one");
+    expect(cldrPluralRule("pl", 3)).toBe("few");
+    // English still correct, and an unknown language falls back to English.
+    expect(cldrPluralRule("en", 1)).toBe("one");
+    expect(cldrPluralRule("xx", 2)).toBe("other");
+  });
+
+  it("wires cldrPluralRule through t() for a real Russian plural", () => {
+    const ru = createTranslations({
+      resources: {
+        ru: {
+          files: {
+            one: "{count} файл",
+            few: "{count} файла",
+            many: "{count} файлов",
+            other: "{count} файла",
+          },
+        },
+      },
+      fallbackLanguage: "ru",
+      language: "ru",
+      pluralRule: cldrPluralRule,
+    });
+    expect(ru.t("files", { count: 1 })).toBe("1 файл"); // one
+    expect(ru.t("files", { count: 3 })).toBe("3 файла"); // few
+    expect(ru.t("files", { count: 5 })).toBe("5 файлов"); // many
+    expect(ru.t("files", { count: 21 })).toBe("21 файл"); // one (21 % 10 === 1)
   });
 });
 

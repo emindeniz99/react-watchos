@@ -154,6 +154,7 @@ export type {
   Translations,
 } from "./i18n";
 export {
+  cldrPluralRule,
   createTranslations,
   englishPluralRule,
   TranslationProvider,

@@ -126,6 +126,7 @@
 - [BUNDLE\_VERSION](variables/BUNDLE_VERSION.md)
 - [Button](variables/Button.md)
 - [Chart](variables/Chart.md)
+- [cldrPluralRule](variables/cldrPluralRule.md)
 - [ConfirmationDialog](variables/ConfirmationDialog.md)
 - [ContentUnavailable](variables/ContentUnavailable.md)
 - [CrownRotation](variables/CrownRotation.md)

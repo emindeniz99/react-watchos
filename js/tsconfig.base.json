@@ -20,6 +20,14 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "types": ["node"]
+    "types": ["node"],
+
+    // `plurals-cldr` (nodeca) ships no types, and under `bundler` resolution an
+    // ambient `declare module` is ignored once the real .js resolves — so point
+    // TYPE resolution at our hand-written shim (esbuild still bundles the real
+    // package at runtime). Relative to this config's dir (js/).
+    "paths": {
+      "plurals-cldr": ["./src/plurals-cldr.d.ts"]
+    }
   }
 }

@@ -1,3 +1,4 @@
+import pluralsCldr from "plurals-cldr";
 import type { ReactNode } from "react";
 import { createContext, createElement, useContext } from "react";
 
@@ -23,6 +24,22 @@ import { createContext, createElement, useContext } from "react";
  *   const { t } = useTranslation();
  *   t("hello", { name: "Emin" });          // "Hallo Emin"
  *   t("glasses", { count: 2 });            // "2 Gläser"
+ *
+ * Design, after comparing against react-i18next / FormatJS / Lingui (all of
+ * which hard-depend on `Intl.PluralRules` and so can't run here anyway):
+ * - `{name}` interpolation follows the ICU/FormatJS single-brace convention
+ *   (i18next uses `{{name}}`); a `{token}` whose name isn't `\w+` (e.g. `{50%}`)
+ *   passes through literally.
+ * - Plurals are nested-object bundles (`{ one, other }`), NOT ICU inline
+ *   strings (`{n, plural, …}`) — that would need a runtime ICU parser or a
+ *   build step, and re-couples `#` to `Intl.NumberFormat`. Category selection
+ *   is the injected `PluralRule`; the batteries default to English one/other,
+ *   with `cldrPluralRule` the opt-in for full CLDR correctness.
+ * - Deliberately OMITTED (Rule 2 / this target): namespaces (i18next's
+ *   lazy `ns:key` split — pointless for one in-bundle table), HTML escaping
+ *   (output goes to SwiftUI `Text`, not a DOM — escaping would corrupt copy),
+ *   and non-string returns (`returnObjects`) — prefer N keys over overloading
+ *   `t()`. A missing key returns the key itself (a visible dev marker).
  */
 
 /** A plural bundle keyed by CLDR cardinal category; `other` is required as the
@@ -42,14 +59,39 @@ export type MessageTable = Record<string, Message>;
 export type PluralCategory = keyof PluralForms;
 
 /** Selects the plural category for a count in a language. QuickJS has no
- *  `Intl.PluralRules`, so the app supplies the rule for languages whose
- *  plural logic isn't English one/other. */
+ *  `Intl.PluralRules`, so the rule is a plain function — inject `cldrPluralRule`
+ *  (canonical, all languages) or your own. */
 export type PluralRule = (language: string, count: number) => PluralCategory;
 
-/** The default cardinal rule — English one/other. Correct for en and the many
- *  languages that share its two-form cardinal; override per app for others. */
+/**
+ * The zero-dependency DEFAULT — English/Germanic `one`/`other` only. Correct
+ * for en/de/nl/… and any two-form cardinal, but WRONG for Arabic, the Slavic
+ * languages (few/many), etc. It's the default because most watch apps are
+ * single-language and we keep the base bundle lean (no CLDR data unless asked).
+ *
+ * **If your app targets a language with richer plurals, pass
+ * `cldrPluralRule`** (or your own `PluralRule`) so `few`/`many`/`two`/`zero`
+ * resolve correctly — the English default would silently pick `other`.
+ */
 export const englishPluralRule: PluralRule = (_language, count) =>
   count === 1 ? "one" : "other";
+
+/**
+ * Canonical CLDR cardinal rule for ALL ~220 languages, backed by
+ * `plurals-cldr` (nodeca) — a ~2.7 KB gz, zero-`Intl` data table, the same
+ * CLDR source the big i18n libraries' build tools use. Opt in when you need
+ * correct plurals beyond English one/other:
+ *
+ *   createTranslations({ resources, fallbackLanguage: "en",
+ *                        language: deviceLanguage, pluralRule: cldrPluralRule })
+ *
+ * We deliberately keep this OFF the default path so an English-only app pays
+ * nothing for the table (bundle discipline); it tree-shakes out unless
+ * imported. An unknown language falls back to the English rule.
+ */
+export const cldrPluralRule: PluralRule = (language, count) =>
+  (pluralsCldr(language, count) as PluralCategory | null) ??
+  englishPluralRule(language, count);
 
 /** Interpolation values. `count` also drives plural selection. */
 export interface TranslationParams {

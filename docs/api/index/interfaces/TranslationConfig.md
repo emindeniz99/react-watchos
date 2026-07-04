@@ -6,7 +6,7 @@
 
 # Interface: TranslationConfig
 
-Defined in: js/src/i18n.tsx:73
+Defined in: [js/src/i18n.tsx:115](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L115)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: js/src/i18n.tsx:73
 
 > **fallbackLanguage**: `string`
 
-Defined in: js/src/i18n.tsx:79
+Defined in: [js/src/i18n.tsx:121](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L121)
 
 Language used when the active one has no table; must exist in resources.
 
@@ -24,7 +24,7 @@ Language used when the active one has no table; must exist in resources.
 
 > `optional` **language?**: `string`
 
-Defined in: js/src/i18n.tsx:82
+Defined in: [js/src/i18n.tsx:124](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L124)
 
 Active language, usually `getDeviceInfo().language`. Defaults to the
  fallback (so a table with only one language still works untouched).
@@ -35,7 +35,7 @@ Active language, usually `getDeviceInfo().language`. Defaults to the
 
 > `optional` **pluralRule?**: [`PluralRule`](../type-aliases/PluralRule.md)
 
-Defined in: js/src/i18n.tsx:84
+Defined in: [js/src/i18n.tsx:126](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L126)
 
 Plural-category selector; defaults to English one/other.
 
@@ -45,7 +45,7 @@ Plural-category selector; defaults to English one/other.
 
 > **resources**: `Record`\<`string`, [`MessageTable`](../type-aliases/MessageTable.md)\>
 
-Defined in: js/src/i18n.tsx:77
+Defined in: [js/src/i18n.tsx:119](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L119)
 
 Language → its message table. Keyed by bare code ("de") and/or full
  locale ("de_DE"); lookup tries the exact active language, then its bare

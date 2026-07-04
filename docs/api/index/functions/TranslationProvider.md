@@ -8,7 +8,7 @@
 
 > **TranslationProvider**(`props`): `ReactNode`
 
-Defined in: js/src/i18n.tsx:150
+Defined in: [js/src/i18n.tsx:192](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L192)
 
 Provides translations to the subtree — build them with `createTranslations`
  and re-create when the device language changes.

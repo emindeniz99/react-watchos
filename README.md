@@ -483,10 +483,16 @@ signing still untested — Rule 12):**
   For message translation, `createTranslations({ resources, fallbackLanguage,
   language })` + `<TranslationProvider>` / `useTranslation()` give a typed
   `t("key", { name })` with `{placeholder}` interpolation and a pluralization
-  seam (English one/other by default; supply a `pluralRule` for other
-  languages) — plain data + one context, resolved in JS so the wire never
-  sees a key, exactly like the theme layer. Feed it
-  `getDeviceInfo().language`.
+  seam — plain data + one context, resolved in JS so the wire never sees a
+  key, exactly like the theme layer. Feed it `getDeviceInfo().language`. The
+  default plural rule is English `one`/`other` (zero-dependency, lean); for
+  correct plurals in Arabic/Slavic/etc. pass **`pluralRule: cldrPluralRule`**
+  (canonical CLDR for all ~220 languages via `plurals-cldr`, ~2.7 KB gz, no
+  `Intl` — it tree-shakes out unless you import it). We compared against
+  react-i18next / react-intl / Lingui first: all hard-depend on
+  `Intl.PluralRules`, which QuickJS lacks, so a hand-rolled layer + the one
+  CLDR data table is the right fit here (see `src/i18n.tsx` for the full
+  rationale).
 - **Input round-trips**: Toggle/Picker/TextField keep optimistic local
   state to hide the JS round-trip, released by a seq-ack protocol —
   every dispatch carries a sequence number, every commit acks the

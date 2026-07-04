@@ -164,6 +164,9 @@ importers:
       esbuild:
         specifier: ^0.27.0
         version: 0.27.7
+      plurals-cldr:
+        specifier: ^2.0.1
+        version: 2.0.1
       react:
         specifier: ^19.2.0
         version: 19.2.3
@@ -2446,6 +2449,9 @@ packages:
   plist@3.1.1:
     resolution: {integrity: sha512-ZIfcLJC+7E7FBFnDxm9MPmt7D+DidyQ26lewieO75AdhA2ayMtsJSES0iWzqJQbcVRSrTufQoy0DR94xHue0oA==}
     engines: {node: '>=10.4.0'}
+
+  plurals-cldr@2.0.1:
+    resolution: {integrity: sha512-7WLem4xl5C10kOqFUgqV5pNSgvlev0nPvWwgdXbCVGJN7BFqKWzVpHbARhIzS9TK9jWHZx5Nm8mr3aWtd0uldQ==}
 
   pngjs@3.4.0:
     resolution: {integrity: sha512-NCrCHhWmnQklfH4MtJMRjZ2a8c80qXeMlQMv2uVp9ISJMTt562SbGd6n2oq0PaPgKm7Z6pL9E2UlLIhC+SHL3w==}
@@ -5895,6 +5901,8 @@ snapshots:
       '@xmldom/xmldom': 0.9.10
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
+
+  plurals-cldr@2.0.1: {}
 
   pngjs@3.4.0: {}
 
