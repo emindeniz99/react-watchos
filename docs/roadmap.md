@@ -126,7 +126,7 @@ Owns the companion app, new `__host` methods, native-event streams.
 - The three P0s (Crown, WatchConnectivity, setInterval) are otherwise
   independent and parallelizable across agents.
 - **Hard gate:** every SwiftUI change is unverified until the macOS build
-  (`.github/workflows/react-watchos-build.yml`) runs green. The
+  (`.github/workflows/react-native-watchos-build.yml`) runs green. The
   Linux `swift test` only verifies *wire decode* of new props, not the view.
   Get that workflow green before trusting Crown/gestures/WatchConnectivity
   on-device.

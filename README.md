@@ -34,19 +34,28 @@ This project does the same *category* of thing with ~500 lines instead of a
 framework fork: a JS engine on the device, JSX + hooks driving real native
 widgets, events bridged back to JS. It shares no code with RN core — RN
 ecosystem libraries won't run here — and the component vocabulary is
-SwiftUI-like (`VStack`, `HStack`, `ZStack`, `Text`, `TimerText`, `Button`,
-`Toggle`, `Spacer`, `Image`, `ScrollView`, `List`, `Divider`, `Gauge`,
-`ProgressView`, `NavigationStack`, `NavigationRoute`, `NavigationLink`, `TextField`,
-`Picker`, `TabView`, `Alert`, `ConfirmationDialog`, `Sheet`, `Section`,
-`Label`, `Grid`, `ShareLink`, `Chart`, `LabeledContent`,
-`ContentUnavailable`, `Toolbar`), with SwiftUI layout rather than flexbox. Beyond
-views there's `Storage` (App Group UserDefaults), `playHaptic`,
+SwiftUI-like, all 39 primitives: `VStack`, `HStack`, `ZStack`, `ScrollView`,
+`List`, `TabView`, `Spacer`, `Divider`, `Text`, `TimerText`, `Image`, `Map`,
+`Gauge`, `ProgressView`, `Button`, `Toggle`, `Slider`, `Stepper`, `Picker`,
+`DatePicker`, `TextField`, `CrownRotation`, `NavigationStack`,
+`NavigationLink`, `NavigationRoute`, `Alert`, `AlertAction`,
+`ConfirmationDialog`, `Sheet`, `Section`, `Label`, `Grid`, `GridRow`,
+`ShareLink`, `Chart`, `LabeledContent`, `ContentUnavailable`, `Toolbar`,
+`ToolbarItem` — with SwiftUI layout rather than flexbox. Beyond views there's
+`Storage` (App Group UserDefaults), `fetch` (WHATWG subset over native
+URLSession), sensors (heart rate / motion / gyroscope / location via
+HealthKit + CoreMotion push streams), a BLE central (`bleConnect` /
+`bleWrite` / `bleSubscribe` + state/notify pushes), `sendToPhone`
+(WatchConnectivity, watch side), `playHaptic`, `playAudio`,
 `scheduleNotification` (local notifications with permission request and
 cancel), `registerNativeListener` (instant native→React pushes),
-`getDeviceInfo`, `Keychain`, `speak` (TTS), `scheduleBackgroundRefresh`,
-extended-runtime sessions, StoreKit 2 in-app purchase, widget
-timelines, and control intents — all bridged through the same
-registered-message host surface.
+`getDeviceInfo` (+ accessibility state, Water Lock), `Keychain`, `speak`
+(TTS), `scheduleBackgroundRefresh`, extended-runtime sessions, StoreKit 2
+in-app purchase, widget timelines, and control intents — all bridged through
+the same registered-message host surface. Per-capability status with its
+evidence level (Linux-tested → watch-compiled → simulator-verified) lives in
+[docs/status.md](./docs/status.md); everything here is simulator-grade until
+the device pass.
 
 ## Updating the UI: instant, periodic, smooth
 
@@ -300,19 +309,26 @@ import { watchBuildOptions } from "react-watchos/build"; // esbuild preset
   [docs/extending.md](./docs/extending.md) for the "add a native capability"
   recipe, and [docs/updates.md](./docs/updates.md) for how updates commit.
 
-**Native setup (Expo plugin + scaffold)** — no manual Xcode wiring:
+**Native setup (Expo plugin + scaffold)** — no manual Xcode wiring, and no
+hand-written target config (the plugin composes apple-targets internally and
+*generates* the `expo-target.config.js` files — don't create them yourself):
 
 1. `npx expo install react-watchos @bacons/apple-targets`
-2. Add the `react-watchos` plugin to `app.json` **after** apple-targets,
-   and declare your watch (and optional widget) target with
-   `expo-target.config.js` — see
-   [`examples/expo-watch-app`](./examples/expo-watch-app) for the exact config.
+2. Add the `react-watchos` plugin to `app.json` — the ONLY plugin entry you
+   need; do not also list apple-targets. Options inline:
+
+   ```jsonc
+   "plugins": [["react-watchos", { "name": "My Watch", "widget": true }]]
+   ```
+
+   (See [`examples/expo-watch-app/app.json`](./examples/expo-watch-app/app.json)
+   for the working reference.)
 3. `npx react-watchos scaffold` writes the `@main` Swift glue the plugin
    can't generate (`targets/watch/WatchApp.swift`, plus the widget bundle when
    the widget target is enabled).
-4. `npx expo prebuild` — the plugin links the `js/swift/` SwiftPM products into
-   the generated targets and merges each target's Info.plist in one pass (no
-   post-prebuild step).
+4. `npx expo prebuild` — the plugin generates the target configs, creates the
+   targets via apple-targets, links the SwiftPM products, and merges each
+   target's Info.plist in one pass (no post-prebuild step).
 5. Build your watch JS with the preset (`watchBuildOptions`) into the target's
    assets; ship OTA updates by signing the manifest with `signManifest` from
    `react-watchos/manifest`.
@@ -453,10 +469,11 @@ signing still untested — Rule 12):**
   work; don't mine bitcoin in `useEffect`.
 - Full-tree commits: ideal for watch-sized screens; large lists would want
   the diffing optimization noted in docs/research.md.
-- Demo app bundle is ~555KB unminified / ~174KB minified (CI enforces a
-  200KB minified budget; the widget bundle is 144KB against 160KB);
+- Demo app bundle is ~565KB unminified / ~179KB minified (CI enforces a
+  200KB minified budget; the widget bundle is 145KB against 160KB);
   QuickJS itself adds ~1MB of code — comfortably inside the watch app
-  budget.
+  budget. (Point-in-time numbers, 2026-07-04 — the budget check is the
+  enforced truth.)
 
 ## Notes / learnings
 
@@ -505,6 +522,9 @@ signing still untested — Rule 12):**
   sensitive change that can't be verified in this Linux environment, and at
   watch-tree scale the engine work is sub-millisecond. Revisit once the
   macOS build can compile/run it.
-- Future: WatchConnectivity data sync in the companion app, Hermes once
-  it grows a watchOS target, minified bundles, QuickJS inside the widget
-  extension for app-closed timeline refreshes.
+- Since shipped (this list used to call them "future"): WatchConnectivity on
+  the watch side (`sendToPhone` + phone→watch pushes — the iPhone companion's
+  WCSession wiring is what remains), minified bundles (`build:min` + the CI
+  size budget), and QuickJS inside the widget extension for app-closed
+  timeline refreshes (`WidgetIntentRuntime`). Still future: Hermes if it ever
+  grows a watchOS target.
