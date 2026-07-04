@@ -350,8 +350,16 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
     expect(o.watchBundleSuffix).toBe(".watch");
     expect(o.widgetBundleSuffix).toBe(".watch.widgets");
     expect(o.widget).toBe(true);
-    expect(o.healthKit).toBe(true);
+    // Least privilege (M13): the sensitive HealthKit entitlement is opt-IN —
+    // a default-true grant broke provisioning on App IDs without the
+    // capability and invited App Review scrutiny for an unused entitlement.
+    expect(o.healthKit).toBe(false);
     expect(o.independent).toBe(true); // standalone-first default
+  });
+
+  it("healthKit is an explicit opt-in", () => {
+    const o = resolveOptions(config, { healthKit: true });
+    expect(o.healthKit).toBe(true);
   });
 
   it("respects overrides and a custom name flows to the widget name", () => {

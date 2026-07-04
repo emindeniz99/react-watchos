@@ -69,7 +69,11 @@ function resolveOptions(config, options) {
     // for bundleId com.emindeniz99.reactwatch; overridable.
     appGroup: o.appGroup ?? `group.${bundleIdentifier}`,
     widget: o.widget ?? true,
-    healthKit: o.healthKit ?? true,
+    // Least privilege (M13): a sensitive entitlement must be an explicit
+    // opt-in, not a default — it breaks provisioning on App IDs without the
+    // capability and draws App Review scrutiny for an unused grant. The demo
+    // opts in (it exercises heart rate); the example consumer opts out.
+    healthKit: o.healthKit ?? false,
     deploymentTarget: o.deploymentTarget ?? "10.0",
     appleTeamId: o.appleTeamId ?? config.ios?.appleTeamId,
     scheme: o.scheme ?? "reactwatch",
