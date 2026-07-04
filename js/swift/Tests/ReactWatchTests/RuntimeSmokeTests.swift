@@ -226,4 +226,31 @@ final class RuntimeSmokeTests: XCTestCase {
 
         XCTAssertNil(reported, "a caught rejection must not surface: \(reported ?? "")")
     }
+
+    // M2: a host handler that settles an invoke INLINE (on the C-trampoline
+    // stack) re-enters JS while the outer statement is still suspended. The
+    // nested call is by design — but draining the MICROTASK queue there
+    // executed queued React work mid-statement, breaking run-to-completion.
+    // Jobs must run only when the outermost entry exits.
+    func testInlineInvokeSettleDoesNotDrainJobsMidStatement() throws {
+        let runtime = try JSRuntime()
+        runtime.bridge.invoke = { id, _, _ in
+            // Synchronous inline settle — the exact shape of getDeviceInfo,
+            // keychain, waterlock, saveUpdate…
+            runtime.resolveInvoke(id: id, resultJson: "null")
+        }
+        try runtime.evaluate(
+            #"""
+            globalThis.order = [];
+            globalThis.__resolveInvoke = (id) => { order.push("resolve:" + id); };
+            Promise.resolve().then(() => order.push("microtask"));
+            __host.invoke(1, "m", "{}");
+            order.push("after-invoke");
+            """#)
+        // The microtask runs AFTER the whole statement — not between the
+        // inline settle and the next line.
+        XCTAssertEqual(
+            runtime.evaluateString("JSON.stringify(order)"),
+            #"["resolve:1","after-invoke","microtask"]"#)
+    }
 }

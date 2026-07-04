@@ -84,16 +84,17 @@ public final class JSRuntime {
     // MARK: - Public API
 
     public func evaluate(_ code: String, filename: String = "bundle.js") throws {
-        let result = code.withCString { codePtr in
-            JS_Eval(
-                context, codePtr, strlen(codePtr), filename,
-                qjs_eval_type_global())
+        try withJSEntry {
+            let result = code.withCString { codePtr in
+                JS_Eval(
+                    context, codePtr, strlen(codePtr), filename,
+                    qjs_eval_type_global())
+            }
+            defer { JS_FreeValue(context, result) }
+            if JS_IsException(result) {
+                throw JSError.exception(takeExceptionMessage())
+            }
         }
-        defer { JS_FreeValue(context, result) }
-        if JS_IsException(result) {
-            throw JSError.exception(takeExceptionMessage())
-        }
-        drainJobs()
     }
 
     /// Loads a precompiled QuickJS bytecode bundle (no parser, faster cold
@@ -101,20 +102,21 @@ public final class JSRuntime {
     /// app embeds (tools/qjs-compile); callers should fall back to the JS
     /// source if this throws.
     public func evaluateBytecode(_ data: Data) throws {
-        let fn = data.withUnsafeBytes { raw -> JSValue in
-            JS_ReadObject(
-                context, raw.bindMemory(to: UInt8.self).baseAddress,
-                data.count, qjs_read_obj_bytecode())
+        try withJSEntry {
+            let fn = data.withUnsafeBytes { raw -> JSValue in
+                JS_ReadObject(
+                    context, raw.bindMemory(to: UInt8.self).baseAddress,
+                    data.count, qjs_read_obj_bytecode())
+            }
+            if JS_IsException(fn) {
+                throw JSError.exception(takeExceptionMessage())
+            }
+            let result = JS_EvalFunction(context, fn)
+            defer { JS_FreeValue(context, result) }
+            if JS_IsException(result) {
+                throw JSError.exception(takeExceptionMessage())
+            }
         }
-        if JS_IsException(fn) {
-            throw JSError.exception(takeExceptionMessage())
-        }
-        let result = JS_EvalFunction(context, fn)
-        defer { JS_FreeValue(context, result) }
-        if JS_IsException(result) {
-            throw JSError.exception(takeExceptionMessage())
-        }
-        drainJobs()
     }
 
     /// Compiles `source` to QuickJS bytecode without running it (CR-17), for
@@ -216,34 +218,36 @@ public final class JSRuntime {
     /// Evaluates `code` and returns its result as a Bool (false on exception).
     /// Used by the widget extension's intent path (__handleIntent).
     public func evaluateBool(_ code: String) -> Bool {
-        let result = code.withCString {
-            JS_Eval(context, $0, strlen($0), "eval.js", qjs_eval_type_global())
+        withJSEntry {
+            let result = code.withCString {
+                JS_Eval(context, $0, strlen($0), "eval.js", qjs_eval_type_global())
+            }
+            defer { JS_FreeValue(context, result) }
+            if JS_IsException(result) {
+                onError?(takeExceptionMessage())
+                return false
+            }
+            return JS_ToBool(context, result) == 1
         }
-        defer { JS_FreeValue(context, result) }
-        drainJobs()
-        if JS_IsException(result) {
-            onError?(takeExceptionMessage())
-            return false
-        }
-        return JS_ToBool(context, result) == 1
     }
 
     /// Evaluates `code` and returns its result as a String (nil on exception).
     /// Used by the widget extension's intent path (__renderWidgets).
     public func evaluateString(_ code: String) -> String? {
-        let result = code.withCString {
-            JS_Eval(context, $0, strlen($0), "eval.js", qjs_eval_type_global())
+        withJSEntry {
+            let result = code.withCString {
+                JS_Eval(context, $0, strlen($0), "eval.js", qjs_eval_type_global())
+            }
+            defer { JS_FreeValue(context, result) }
+            guard !JS_IsException(result),
+                let cString = JS_ToCString(context, result)
+            else {
+                onError?(takeExceptionMessage())
+                return nil
+            }
+            defer { JS_FreeCString(context, cString) }
+            return String(cString: cString)
         }
-        defer { JS_FreeValue(context, result) }
-        drainJobs()
-        guard !JS_IsException(result),
-            let cString = JS_ToCString(context, result)
-        else {
-            onError?(takeExceptionMessage())
-            return nil
-        }
-        defer { JS_FreeCString(context, cString) }
-        return String(cString: cString)
     }
 
     private func evaluateReportingErrors(_ code: String, filename: String) {
@@ -320,26 +324,27 @@ public final class JSRuntime {
     /// caller to convert + free; nil on a missing function or thrown exception
     /// (reported to onError). `args` are owned here and freed after the call.
     private func callGlobalReturning(_ name: String, _ args: [JSValue]) -> JSValue? {
-        let fn = cachedGlobalFunction(name)
-        guard JS_IsFunction(context, fn) else {
+        withJSEntry {
+            let fn = cachedGlobalFunction(name)
+            guard JS_IsFunction(context, fn) else {
+                args.forEach { JS_FreeValue(context, $0) }
+                onError?("global \(name) is not a function")
+                return nil
+            }
+            let global = JS_GetGlobalObject(context)
+            defer { JS_FreeValue(context, global) }
+            var argv = args
+            let result = argv.withUnsafeMutableBufferPointer {
+                JS_Call(context, fn, global, Int32($0.count), $0.baseAddress)
+            }
             args.forEach { JS_FreeValue(context, $0) }
-            onError?("global \(name) is not a function")
-            return nil
+            if JS_IsException(result) {
+                onError?(takeExceptionMessage())
+                JS_FreeValue(context, result)
+                return nil
+            }
+            return result
         }
-        let global = JS_GetGlobalObject(context)
-        defer { JS_FreeValue(context, global) }
-        var argv = args
-        let result = argv.withUnsafeMutableBufferPointer {
-            JS_Call(context, fn, global, Int32($0.count), $0.baseAddress)
-        }
-        args.forEach { JS_FreeValue(context, $0) }
-        drainJobs()
-        if JS_IsException(result) {
-            onError?(takeExceptionMessage())
-            JS_FreeValue(context, result)
-            return nil
-        }
-        return result
     }
 
     /// Calls `globalThis.<name>(stringArg)` and returns its Bool result (false
@@ -427,7 +432,32 @@ public final class JSRuntime {
 
     // MARK: - Internals
 
+    /// Nesting depth of JS entries. A host handler that settles an invoke
+    /// INLINE (on the C-trampoline stack) re-enters JS while the outer
+    /// statement is still suspended — that nested entry is fine, but draining
+    /// the microtask queue there executed queued React work MID-STATEMENT,
+    /// breaking run-to-completion (M2). Jobs now run only when the outermost
+    /// entry exits.
+    private var jsEntryDepth = 0
+    /// Re-entrancy guard: a job that re-enters JS (and exits to depth 0) must
+    /// not start a nested drain — the active outer loop picks up new jobs.
+    private var isDraining = false
+
+    /// Runs `body` as one JS entry; the microtask queue drains only when the
+    /// OUTERMOST entry exits — the single place the depth rule is enforced.
+    private func withJSEntry<T>(_ body: () throws -> T) rethrows -> T {
+        jsEntryDepth += 1
+        defer {
+            jsEntryDepth -= 1
+            if jsEntryDepth == 0 { drainJobs() }
+        }
+        return try body()
+    }
+
     private func drainJobs() {
+        guard !isDraining else { return }
+        isDraining = true
+        defer { isDraining = false }
         var ctx: OpaquePointer?
         // JS_ExecutePendingJob returns >0 when a job ran, 0 when the queue is
         // empty, and <0 when a job threw (an unhandled promise rejection, an
