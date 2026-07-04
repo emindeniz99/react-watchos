@@ -367,7 +367,7 @@ struct NodeView: View {
         if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
         // Semantic textStyle scales with Dynamic Type; fixed size doesn't.
         if let style = node.string("textStyle") {
-            text = text.font(semanticFont(style))
+            text = text.font(Self.semanticFont(style))
         } else if let size = node.double("size") {
             text = text.font(.system(size: CGFloat(size)))
         }
