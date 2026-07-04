@@ -16,8 +16,13 @@ export default function App() {
   const [fromWatch, setFromWatch] = useState<string>("none yet");
 
   useEffect(() => {
-    const unsubscribe = watchEvents.addListener("message", (message) => {
+    // The watch's sendToPhone uses WCSession.sendMessage(replyHandler:), so
+    // the promise it returns settles from THIS reply — a listener that never
+    // calls `reply` leaves every sendToPhone to reject on the WCSession
+    // timeout even though the message arrived. Always acknowledge.
+    const unsubscribe = watchEvents.addListener("message", (message, reply) => {
       setFromWatch(JSON.stringify(message));
+      reply?.({ ok: true, receivedAt: Date.now() });
     });
     return () => unsubscribe();
   }, []);

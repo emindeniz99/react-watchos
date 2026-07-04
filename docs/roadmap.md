@@ -20,8 +20,10 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
 - **`setInterval`/`clearInterval` shim** (T2-P0) — done.
 - **CI bundle-size budget** (`check:size`, T2-P1) — done.
 - **WatchConnectivity bridge** (`sendToPhone`/`onPhoneMessage`, T3-P0) —
-  watch side done; **iPhone-side WCSession still needs wiring in the Expo
-  companion app**.
+  both sides wired: the watch's `PhoneConnectivity` + the companion app's
+  `react-native-watch-connectivity` listener, which acknowledges through the
+  reply handler so `sendToPhone`'s promise settles. Remaining: exercise the
+  paired exchange on a real sim/device pair (③ in status.md).
 - **`fetch` shim over URLSession** (T3-P1) — done.
 - **ErrorBoundary** + on-device error banner. Richer dev overlay: the JS layer
   is done — ErrorBoundary forwards React's `componentStack`, and the remote
@@ -114,7 +116,7 @@ Owns the companion app, new `__host` methods, native-event streams.
 
 | Item | Pri | Effort | Notes |
 |---|---|---|---|
-| **WatchConnectivity bridge** | P0 | M | The most-requested real-app gap; the Expo companion app exists for exactly this. Phone→watch via the existing `registerNativeListener`/`__pushNativeEvent` channel; watch→phone via a new `__host.sendToPhone`. Wire `WCSession` on both sides. Accept: a phone message updates watch UI live. |
+| **WatchConnectivity bridge** | P0 → **wired** | M | Both sides in place: phone→watch via `registerNativeListener`/`__pushNativeEvent`, watch→phone via `sendToPhone` (invoke channel), and the companion app's `react-native-watch-connectivity` listener replies so the watch promise settles. Accept criterion (a phone message updates watch UI live) still needs a paired sim/device run — ③ in status.md. |
 | Networking (`fetch`) | P1 | M | A `fetch` shim backed by `URLSession` through a new async `__host` method. Promise-based → **depends on Track 2's async/`setInterval` work** for deterministic flush. |
 | Sensors / HealthKit | P1 | M-L | Heart rate, motion, workout sessions as native-event streams on the push channel. HealthKit adds entitlement/privacy plumbing. Builds directly on `__pushNativeEvent`. |
 | Dynamic Type + reduce-motion | P2 | S | Labels already done; add scaled fonts and motion-reduction honoring. |
