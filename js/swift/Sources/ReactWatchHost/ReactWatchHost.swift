@@ -1643,7 +1643,8 @@ extension ReactWatchModel {
     }
 
     func handleGetProducts(id: Int, payload: String) {
-        let ids = (Self.decodeObject(payload)["productIds"] as? [Any])?
+        let ids =
+            (Self.decodeObject(payload)["productIds"] as? [Any])?
             .compactMap { $0 as? String } ?? []
         let gen = generation
         Task { [weak self] in
