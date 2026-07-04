@@ -8,7 +8,7 @@
 
 > `const` **BACKGROUND\_REFRESH\_EVENT**: `"backgroundRefresh"` = `"backgroundRefresh"`
 
-Defined in: [js/src/background.ts:17](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/background.ts#L17)
+Defined in: [js/src/background.ts:17](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/background.ts#L17)
 
 Background app refresh (WKApplicationRefreshBackgroundTask): schedule a
 wake-up, and when watchOS runs it the app is briefly alive to refresh data

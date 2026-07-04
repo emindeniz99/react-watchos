@@ -8,7 +8,7 @@
 
 > **startHeartRate**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/sensors.ts:87](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/sensors.ts#L87)
+Defined in: [js/src/sensors.ts:87](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L87)
 
 Live heart rate (bpm): handler gets `{ bpm }`.
 

@@ -13,6 +13,7 @@
   "hideGenerator": true,
   "cleanOutputDir": true,
   "tsconfig": "tsconfig.json",
+  "gitRevision": "main",
   "skipErrorChecking": false,
   "treatWarningsAsErrors": false
 }

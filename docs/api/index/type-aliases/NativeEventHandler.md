@@ -8,7 +8,7 @@
 
 > **NativeEventHandler** = (`payload?`) => `void`
 
-Defined in: [js/src/nativeEvents.ts:9](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/nativeEvents.ts#L9)
+Defined in: [js/src/nativeEvents.ts:9](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/nativeEvents.ts#L9)
 
 Named listeners for state pushed from native code (connection state,
 sensors, incoming messages) — anything that isn't a user interaction.

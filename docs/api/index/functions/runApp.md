@@ -8,7 +8,7 @@
 
 > **runApp**(`element`, `host?`): [`WatchRoot`](../classes/WatchRoot.md)
 
-Defined in: [js/src/index.ts:265](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/index.ts#L265)
+Defined in: [js/src/index.ts:265](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/index.ts#L265)
 
 Mounts the app. With an explicit host (tests), trees are delivered as
 objects. Without one (on the watch), the `__host` global installed by

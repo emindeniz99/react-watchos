@@ -6,7 +6,7 @@
 
 # Interface: EntryRelevance
 
-Defined in: [js/src/widgets.ts:44](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L44)
+Defined in: [js/src/widgets.ts:44](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L44)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/widgets.ts:44](https://github.com/emindeniz99/playground/blo
 
 > `optional` **durationMs?**: `number`
 
-Defined in: [js/src/widgets.ts:48](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L48)
+Defined in: [js/src/widgets.ts:48](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L48)
 
 How long the score applies, in ms.
 
@@ -24,6 +24,6 @@ How long the score applies, in ms.
 
 > **score**: `number`
 
-Defined in: [js/src/widgets.ts:46](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L46)
+Defined in: [js/src/widgets.ts:46](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L46)
 
 Smart Stack relevance score (higher = more prominent).

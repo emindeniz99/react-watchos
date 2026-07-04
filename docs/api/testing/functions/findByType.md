@@ -8,7 +8,7 @@
 
 > **findByType**(`node`, `type`): [`SerializedNode`](../../index/interfaces/SerializedNode.md)[]
 
-Defined in: [js/src/testing.ts:12](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/testing.ts#L12)
+Defined in: [js/src/testing.ts:12](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/testing.ts#L12)
 
 All nodes of a given type, in document order (depth-first, self first).
 

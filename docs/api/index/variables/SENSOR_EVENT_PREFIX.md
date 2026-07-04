@@ -8,7 +8,7 @@
 
 > `const` **SENSOR\_EVENT\_PREFIX**: `"sensor."` = `"sensor."`
 
-Defined in: [js/src/sensors.ts:15](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/sensors.ts#L15)
+Defined in: [js/src/sensors.ts:15](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L15)
 
 Live sensor streams (heart rate via HealthKit, motion via CoreMotion).
 start a kind and readings arrive on the native-event push channel as

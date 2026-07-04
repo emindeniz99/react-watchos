@@ -8,7 +8,7 @@
 
 > **defineMessages**\<`T`\>(): [`TypedMessages`](../interfaces/TypedMessages.md)\<`T`\>
 
-Defined in: [js/src/connectivity.ts:66](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/connectivity.ts#L66)
+Defined in: [js/src/connectivity.ts:66](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L66)
 
 Builds a typed wrapper over [sendToPhone](sendToPhone.md)/[onPhoneMessage](onPhoneMessage.md) for one
 message contract (DX-6), turning "wire the JSON yourself" into "define once,

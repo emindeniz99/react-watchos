@@ -6,7 +6,7 @@
 
 # Interface: WidgetRenderContext
 
-Defined in: [js/src/widgets.ts:32](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L32)
+Defined in: [js/src/widgets.ts:32](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L32)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/widgets.ts:32](https://github.com/emindeniz99/playground/blo
 
 > **family**: [`WidgetFamily`](../type-aliases/WidgetFamily.md)
 
-Defined in: [js/src/widgets.ts:33](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L33)
+Defined in: [js/src/widgets.ts:33](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L33)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/widgets.ts:33](https://github.com/emindeniz99/playground/blo
 
 > `optional` **instanceId?**: `string`
 
-Defined in: [js/src/widgets.ts:41](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L41)
+Defined in: [js/src/widgets.ts:41](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L41)
 
 For a widget with `instances`, the id of the instance being rendered.
 The published key is `kind/instanceId`, which a configurable widget's
@@ -34,6 +34,6 @@ native provider looks up from the user's per-complication selection.
 
 > **now**: `number`
 
-Defined in: [js/src/widgets.ts:35](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L35)
+Defined in: [js/src/widgets.ts:35](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L35)
 
 Timeline render time, ms since epoch.

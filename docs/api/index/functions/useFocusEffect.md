@@ -8,7 +8,7 @@
 
 > **useFocusEffect**(`effect`): `void`
 
-Defined in: [js/src/navigation.tsx:248](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/navigation.tsx#L248)
+Defined in: [js/src/navigation.tsx:248](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L248)
 
 Runs `effect` when the enclosing screen gains focus and cleans up when it
 blurs or unmounts — the watchOS analog of React Navigation's useFocusEffect.

@@ -8,7 +8,7 @@
 
 > **findByText**(`node`, `text`): [`SerializedNode`](../../index/interfaces/SerializedNode.md)[]
 
-Defined in: [js/src/testing.ts:27](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/testing.ts#L27)
+Defined in: [js/src/testing.ts:27](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/testing.ts#L27)
 
 All nodes whose folded text (`props.text`) matches. A string matches by
 exact equality; a RegExp by `.test()`. Because `<Text>` content lives in

@@ -6,7 +6,7 @@
 
 # Interface: WidgetDefinition
 
-Defined in: [js/src/widgets.ts:76](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L76)
+Defined in: [js/src/widgets.ts:76](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L76)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/widgets.ts:76](https://github.com/emindeniz99/playground/blo
 
 > **families**: [`WidgetFamily`](../type-aliases/WidgetFamily.md)[]
 
-Defined in: [js/src/widgets.ts:79](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L79)
+Defined in: [js/src/widgets.ts:79](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L79)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/widgets.ts:79](https://github.com/emindeniz99/playground/blo
 
 > `optional` **instances?**: () => `string`[]
 
-Defined in: [js/src/widgets.ts:88](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L88)
+Defined in: [js/src/widgets.ts:88](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L88)
 
 Optional: expand this widget into one timeline per instance id, published
 under the key `kind/id` (instead of just `kind`). Use for a configurable
@@ -40,7 +40,7 @@ id as `context.instanceId`.
 
 > **kind**: `string`
 
-Defined in: [js/src/widgets.ts:78](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L78)
+Defined in: [js/src/widgets.ts:78](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L78)
 
 Matches the WidgetKit `kind` in the Swift widget extension.
 
@@ -50,7 +50,7 @@ Matches the WidgetKit `kind` in the Swift widget extension.
 
 > **render**: (`context`) => [`WidgetTimeline`](WidgetTimeline.md)
 
-Defined in: [js/src/widgets.ts:80](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L80)
+Defined in: [js/src/widgets.ts:80](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L80)
 
 #### Parameters
 

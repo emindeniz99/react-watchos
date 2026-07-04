@@ -8,7 +8,7 @@
 
 > `const` **BLE\_STATE\_EVENT**: `"ble.state"` = `"ble.state"`
 
-Defined in: [js/src/bluetooth.ts:29](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/bluetooth.ts#L29)
+Defined in: [js/src/bluetooth.ts:29](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L29)
 
 BLE central over CoreBluetooth, for talking to a peripheral like a laptop
 running a "movie remote" GATT service. watchOS supports the central role

@@ -8,7 +8,7 @@
 
 > **scheduleBackgroundRefresh**(`afterMs`, `userInfo?`): `Promise`\<`void`\>
 
-Defined in: [js/src/background.ts:24](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/background.ts#L24)
+Defined in: [js/src/background.ts:24](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/background.ts#L24)
 
 Asks watchOS to wake the app ~`afterMs` from now. `userInfo` is echoed back
 on the fire event so you can tag why you scheduled it. Resolves once the

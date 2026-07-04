@@ -6,7 +6,7 @@
 
 # Interface: WatchTheme
 
-Defined in: [js/src/theme.ts:32](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/theme.ts#L32)
+Defined in: [js/src/theme.ts:32](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/theme.ts#L32)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/theme.ts:32](https://github.com/emindeniz99/playground/blob/
 
 > **colors**: `object`
 
-Defined in: [js/src/theme.ts:42](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/theme.ts#L42)
+Defined in: [js/src/theme.ts:42](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/theme.ts#L42)
 
 Semantic colors (system color names or #RRGGBB[AA] hex — anything the
 `color`/`background`/`tint` props accept). Prefer the semantic names so
@@ -62,7 +62,7 @@ Warning state (low battery, degraded).
 
 > **radius**: `object`
 
-Defined in: [js/src/theme.ts:36](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/theme.ts#L36)
+Defined in: [js/src/theme.ts:36](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/theme.ts#L36)
 
 Corner-radius scale (points).
 
@@ -84,7 +84,7 @@ Corner-radius scale (points).
 
 > **space**: `object`
 
-Defined in: [js/src/theme.ts:34](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/theme.ts#L34)
+Defined in: [js/src/theme.ts:34](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/theme.ts#L34)
 
 Spacing scale (points) for spacing/padding.
 
@@ -114,7 +114,7 @@ Spacing scale (points) for spacing/padding.
 
 > **text**: `object`
 
-Defined in: [js/src/theme.ts:57](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/theme.ts#L57)
+Defined in: [js/src/theme.ts:57](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/theme.ts#L57)
 
 Text variants — spread onto <Text>: `<Text {...theme.text.title}>`.
 

@@ -6,7 +6,7 @@
 
 # Interface: BleWriteOptions
 
-Defined in: [js/src/bluetooth.ts:54](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/bluetooth.ts#L54)
+Defined in: [js/src/bluetooth.ts:54](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L54)
 
 Options for [bleWrite](../functions/bleWrite.md).
 
@@ -16,7 +16,7 @@ Options for [bleWrite](../functions/bleWrite.md).
 
 > `optional` **confirm?**: `boolean`
 
-Defined in: [js/src/bluetooth.ts:61](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/bluetooth.ts#L61)
+Defined in: [js/src/bluetooth.ts:61](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L61)
 
 Reliable write (CoreBluetooth `.withResponse`): the peripheral acks
 delivery, so the command can't be silently dropped under buffer pressure —

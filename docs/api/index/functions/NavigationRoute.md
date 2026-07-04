@@ -8,7 +8,7 @@
 
 > **NavigationRoute**(`props`): `Element`
 
-Defined in: [js/src/navigation.tsx:348](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/navigation.tsx#L348)
+Defined in: [js/src/navigation.tsx:348](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L348)
 
 A route in a NavigationStack. `path` may carry dynamic segments
 (`/list/[id]`, `/shop/[name]/[[...rest]]`); when this route is active its

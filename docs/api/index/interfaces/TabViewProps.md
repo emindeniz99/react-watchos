@@ -6,7 +6,7 @@
 
 # Interface: TabViewProps
 
-Defined in: [js/src/components.ts:275](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L275)
+Defined in: [js/src/components.ts:275](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L275)
 
 ## Extends
 
@@ -18,7 +18,7 @@ Defined in: [js/src/components.ts:275](https://github.com/emindeniz99/playground
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:18](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L18)
+Defined in: [js/src/components.ts:18](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L18)
 
 #### Inherited from
 
@@ -30,7 +30,7 @@ Defined in: [js/src/components.ts:18](https://github.com/emindeniz99/playground/
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:17](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L17)
+Defined in: [js/src/components.ts:17](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L17)
 
 #### Inherited from
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:17](https://github.com/emindeniz99/playground/
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:277](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L277)
+Defined in: [js/src/components.ts:277](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L277)
 
 Each child is one page.
 
@@ -52,7 +52,7 @@ Each child is one page.
 
 > `optional` **onChange?**: (`index`) => `void`
 
-Defined in: [js/src/components.ts:286](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L286)
+Defined in: [js/src/components.ts:286](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L286)
 
 Fires with the new page index as the user swipes between pages.
 
@@ -72,7 +72,7 @@ Fires with the new page index as the user swipes between pages.
 
 > `optional` **selection?**: `number`
 
-Defined in: [js/src/components.ts:284](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L284)
+Defined in: [js/src/components.ts:284](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L284)
 
 Controlled selected page index (0-based). When set, the native TabView
 binds to it optimistically (a swipe holds until React acks) — keep it in

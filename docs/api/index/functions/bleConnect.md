@@ -8,7 +8,7 @@
 
 > **bleConnect**(`serviceUUID`): `Promise`\<`void`\>
 
-Defined in: [js/src/bluetooth.ts:45](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/bluetooth.ts#L45)
+Defined in: [js/src/bluetooth.ts:45](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L45)
 
 Scan for and connect to the first peripheral advertising `serviceUUID`.
 Resolves on the first successful connect; rejects on failure or after a

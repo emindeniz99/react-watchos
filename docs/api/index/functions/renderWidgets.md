@@ -8,7 +8,7 @@
 
 > **renderWidgets**(`now?`): [`PublishedWidgets`](../interfaces/PublishedWidgets.md)
 
-Defined in: [js/src/widgets.ts:141](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/widgets.ts#L141)
+Defined in: [js/src/widgets.ts:141](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L141)
 
 Renders every registered widget for every family it supports.
 

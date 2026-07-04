@@ -6,7 +6,7 @@
 
 # Interface: SwipeActionProps
 
-Defined in: [js/src/components.ts:82](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L82)
+Defined in: [js/src/components.ts:82](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L82)
 
 Swipe actions (SwiftUI `.swipeActions`), the watchOS-idiomatic way to act on
 a row. Only meaningful on a row inside a `<List>`; unlike a raw `onSwipe`
@@ -26,7 +26,7 @@ edge independently:
 
 > `optional` **leadingSwipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:87](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L87)
+Defined in: [js/src/components.ts:87](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L87)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [js/src/components.ts:87](https://github.com/emindeniz99/playground/
 
 > `optional` **leadingSwipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:88](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L88)
+Defined in: [js/src/components.ts:88](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L88)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:88](https://github.com/emindeniz99/playground/
 
 > `optional` **leadingSwipeActionTint?**: `string`
 
-Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L89)
+Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L89)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/playground/
 
 > `optional` **onLeadingSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L90)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L90)
 
 #### Returns
 
@@ -62,7 +62,7 @@ Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/playground/
 
 > `optional` **onSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:86](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L86)
+Defined in: [js/src/components.ts:86](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L86)
 
 #### Returns
 
@@ -74,7 +74,7 @@ Defined in: [js/src/components.ts:86](https://github.com/emindeniz99/playground/
 
 > `optional` **swipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:83](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L83)
+Defined in: [js/src/components.ts:83](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L83)
 
 ***
 
@@ -82,7 +82,7 @@ Defined in: [js/src/components.ts:83](https://github.com/emindeniz99/playground/
 
 > `optional` **swipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:84](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L84)
+Defined in: [js/src/components.ts:84](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L84)
 
 ***
 
@@ -90,4 +90,4 @@ Defined in: [js/src/components.ts:84](https://github.com/emindeniz99/playground/
 
 > `optional` **swipeActionTint?**: `string`
 
-Defined in: [js/src/components.ts:85](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/components.ts#L85)
+Defined in: [js/src/components.ts:85](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L85)

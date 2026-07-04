@@ -6,7 +6,7 @@
 
 # Class: ErrorBoundary
 
-Defined in: [js/src/errorBoundary.tsx:33](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/errorBoundary.tsx#L33)
+Defined in: [js/src/errorBoundary.tsx:33](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/errorBoundary.tsx#L33)
 
 Catches render/lifecycle errors in its subtree and shows `fallback`
 instead of letting the whole app fail (WatchRoot rethrows uncaught
@@ -119,7 +119,7 @@ Defined in: node\_modules/.pnpm/@types+react@19.2.17/node\_modules/@types/react/
 
 > **state**: `State`
 
-Defined in: [js/src/errorBoundary.tsx:34](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/errorBoundary.tsx#L34)
+Defined in: [js/src/errorBoundary.tsx:34](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/errorBoundary.tsx#L34)
 
 #### Overrides
 
@@ -182,7 +182,7 @@ Only kept in types for backwards compatibility. Will be removed in a future majo
 
 > **componentDidCatch**(`error`, `info`): `void`
 
-Defined in: [js/src/errorBoundary.tsx:40](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/errorBoundary.tsx#L40)
+Defined in: [js/src/errorBoundary.tsx:40](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/errorBoundary.tsx#L40)
 
 Catches exceptions generated in descendant components. Unhandled exceptions will cause
 the entire component tree to unmount.
@@ -461,7 +461,7 @@ lifecycle events from running.
 
 > **render**(): `ReactNode`
 
-Defined in: [js/src/errorBoundary.tsx:47](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/errorBoundary.tsx#L47)
+Defined in: [js/src/errorBoundary.tsx:47](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/errorBoundary.tsx#L47)
 
 #### Returns
 
@@ -678,7 +678,7 @@ this from being invoked.
 
 > `static` **getDerivedStateFromError**(`error`): `Partial`\<`State`\>
 
-Defined in: [js/src/errorBoundary.tsx:36](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/errorBoundary.tsx#L36)
+Defined in: [js/src/errorBoundary.tsx:36](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/errorBoundary.tsx#L36)
 
 #### Parameters
 

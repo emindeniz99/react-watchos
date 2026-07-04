@@ -6,7 +6,7 @@
 
 # Interface: RouteMatch
 
-Defined in: [js/src/navigation.tsx:74](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/navigation.tsx#L74)
+Defined in: [js/src/navigation.tsx:74](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L74)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/navigation.tsx:74](https://github.com/emindeniz99/playground
 
 > **params**: [`RouteParams`](../type-aliases/RouteParams.md)
 
-Defined in: [js/src/navigation.tsx:75](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/navigation.tsx#L75)
+Defined in: [js/src/navigation.tsx:75](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L75)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/navigation.tsx:75](https://github.com/emindeniz99/playground
 
 > **score**: `number`
 
-Defined in: [js/src/navigation.tsx:78](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/navigation.tsx#L78)
+Defined in: [js/src/navigation.tsx:78](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L78)
 
 Higher = more specific. Literal +2, param +1, catch-all -1, so a
 concrete route beats a catch-all that also happens to match it.

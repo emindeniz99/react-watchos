@@ -8,7 +8,7 @@
 
 > **scheduleNotification**(`request`): `Promise`\<[`ScheduleNotificationResult`](../interfaces/ScheduleNotificationResult.md)\>
 
-Defined in: [js/src/notifications.ts:86](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/notifications.ts#L86)
+Defined in: [js/src/notifications.ts:86](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/notifications.ts#L86)
 
 Schedules a local notification and resolves whether the watch accepted it
 (CX-022). Routed through the generic invoke channel (SD-1) so a native failure

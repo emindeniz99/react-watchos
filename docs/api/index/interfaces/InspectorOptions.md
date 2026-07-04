@@ -6,7 +6,7 @@
 
 # Interface: InspectorOptions
 
-Defined in: [js/src/inspector.ts:82](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/inspector.ts#L82)
+Defined in: [js/src/inspector.ts:82](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L82)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/inspector.ts:82](https://github.com/emindeniz99/playground/b
 
 > `optional` **intervalMs?**: `number`
 
-Defined in: [js/src/inspector.ts:85](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/inspector.ts#L85)
+Defined in: [js/src/inspector.ts:85](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L85)
 
 ***
 
@@ -22,6 +22,6 @@ Defined in: [js/src/inspector.ts:85](https://github.com/emindeniz99/playground/b
 
 > **url**: `string`
 
-Defined in: [js/src/inspector.ts:84](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/inspector.ts#L84)
+Defined in: [js/src/inspector.ts:84](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L84)
 
 The `npm run inspector` server, e.g. http://127.0.0.1:8099/snapshot.

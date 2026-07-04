@@ -6,7 +6,7 @@
 
 # Interface: PublishedWidgets
 
-Defined in: [js/src/generated/wire.ts:54](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/generated/wire.ts#L54)
+Defined in: [js/src/generated/wire.ts:54](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L54)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/generated/wire.ts:54](https://github.com/emindeniz99/playgro
 
 > **controls**: `Record`\<`string`, `PublishedControl`\>
 
-Defined in: [js/src/generated/wire.ts:58](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/generated/wire.ts#L58)
+Defined in: [js/src/generated/wire.ts:58](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L58)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/generated/wire.ts:58](https://github.com/emindeniz99/playgro
 
 > **publishedAt**: `number`
 
-Defined in: [js/src/generated/wire.ts:56](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/generated/wire.ts#L56)
+Defined in: [js/src/generated/wire.ts:56](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L56)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/generated/wire.ts:56](https://github.com/emindeniz99/playgro
 
 > **v**: `1`
 
-Defined in: [js/src/generated/wire.ts:55](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/generated/wire.ts#L55)
+Defined in: [js/src/generated/wire.ts:55](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L55)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [js/src/generated/wire.ts:55](https://github.com/emindeniz99/playgro
 
 > **widgets**: `Record`\<`string`, `Record`\<`string`, `PublishedFamilyTimeline`\>\>
 
-Defined in: [js/src/generated/wire.ts:57](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/generated/wire.ts#L57)
+Defined in: [js/src/generated/wire.ts:57](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L57)

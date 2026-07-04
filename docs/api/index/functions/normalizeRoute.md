@@ -8,7 +8,7 @@
 
 > **normalizeRoute**(`route`): `string`
 
-Defined in: [js/src/navigation.tsx:45](https://github.com/emindeniz99/playground/blob/964f57f947d24bfbd939270d94dd735bc5393430/projects/react-native-watchos/js/src/navigation.tsx#L45)
+Defined in: [js/src/navigation.tsx:45](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L45)
 
 ## Parameters
 
