@@ -6,7 +6,7 @@
  * renderer's wire-identical commit skip, NF-21). React 19 ships the compiler
  * runtime (`react/compiler-runtime`), so it adds no runtime dependency.
  *
- * Published as part of `react-native-watchos/build` (NF-28): enable with
+ * Published as part of `react-watchos/build` (NF-28): enable with
  * `watchBuildOptions({ reactCompiler: true })` or per-target in
  * `buildBundles`. Babel is imported lazily on first use, so importing the
  * preset never requires it — enabling does. Install the dev deps:
@@ -40,14 +40,14 @@ export function reactCompilerPlugin() {
       build.onLoad({ filter: /\.[jt]sx?$/ }, async (args) => {
         // Skip third-party node_modules, but NOT this package's own source:
         // an installed consumer resolves the renderer at
-        // node_modules/react-native-watchos/src/*, and its components
+        // node_modules/react-watchos/src/*, and its components
         // (NavigationStack & co.) deserve the same memoization as app code.
         const nm = args.path.lastIndexOf("node_modules");
         if (nm >= 0) {
           const after = args.path.slice(nm + "node_modules".length + 1);
           if (
-            !after.startsWith("react-native-watchos/") &&
-            !after.startsWith("react-native-watchos\\")
+            !after.startsWith("react-watchos/") &&
+            !after.startsWith("react-watchos\\")
           ) {
             return undefined;
           }

@@ -11,7 +11,7 @@
     },
     "plugins": [
       [
-        "react-native-watchos",
+        "react-watchos",
         {
           "name": "Expo Watch",
           "widget": true,

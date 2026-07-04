@@ -312,7 +312,11 @@ describe("manifest shape validation (NF-32)", () => {
     // capability gate. It must fail closed as malformed instead.
     for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, 1.5]) {
       g.fetch = vi.fn(async () => ({
-        json: async () => ({ version: 2, bundle: "bundle.js", minBridgeProtocol: bad }),
+        json: async () => ({
+          version: 2,
+          bundle: "bundle.js",
+          minBridgeProtocol: bad,
+        }),
       }));
       await expect(
         checkForUpdate("https://x.test/manifest.json"),

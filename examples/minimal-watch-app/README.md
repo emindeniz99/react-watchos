@@ -1,21 +1,21 @@
 # minimal-watch-app
 
-The smallest real app on the **react-native-watchos** engine, built the way an
+The smallest real app on the **react-watchos** engine, built the way an
 *external* consumer builds — installing the package, not reaching into its
 source. Use it as a starting template.
 
 > **Using Expo?** Prefer [`../expo-watch-app`](../expo-watch-app): add the
-> `react-native-watchos` config plugin, run `react-native-watchos scaffold`, and
+> `react-watchos` config plugin, run `react-watchos scaffold`, and
 > `expo prebuild` generates + links the watch target for you. This minimal
 > example is the **non-Expo** shape — a JS bundle you embed in a hand-wired watch
 > target (the manual steps below).
 
 What it demonstrates (and what the demo doesn't):
 
-- Importing UI + `runApp` from the package: `import { ... } from "react-native-watchos"`.
-- Building with the **exported preset** (`react-native-watchos/build`) — no
+- Importing UI + `runApp` from the package: `import { ... } from "react-watchos"`.
+- Building with the **exported preset** (`react-watchos/build`) — no
   copied esbuild config. See [`scripts/build.mjs`](./scripts/build.mjs) (~10 lines).
-- Testing with the **exported helpers** (`react-native-watchos/testing`) — no
+- Testing with the **exported helpers** (`react-watchos/testing`) — no
   re-implemented `findByType`. See [`test/app.test.tsx`](./test/app.test.tsx).
 - A `tsconfig.json` with **no `paths` mapping and no react type hand-mapping** —
   the package's `exports` map resolves everything.
@@ -37,7 +37,7 @@ local checkout):
 "dependencies": {
   "react": "^19.2.0",
   "react-reconciler": "0.33.0",
-  "react-native-watchos": "workspace:*"
+  "react-watchos": "workspace:*"
 }
 ```
 

@@ -1,4 +1,4 @@
-# react-native-watchos
+# react-watchos
 
 A custom React renderer for **Apple Watch**: write watch UI in JSX, run React
 in QuickJS *on the watch*, and render to native SwiftUI. Not a fork of React
@@ -14,7 +14,7 @@ host (`../swift`, a SwiftPM package), and the macOS build steps.
 the single copy (two copies silently break hooks/context):
 
 ```sh
-npm i react-native-watchos react react-reconciler
+npm i react-watchos react react-reconciler
 ```
 
 Inside this monorepo, consume it as `workspace:*` from
@@ -29,7 +29,7 @@ Any bundler (esbuild/Metro/vite) transpiles the TypeScript directly.
 ## Use
 
 ```tsx
-import { runApp, VStack, Text, Button, getHost } from "react-native-watchos";
+import { runApp, VStack, Text, Button, getHost } from "react-watchos";
 
 function App() {
   const [n, setN] = useState(0);
@@ -103,7 +103,7 @@ process stays small.
 **1. Widget JS entry** (`widget.entry.tsx`) — `registerWidget`, no `runApp`:
 
 ```tsx
-import { registerWidget, VStack, Text } from "react-native-watchos";
+import { registerWidget, VStack, Text } from "react-watchos";
 
 registerWidget({
   kind: "example", // matches the Swift widget's `kind`
@@ -119,7 +119,7 @@ through the preset in one call — so a widget app's build script is the two
 bundles' entry/outfile, no esbuild boilerplate per target:
 
 ```js
-import { buildBundles } from "react-native-watchos/build";
+import { buildBundles } from "react-watchos/build";
 await buildBundles([
   { name: "watch", entry: "watch-ui/entry.tsx", outfile: "targets/watch/assets/bundle.js",
     manifest: { version: 1, requiredFeatures: ["widgets"] } }, // app bundle: stamp OTA manifest
@@ -131,10 +131,10 @@ await buildBundles([
 returns the options and you run your own `esbuild.build` — `buildBundles` is the
 batteries-included wrapper around it.)
 
-**3. Swift glue** — `npx react-native-watchos scaffold` generates
+**3. Swift glue** — `npx react-watchos scaffold` generates
 `targets/widget/ReactWidgets.swift` (a `@main WidgetBundle` whose widgets render
 through the package's `ReactTimelineProvider` + `reactWidgetView`). Enable the
-widget target in the plugin (`["react-native-watchos", { "widget": true }]`);
+widget target in the plugin (`["react-watchos", { "widget": true }]`);
 `expo prebuild` then links the `ReactWatchWidget` SwiftPM module automatically.
 Configurable widgets (a picker on the watch face) write their own
 `AppIntentTimelineProvider` on the package's `reactTimeline`/`reactSnapshotEntry`
@@ -142,16 +142,16 @@ helpers — see the demo (`app/targets/widget`).
 
 ### Subpath exports
 
-- `react-native-watchos/build` — `watchBuildOptions({ entry, outfile })`, the
+- `react-watchos/build` — `watchBuildOptions({ entry, outfile })`, the
   QuickJS-correct esbuild preset (shim inject, `es2020`, neutral IIFE), so you
   don't copy the bundle config; and `buildBundles([…])`, which builds multiple
   targets (watch + widget) through that preset in one call — each target may add
   a `define`, esbuild `plugins` (e.g. the React Compiler), and an OTA `manifest`.
   `buildBundles` needs `esbuild` installed (optional peer); reach for
   `watchBuildOptions` directly only to hand-assemble the esbuild options.
-- `react-native-watchos/manifest` — `writeOTAManifest({ distDir, version, … })`,
+- `react-watchos/manifest` — `writeOTAManifest({ distDir, version, … })`,
   the OTA `manifest.json` stamper (also used by `buildBundles`' `manifest`).
-- `react-native-watchos/testing` — `findByType` / `findByText` for asserting
+- `react-watchos/testing` — `findByType` / `findByText` for asserting
   on committed trees with `runApp(element, new MemoryHost())`.
 
 ## React dedupe (single instance)

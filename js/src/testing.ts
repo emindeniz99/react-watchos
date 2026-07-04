@@ -1,5 +1,5 @@
 // Query helpers for asserting on committed trees, exported as
-// `react-native-watchos/testing`. Pair with `runApp(element, new MemoryHost())`
+// `react-watchos/testing`. Pair with `runApp(element, new MemoryHost())`
 // (or `renderToTree`) — every consumer was otherwise re-writing `findByType`.
 //
 // Serialization quirks these helpers account for (see docs/updates.md):

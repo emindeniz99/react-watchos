@@ -4,7 +4,7 @@ const path = require("node:path");
 // their transitive `xcode`/`plist`) from the PROJECT ROOT, not from this file.
 //
 // Why not a plain top-level `require("@expo/config-plugins")`: this plugin
-// ships inside the react-native-watchos package, so node resolves its requires
+// ships inside the react-watchos package, so node resolves its requires
 // from the package's own location. Under pnpm's isolated node_modules (and in
 // this monorepo, where the package is symlinked to js/), that location can't
 // see the consumer app's @expo/config-plugins / @bacons/apple-targets. They are

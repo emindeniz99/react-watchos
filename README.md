@@ -1,4 +1,4 @@
-# react-native-watchos
+# react-watchos
 
 ## What it does
 
@@ -247,13 +247,13 @@ consumer apps, `app` = the reference watch app). Run from the project root:
 
 ```bash
 pnpm install                                 # one install for every member
-pnpm --filter react-native-watchos test      # full suite, incl. real qjs smoke
-pnpm --filter react-native-watchos typecheck  # strict tsc: src + tests
-pnpm --filter react-native-watchos lint       # Biome (CI gate)
-pnpm --filter react-native-watchos codegen    # Swift models + TS wire types
-pnpm --filter react-native-watchos build      # bundle → both targets' assets/
-pnpm --filter react-native-watchos build:bytecode  # precompile bundle.qbc
-pnpm --filter react-native-watchos dev        # live reload on 127.0.0.1:8788
+pnpm --filter react-watchos test      # full suite, incl. real qjs smoke
+pnpm --filter react-watchos typecheck  # strict tsc: src + tests
+pnpm --filter react-watchos lint       # Biome (CI gate)
+pnpm --filter react-watchos codegen    # Swift models + TS wire types
+pnpm --filter react-watchos build      # bundle → both targets' assets/
+pnpm --filter react-watchos build:bytecode  # precompile bundle.qbc
+pnpm --filter react-watchos dev        # live reload on 127.0.0.1:8788
 ```
 
 The demo's **Updates** screen reads `REACT_WATCH_OTA_URL` at build time. It is
@@ -265,12 +265,12 @@ available. Point it at `manifest.json`, not the bundle:
 ```bash
 # Simulator: localhost works.
 REACT_WATCH_OTA_URL=http://127.0.0.1:8788/manifest.json \
-  pnpm --filter react-native-watchos build
+  pnpm --filter react-watchos build
 
 # Physical watch: bind the dev server to LAN and use your Mac's Wi-Fi IP.
-DEV_HOST=0.0.0.0 pnpm --filter react-native-watchos dev
+DEV_HOST=0.0.0.0 pnpm --filter react-watchos dev
 REACT_WATCH_OTA_URL=http://192.168.x.y:8788/manifest.json \
-  pnpm --filter react-native-watchos build
+  pnpm --filter react-watchos build
 ```
 
 > The generated `app/targets/*/assets/bundle.js` is **not** committed (it's
@@ -285,9 +285,9 @@ The renderer is a real package: `exports` (main, `/build`, `/testing`),
 `peerDependencies` for react / react-reconciler, and a typed host surface.
 
 ```ts
-import { runApp, VStack, Text, Button, getHost } from "react-native-watchos";
-import { findByType } from "react-native-watchos/testing";   // tree queries
-import { watchBuildOptions } from "react-native-watchos/build"; // esbuild preset
+import { runApp, VStack, Text, Button, getHost } from "react-watchos";
+import { findByType } from "react-watchos/testing";   // tree queries
+import { watchBuildOptions } from "react-watchos/build"; // esbuild preset
 ```
 
 - **Single React instance:** react / react-reconciler are peers — your app
@@ -302,12 +302,12 @@ import { watchBuildOptions } from "react-native-watchos/build"; // esbuild prese
 
 **Native setup (Expo plugin + scaffold)** — no manual Xcode wiring:
 
-1. `npx expo install react-native-watchos @bacons/apple-targets`
-2. Add the `react-native-watchos` plugin to `app.json` **after** apple-targets,
+1. `npx expo install react-watchos @bacons/apple-targets`
+2. Add the `react-watchos` plugin to `app.json` **after** apple-targets,
    and declare your watch (and optional widget) target with
    `expo-target.config.js` — see
    [`examples/expo-watch-app`](./examples/expo-watch-app) for the exact config.
-3. `npx react-native-watchos scaffold` writes the `@main` Swift glue the plugin
+3. `npx react-watchos scaffold` writes the `@main` Swift glue the plugin
    can't generate (`targets/watch/WatchApp.swift`, plus the widget bundle when
    the widget target is enabled).
 4. `npx expo prebuild` — the plugin links the `js/swift/` SwiftPM products into
@@ -315,7 +315,7 @@ import { watchBuildOptions } from "react-native-watchos/build"; // esbuild prese
    post-prebuild step).
 5. Build your watch JS with the preset (`watchBuildOptions`) into the target's
    assets; ship OTA updates by signing the manifest with `signManifest` from
-   `react-native-watchos/manifest`.
+   `react-watchos/manifest`.
 
 Two worked examples (each its own workspace member, both verified on Linux):
 
@@ -389,7 +389,7 @@ the same embedding calls `JSRuntime.swift` makes.
 
 ```bash
 pnpm install                              # workspace install (every member)
-pnpm --filter react-native-watchos build  # produce the JS bundle
+pnpm --filter react-watchos build  # produce the JS bundle
 # set your team id in app/app.json ("appleTeamId")
 cd app && npx expo prebuild -p ios --clean  # generates ios/ with the watch target
 xed ios                                   # open the workspace
@@ -406,7 +406,7 @@ updates via `publishWidgets()`.
 signing still untested — Rule 12):**
 
 - The watch target depends on the `js/swift/` SwiftPM package. The unified
-  `react-native-watchos` config plugin (its `app.plugin.js` entry) writes the
+  `react-watchos` config plugin (its `app.plugin.js` entry) writes the
   SwiftPM references into the generated watch/widget targets **during**
   `expo prebuild` — via a base mod that runs after apple-targets has created the
   targets (apple-targets/node-xcode have no local-package API, so it edits the

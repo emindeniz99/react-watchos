@@ -1463,7 +1463,7 @@ public struct ReactWatchRootView: View {
 /// The package's WKApplicationDelegate: forwards a fired background-refresh
 /// task to JS (`onBackgroundRefresh`). Wire it in your @main App with
 /// `@WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self)` — the
-/// `react-native-watchos scaffold` command writes this for you. Without it,
+/// `react-watchos scaffold` command writes this for you. Without it,
 /// `scheduleBackgroundRefresh` still schedules the wake, but the fire event
 /// never reaches JS (a scenePhase `active` wake does).
 public final class ReactWatchAppDelegate: NSObject, WKApplicationDelegate {

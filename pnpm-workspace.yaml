@@ -1,10 +1,10 @@
-# pnpm workspace for the react-native-watchos project (NOT the whole repo —
+# pnpm workspace for the react-watchos project (NOT the whole repo —
 # the other projects/ are unrelated). Members:
-#   js            the renderer package (`react-native-watchos`)
+#   js            the renderer package (`react-watchos`)
 #   examples/*    consumer apps that depend on it via `workspace:*`
 #   app           the reference Expo iPhone app + watch target (native host)
 #
-# The workspace is what makes `import "react-native-watchos"` resolve with a
+# The workspace is what makes `import "react-watchos"` resolve with a
 # single React instance for every consumer — no esbuild alias / nodePaths /
 # tsconfig-paths glue.
 packages:

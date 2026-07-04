@@ -1,4 +1,4 @@
-# Publishing `react-native-watchos` as an installable library
+# Publishing `react-watchos` as an installable library
 
 Status: **plan** (2026-06). Synthesizes two research spikes — native-target
 distribution via Expo config plugins, and XCFramework-vs-source for the native
@@ -8,15 +8,15 @@ Expo app** with one install + one plugin line.
 ## Target developer experience
 
 ```bash
-npx expo install react-native-watchos
+npx expo install react-watchos
 ```
 ```jsonc
 // app.json
-{ "plugins": [["react-native-watchos", { "name": "My Watch", "appGroup": "group.…", "widget": true }]] }
+{ "plugins": [["react-watchos", { "name": "My Watch", "appGroup": "group.…", "widget": true }]] }
 ```
 ```tsx
 // watch/index.tsx — the watch UI, in React
-import { runApp, VStack, Text, useParams } from "react-native-watchos";
+import { runApp, VStack, Text, useParams } from "react-watchos";
 runApp(<App />);
 ```
 ```bash
@@ -46,12 +46,12 @@ What blocks "installable by a stranger":
 
 ## Decision 1 — one npm package owns everything
 
-`react-native-watchos` ships: the JS reconciler (source/bundle), the config
+`react-watchos` ships: the JS reconciler (source/bundle), the config
 plugin (`app.plugin.js` → `plugin/`), the **thin per-target Swift glue**
 (`WatchApp.swift`, `ReactWidgets.swift`, intents — the small files currently in
 `app/targets/*`), and the **SwiftPM host** (the `swift/` package, which now
 lives INSIDE the npm package at `js/swift`). The plugin resolves its own
-install dir with `require.resolve('react-native-watchos/package.json')`, so the
+install dir with `require.resolve('react-watchos/package.json')`, so the
 old `../../swift` monorepo sibling assumption is gone.
 
 ## Decision 2 — native host: **source SPM now, XCFramework later**
@@ -159,17 +159,17 @@ valid *within* a wire version — add a guard so a mismatched bundle fails loud.
 
 ## npm packaging checklist
 
-- [ ] Name (claim on npm; scope if taken, e.g. `@emin/react-native-watchos`).
+- [ ] Name (claim on npm; scope if taken, e.g. `@emin/react-watchos`).
 - [ ] `exports` / `main` / `module` / `types` for the authoring API; `app.plugin.js` entry.
 - [ ] `files`: dist + `plugin/` + the thin Swift glue + (Phase 1) the remote-SPM pointer.
 - [ ] `peerDependencies`: `react`, `expo` (+ version ranges).
 - [ ] README (the DX above) + LICENSE.
-- [ ] A `react-native-watchos build` step that bundles the consumer's `watch/index.tsx` → the target's `assets/bundle.js`, wired into prebuild + a dev watch loop.
+- [ ] A `react-watchos build` step that bundles the consumer's `watch/index.tsx` → the target's `assets/bundle.js`, wired into prebuild + a dev watch loop.
 
 ## Example / dogfood
 
 `app/` → `example/`: install the library the **public** way
-(`plugins: ["react-native-watchos", { … }]`), dropping the hand-wired
+(`plugins: ["react-watchos", { … }]`), dropping the hand-wired
 `plugins/` + `scripts/` + `targets/`. This proves the published install path
 end-to-end (if our own example installs it like a stranger and it works, we know
 shipping works), and stays as the docs demo + device-test ground. The folder

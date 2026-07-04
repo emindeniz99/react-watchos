@@ -14,7 +14,7 @@
 // usage strings — would never reach the built app. Idempotent.
 //
 // Usage (from the consumer's project root, after prebuild):
-//   node node_modules/react-native-watchos/plugin/merge-target-infoplist.cjs [--project-root <dir>]
+//   node node_modules/react-watchos/plugin/merge-target-infoplist.cjs [--project-root <dir>]
 
 const path = require("node:path");
 const { mergeTargetInfoPlists } = require("./withNativeWiring");

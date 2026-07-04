@@ -49,7 +49,7 @@ for (const target of targets) {
 // wherever the manifest is served (the dev server serves dist/ statically, so
 // /manifest.json + /bundle.js). `signature` is null here — sign at publish time
 // with `ota:sign`. Uses the SAME published helper a consumer's build uses
-// (react-native-watchos/manifest): it computes `releaseId` (CX-025 freshness)
+// (react-watchos/manifest): it computes `releaseId` (CX-025 freshness)
 // and stamps `requiredFeatures`/`minBridgeProtocol` (ARCH-02 capability gate).
 const manifest = writeOTAManifest({
   distDir: join(root, "dist"),

@@ -1,5 +1,5 @@
-import { MemoryHost, renderWidgets, runApp, Storage } from "react-native-watchos";
-import { findByText, findByType } from "react-native-watchos/testing";
+import { MemoryHost, renderWidgets, runApp, Storage } from "react-watchos";
+import { findByText, findByType } from "react-watchos/testing";
 import { describe, expect, it } from "vitest";
 import { App } from "../watch-ui/App";
 import "../watch-ui/widgets"; // registers the "example" + "taps" widgets

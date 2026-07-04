@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "React Watch Demo",
-    "slug": "react-native-watchos-demo",
+    "slug": "react-watchos-demo",
     "version": "0.1.0",
     "platforms": ["ios"],
     "newArchEnabled": true,
@@ -12,7 +12,7 @@
     },
     "plugins": [
       [
-        "react-native-watchos",
+        "react-watchos",
         {
           "name": "React Watch",
           "appGroup": "group.com.emindeniz99.reactwatch",

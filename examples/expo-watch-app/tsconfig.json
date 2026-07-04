@@ -1,6 +1,6 @@
 {
   // Typechecks the renderer-side watch UI + its build script + tests — the
-  // parts that consume react-native-watchos. The iPhone App.tsx / index.js
+  // parts that consume react-watchos. The iPhone App.tsx / index.js
   // belong to Expo's own toolchain (Metro + react-native types) and are
   // built on macOS, so they're intentionally out of this program.
   "compilerOptions": {

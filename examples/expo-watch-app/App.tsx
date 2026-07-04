@@ -3,7 +3,7 @@ import { Button, StyleSheet, Text, View } from "react-native";
 import { sendMessage, watchEvents } from "react-native-watch-connectivity";
 
 // Companion iOS app. The watch UI itself runs ON the watch (watch-ui/, React
-// in QuickJS via react-native-watchos). This screen is the WatchConnectivity
+// in QuickJS via react-watchos). This screen is the WatchConnectivity
 // counterpart: it sends to / receives from the watch.
 //
 // Not part of `npm run typecheck` here — it's built by Expo's own tooling on

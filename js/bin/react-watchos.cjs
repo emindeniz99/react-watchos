@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 "use strict";
 
-// react-native-watchos CLI.
+// react-watchos CLI.
 //
-// `react-native-watchos scaffold [--force]` generates the @main Swift glue the
+// `react-watchos scaffold [--force]` generates the @main Swift glue the
 // config plugin can't generate: targets/watch/WatchApp.swift (the watch app) and,
 // when the widget target is enabled, targets/widget/ReactWidgets.swift (the
 // @main WidgetBundle). It reads app.json and reuses the plugin's resolveOptions,
@@ -29,11 +29,11 @@ function scaffold(args) {
   const config = JSON.parse(fs.readFileSync(appJsonPath, "utf8")).expo ?? {};
   const plugin = require("../plugin");
   const entry = (config.plugins ?? []).find(
-    (p) => (Array.isArray(p) ? p[0] : p) === "react-native-watchos",
+    (p) => (Array.isArray(p) ? p[0] : p) === "react-watchos",
   );
   if (!entry) {
     console.error(
-      "[scaffold] add the `react-native-watchos` plugin to app.json first.",
+      "[scaffold] add the `react-watchos` plugin to app.json first.",
     );
     process.exit(1);
   }
@@ -86,9 +86,9 @@ switch (command) {
     break;
   default:
     console.error(
-      "react-native-watchos\n\n" +
+      "react-watchos\n\n" +
         "Usage:\n" +
-        "  react-native-watchos scaffold [--force]\n" +
+        "  react-watchos scaffold [--force]\n" +
         "      Generate the @main Swift glue from your app.json plugin config:\n" +
         "      targets/watch/WatchApp.swift, plus targets/widget/ReactWidgets.swift\n" +
         "      when the widget target is enabled. Then run `expo prebuild` — the\n" +

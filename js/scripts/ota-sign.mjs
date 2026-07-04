@@ -4,7 +4,7 @@ import { root } from "./config.mjs";
 
 /**
  * Signs this repo's built OTA bundle so the watch will accept it (CR-4 / CR-17).
- * Thin CLI over the published `signManifest` (react-native-watchos/manifest) so
+ * Thin CLI over the published `signManifest` (react-watchos/manifest) so
  * the repo and consumers sign with one implementation. Run in CI AFTER
  * `npm run build`:
  *

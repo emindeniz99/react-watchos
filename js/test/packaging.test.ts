@@ -96,7 +96,7 @@ describe("published tarball contents (DX-4)", () => {
       "plugin/index.js",
       "plugin/withNativeWiring.js",
       "plugin/scaffold.cjs",
-      "bin/react-native-watchos.cjs",
+      "bin/react-watchos.cjs",
     ]) {
       expect(files, `tarball is missing ${required}`).toContain(required);
     }

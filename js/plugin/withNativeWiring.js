@@ -44,7 +44,7 @@ function mergeTargetInfoPlists(projectRoot) {
       // only resurfaces as baffling runtime behavior — fail the prebuild
       // loudly instead (NF-31, same policy as the SwiftPM link).
       throw new Error(
-        `[react-native-watchos] targets/${dir}/expo-target.config.js declares ` +
+        `[react-watchos] targets/${dir}/expo-target.config.js declares ` +
           "infoPlist keys, but apple-targets wrote no Info.plist at " +
           `${plistPath} — @bacons/apple-targets ordering may have changed; ` +
           "pin it to a tested version (see the plugin's peerDependencies).",
@@ -93,19 +93,19 @@ function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
       });
       if (linked.length) {
         console.log(
-          `[react-native-watchos] linked SwiftPM products: ${linked.join(", ")}`,
+          `[react-watchos] linked SwiftPM products: ${linked.join(", ")}`,
         );
       } else {
         console.warn(
-          "[react-native-watchos] no watch/widget target was linked — if you " +
+          "[react-watchos] no watch/widget target was linked — if you " +
             "expected one, check the apple-targets config and that " +
-            "`react-native-watchos scaffold` has run.",
+            "`react-watchos scaffold` has run.",
         );
       }
       const merged = mergeTargetInfoPlists(cfg.modRequest.projectRoot);
       if (merged.length) {
         console.log(
-          `[react-native-watchos] merged infoPlist into ${merged.join(", ")}`,
+          `[react-watchos] merged infoPlist into ${merged.join(", ")}`,
         );
       }
       return cfg;

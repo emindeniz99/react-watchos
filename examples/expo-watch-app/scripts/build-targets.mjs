@@ -1,11 +1,11 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildBundles } from "react-native-watchos/build";
+import { buildBundles } from "react-watchos/build";
 import {
   generateSigningKey,
   signManifest,
-} from "react-native-watchos/manifest";
+} from "react-watchos/manifest";
 
 // Builds both watch bundles (ARCH-03: the app UI + the widget) in one call via
 // the package's `buildBundles` helper — no per-target esbuild boilerplate, just

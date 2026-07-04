@@ -1,5 +1,5 @@
-import { MemoryHost, runApp } from "react-native-watchos";
-import { findByText, findByType } from "react-native-watchos/testing";
+import { MemoryHost, runApp } from "react-watchos";
+import { findByText, findByType } from "react-watchos/testing";
 import { describe, expect, it } from "vitest";
 import { App } from "../src/App";
 

@@ -2,7 +2,7 @@ import { generateSigningKey } from "../esbuild/manifest.mjs";
 
 /**
  * Generates an Ed25519 keypair + a key id for OTA bundle signing (CR-4 / CR-17).
- * Thin CLI over the published `generateSigningKey` (react-native-watchos/manifest)
+ * Thin CLI over the published `generateSigningKey` (react-watchos/manifest)
  * so the repo and consumers use one keygen.
  *
  *   node scripts/ota-keygen.mjs      (or: npm run ota:keygen)

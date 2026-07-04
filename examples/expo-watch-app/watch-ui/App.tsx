@@ -9,7 +9,7 @@ import {
   Text,
   useTheme,
   VStack,
-} from "react-native-watchos";
+} from "react-watchos";
 
 // Your OTA endpoint — the manifest your build stamps (scripts/build-targets.mjs
 // passes a `manifest` to buildBundles) served from any static host. Injected at

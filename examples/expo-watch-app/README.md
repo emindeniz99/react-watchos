@@ -1,7 +1,7 @@
 # expo-watch-app
 
 An **Expo / React Native iPhone app that adds a watch feature** powered by
-`react-native-watchos`. This is the realistic adoption shape: you have (or
+`react-watchos`. This is the realistic adoption shape: you have (or
 start) a normal Expo app, and bolt on a watch target whose UI is React running
 on the watch.
 
@@ -10,7 +10,7 @@ Three halves:
 - **iPhone app** (`App.tsx`, `index.js`, `app.json`) — ordinary Expo/RN. Uses
   `react-native-watch-connectivity` to talk to the watch.
 - **Watch UI** (`watch-ui/App.tsx` → `watch-ui/entry.tsx`) — React on the
-  `react-native-watchos` engine, bundled into the watch target's
+  `react-watchos` engine, bundled into the watch target's
   `assets/bundle.js`.
 - **Widgets** (`watch-ui/widgets.tsx`) — two React-rendered complications (a
   static one and a live-data one), a second bundle the watch widget extension
@@ -31,19 +31,19 @@ pnpm --filter expo-watch-app test          # runApp + MemoryHost + /testing
 pnpm --filter expo-watch-app build:targets # -> watch + widget bundles
 ```
 
-It consumes the renderer through the pnpm workspace (`"react-native-watchos":
+It consumes the renderer through the pnpm workspace (`"react-watchos":
 "workspace:*"`), so there is a single React instance and no alias / nodePaths /
 tsconfig-paths glue.
 
 ## How the watch target is wired (the config plugin)
 
 This example **dogfoods the package's own config plugin** — `app.json` lists
-`react-native-watchos` (not `@bacons/apple-targets` directly), and that's the
+`react-watchos` (not `@bacons/apple-targets` directly), and that's the
 whole integration:
 
 ```jsonc
 // app.json
-"plugins": [["react-native-watchos", { "name": "Expo Watch", "widget": true }]]
+"plugins": [["react-watchos", { "name": "Expo Watch", "widget": true }]]
 ```
 
 During `expo prebuild` the plugin generates each target's
@@ -54,7 +54,7 @@ no manual "Add Package Dependencies…" in Xcode. The pieces it can't generate �
 each target's `@main` Swift entry — are scaffolded for you:
 
 ```bash
-npx react-native-watchos scaffold   # -> targets/watch/WatchApp.swift
+npx react-watchos scaffold   # -> targets/watch/WatchApp.swift
                                      #    targets/widget/ReactWidgets.swift
 ```
 
@@ -72,7 +72,7 @@ pnpm --filter expo-watch-app prebuild   # build the watch bundle, then `expo pre
 ```
 
 `prebuild` builds both JS bundles (watch + widget) and runs `expo prebuild` —
-plain Expo; the `react-native-watchos` plugin does the SwiftPM link + the
+plain Expo; the `react-watchos` plugin does the SwiftPM link + the
 `Info.plist` merge as part of prebuild itself (it hooks apple-targets' own xcode
 mod). The native runtime (the QuickJS engine, the `NodeView` interpreter, the
 bridges) is the `swift/` SwiftPM package. Add App Group / usage-description keys
@@ -92,7 +92,7 @@ machinery lives in the `ReactWatchWidget` package:
   extension renders on demand; the app publishes too) — [`watch-ui/widget.entry.tsx`](./watch-ui/widget.entry.tsx)
   is just `import "./widgets"` (no `runApp`, so the extension stays small).
   Built by `build:targets` → `targets/widget/assets/bundle.js`.
-- **Swift** — `npx react-native-watchos scaffold` generated
+- **Swift** — `npx react-watchos scaffold` generated
   [`targets/widget/ReactWidgets.swift`](./targets/widget/ReactWidgets.swift): a
   `@main WidgetBundle` whose widgets render through the package's
   `ReactTimelineProvider` + `reactWidgetView`. That's the whole Swift side — no

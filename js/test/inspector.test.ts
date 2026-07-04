@@ -30,7 +30,9 @@ describe("inspector snapshot", () => {
 
   it("records an error's stack and componentStack (ErrorBoundary onError shape)", () => {
     const err = new Error("boom-42");
-    captureError(err, { componentStack: "\n    at Boom\n    at ErrorBoundary" });
+    captureError(err, {
+      componentStack: "\n    at Boom\n    at ErrorBoundary",
+    });
     const entry = inspectorSnapshot().errors.find(
       (e) => e.message === "boom-42",
     );
@@ -74,7 +76,7 @@ describe("inspector server", () => {
       expect(snap.tree).toEqual({ type: "Text" });
       expect(snap.logs).toEqual(["x"]);
       const html = await (await fetch(base)).text();
-      expect(html).toContain("react-native-watchos inspector");
+      expect(html).toContain("react-watchos inspector");
     } finally {
       server.kill();
     }

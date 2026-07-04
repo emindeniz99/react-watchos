@@ -1,4 +1,4 @@
-// The QuickJS-correct esbuild preset, exported as `react-native-watchos/build`
+// The QuickJS-correct esbuild preset, exported as `react-watchos/build`
 // so consumers don't copy this config. It pins the settings the watch engine
 // needs: the shims are force-injected before react/scheduler init, ES2020
 // (both Bellard quickjs and quickjs-ng cover it), a platform-neutral IIFE

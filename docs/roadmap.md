@@ -1,6 +1,6 @@
 # Roadmap
 
-Forward plan for `react-native-watchos`, organized into three parallel
+Forward plan for `react-watchos`, organized into three parallel
 tracks that touch mostly disjoint files. Derived from a reviewed feedback
 pass; corrections from that review are folded in. Priorities: **P0** =
 unblocks real apps, **P1** = strong value, **P2** = polish.
@@ -126,7 +126,7 @@ Owns the companion app, new `__host` methods, native-event streams.
 - The three P0s (Crown, WatchConnectivity, setInterval) are otherwise
   independent and parallelizable across agents.
 - **Hard gate:** every SwiftUI change is unverified until the macOS build
-  (`.github/workflows/react-native-watchos-build.yml`) runs green. The
+  (`.github/workflows/react-watchos-build.yml`) runs green. The
   Linux `swift test` only verifies *wire decode* of new props, not the view.
   Get that workflow green before trusting Crown/gestures/WatchConnectivity
   on-device.
@@ -291,9 +291,9 @@ clothes"). Shipped:
 - **pnpm workspace** rooted at this project (`js` + `examples/*` + `app`).
   `workspace:*` gives every consumer one React instance automatically — the
   alias / nodePaths / tsconfig-paths glue is gone. CI installs once with pnpm.
-- **Exported build preset** — `react-native-watchos/build`
+- **Exported build preset** — `react-watchos/build`
   (`watchBuildOptions`), so the QuickJS-correct esbuild config isn't copied.
-- **Exported testing helpers** — `react-native-watchos/testing`
+- **Exported testing helpers** — `react-watchos/testing`
   (`findByType`, `findByText`).
 - **Typed host surface** — `getHost()` + `QuickJSHostGlobal` exported, with a
   native-capability recipe (`docs/extending.md`).

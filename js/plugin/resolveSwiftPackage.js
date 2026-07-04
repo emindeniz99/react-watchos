@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-// Resolves the absolute on-disk path of the react-native-watchos SwiftPM host
+// Resolves the absolute on-disk path of the react-watchos SwiftPM host
 // (the directory containing Package.swift), then expresses it relative to the
 // generated .xcodeproj directory so it can be used as an
 // XCLocalSwiftPackageReference.relativePath.
@@ -12,20 +12,20 @@ const path = require("node:path");
 // `<pkg>/swift` — the package root is js/, so it lives at js/swift, and that's
 // the SAME layout in this monorepo and when installed from npm.
 //
-// `require.resolve("react-native-watchos/package.json")` is resolved from the
+// `require.resolve("react-watchos/package.json")` is resolved from the
 // project root (the consumer's app dir) so it picks the consumer's installed
 // copy, not whichever copy is nearest this plugin file.
 
 /** Absolute path to the SwiftPM host directory (contains Package.swift). */
 function resolveSwiftPackageDir(projectRoot) {
-  const pkgJson = require.resolve("react-native-watchos/package.json", {
+  const pkgJson = require.resolve("react-watchos/package.json", {
     paths: [projectRoot],
   });
   const pkgDir = path.dirname(pkgJson);
   const dir = path.join(pkgDir, "swift"); // swift/ ships inside the package
   if (fs.existsSync(path.join(dir, "Package.swift"))) return dir;
   throw new Error(
-    `[react-native-watchos] could not locate the Swift host (Package.swift) ` +
+    `[react-watchos] could not locate the Swift host (Package.swift) ` +
       `at ${dir}.`,
   );
 }

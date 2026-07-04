@@ -6,7 +6,7 @@ import {
   Storage,
   Text,
   VStack,
-} from "react-native-watchos";
+} from "react-watchos";
 
 // Registered by BOTH bundles (entry.tsx for the app, widget.entry.tsx for the
 // extension) so the app can publish these timelines and the extension can also

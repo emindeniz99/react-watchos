@@ -7,14 +7,14 @@ import { createServer } from "node:http";
 const PORT = Number(process.env.INSPECTOR_PORT ?? 8099);
 let latest = { commits: 0, tree: null, logs: [], errors: [], at: 0 };
 
-const PAGE = `<!doctype html><meta charset=utf8><title>react-native-watchos inspector</title>
+const PAGE = `<!doctype html><meta charset=utf8><title>react-watchos inspector</title>
 <style>body{font:13px ui-monospace,monospace;margin:0;background:#111;color:#ddd}
 header{padding:8px 12px;background:#1e1e1e;border-bottom:1px solid #333}
 .cols{display:flex;height:calc(100vh - 40px)}.col{flex:1;overflow:auto;padding:12px}
 .col+.col{border-left:1px solid #333}pre{white-space:pre-wrap;margin:0}
 .log{color:#9cdcfe}.muted{color:#888}h2{font-size:12px;color:#888;margin:0 0 8px}
 .err{color:#f48771;margin-bottom:8px}.err .stack{color:#888;font-size:11px}</style>
-<header>react-native-watchos inspector <span class=muted id=meta></span></header>
+<header>react-watchos inspector <span class=muted id=meta></span></header>
 <div class=cols>
   <div class=col><h2>TREE</h2><pre id=tree></pre></div>
   <div class=col><h2>LOGS</h2><pre id=logs></pre></div>

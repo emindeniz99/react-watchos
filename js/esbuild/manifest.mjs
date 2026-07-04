@@ -1,5 +1,5 @@
 // OTA manifest helpers for a consumer's build (published as
-// `react-native-watchos/manifest`). After you build your watch bundle with the
+// `react-watchos/manifest`). After you build your watch bundle with the
 // preset, call `writeOTAManifest` to stamp the `manifest.json` the watch's
 // `checkForUpdate` / `fetchAndApplyUpdate` fetch — so you don't hand-write the
 // manifest shape or reverse-engineer the `releaseId` hash. Serve the resulting

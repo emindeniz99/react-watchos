@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Manual fallback for linking the react-native-watchos SwiftPM host products
+// Manual fallback for linking the react-watchos SwiftPM host products
 // into the generated watch + widget targets.
 //
 // The config plugin now does this DURING `expo prebuild` (plugin/
@@ -16,7 +16,7 @@
 // resolved source of truth, no Expo-config re-parsing.
 //
 // Usage (from the consumer's project root, after prebuild):
-//   node node_modules/react-native-watchos/plugin/link-swift-package.cjs [--project-root <dir>]
+//   node node_modules/react-watchos/plugin/link-swift-package.cjs [--project-root <dir>]
 
 const fs = require("node:fs");
 const path = require("node:path");

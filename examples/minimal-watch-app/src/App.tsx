@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, HStack, Text, VStack } from "react-native-watchos";
+import { Button, HStack, Text, VStack } from "react-watchos";
 
 // A whole watch app in one component: state + native widgets, no glue.
 // Everything is imported from the package exports — no relative reach

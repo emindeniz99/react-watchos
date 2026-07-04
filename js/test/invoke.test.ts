@@ -104,9 +104,13 @@ describe("invoke timeout net (NF-01)", () => {
       host.invoke.mockImplementation(() => {
         // Native accepted and is waiting on the user; no reply yet.
       });
-      const promise = invoke("purchase", { productId: "p" }, {
-        timeoutMs: 5 * 60_000,
-      });
+      const promise = invoke(
+        "purchase",
+        { productId: "p" },
+        {
+          timeoutMs: 5 * 60_000,
+        },
+      );
       const assertion = expect(promise).rejects.toMatchObject({
         code: "INTERNAL",
         message: expect.stringContaining("300000ms"),

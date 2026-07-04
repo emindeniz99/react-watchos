@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { watchBuildOptions } from "react-native-watchos/build";
+import { watchBuildOptions } from "react-watchos/build";
 
 // The entire watch bundle config: the shared QuickJS preset + this app's
 // entry. `nodePaths` points esbuild at THIS project's node_modules so the

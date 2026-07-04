@@ -1,6 +1,6 @@
 # ReactWatchHost (SwiftPM)
 
-The native host for [`react-native-watchos`](../README.md): the QuickJS engine,
+The native host for [`react-watchos`](../README.md): the QuickJS engine,
 the runtime that embeds it, the generated wire models, and the SwiftUI
 interpreter that renders committed React trees. A consumer's watch target
 depends on this package instead of copying the host into their app.

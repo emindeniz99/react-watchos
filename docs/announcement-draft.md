@@ -10,7 +10,7 @@ bracket remains.
 
 ## Short post (X / HN / r/reactnative)
 
-> **react-native-watchos — write Apple Watch apps in React, running ON the
+> **react-watchos — write Apple Watch apps in React, running ON the
 > watch.**
 >
 > JSX + hooks render real SwiftUI. No phone round-trip: QuickJS runs on the
@@ -24,7 +24,7 @@ bracket remains.
 > streaming JSON trees to a native interpreter, the architecture Raycast
 > validated at scale.
 >
-> npm i react-native-watchos → Expo config plugin wires the Xcode targets.
+> npm i react-watchos → Expo config plugin wires the Xcode targets.
 > [link]
 
 HN title options (pick one, don't oversell):

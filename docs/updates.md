@@ -45,11 +45,11 @@ When a tree is serialized for the host (and in tests via `MemoryHost` /
 1. **`<Text>` content folds into `props.text`, not `children`.**
    `<Text>Count: {n}</Text>` serializes to `{ type: "Text", props: { text:
    "Count: 3" }, children: [] }`. Assert on `props.text` — or use
-   `findByText(tree, "Count: 3")` from `react-native-watchos/testing`.
+   `findByText(tree, "Count: 3")` from `react-watchos/testing`.
 2. **Function props serialize to the literal `true`.** `onPress`, `onChange`,
    etc. can't cross to Swift, so the wire carries `onPress: true` as a flag that
    the node is interactive. Assert `props.onPress === true`, never a function.
 3. **`undefined` props are dropped** entirely (they don't appear on the node).
 
 For querying committed trees in tests, import `findByType` / `findByText` from
-`react-native-watchos/testing` instead of re-deriving them.
+`react-watchos/testing` instead of re-deriving them.

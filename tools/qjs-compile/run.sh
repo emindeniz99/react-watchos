@@ -12,7 +12,7 @@ set -e
 cd "$(dirname "$0")"
 VENDOR=../../js/swift/Sources/CQuickJS
 # Ensure both bundles exist (build emits app + widget together).
-[ -f ../../js/dist/bundle.js ] || (cd ../.. && pnpm --filter react-native-watchos build)
+[ -f ../../js/dist/bundle.js ] || (cd ../.. && pnpm --filter react-watchos build)
 cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o qjs-compile \
   qjs-compile.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
   "$VENDOR"/libunicode.c "$VENDOR"/dtoa.c -lm -lpthread

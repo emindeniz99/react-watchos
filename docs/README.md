@@ -1,4 +1,4 @@
-# react-native-watchos — docs index
+# react-watchos — docs index
 
 **Start here for the current improvement plan →
 [code-review-2026-06-25-1817-merged.md](./code-review-2026-06-25-1817-merged.md)**

@@ -1,7 +1,7 @@
 // swift-tools-version:6.0
 import PackageDescription
 
-// The Swift host for react-native-watchos: the QuickJS engine, the runtime
+// The Swift host for react-watchos: the QuickJS engine, the runtime
 // that embeds it, the generated wire models, and the SwiftUI interpreter that
 // renders committed trees. A consumer's watch target depends on this package
 // instead of copying ~2k lines of Swift + the vendored C.

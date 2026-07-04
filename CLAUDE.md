@@ -25,3 +25,10 @@ Commit scope is **`react-native-watchos`** (Conventional Commits, scope
 mandatory, `Co-Authored-By:` trailer). The full plan + decision log is in
 `docs/` — later dated reviews supersede earlier ones; the merged backlog is the
 reconciled view.
+
+**Naming:** the npm package publishes as **`react-watchos`** (B2: the
+`react-native-watchos` npm name is squatted, and the `react-native-*` prefix
+implied an RN-core membership the docs disclaim). The project FOLDER and the
+commit scope stay `react-native-watchos` — folder renames churn every path;
+only the published identity changed. Dated review docs keep the old name as
+historical record.

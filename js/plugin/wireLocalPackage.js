@@ -1,5 +1,5 @@
 // Pure pbxproj-editing logic for wiring a local SwiftPM package (the
-// react-native-watchos Swift host) into the @bacons/apple-targets–generated
+// react-watchos Swift host) into the @bacons/apple-targets–generated
 // watch + widget targets. The default product map is:
 //   • <watch app>        -> ReactWatchHost
 //   • <widget extension> -> ReactWatchCore, ReactWatchSupport, ReactWatchRuntime

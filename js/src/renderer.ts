@@ -100,7 +100,7 @@ const hostConfig = {
   warnsIfNotActing: false,
   noTimeout: -1 as const,
   rendererVersion: "0.1.0",
-  rendererPackageName: "react-native-watchos",
+  rendererPackageName: "react-watchos",
   extraDevToolsConfig: null,
 
   // A stable non-null host context. Returning null breaks Suspense:
@@ -289,7 +289,7 @@ try {
   reconciler.injectIntoDevTools({
     bundleType: __devBuild ? 1 : 0,
     version: "19.2.0",
-    rendererPackageName: "react-native-watchos",
+    rendererPackageName: "react-watchos",
     findFiberByHostInstance: () => null,
   });
 } catch {

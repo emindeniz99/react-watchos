@@ -27,7 +27,7 @@ Say you want a flashlight toggle.
 **1. JS wrapper** (in your app, or contribute it to the renderer):
 
 ```ts
-import { getHost, registerNativeListener } from "react-native-watchos";
+import { getHost, registerNativeListener } from "react-watchos";
 
 export function setTorch(on: boolean): void {
   // `torch` is an app-defined op; off-device getHost() is undefined → no-op.
@@ -95,7 +95,7 @@ Two honest caveats:
   the fired `WKApplicationRefreshBackgroundTask` to JS's
   `onBackgroundRefresh` (with your userInfo). It needs the delegate adaptor
   in your `@main` App — `@WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self)`
-  — which `react-native-watchos scaffold` writes for you. Keep the handler
+  — which `react-watchos scaffold` writes for you. Keep the handler
   short; the app suspends again when it returns.
 - **Extended runtime sessions** require the consumer to declare the session
   reason in the target's Info.plist; without it the system invalidates the

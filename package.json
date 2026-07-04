@@ -1,14 +1,14 @@
 {
-  "name": "react-native-watchos-workspace",
+  "name": "react-watchos-workspace",
   "version": "0.0.0",
   "private": true,
-  "description": "pnpm workspace: the react-native-watchos renderer, consumer examples, and the reference watch app",
+  "description": "pnpm workspace: the react-watchos renderer, consumer examples, and the reference watch app",
   "scripts": {
-    "build": "pnpm --filter react-native-watchos build",
+    "build": "pnpm --filter react-watchos build",
     "test": "pnpm --recursive --if-present test",
     "typecheck": "pnpm --recursive --if-present typecheck",
-    "lint": "pnpm --filter react-native-watchos lint",
-    "codegen": "pnpm --filter react-native-watchos codegen"
+    "lint": "pnpm --filter react-watchos lint",
+    "codegen": "pnpm --filter react-watchos codegen"
   },
   "pnpm": {
     "onlyBuiltDependencies": ["@biomejs/biome", "esbuild"]

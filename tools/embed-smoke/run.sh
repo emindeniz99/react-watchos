@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 # inside the npm package at js/swift).
 VENDOR=../../js/swift/Sources/CQuickJS
 BUNDLE=../../js/dist/bundle.js
-[ -f "$BUNDLE" ] || (cd ../.. && pnpm --filter react-native-watchos build)
+[ -f "$BUNDLE" ] || (cd ../.. && pnpm --filter react-watchos build)
 cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o embed-host \
   embed-host.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
   "$VENDOR"/libunicode.c "$VENDOR"/dtoa.c -lm -lpthread

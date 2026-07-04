@@ -19,7 +19,7 @@ Every capability sits at one level. Higher levels subsume the lower ones.
 | Level | Means | How it's checked |
 |---|---|---|
 | ① **Logic-tested** | Pure logic unit-tested off-device | `pnpm test` (330 JS, vitest) + `swift test` (139 test funcs, Linux: Core/Support/Runtime) — counts drift; treat as point-in-time (2026-07-03) |
-| ② **Builds for watchOS** | The SwiftUI host/widget compiles for the watch | `react-native-watchos-build.yml` (macOS/Xcode) — `BUILD SUCCEEDED` |
+| ② **Builds for watchOS** | The SwiftUI host/widget compiles for the watch | `react-watchos-build.yml` (macOS/Xcode) — `BUILD SUCCEEDED` |
 | ③ **Device/sim-verified** | Exercised on a watchOS simulator or real Apple Watch | manual; noted per row |
 | ⛔ **Blocked** | Needs an unreleased OS/SDK, or hardware we don't have | noted per row |
 

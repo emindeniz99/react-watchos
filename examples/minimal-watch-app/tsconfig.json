@@ -1,6 +1,6 @@
 {
   // No `paths` mapping and no react type hand-mapping: `moduleResolution:
-  // bundler` reads react-native-watchos's `exports` map (its `types`
+  // bundler` reads react-watchos's `exports` map (its `types`
   // condition points at the renderer's source), so the package and its
   // subpaths (`/testing`) just resolve.
   "compilerOptions": {
