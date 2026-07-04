@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CrownRotation,
@@ -338,6 +339,42 @@ describe("input primitives", () => {
     );
     expect(root.type).toBe("TabView");
     expect(root.children).toHaveLength(2);
+    // Uncontrolled: no selection prop crosses, so native must not bind.
+    expect(root.props.selection).toBeUndefined();
+  });
+
+  it("routes a controlled TabView swipe through onChange like Picker", () => {
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    const seen: number[] = [];
+    function App() {
+      const [page, setPage] = useState(1);
+      return (
+        <TabView
+          selection={page}
+          onChange={(index) => {
+            seen.push(index);
+            setPage(index);
+          }}
+        >
+          <Text>one</Text>
+          <Text>two</Text>
+        </TabView>
+      );
+    }
+    root.render(<App />);
+    const node = host.lastCommit!.root!;
+    expect(node.props).toMatchObject({ selection: 1, onChange: true });
+
+    // The native swipe: the same change event + {value} payload as Picker.
+    root.dispatchEvent({
+      nodeId: node.id,
+      event: "change",
+      payload: { value: 0 },
+      seq: 1,
+    });
+    expect(seen).toEqual([0]);
+    expect(host.lastCommit!.root!.props.selection).toBe(0);
   });
 });
 

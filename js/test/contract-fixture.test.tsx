@@ -182,8 +182,9 @@ describe("swift contract fixtures", () => {
         <CrownRotation value={5} from={0} through={10} onChange={() => {}}>
           <Text>5</Text>
         </CrownRotation>
-        <TabView>
+        <TabView selection={1} onChange={() => {}}>
           <Text>tab</Text>
+          <Text>tab 2</Text>
         </TabView>
         <NavigationStack>
           <NavigationRoute path="/">

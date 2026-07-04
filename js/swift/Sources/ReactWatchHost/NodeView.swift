@@ -215,7 +215,21 @@ struct NodeView: View {
             // value (and its neighbors) read fully.
             .frame(minHeight: pickerMinHeight)
         case "TabView":
-            TabView { childViews }
+            // Controlled ONLY when `selection` is present: an always-bound
+            // default would snap an uncontrolled TabView back to page 0 on
+            // the first ack (the optimistic value releases to the absent
+            // prop).
+            if node.double("selection") != nil {
+                TabView(selection: tabSelectionBinding) {
+                    ForEach(
+                        Array(node.children.enumerated()), id: \.element.id
+                    ) { index, child in
+                        NodeView(node: child).tag(index)
+                    }
+                }
+            } else {
+                TabView { childViews }
+            }
         case "CrownRotation":
             CrownRotationView(node: node)
         case "Slider":
@@ -679,6 +693,23 @@ struct NodeView: View {
                 // clampedInt: a huge JS value would trap the plain Int() (M3).
                 model.optimisticInt(node.id)
                     ?? RNStyle.clampedInt(node.double("value") ?? 0)
+            },
+            set: { newValue in
+                model.dispatchOptimistic(
+                    nodeId: node.id, value: .number(Double(newValue)),
+                    payload: ["value": newValue]
+                )
+            }
+        )
+    }
+
+    /// Controlled TabView page index — the Picker pattern over `selection`:
+    /// hold the swiped page optimistically until React acks the change event.
+    private var tabSelectionBinding: Binding<Int> {
+        Binding(
+            get: {
+                model.optimisticInt(node.id)
+                    ?? RNStyle.clampedInt(node.double("selection") ?? 0)
             },
             set: { newValue in
                 model.dispatchOptimistic(

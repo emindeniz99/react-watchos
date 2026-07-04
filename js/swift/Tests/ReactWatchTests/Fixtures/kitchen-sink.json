@@ -2,7 +2,7 @@
   "v": 1,
   "seq": 0,
   "root": {
-    "id": 52,
+    "id": 53,
     "type": "VStack",
     "props": {
       "spacing": 4,
@@ -269,9 +269,12 @@
         ]
       },
       {
-        "id": 27,
+        "id": 28,
         "type": "TabView",
-        "props": {},
+        "props": {
+          "selection": 1,
+          "onChange": true
+        },
         "children": [
           {
             "id": 26,
@@ -280,25 +283,33 @@
               "text": "tab"
             },
             "children": []
+          },
+          {
+            "id": 27,
+            "type": "Text",
+            "props": {
+              "text": "tab 2"
+            },
+            "children": []
           }
         ]
       },
       {
-        "id": 32,
+        "id": 33,
         "type": "NavigationStack",
         "props": {
           "onPathChange": true
         },
         "children": [
           {
-            "id": 29,
+            "id": 30,
             "type": "NavigationRoute",
             "props": {
               "path": "/"
             },
             "children": [
               {
-                "id": 28,
+                "id": 29,
                 "type": "NavigationLink",
                 "props": {
                   "to": "/detail/42",
@@ -309,14 +320,14 @@
             ]
           },
           {
-            "id": 31,
+            "id": 32,
             "type": "NavigationRoute",
             "props": {
               "path": "/detail/[id]"
             },
             "children": [
               {
-                "id": 30,
+                "id": 31,
                 "type": "Text",
                 "props": {
                   "text": "detail"
@@ -328,7 +339,7 @@
         ]
       },
       {
-        "id": 34,
+        "id": 35,
         "type": "Alert",
         "props": {
           "presented": false,
@@ -338,7 +349,7 @@
         },
         "children": [
           {
-            "id": 33,
+            "id": 34,
             "type": "AlertAction",
             "props": {
               "label": "OK",
@@ -350,7 +361,7 @@
         ]
       },
       {
-        "id": 36,
+        "id": 37,
         "type": "ConfirmationDialog",
         "props": {
           "presented": false,
@@ -359,7 +370,7 @@
         },
         "children": [
           {
-            "id": 35,
+            "id": 36,
             "type": "AlertAction",
             "props": {
               "label": "Do",
@@ -370,7 +381,7 @@
         ]
       },
       {
-        "id": 38,
+        "id": 39,
         "type": "Sheet",
         "props": {
           "presented": false,
@@ -378,7 +389,7 @@
         },
         "children": [
           {
-            "id": 37,
+            "id": 38,
             "type": "Text",
             "props": {
               "text": "sheet"
@@ -388,7 +399,7 @@
         ]
       },
       {
-        "id": 42,
+        "id": 43,
         "type": "Grid",
         "props": {
           "horizontalSpacing": 2,
@@ -396,12 +407,12 @@
         },
         "children": [
           {
-            "id": 41,
+            "id": 42,
             "type": "GridRow",
             "props": {},
             "children": [
               {
-                "id": 39,
+                "id": 40,
                 "type": "Text",
                 "props": {
                   "text": "c1"
@@ -409,7 +420,7 @@
                 "children": []
               },
               {
-                "id": 40,
+                "id": 41,
                 "type": "Text",
                 "props": {
                   "text": "c2"
@@ -421,7 +432,7 @@
         ]
       },
       {
-        "id": 43,
+        "id": 44,
         "type": "ShareLink",
         "props": {
           "item": "https://example.test"
@@ -429,7 +440,7 @@
         "children": []
       },
       {
-        "id": 44,
+        "id": 45,
         "type": "Chart",
         "props": {
           "type": "bar",
@@ -448,7 +459,7 @@
         "children": []
       },
       {
-        "id": 45,
+        "id": 46,
         "type": "Map",
         "props": {
           "latitude": 41,
@@ -465,7 +476,7 @@
         "children": []
       },
       {
-        "id": 46,
+        "id": 47,
         "type": "ProgressView",
         "props": {
           "value": 0.4,
@@ -475,7 +486,7 @@
         "children": []
       },
       {
-        "id": 47,
+        "id": 48,
         "type": "ContentUnavailable",
         "props": {
           "title": "empty",
@@ -485,26 +496,26 @@
         "children": []
       },
       {
-        "id": 51,
+        "id": 52,
         "type": "Toolbar",
         "props": {},
         "children": [
           {
-            "id": 50,
+            "id": 51,
             "type": "ToolbarItem",
             "props": {
               "placement": "topBarTrailing"
             },
             "children": [
               {
-                "id": 49,
+                "id": 50,
                 "type": "Button",
                 "props": {
                   "onPress": true
                 },
                 "children": [
                   {
-                    "id": 48,
+                    "id": 49,
                     "type": "Text",
                     "props": {
                       "text": "t"
