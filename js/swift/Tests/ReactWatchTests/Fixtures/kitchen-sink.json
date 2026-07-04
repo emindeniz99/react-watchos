@@ -1,0 +1,522 @@
+{
+  "v": 1,
+  "seq": 0,
+  "root": {
+    "id": 52,
+    "type": "VStack",
+    "props": {
+      "spacing": 4,
+      "alignment": "leading",
+      "padding": {
+        "horizontal": 8,
+        "vertical": 2
+      },
+      "frame": {
+        "maxWidth": "infinity",
+        "height": 120
+      },
+      "background": "#00000080",
+      "cornerRadius": 6,
+      "opacity": 0.9,
+      "tint": "accentColor",
+      "animation": {
+        "kind": "spring",
+        "duration": 0.3
+      },
+      "accessibilityLabel": "sink-root",
+      "accessibilityHint": "the kitchen sink"
+    },
+    "children": [
+      {
+        "id": 7,
+        "type": "HStack",
+        "props": {
+          "spacing": 2,
+          "alignment": "center"
+        },
+        "children": [
+          {
+            "id": 3,
+            "type": "Text",
+            "props": {
+              "bold": true,
+              "monospacedDigit": true,
+              "textStyle": "headline",
+              "color": "green",
+              "text": ""
+            },
+            "children": [
+              {
+                "id": 1,
+                "type": "Text",
+                "props": {
+                  "text": "Rich "
+                },
+                "children": []
+              },
+              {
+                "id": 2,
+                "type": "Text",
+                "props": {
+                  "color": "#FF8000",
+                  "text": "segment"
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": 4,
+            "type": "TimerText",
+            "props": {
+              "since": 1000,
+              "milliseconds": true,
+              "size": 22
+            },
+            "children": []
+          },
+          {
+            "id": 5,
+            "type": "Spacer",
+            "props": {},
+            "children": []
+          },
+          {
+            "id": 6,
+            "type": "Divider",
+            "props": {},
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "type": "ZStack",
+        "props": {
+          "alignment": "topLeading"
+        },
+        "children": [
+          {
+            "id": 8,
+            "type": "Image",
+            "props": {
+              "systemName": "drop.fill",
+              "size": 17,
+              "color": "blue"
+            },
+            "children": []
+          },
+          {
+            "id": 9,
+            "type": "Gauge",
+            "props": {
+              "value": 7,
+              "min": 0,
+              "max": 10,
+              "label": "G",
+              "style": "circular"
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 15,
+        "type": "ScrollView",
+        "props": {},
+        "children": [
+          {
+            "id": 14,
+            "type": "List",
+            "props": {},
+            "children": [
+              {
+                "id": 13,
+                "type": "Section",
+                "props": {
+                  "header": "H",
+                  "footer": "F"
+                },
+                "children": [
+                  {
+                    "id": 11,
+                    "type": "Label",
+                    "props": {
+                      "label": "L",
+                      "systemName": "star",
+                      "color": "yellow"
+                    },
+                    "children": []
+                  },
+                  {
+                    "id": 12,
+                    "type": "LabeledContent",
+                    "props": {
+                      "label": "LC",
+                      "value": "42"
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 17,
+        "type": "Button",
+        "props": {
+          "glass": true,
+          "buttonStyle": "glassProminent",
+          "onPress": true
+        },
+        "children": [
+          {
+            "id": 16,
+            "type": "Text",
+            "props": {
+              "text": "tap"
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 18,
+        "type": "Toggle",
+        "props": {
+          "value": true,
+          "label": "on",
+          "onChange": true
+        },
+        "children": []
+      },
+      {
+        "id": 19,
+        "type": "Slider",
+        "props": {
+          "value": 0.5,
+          "from": 0,
+          "through": 1,
+          "step": 0.1,
+          "onChange": true
+        },
+        "children": []
+      },
+      {
+        "id": 20,
+        "type": "Stepper",
+        "props": {
+          "value": 3,
+          "from": 0,
+          "through": 9,
+          "onChange": true
+        },
+        "children": []
+      },
+      {
+        "id": 21,
+        "type": "Picker",
+        "props": {
+          "value": 1,
+          "options": [
+            "a",
+            "b"
+          ],
+          "label": "P",
+          "onChange": true
+        },
+        "children": []
+      },
+      {
+        "id": 22,
+        "type": "DatePicker",
+        "props": {
+          "value": 1700000000000,
+          "onChange": true
+        },
+        "children": []
+      },
+      {
+        "id": 23,
+        "type": "TextField",
+        "props": {
+          "value": "draft",
+          "placeholder": "type",
+          "onChange": true
+        },
+        "children": []
+      },
+      {
+        "id": 25,
+        "type": "CrownRotation",
+        "props": {
+          "value": 5,
+          "from": 0,
+          "through": 10,
+          "onChange": true
+        },
+        "children": [
+          {
+            "id": 24,
+            "type": "Text",
+            "props": {
+              "text": "5"
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 27,
+        "type": "TabView",
+        "props": {},
+        "children": [
+          {
+            "id": 26,
+            "type": "Text",
+            "props": {
+              "text": "tab"
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 32,
+        "type": "NavigationStack",
+        "props": {
+          "onPathChange": true
+        },
+        "children": [
+          {
+            "id": 29,
+            "type": "NavigationRoute",
+            "props": {
+              "path": "/"
+            },
+            "children": [
+              {
+                "id": 28,
+                "type": "NavigationLink",
+                "props": {
+                  "to": "/detail/42",
+                  "label": "go"
+                },
+                "children": []
+              }
+            ]
+          },
+          {
+            "id": 31,
+            "type": "NavigationRoute",
+            "props": {
+              "path": "/detail/[id]"
+            },
+            "children": [
+              {
+                "id": 30,
+                "type": "Text",
+                "props": {
+                  "text": "detail"
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 34,
+        "type": "Alert",
+        "props": {
+          "presented": false,
+          "title": "A",
+          "message": "m",
+          "onChange": true
+        },
+        "children": [
+          {
+            "id": 33,
+            "type": "AlertAction",
+            "props": {
+              "label": "OK",
+              "role": "cancel",
+              "onPress": true
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 36,
+        "type": "ConfirmationDialog",
+        "props": {
+          "presented": false,
+          "title": "C",
+          "onChange": true
+        },
+        "children": [
+          {
+            "id": 35,
+            "type": "AlertAction",
+            "props": {
+              "label": "Do",
+              "onPress": true
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 38,
+        "type": "Sheet",
+        "props": {
+          "presented": false,
+          "onChange": true
+        },
+        "children": [
+          {
+            "id": 37,
+            "type": "Text",
+            "props": {
+              "text": "sheet"
+            },
+            "children": []
+          }
+        ]
+      },
+      {
+        "id": 42,
+        "type": "Grid",
+        "props": {
+          "horizontalSpacing": 2,
+          "verticalSpacing": 2
+        },
+        "children": [
+          {
+            "id": 41,
+            "type": "GridRow",
+            "props": {},
+            "children": [
+              {
+                "id": 39,
+                "type": "Text",
+                "props": {
+                  "text": "c1"
+                },
+                "children": []
+              },
+              {
+                "id": 40,
+                "type": "Text",
+                "props": {
+                  "text": "c2"
+                },
+                "children": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 43,
+        "type": "ShareLink",
+        "props": {
+          "item": "https://example.test"
+        },
+        "children": []
+      },
+      {
+        "id": 44,
+        "type": "Chart",
+        "props": {
+          "type": "bar",
+          "color": "red",
+          "points": [
+            {
+              "x": "mon",
+              "y": 1
+            },
+            {
+              "x": "tue",
+              "y": 2.5
+            }
+          ]
+        },
+        "children": []
+      },
+      {
+        "id": 45,
+        "type": "Map",
+        "props": {
+          "latitude": 41,
+          "longitude": 29,
+          "span": 0.05,
+          "annotations": [
+            {
+              "lat": 41,
+              "lon": 29,
+              "title": "here"
+            }
+          ]
+        },
+        "children": []
+      },
+      {
+        "id": 46,
+        "type": "ProgressView",
+        "props": {
+          "value": 0.4,
+          "total": 1,
+          "label": "dl"
+        },
+        "children": []
+      },
+      {
+        "id": 47,
+        "type": "ContentUnavailable",
+        "props": {
+          "title": "empty",
+          "systemName": "tray",
+          "description": "nothing yet"
+        },
+        "children": []
+      },
+      {
+        "id": 51,
+        "type": "Toolbar",
+        "props": {},
+        "children": [
+          {
+            "id": 50,
+            "type": "ToolbarItem",
+            "props": {
+              "placement": "topBarTrailing"
+            },
+            "children": [
+              {
+                "id": 49,
+                "type": "Button",
+                "props": {
+                  "onPress": true
+                },
+                "children": [
+                  {
+                    "id": 48,
+                    "type": "Text",
+                    "props": {
+                      "text": "t"
+                    },
+                    "children": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
