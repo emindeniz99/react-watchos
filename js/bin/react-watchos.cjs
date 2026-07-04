@@ -22,7 +22,10 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { parseArgs } = require("node:util");
 
-/** Parse the shared build/dev flags. */
+/**
+ * Parse the shared build/dev flags.
+ * @param {string[]} args
+ */
 function buildFlags(args) {
   const { values } = parseArgs({
     args,
@@ -42,10 +45,13 @@ function buildFlags(args) {
     );
     process.exit(1);
   }
-  return values;
+  // Re-spread so the narrowed `entry: string` (the exit above is `never`)
+  // reaches the callers' types, not the optional parseArgs shape.
+  return { ...values, entry: values.entry };
 }
 
-/** One-shot bundle build via the published preset (+ OTA manifest stamp). */
+/** One-shot bundle build via the published preset (+ OTA manifest stamp).
+ *  @param {string[]} args */
 async function build(args) {
   const f = buildFlags(args);
   const { buildBundles } = await import("../esbuild/preset.mjs");
@@ -74,13 +80,19 @@ async function build(args) {
  *  A DEBUG watch build polls <host>:<port>/bundle.js every 2s and hot-restarts
  *  its QuickJS runtime when the bytes change (the polling contract; override
  *  the URL with the ReactWatchDevServerURL Info.plist key). */
+/** @param {string[]} args */
 async function dev(args) {
   const f = buildFlags(args);
+  /** @type {typeof import("esbuild").context} */
   let context;
   try {
     ({ context } = await import("esbuild"));
   } catch (err) {
-    if (err?.code === "ERR_MODULE_NOT_FOUND") {
+    if (
+      err instanceof Error &&
+      "code" in err &&
+      err.code === "ERR_MODULE_NOT_FOUND"
+    ) {
       console.error(
         "[react-watchos] dev needs esbuild installed (npm i -D esbuild).",
       );
@@ -105,7 +117,8 @@ async function dev(args) {
   );
 }
 
-/** Remote inspector UI (tree + logs + errors posted by a DEBUG watch build). */
+/** Remote inspector UI (tree + logs + errors posted by a DEBUG watch build).
+ *  @param {string[]} args */
 async function inspector(args) {
   const { values } = parseArgs({
     args,
@@ -116,7 +129,8 @@ async function inspector(args) {
 }
 
 /** Generate the watch app's Swift entry point, parameterized to match the
- *  plugin's resolved app.json config so the App Group + name always agree. */
+ *  plugin's resolved app.json config so the App Group + name always agree.
+ *  @param {string[]} args */
 function scaffold(args) {
   const projectRoot = process.cwd();
   const force = args.includes("--force");
@@ -128,7 +142,8 @@ function scaffold(args) {
   const config = JSON.parse(fs.readFileSync(appJsonPath, "utf8")).expo ?? {};
   const plugin = require("../plugin");
   const entry = (config.plugins ?? []).find(
-    (p) => (Array.isArray(p) ? p[0] : p) === "react-watchos",
+    (/** @type {unknown} */ p) =>
+      (Array.isArray(p) ? p[0] : p) === "react-watchos",
   );
   if (!entry) {
     console.error(
@@ -169,7 +184,14 @@ function scaffold(args) {
   }
 }
 
-/** Write one scaffolded file, refusing to clobber an edited one without --force. */
+/**
+ * Write one scaffolded file, refusing to clobber an edited one without --force.
+ * @param {string} projectRoot
+ * @param {string} relPath
+ * @param {string} contents
+ * @param {boolean} force
+ * @param {string} note
+ */
 function writeGlue(projectRoot, relPath, contents, force, note) {
   const file = path.join(projectRoot, relPath);
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -222,7 +244,10 @@ switch (command) {
     process.exit(command ? 1 : 0);
 }
 
+/** @param {unknown} error */
 function fail(error) {
-  console.error(`[react-watchos] ${error?.message ?? error}`);
+  console.error(
+    `[react-watchos] ${error instanceof Error ? error.message : error}`,
+  );
   process.exit(1);
 }

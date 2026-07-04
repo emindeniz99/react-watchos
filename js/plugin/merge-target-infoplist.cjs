@@ -19,6 +19,7 @@
 const path = require("node:path");
 const { mergeTargetInfoPlists } = require("./withNativeWiring");
 
+/** @param {string} flag @returns {string | undefined} */
 function arg(flag) {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? process.argv[i + 1] : undefined;

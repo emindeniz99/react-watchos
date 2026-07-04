@@ -82,7 +82,7 @@
     "test": "vitest run",
     "test:swift": "cd swift && swift test",
     "test:swift:watch": "bash scripts/test-watch.sh",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.plugin.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "format": "biome format --write",

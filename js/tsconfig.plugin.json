@@ -1,0 +1,20 @@
+{
+  // The plugin + CLI are plain CommonJS JavaScript (Expo's config-plugin
+  // loader transpiles/requires them outside our build), typed via JSDoc and
+  // checked here with checkJs so they get the same tsc gate as src/.
+  // module/moduleResolution deviate from the base: these files are CJS
+  // (require/module.exports) living in a "type": "module" package, which the
+  // Expo loader handles but NodeNext classification would reject — commonjs +
+  // bundler-style resolution matches how they are actually loaded.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "module": "CommonJS",
+    "moduleResolution": "node10",
+    "resolveJsonModule": true,
+    "isolatedModules": false,
+    "verbatimModuleSyntax": false
+  },
+  "include": ["plugin", "bin", "app.plugin.js"]
+}

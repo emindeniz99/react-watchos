@@ -25,15 +25,39 @@ const HOST_PRODUCTS = ["ReactWatchHost"];
 // configurable provider can name the published relevance-context type.
 const WIDGET_PRODUCTS = ["ReactWatchWidget", "ReactWatchCore"];
 
-/** Ensures an ISA section exists in the pbxproj object graph. */
+/**
+ * The slice of a node-xcode `XcodeProject` this module touches — a structural
+ * type because node-xcode 3.x ships no TypeScript types. The pbxproj object
+ * graph is untyped-by-nature (`any` values), which is honest: node-xcode
+ * exposes it as raw parsed plist objects.
+ * @typedef {{
+ *   hash: { project: { objects: Record<string, Record<string, any>> } },
+ *   generateUuid: () => string,
+ *   getFirstProject: () => { firstProject: {
+ *     packageReferences?: Array<{ value: string, comment?: string }> } },
+ *   parseSync: () => void,
+ *   writeSync: () => string,
+ * }} XcodeProjectLike
+ */
+
+/**
+ * Ensures an ISA section exists in the pbxproj object graph.
+ * @param {Record<string, Record<string, any>>} objects
+ * @param {string} isa
+ */
 function section(objects, isa) {
-  if (!objects[isa]) objects[isa] = {};
-  return objects[isa];
+  const existing = objects[isa];
+  if (existing) return existing;
+  /** @type {Record<string, any>} */
+  const created = {};
+  objects[isa] = created;
+  return created;
 }
 
 // node-xcode preserves the literal surrounding quotes for pbxproj values that
 // contain spaces, so a target named "React Watch" parses as `"React Watch"`
 // (quotes included). Strip them before comparing against a plain target name.
+/** @param {unknown} value */
 function unquote(value) {
   return typeof value === "string" &&
     value.length >= 2 &&
@@ -49,7 +73,7 @@ function unquote(value) {
  * can be unit-smoke-tested without Xcode. Idempotent by package path /
  * (target, product).
  *
- * @param {object} project node-xcode XcodeProject
+ * @param {XcodeProjectLike} project node-xcode XcodeProject
  * @param {{ packagePath: string, targetProducts: Record<string, string[]> }} opts
  * @returns {{ packageRef: string, linked: string[] }}
  */
@@ -85,6 +109,7 @@ function wireLocalPackage(project, { packagePath, targetProducts }) {
   const prodDeps = section(objects, "XCSwiftPackageProductDependency");
   const buildFiles = section(objects, "PBXBuildFile");
   const frameworkPhases = section(objects, "PBXFrameworksBuildPhase");
+  /** @type {string[]} */
   const linked = [];
 
   for (const [targetName, products] of Object.entries(targetProducts)) {
@@ -106,7 +131,7 @@ function wireLocalPackage(project, { packagePath, targetProducts }) {
     // otherwise the product dependency is recorded but never compiled, and the
     // app fails with "no such module". (The widget target does get one.)
     let phase = target.buildPhases
-      .map((p) => frameworkPhases[p.value])
+      .map((/** @type {{ value: string }} */ p) => frameworkPhases[p.value])
       .find(Boolean);
     if (!phase) {
       const phaseUuid = project.generateUuid();
@@ -129,8 +154,11 @@ function wireLocalPackage(project, { packagePath, targetProducts }) {
 
       // 1. The product dependency on the target.
       let depUuid = target.packageProductDependencies
-        .map((d) => d.value)
-        .find((v) => prodDeps[v] && prodDeps[v].productName === productName);
+        .map((/** @type {{ value: string }} */ d) => d.value)
+        .find(
+          (/** @type {string} */ v) =>
+            prodDeps[v] && prodDeps[v].productName === productName,
+        );
       if (!depUuid) {
         depUuid = project.generateUuid();
         prodDeps[depUuid] = {
@@ -146,7 +174,7 @@ function wireLocalPackage(project, { packagePath, targetProducts }) {
       }
 
       // 2. A build file for it in the Frameworks phase.
-      const inPhase = phase.files.some((f) => {
+      const inPhase = phase.files.some((/** @type {{ value: string }} */ f) => {
         const bf = buildFiles[f.value];
         return bf && bf.productRef === depUuid;
       });

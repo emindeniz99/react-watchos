@@ -6,10 +6,19 @@ const path = require("node:path");
 // they discover the resolved target names / types / infoPlist without
 // re-parsing the Expo config (the generated files are the resolved truth).
 
-/** @returns {Array<{ dir: string, name: string, type: string, config: object }>} */
+/**
+ * @typedef {{ dir: string, name: string, type: string,
+ *   config: Record<string, any> }} GeneratedTarget
+ */
+
+/**
+ * @param {string} projectRoot
+ * @returns {GeneratedTarget[]}
+ */
 function readGeneratedTargets(projectRoot) {
   const targetsDir = path.join(projectRoot, "targets");
   if (!fs.existsSync(targetsDir)) return [];
+  /** @type {GeneratedTarget[]} */
   const out = [];
   for (const dir of fs.readdirSync(targetsDir)) {
     const configPath = path.join(targetsDir, dir, "expo-target.config.js");

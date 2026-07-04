@@ -28,9 +28,12 @@ const MOD_NAME = "reactWatchNativeWiring";
 
 /** Merge each generated target's `infoPlist` into the Info.plist apple-targets
  *  wrote, preserving apple-targets' own keys (e.g. a widget's NSExtension).
- *  Idempotent. Returns the dirs it changed. */
+ *  Idempotent. Returns the dirs it changed.
+ *  @param {string} projectRoot
+ *  @returns {string[]} */
 function mergeTargetInfoPlists(projectRoot) {
   const plist = loadPlist(projectRoot);
+  /** @type {string[]} */
   const merged = [];
   for (const { dir, config } of readGeneratedTargets(projectRoot)) {
     const infoPlist = config.infoPlist;
@@ -70,6 +73,8 @@ function mergeTargetInfoPlists(projectRoot) {
  * at build time, which is far harder to diagnose. The genuinely benign case (no
  * watch/widget target to wire) doesn't throw — wireLocalPackage skips an absent
  * target — so it's reported as a warning, not swallowed.
+ * @param {import("@expo/config-plugins").ExportedConfig} config
+ * @param {{ packagePath: string, targetProducts: Record<string, string[]> }} props
  */
 function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
   const projectRoot = config._internal?.projectRoot ?? process.cwd();
@@ -87,7 +92,13 @@ function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
       // watch target never links the host. The "no target yet" case is handled
       // inside wireLocalPackage (it skips an absent target), so it surfaces below
       // as an empty `linked`, not an exception.
-      const { linked } = wireLocalPackage(cfg.modResults, {
+      // modResults is our own base mod's payload (the XcodeProject the provider
+      // below `read`s) — Expo types it as unknown for a custom mod name.
+      const project =
+        /** @type {import("./wireLocalPackage.js").XcodeProjectLike} */ (
+          cfg.modResults
+        );
+      const { linked } = wireLocalPackage(project, {
         packagePath,
         targetProducts,
       });
@@ -121,8 +132,12 @@ function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
     providers: {
       [MOD_NAME]: cp.BaseMods.provider({
         isIntrospective: false,
+        // _internal is optional on the config TYPE, but prebuild always sets
+        // projectRoot before mods run — the cwd fallback is for the type only.
         getFilePath: ({ _internal }) =>
-          cp.IOSConfig.Paths.getPBXProjectPath(_internal.projectRoot),
+          cp.IOSConfig.Paths.getPBXProjectPath(
+            _internal?.projectRoot ?? process.cwd(),
+          ),
         read: (filePath) => {
           const project = xcode.project(filePath);
           project.parseSync();

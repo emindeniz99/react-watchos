@@ -10,10 +10,33 @@
 // Kept dependency-free so the generated config files (and these builders) can
 // be unit-tested without Expo or Xcode.
 
-/** Resolved option set with defaults applied (see plugin/index.js). */
+/**
+ * Resolved option set with defaults applied (built by plugin/index.js
+ * `resolveOptions`; defined here so every module that consumes it — index,
+ * these builders, the CLI scaffold — shares one shape without a cycle).
+ * @typedef {{
+ *   name: string,
+ *   widgetName: string,
+ *   appGroup: string,
+ *   widget: boolean,
+ *   healthKit: boolean,
+ *   deploymentTarget: string,
+ *   appleTeamId: string | undefined,
+ *   scheme: string,
+ *   watchBundleSuffix: string,
+ *   widgetBundleSuffix: string,
+ *   independent: boolean,
+ *   bundleIdentifier: string,
+ *   infoPlist: Record<string, unknown>,
+ * }} ResolvedOptions
+ */
 
-/** The watch app's apple-targets config object. */
+/**
+ * The watch app's apple-targets config object.
+ * @param {ResolvedOptions} opts
+ */
 function watchTargetConfig(opts) {
+  /** @type {Record<string, unknown>} */
   const entitlements = {
     "com.apple.security.application-groups": [opts.appGroup],
   };
@@ -32,6 +55,7 @@ function watchTargetConfig(opts) {
   // absent = dependent). It's gated behind the option, not hard-coded, because
   // independence can't be reverted after an App Store upload (see index.js).
   const urlName = `${opts.bundleIdentifier}.routes`;
+  /** @type {Record<string, unknown>} */
   const infoPlist = {
     ...(opts.independent ? { WKRunsIndependentlyOfCompanionApp: true } : {}),
     CFBundleURLTypes: [
@@ -71,6 +95,7 @@ function watchTargetConfig(opts) {
 // The widget extension's apple-targets config object. `families` is a JS-side
 // concept (which complication families a widget registers) and is NOT an
 // apple-targets config key, so it is intentionally not emitted here.
+/** @param {ResolvedOptions} opts */
 function widgetTargetConfig(opts) {
   return {
     type: "watch-widget",

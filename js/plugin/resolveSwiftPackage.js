@@ -16,7 +16,10 @@ const path = require("node:path");
 // project root (the consumer's app dir) so it picks the consumer's installed
 // copy, not whichever copy is nearest this plugin file.
 
-/** Absolute path to the SwiftPM host directory (contains Package.swift). */
+/**
+ * Absolute path to the SwiftPM host directory (contains Package.swift).
+ * @param {string} projectRoot
+ */
 function resolveSwiftPackageDir(projectRoot) {
   const pkgJson = require.resolve("react-watchos/package.json", {
     paths: [projectRoot],
@@ -35,6 +38,8 @@ function resolveSwiftPackageDir(projectRoot) {
  * for use as XCLocalSwiftPackageReference.relativePath. apple-targets writes
  * the pbxproj under `<projectRoot>/ios/<name>.xcodeproj`, so the reference is
  * relative to that ios/ dir.
+ * @param {string} projectRoot
+ * @param {string} iosProjectDir
  */
 function swiftPackageRelativePath(projectRoot, iosProjectDir) {
   const abs = resolveSwiftPackageDir(projectRoot);

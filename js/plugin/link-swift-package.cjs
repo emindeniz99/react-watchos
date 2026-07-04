@@ -29,6 +29,7 @@ const {
 const { swiftPackageRelativePath } = require("./resolveSwiftPackage");
 const { readGeneratedTargets } = require("./readTargets.cjs");
 
+/** @param {string} flag @returns {string | undefined} */
 function arg(flag) {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? process.argv[i + 1] : undefined;
@@ -47,6 +48,7 @@ if (!projName) {
 }
 
 // target NAME -> SwiftPM products, by target type (watch host vs widget ext).
+/** @type {Record<string, string[]>} */
 const targetProducts = {};
 for (const { name, type } of readGeneratedTargets(projectRoot)) {
   if (type === "watch") targetProducts[name] = HOST_PRODUCTS;
