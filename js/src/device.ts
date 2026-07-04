@@ -26,6 +26,16 @@ export interface DeviceInfo {
   voiceOverRunning: boolean;
   /** Dynamic Type size, e.g. "UICTContentSizeCategoryL". */
   preferredContentSizeCategory: string;
+  /**
+   * i18n foundation (M7). QuickJS ships no `Intl` — `toLocaleString` renders
+   * a hardcoded US-style format — so these host fields are how an app picks a
+   * translation table and formats per user. `locale` is the full identifier
+   * (e.g. "de_DE"), `language` the bare code ("de").
+   */
+  locale: string;
+  language: string;
+  /** The user's time-format preference (12h vs 24h clock). */
+  is24Hour: boolean;
 }
 
 /** Fetches the current device snapshot. Rejects (invoke `UNAVAILABLE`) when

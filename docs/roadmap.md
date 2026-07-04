@@ -118,6 +118,7 @@ Owns the companion app, new `__host` methods, native-event streams.
 | Sensors / HealthKit | P1 | M-L | Heart rate, motion, workout sessions as native-event streams on the push channel. HealthKit adds entitlement/privacy plumbing. Builds directly on `__pushNativeEvent`. |
 | Dynamic Type + reduce-motion | P2 | S | Labels already done; add scaled fonts and motion-reduction honoring. |
 | Live Activities / Smart Stack+ | P2 | M | Extends the existing widget timeline pipeline. |
+| **i18n track (M7)** | P1 | M | QuickJS has no `Intl`; the gap was undocumented until the 2026-07-04 review. Step 1 SHIPPED: `locale`/`language`/`is24Hour` in `getDeviceInfo()` + README limitation. Step 2: a native date/number formatting primitive (the TimerText "hand native the declarative target" philosophy). Step 3: a documented translation-table pattern. |
 
 ## Sequencing & dependencies
 

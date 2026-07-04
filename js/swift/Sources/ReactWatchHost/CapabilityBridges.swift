@@ -37,7 +37,24 @@ enum DeviceSnapshot {
             "reduceMotion": WKAccessibilityIsReduceMotionEnabled(),
             "voiceOverRunning": WKAccessibilityIsVoiceOverRunning(),
             "preferredContentSizeCategory": device.preferredContentSizeCategory,
+            // i18n foundation (M7): QuickJS ships no Intl, so JS can't even
+            // pick a translation table or a date format without the host
+            // exposing the user's locale. BCP-47 identifier + bare language
+            // code + the 12/24-hour preference (derived from the localized
+            // time template — watchOS has no direct API for it).
+            "locale": Locale.current.identifier,
+            "language": Locale.current.language.languageCode?.identifier ?? "en",
+            "is24Hour": is24HourClock(),
         ]
+    }
+
+    /// Whether the user's time format is 24-hour: the localized hour template
+    /// for the current locale contains "H" (24h) vs "a" (am/pm marker).
+    private static func is24HourClock() -> Bool {
+        let format =
+            DateFormatter.dateFormat(
+                fromTemplate: "j", options: 0, locale: Locale.current) ?? ""
+        return !format.contains("a")
     }
 
     /// Locks the touch screen (Water Lock); the crown unlocks + ejects water.

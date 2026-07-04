@@ -471,6 +471,13 @@ signing still untested — Rule 12):**
   `alignment`).
 - **Controls require watchOS 26**; gated with `#available`, everything
   else runs on watchOS 10+.
+- **No `Intl`.** QuickJS ships without the ECMAScript i18n API —
+  `toLocaleString`/`toLocaleDateString` render a hardcoded US-style format,
+  and there's no `Intl.NumberFormat`/`DateTimeFormat`. The host exposes the
+  user's `locale`/`language`/`is24Hour` via `getDeviceInfo()` so an app can
+  pick a translation table and format accordingly (or hand native a
+  declarative target like `<TimerText>`, which formats natively). A native
+  date/number formatting primitive is a roadmap track.
 - **Input round-trips**: Toggle/Picker/TextField keep optimistic local
   state to hide the JS round-trip, released by a seq-ack protocol —
   every dispatch carries a sequence number, every commit acks the
