@@ -1,0 +1,266 @@
+{
+  "VStack": {
+    "app": [
+      "alignment",
+      "spacing"
+    ],
+    "widget": [
+      "alignment",
+      "spacing"
+    ]
+  },
+  "HStack": {
+    "app": [
+      "alignment",
+      "spacing"
+    ],
+    "widget": [
+      "alignment",
+      "spacing"
+    ]
+  },
+  "ZStack": {
+    "app": [
+      "alignment"
+    ],
+    "widget": [
+      "alignment"
+    ]
+  },
+  "ScrollView": {
+    "app": [],
+    "widget": []
+  },
+  "List": {
+    "app": [],
+    "widget": []
+  },
+  "TabView": {
+    "app": [
+      "selection"
+    ],
+    "widget": []
+  },
+  "Spacer": {
+    "app": [],
+    "widget": []
+  },
+  "Divider": {
+    "app": [],
+    "widget": []
+  },
+  "Text": {
+    "app": [
+      "text"
+    ],
+    "widget": [
+      "text"
+    ]
+  },
+  "TimerText": {
+    "app": [],
+    "widget": []
+  },
+  "FormattedText": {
+    "app": [],
+    "widget": []
+  },
+  "Image": {
+    "app": [],
+    "widget": [
+      "color",
+      "data",
+      "size",
+      "systemName"
+    ]
+  },
+  "Map": {
+    "app": [],
+    "widget": []
+  },
+  "Gauge": {
+    "app": [],
+    "widget": []
+  },
+  "ProgressView": {
+    "app": [
+      "label",
+      "total",
+      "value"
+    ],
+    "widget": [
+      "label",
+      "total",
+      "value"
+    ]
+  },
+  "Button": {
+    "app": [],
+    "widget": []
+  },
+  "Toggle": {
+    "app": [
+      "label"
+    ],
+    "widget": [
+      "label"
+    ]
+  },
+  "Slider": {
+    "app": [
+      "from",
+      "step",
+      "through"
+    ],
+    "widget": [
+      "from",
+      "through",
+      "value"
+    ]
+  },
+  "Stepper": {
+    "app": [
+      "from",
+      "label",
+      "step",
+      "through"
+    ],
+    "widget": [
+      "from",
+      "through",
+      "value"
+    ]
+  },
+  "Picker": {
+    "app": [
+      "label",
+      "options"
+    ],
+    "widget": []
+  },
+  "DatePicker": {
+    "app": [
+      "label",
+      "mode"
+    ],
+    "widget": [
+      "value"
+    ]
+  },
+  "TextField": {
+    "app": [],
+    "widget": [
+      "placeholder",
+      "value"
+    ]
+  },
+  "CrownRotation": {
+    "app": [],
+    "widget": []
+  },
+  "NavigationStack": {
+    "app": [],
+    "widget": []
+  },
+  "NavigationLink": {
+    "app": [],
+    "widget": [
+      "label",
+      "to"
+    ]
+  },
+  "NavigationRoute": {
+    "app": [],
+    "widget": []
+  },
+  "Alert": {
+    "app": [],
+    "widget": []
+  },
+  "AlertAction": {
+    "app": [],
+    "widget": []
+  },
+  "ConfirmationDialog": {
+    "app": [],
+    "widget": []
+  },
+  "Sheet": {
+    "app": [],
+    "widget": []
+  },
+  "Section": {
+    "app": [
+      "footer",
+      "header"
+    ],
+    "widget": [
+      "footer",
+      "header"
+    ]
+  },
+  "Label": {
+    "app": [
+      "color",
+      "label",
+      "systemName"
+    ],
+    "widget": [
+      "color",
+      "label",
+      "systemName"
+    ]
+  },
+  "Grid": {
+    "app": [
+      "horizontalSpacing",
+      "verticalSpacing"
+    ],
+    "widget": [
+      "horizontalSpacing",
+      "verticalSpacing"
+    ]
+  },
+  "GridRow": {
+    "app": [],
+    "widget": []
+  },
+  "ShareLink": {
+    "app": [],
+    "widget": []
+  },
+  "Chart": {
+    "app": [],
+    "widget": []
+  },
+  "LabeledContent": {
+    "app": [
+      "label",
+      "value"
+    ],
+    "widget": [
+      "label",
+      "value"
+    ]
+  },
+  "ContentUnavailable": {
+    "app": [
+      "description",
+      "systemName",
+      "title"
+    ],
+    "widget": [
+      "description",
+      "systemName",
+      "title"
+    ]
+  },
+  "Toolbar": {
+    "app": [],
+    "widget": []
+  },
+  "ToolbarItem": {
+    "app": [],
+    "widget": []
+  }
+}
