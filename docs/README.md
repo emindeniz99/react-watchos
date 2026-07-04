@@ -84,8 +84,13 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   full-system review + strategic alternatives (NF-01…36): engine
   (quickjs-ng vs XS/Moddable vs Hermes, argued in depth), UI model (React
   vs SolidJS/signals — verdict: the wire protocol is the real seam),
-  design-system layer spec, and a prioritized P0–P2 plan. Newest review;
-  supersedes earlier ones where they disagree.
+  design-system layer spec, and a prioritized P0–P2 plan.
+- [full-project-review-2026-07-04.md](./full-project-review-2026-07-04.md) —
+  **the production-readiness review** (all 8 dimensions, adversarially
+  verified): 4 blockers (dark CI pipeline, npm name taken, widget-runtime
+  deadlock, Swift-6 compile breakers), 19 confirmed majors, per-dimension
+  scorecard, ordered action plan, and roadmap. Newest review; supersedes
+  earlier ones where they disagree.
 
 ## Reference / background
 
