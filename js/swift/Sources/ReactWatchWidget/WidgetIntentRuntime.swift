@@ -237,11 +237,22 @@ public final class WidgetIntentRuntime {
     public static func renderFreshTimelines(
         appGroupId: String, now: Date = .now, maxAge: TimeInterval = 5
     ) -> PublishedWidgets? {
+        // Fast path: a fresh-enough cached payload, read under the lock.
         cacheLock.lock()
-        defer { cacheLock.unlock() }
         if let cache = freshCache, now.timeIntervalSince(cache.date) < maxAge {
-            return cache.payload
+            let payload = cache.payload
+            cacheLock.unlock()
+            return payload
         }
+        cacheLock.unlock()
+
+        // Construct + evaluate OUTSIDE the lock (B3): init evaluates the whole
+        // bundle with the publishWidgets closure already wired, and a bundle
+        // that publishes during load re-enters invalidateCache — holding the
+        // non-reentrant cacheLock across that was a deterministic same-thread
+        // deadlock (extension watchdog-killed, complications frozen). Cost of
+        // the narrower critical section: two providers racing past the fast
+        // path render twice; last write wins — a duplicate render, not a hang.
         guard let runtime = WidgetIntentRuntime(appGroupId: appGroupId) else {
             return nil
         }
@@ -254,7 +265,9 @@ public final class WidgetIntentRuntime {
             return nil
         }
         runtime.store.save(json)
+        cacheLock.lock()
         freshCache = (now, payload)
+        cacheLock.unlock()
         return payload
     }
 
