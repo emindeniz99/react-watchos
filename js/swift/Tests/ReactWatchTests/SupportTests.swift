@@ -1307,3 +1307,45 @@ final class RNFormatTests: XCTestCase {
         XCTAssertEqual(out, "")
     }
 }
+
+// OTA transport policy (review §6.11c) — mirrored by js update.ts
+// `updateURLViolation`; the two matrices must stay identical.
+final class UpdateURLPolicyTests: XCTestCase {
+    func testHttpsIsAlwaysAllowed() {
+        XCTAssertNil(UpdateURLPolicy.violation(of: "https://updates.example.com/m.json"))
+    }
+
+    func testPublicHttpIsRefused() {
+        XCTAssertNotNil(UpdateURLPolicy.violation(of: "http://updates.example.com/m.json"))
+    }
+
+    func testDevHostsMayUsePlainHttp() {
+        for url in [
+            "http://localhost:8788/manifest.json",
+            "http://127.0.0.1:8788/manifest.json",
+            "http://10.0.1.5/m.json",
+            "http://192.168.1.20/m.json",
+            "http://172.16.0.2/m.json",
+            "http://172.31.255.1/m.json",
+            "http://emins-mac.local:8788/m.json",
+        ] {
+            XCTAssertNil(UpdateURLPolicy.violation(of: url), url)
+        }
+    }
+
+    func testNearMissPrivateRangesAreRefused() {
+        for url in [
+            "http://172.15.0.2/m.json",  // below the /12
+            "http://172.32.0.2/m.json",  // above the /12
+            "http://1270.0.0.1/m.json",  // not loopback
+            "http://mylocal.example.com/m.json",  // ".local" only as a suffix label
+        ] {
+            XCTAssertNotNil(UpdateURLPolicy.violation(of: url), url)
+        }
+    }
+
+    func testNonHTTPSchemesAndRelativeURLsAreRefused() {
+        XCTAssertNotNil(UpdateURLPolicy.violation(of: "ftp://x.example/m.json"))
+        XCTAssertNotNil(UpdateURLPolicy.violation(of: "/relative/manifest.json"))
+    }
+}

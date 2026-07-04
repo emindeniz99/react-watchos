@@ -261,6 +261,44 @@ function resolveBundleUrl(manifestUrl: string, bundle: string): string {
   return manifestUrl.replace(/[^/]*$/, "") + bundle;
 }
 
+/**
+ * OTA transport policy (review §6.11c): update URLs must be https. Plain http
+ * is allowed ONLY for the documented dev flow — loopback and private-LAN
+ * hosts (the plugin's NSAllowsLocalNetworking scope: localhost, 127.x, [::1],
+ * 10.x, 192.168.x, 172.16-31.x, and mDNS *.local — "your Mac on the LAN").
+ * The Ed25519 signature protects bundle INTEGRITY regardless; this closes the
+ * cleartext exposure that remains — manifest metadata privacy and an on-path
+ * attacker shaping freeze/suppression responses. Returns the refusal reason,
+ * or null when allowed. Mirrored in Swift's UpdateURLPolicy (the native
+ * recovery path), pinned by tests on both sides.
+ */
+function updateURLViolation(url: string): string | null {
+  const match = /^([a-z][a-z0-9+.-]*):\/\/([^/:?#]*)/i.exec(url);
+  const scheme = match?.[1]?.toLowerCase();
+  const host = match?.[2]?.toLowerCase();
+  if (scheme === undefined || host === undefined) {
+    return `update URL must be absolute (https://…): ${url}`;
+  }
+  if (scheme === "https") return null;
+  if (scheme === "http" && isPrivateHost(host)) return null;
+  return (
+    "update URL must be https — plain http is allowed only for " +
+    `localhost/private-LAN dev hosts: ${url}`
+  );
+}
+
+function isPrivateHost(host: string): boolean {
+  if (host === "localhost" || host === "[::1]") return true;
+  if (host.endsWith(".local")) return true;
+  if (/^(127|10)\./.test(host) || /^192\.168\./.test(host)) return true;
+  const octets = /^172\.(\d{1,3})\./.exec(host);
+  if (octets) {
+    const second = Number(octets[1]);
+    return second >= 16 && second <= 31;
+  }
+  return false;
+}
+
 /** The content id of the bundle currently running, exposed by the host as
  *  `globalThis.__bundleReleaseId` (CX-025). null under a test/dev host or an
  *  older binary that doesn't expose it — then freshness falls back to version. */
@@ -341,6 +379,8 @@ export async function checkForUpdate(manifestUrl: string): Promise<{
   appUpdateRequired?: boolean;
   missingCapabilities?: string[];
 }> {
+  const violation = updateURLViolation(manifestUrl);
+  if (violation !== null) throw new Error(violation);
   const manifest = parseManifest(await (await fetch(manifestUrl)).json());
   const isNewer = isFresherRelease(manifest);
   const host = hostCapabilities();
@@ -367,11 +407,17 @@ export async function checkForUpdate(manifestUrl: string): Promise<{
 export async function fetchAndApplyUpdate(
   manifestUrl: string,
 ): Promise<number | null> {
+  const manifestViolation = updateURLViolation(manifestUrl);
+  if (manifestViolation !== null) throw new Error(manifestViolation);
   const manifest = parseManifest(await (await fetch(manifestUrl)).json());
   if (!isFresherRelease(manifest)) return null;
   const host = hostCapabilities();
   if (host && capabilityGap(manifest, host).length > 0) return null;
   const url = resolveBundleUrl(manifestUrl, manifest.bundle);
+  // The manifest's `bundle` may be an ABSOLUTE URL pointing anywhere — check
+  // it too, or a cleartext bundle URL rides in on an https manifest.
+  const bundleViolation = updateURLViolation(url);
+  if (bundleViolation !== null) throw new Error(bundleViolation);
   const js = await (await fetch(url)).text();
   const result = await applyUpdate(
     js,

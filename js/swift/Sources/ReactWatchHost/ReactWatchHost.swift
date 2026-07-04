@@ -535,11 +535,23 @@ final class ReactWatchModel: ObservableObject {
             runtimeError = "no update URL configured"
             return
         }
+        // Same transport policy as the JS update flow (review §6.11c): https
+        // required, plain http only for loopback/private-LAN dev hosts.
+        if let violation = UpdateURLPolicy.violation(of: urlString) {
+            runtimeError = violation
+            return
+        }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let manifest = try JSONDecoder().decode(RemoteManifest.self, from: data)
             guard let bundleURL = URL(string: manifest.bundle, relativeTo: url) else {
                 runtimeError = "update manifest has no bundle URL"
+                return
+            }
+            // The manifest's `bundle` may be absolute — check the RESOLVED
+            // URL too, or a cleartext bundle rides in on an https manifest.
+            if let violation = UpdateURLPolicy.violation(of: bundleURL.absoluteString) {
+                runtimeError = violation
                 return
             }
             let (jsData, _) = try await URLSession.shared.data(from: bundleURL)

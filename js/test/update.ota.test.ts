@@ -54,6 +54,51 @@ describe("OTA observability (getUpdateState)", () => {
   });
 });
 
+describe("OTA transport policy (https enforcement)", () => {
+  it("refuses a public plain-http manifest URL loudly", async () => {
+    installMockHost();
+    g.fetch = vi.fn();
+    await expect(
+      checkForUpdate("http://updates.example.com/manifest.json"),
+    ).rejects.toThrow(/must be https/);
+    await expect(
+      fetchAndApplyUpdate("http://updates.example.com/manifest.json"),
+    ).rejects.toThrow(/must be https/);
+    expect(g.fetch).not.toHaveBeenCalled(); // refused BEFORE any network I/O
+  });
+
+  it("allows the documented dev hosts over plain http", async () => {
+    installMockHost();
+    for (const base of [
+      "http://localhost:8788",
+      "http://127.0.0.1:8788",
+      "http://192.168.1.20",
+      "http://172.16.0.2",
+      "http://emins-mac.local:8788",
+    ]) {
+      g.fetch = vi.fn(async () => ({
+        json: async () => ({ version: BUNDLE_VERSION, bundle: "bundle.js" }),
+      }));
+      await expect(
+        checkForUpdate(`${base}/manifest.json`),
+      ).resolves.toMatchObject({ updateAvailable: false });
+    }
+  });
+
+  it("refuses a cleartext ABSOLUTE bundle URL riding on an https manifest", async () => {
+    installMockHost();
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: BUNDLE_VERSION + 1,
+        bundle: "http://updates.example.com/bundle.js",
+      }),
+    }));
+    await expect(
+      fetchAndApplyUpdate("https://updates.example.com/manifest.json"),
+    ).rejects.toThrow(/must be https/);
+  });
+});
+
 describe("OTA applyUpdate", () => {
   it("forwards the bundle through invoke and resolves accepted", async () => {
     const host = installMockHost();
