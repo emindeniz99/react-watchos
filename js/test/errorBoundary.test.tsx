@@ -73,9 +73,9 @@ describe("ErrorBoundary", () => {
     const host = new MemoryHost();
     new WatchRoot(host).render(
       <ErrorBoundary
-        fallback={(e, info) =>
+        fallback={(e, info) => (
           <Text>{`${e.message}@${info?.componentStack ? "Boom" : "none"}`}</Text>
-        }
+        )}
       >
         <Boom />
       </ErrorBoundary>,

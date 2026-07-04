@@ -39,9 +39,13 @@ export function getProducts(productIds: string[]): Promise<IAPProduct[]> {
 export function purchase(productId: string): Promise<PurchaseResult> {
   // The StoreKit payment sheet blocks on the user (and possibly Apple ID
   // re-auth), so bound it at the user-mediated ceiling, not the 30 s default.
-  return invoke<PurchaseResult>("purchase", { productId }, {
-    timeoutMs: USER_MEDIATED_INVOKE_TIMEOUT_MS,
-  });
+  return invoke<PurchaseResult>(
+    "purchase",
+    { productId },
+    {
+      timeoutMs: USER_MEDIATED_INVOKE_TIMEOUT_MS,
+    },
+  );
 }
 
 /** The product ids the user is currently entitled to (owned non-consumables +
