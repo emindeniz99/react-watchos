@@ -50,6 +50,9 @@ export const components = [
   // widget — WidgetKit timelines can't live-tick sub-second (see the widget
   // interpreter's timerText). Plain mm:ss timers render fully.
   { name: "TimerText", widget: "degraded" },
+  // Locale-aware date/number text, formatted natively (i18n step 2) — pure
+  // Text output, so the widget renders it fully.
+  { name: "FormattedText", widget: "full" },
   { name: "Image", widget: "full" },
   { name: "Map", widget: "degraded" },
   { name: "Gauge", widget: "full" },

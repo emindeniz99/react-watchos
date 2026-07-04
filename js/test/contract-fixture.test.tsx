@@ -14,6 +14,7 @@ import {
   CrownRotation,
   DatePicker,
   Divider,
+  FormattedText,
   Gauge,
   Grid,
   GridRow,
@@ -186,6 +187,8 @@ describe("swift contract fixtures", () => {
           <Text>tab</Text>
           <Text>tab 2</Text>
         </TabView>
+        <FormattedText date={1768483200000} dateStyle="medium" />
+        <FormattedText value={1234.5} format="currency" currency="USD" />
         <NavigationStack>
           <NavigationRoute path="/">
             <NavigationLink to="/detail/42" label="go" />

@@ -94,6 +94,11 @@ struct NodeView: View {
             }
         case "TimerText":
             timerText
+        case "FormattedText":
+            // Locale-aware date/number formatting, done natively (i18n step
+            // 2). The mapping is the shared RNFormat kernel so the widget
+            // interpreter can't drift.
+            styled(Text(RNFormat.text(for: node)))
         case "Button":
             buttonView
         case "Toggle":

@@ -376,6 +376,37 @@ export interface TimerTextProps extends A11yProps, ModifierProps {
   color?: string;
 }
 
+/**
+ * Locale-aware formatted date/number text, rendered natively (i18n step 2).
+ * QuickJS ships no `Intl` — instead of embedding ICU in the bundle, declare
+ * the value and native formats it with the device locale (the TimerText
+ * "hand native the declarative target" philosophy), so the output always
+ * matches the user's region settings. Set `date` for a date/time or `value`
+ * for a number; `date` wins when both are set.
+ */
+export interface FormattedTextProps extends A11yProps, ModifierProps {
+  /** Epoch milliseconds to render as a localized date/time. */
+  date?: number;
+  /**
+   * Date part style. Default: "medium" for a bare `date`; "none" once
+   * `timeStyle` is set (so a time-only render has no surprise date prefix).
+   */
+  dateStyle?: "none" | "short" | "medium" | "long" | "full";
+  /** Time part style (default "none"). */
+  timeStyle?: "none" | "short" | "medium" | "long" | "full";
+  /** Number to render with the device locale's separators. */
+  value?: number;
+  /** Number shape: "percent" renders 0.5 as "50%" (the Intl convention). */
+  format?: "decimal" | "percent" | "currency";
+  /** ISO 4217 code for `format: "currency"`; absent = the locale's own. */
+  currency?: string;
+  minFractionDigits?: number;
+  maxFractionDigits?: number;
+  bold?: boolean;
+  size?: number;
+  color?: string;
+}
+
 /** An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
  *  presentation automatically when an action is tapped; `onPress` fires for
  *  the tapped action and the presentation's `onChange(false)` fires too. */
@@ -527,6 +558,8 @@ export const TextField = "TextField" as unknown as FC<TextFieldProps>;
 export const Picker = "Picker" as unknown as FC<PickerProps>;
 export const TabView = "TabView" as unknown as FC<TabViewProps>;
 export const TimerText = "TimerText" as unknown as FC<TimerTextProps>;
+export const FormattedText =
+  "FormattedText" as unknown as FC<FormattedTextProps>;
 export const CrownRotation =
   "CrownRotation" as unknown as FC<CrownRotationProps>;
 export const Slider = "Slider" as unknown as FC<SliderProps>;

@@ -1187,3 +1187,114 @@ final class RNStyleChartTests: XCTestCase {
         XCTAssertEqual(RNStyle.chartPoints(from: nil), [])
     }
 }
+
+// RNFormat (i18n step 2): the FormattedText kernel. Locale + timezone are
+// pinned so the assertions hold on Linux and macOS ICU alike; time strings
+// avoid exact spaces (newer ICU inserts a narrow NBSP before AM/PM).
+final class RNFormatTests: XCTestCase {
+    private let en = Locale(identifier: "en_US")
+    private let de = Locale(identifier: "de_DE")
+    private let utc = TimeZone(identifier: "UTC")!
+
+    /// Epoch ms for a UTC calendar date, built via Calendar so the tests
+    /// don't hand-roll epoch arithmetic.
+    private func ms(
+        _ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0
+    ) -> Double {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = utc
+        let components = DateComponents(
+            year: year, month: month, day: day, hour: hour, minute: minute)
+        return calendar.date(from: components)!.timeIntervalSince1970 * 1000
+    }
+
+    func testBareDateDefaultsToMediumDateWithNoTime() {
+        let out = RNFormat.date(
+            ms: ms(2026, 1, 15, 13, 20), dateStyle: nil, timeStyle: nil,
+            locale: en, timeZone: utc)
+        XCTAssertEqual(out, "Jan 15, 2026")
+    }
+
+    func testTimeOnlyHasNoSurpriseDatePrefix() {
+        let out = RNFormat.date(
+            ms: ms(2026, 1, 15, 13, 20), dateStyle: nil, timeStyle: "short",
+            locale: en, timeZone: utc)
+        XCTAssertTrue(out.contains("1:20"), "got: \(out)")
+        XCTAssertFalse(out.contains("2026"), "time-only must not render the date: \(out)")
+    }
+
+    func testLocaleDrivesTheDateShape() {
+        let out = RNFormat.date(
+            ms: ms(2026, 1, 15), dateStyle: "short", timeStyle: nil,
+            locale: de, timeZone: utc)
+        XCTAssertEqual(out, "15.01.26")
+    }
+
+    func testDecimalUsesLocaleSeparators() {
+        XCTAssertEqual(
+            RNFormat.number(
+                1234.5, format: nil, currency: nil,
+                minFractionDigits: nil, maxFractionDigits: nil, locale: en),
+            "1,234.5")
+        XCTAssertEqual(
+            RNFormat.number(
+                1234.5, format: "decimal", currency: nil,
+                minFractionDigits: nil, maxFractionDigits: nil, locale: de),
+            "1.234,5")
+    }
+
+    func testPercentFollowsTheIntlConvention() {
+        XCTAssertEqual(
+            RNFormat.number(
+                0.5, format: "percent", currency: nil,
+                minFractionDigits: nil, maxFractionDigits: nil, locale: en),
+            "50%")
+    }
+
+    func testCurrencyUsesTheGivenCode() {
+        let out = RNFormat.number(
+            1234.5, format: "currency", currency: "USD",
+            minFractionDigits: nil, maxFractionDigits: nil, locale: en)
+        XCTAssertEqual(out, "$1,234.50")
+    }
+
+    func testFractionDigitsApplyAndAHostileValueCannotTrap() {
+        XCTAssertEqual(
+            RNFormat.number(
+                1.5, format: nil, currency: nil,
+                minFractionDigits: 3, maxFractionDigits: nil, locale: en),
+            "1.500")
+        // M3 family: a huge JS double must clamp, not trap Int().
+        XCTAssertEqual(
+            RNFormat.number(
+                1.25, format: nil, currency: nil,
+                minFractionDigits: nil, maxFractionDigits: 1e300, locale: en),
+            "1.25")
+    }
+
+    func testUnknownNumberFormatFallsBackToDecimal() {
+        XCTAssertEqual(
+            RNFormat.number(
+                7, format: "bogus", currency: nil,
+                minFractionDigits: nil, maxFractionDigits: nil, locale: en),
+            "7")
+    }
+
+    func testNodeUnpackingDateWinsOverValue() {
+        let out = RNFormat.text(
+            dateMs: ms(2026, 1, 15), dateStyle: nil, timeStyle: nil,
+            value: 42, format: nil, currency: nil,
+            minFractionDigits: nil, maxFractionDigits: nil,
+            locale: en, timeZone: utc)
+        XCTAssertEqual(out, "Jan 15, 2026")
+    }
+
+    func testNeitherDateNorValueRendersEmpty() {
+        let out = RNFormat.text(
+            dateMs: nil, dateStyle: nil, timeStyle: nil,
+            value: nil, format: nil, currency: nil,
+            minFractionDigits: nil, maxFractionDigits: nil,
+            locale: en, timeZone: utc)
+        XCTAssertEqual(out, "")
+    }
+}

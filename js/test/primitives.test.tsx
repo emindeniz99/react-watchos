@@ -4,6 +4,7 @@ import {
   CrownRotation,
   DatePicker,
   Divider,
+  FormattedText,
   Gauge,
   HStack,
   Image,
@@ -341,6 +342,25 @@ describe("input primitives", () => {
     expect(root.children).toHaveLength(2);
     // Uncontrolled: no selection prop crosses, so native must not bind.
     expect(root.props.selection).toBeUndefined();
+  });
+
+  it("serializes FormattedText date and number modes", () => {
+    const root = render(
+      <VStack>
+        <FormattedText date={1768483200000} timeStyle="short" />
+        <FormattedText value={0.5} format="percent" maxFractionDigits={1} />
+      </VStack>,
+    );
+    // Only the declarative target crosses the wire — native owns the
+    // locale-aware rendering (i18n step 2), so there is no formatted string.
+    expect(root.children[0]).toMatchObject({
+      type: "FormattedText",
+      props: { date: 1768483200000, timeStyle: "short" },
+    });
+    expect(root.children[1]).toMatchObject({
+      type: "FormattedText",
+      props: { value: 0.5, format: "percent", maxFractionDigits: 1 },
+    });
   });
 
   it("routes a controlled TabView swipe through onChange like Picker", () => {

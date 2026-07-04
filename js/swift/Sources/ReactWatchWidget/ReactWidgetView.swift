@@ -128,6 +128,10 @@ public struct WidgetNodeView: View {
             }
         case "TimerText":
             timerText(node)
+        case "FormattedText":
+            // Locale-aware date/number text — full support: the shared
+            // RNFormat kernel gives byte-identical output with the app.
+            styled(node, Text(RNFormat.text(for: node)))
         case "Image":
             // Widgets can't load remote images (no async at render time), so
             // a `source` URL falls back to a symbol; base64 `data` works.

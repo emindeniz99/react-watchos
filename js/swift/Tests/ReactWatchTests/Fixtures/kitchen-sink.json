@@ -2,7 +2,7 @@
   "v": 1,
   "seq": 0,
   "root": {
-    "id": 53,
+    "id": 55,
     "type": "VStack",
     "props": {
       "spacing": 4,
@@ -295,21 +295,40 @@
         ]
       },
       {
-        "id": 33,
+        "id": 29,
+        "type": "FormattedText",
+        "props": {
+          "date": 1768483200000,
+          "dateStyle": "medium"
+        },
+        "children": []
+      },
+      {
+        "id": 30,
+        "type": "FormattedText",
+        "props": {
+          "value": 1234.5,
+          "format": "currency",
+          "currency": "USD"
+        },
+        "children": []
+      },
+      {
+        "id": 35,
         "type": "NavigationStack",
         "props": {
           "onPathChange": true
         },
         "children": [
           {
-            "id": 30,
+            "id": 32,
             "type": "NavigationRoute",
             "props": {
               "path": "/"
             },
             "children": [
               {
-                "id": 29,
+                "id": 31,
                 "type": "NavigationLink",
                 "props": {
                   "to": "/detail/42",
@@ -320,14 +339,14 @@
             ]
           },
           {
-            "id": 32,
+            "id": 34,
             "type": "NavigationRoute",
             "props": {
               "path": "/detail/[id]"
             },
             "children": [
               {
-                "id": 31,
+                "id": 33,
                 "type": "Text",
                 "props": {
                   "text": "detail"
@@ -339,7 +358,7 @@
         ]
       },
       {
-        "id": 35,
+        "id": 37,
         "type": "Alert",
         "props": {
           "presented": false,
@@ -349,7 +368,7 @@
         },
         "children": [
           {
-            "id": 34,
+            "id": 36,
             "type": "AlertAction",
             "props": {
               "label": "OK",
@@ -361,7 +380,7 @@
         ]
       },
       {
-        "id": 37,
+        "id": 39,
         "type": "ConfirmationDialog",
         "props": {
           "presented": false,
@@ -370,7 +389,7 @@
         },
         "children": [
           {
-            "id": 36,
+            "id": 38,
             "type": "AlertAction",
             "props": {
               "label": "Do",
@@ -381,7 +400,7 @@
         ]
       },
       {
-        "id": 39,
+        "id": 41,
         "type": "Sheet",
         "props": {
           "presented": false,
@@ -389,7 +408,7 @@
         },
         "children": [
           {
-            "id": 38,
+            "id": 40,
             "type": "Text",
             "props": {
               "text": "sheet"
@@ -399,7 +418,7 @@
         ]
       },
       {
-        "id": 43,
+        "id": 45,
         "type": "Grid",
         "props": {
           "horizontalSpacing": 2,
@@ -407,12 +426,12 @@
         },
         "children": [
           {
-            "id": 42,
+            "id": 44,
             "type": "GridRow",
             "props": {},
             "children": [
               {
-                "id": 40,
+                "id": 42,
                 "type": "Text",
                 "props": {
                   "text": "c1"
@@ -420,7 +439,7 @@
                 "children": []
               },
               {
-                "id": 41,
+                "id": 43,
                 "type": "Text",
                 "props": {
                   "text": "c2"
@@ -432,7 +451,7 @@
         ]
       },
       {
-        "id": 44,
+        "id": 46,
         "type": "ShareLink",
         "props": {
           "item": "https://example.test"
@@ -440,7 +459,7 @@
         "children": []
       },
       {
-        "id": 45,
+        "id": 47,
         "type": "Chart",
         "props": {
           "type": "bar",
@@ -459,7 +478,7 @@
         "children": []
       },
       {
-        "id": 46,
+        "id": 48,
         "type": "Map",
         "props": {
           "latitude": 41,
@@ -476,7 +495,7 @@
         "children": []
       },
       {
-        "id": 47,
+        "id": 49,
         "type": "ProgressView",
         "props": {
           "value": 0.4,
@@ -486,7 +505,7 @@
         "children": []
       },
       {
-        "id": 48,
+        "id": 50,
         "type": "ContentUnavailable",
         "props": {
           "title": "empty",
@@ -496,26 +515,26 @@
         "children": []
       },
       {
-        "id": 52,
+        "id": 54,
         "type": "Toolbar",
         "props": {},
         "children": [
           {
-            "id": 51,
+            "id": 53,
             "type": "ToolbarItem",
             "props": {
               "placement": "topBarTrailing"
             },
             "children": [
               {
-                "id": 50,
+                "id": 52,
                 "type": "Button",
                 "props": {
                   "onPress": true
                 },
                 "children": [
                   {
-                    "id": 49,
+                    "id": 51,
                     "type": "Text",
                     "props": {
                       "text": "t"
