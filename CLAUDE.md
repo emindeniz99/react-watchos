@@ -5,7 +5,7 @@ Repo-wide rules are in the monorepo root `CLAUDE.md`. This is the project layer.
 [`docs/README.md`](./docs/README.md)** (the latter is the front door to the
 current improvement plan / backlog).
 
-Two project rules that bite if you miss them:
+Three project rules that bite if you miss them:
 
 1. **Pre-release — break freely.** Nothing has shipped/been built/signed. Prefer
    the clean target shape over compatibility: no scheme-version bumps for
@@ -20,6 +20,20 @@ Two project rules that bite if you miss them:
    SDK check — "always rejects" can just mean the build SDK was too old.
    (FoundationModels **is** on watchOS 27.0+ beta; the bug was the `watchOS 26.0`
    gate.)
+
+3. **Research prior art / SOTA before designing a NEW subsystem, not after.**
+   Root `CLAUDE.md` rule 8 ("read before you write") covers *our* code; this
+   covers the *outside world*. Before hand-rolling a whole layer (i18n,
+   theming, a parser, a scheduler…), first survey how the best-in-class
+   libraries solve it — their API shape, their edge cases, their measured cost
+   — and only then decide: adopt, borrow-the-good-parts, or hand-roll with a
+   documented reason. When you do hand-roll, **prefer a published type package
+   over a hand-written shim** (`@types/<pkg>` if it exists), and record *why*
+   the library wasn't taken (constraint or size), so the choice reads as a
+   decision. (Lesson from the i18n layer: it was designed first-principles, and
+   a later prior-art pass found `plurals-cldr` — a ~2.7 KB, zero-`Intl` CLDR
+   plural engine — that our hand-rolled English-only default silently got
+   wrong for Arabic/Slavic.)
 
 Commit scope is **`react-native-watchos`** (Conventional Commits, scope
 mandatory, `Co-Authored-By:` trailer). The full plan + decision log is in

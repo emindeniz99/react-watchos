@@ -136,6 +136,9 @@ importers:
       plist:
         specifier: ^3.1.0
         version: 3.1.1
+      plurals-cldr:
+        specifier: ^2.0.1
+        version: 2.0.1
     devDependencies:
       '@babel/core':
         specifier: ^8.0.0
@@ -152,6 +155,9 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.2
+      '@types/plurals-cldr':
+        specifier: ^1.0.5
+        version: 1.0.5
       '@types/react':
         specifier: ^19.2.0
         version: 19.2.17
@@ -164,9 +170,6 @@ importers:
       esbuild:
         specifier: ^0.27.0
         version: 0.27.7
-      plurals-cldr:
-        specifier: ^2.0.1
-        version: 2.0.1
       react:
         specifier: ^19.2.0
         version: 19.2.3
@@ -1352,6 +1355,9 @@ packages:
 
   '@types/node@24.13.2':
     resolution: {integrity: sha512-fRa09kZTgu8o71KFcDjUFuc7F+dEbZYZmkI0mg5YBTRs0yMKjYHsq/c0urDKeDb+D5qVgXOdFcuu+DZPKOITwA==}
+
+  '@types/plurals-cldr@1.0.5':
+    resolution: {integrity: sha512-HSBNGq7vbdOrusN9NnmXpDBwqbyYKW9R5eJth1PFN40G08XxG1BQrkGodptWDSKd1lPd2eF0W3axQ3IRR907mA==}
 
   '@types/react-reconciler@0.32.3':
     resolution: {integrity: sha512-cMi5ZrLG7UtbL7LTK6hq9w/EZIRk4Mf1Z5qHoI+qBh7/WkYkFXQ7gOto2yfUvPzF5ERMAhaXS5eTQ2SAnHjLzA==}
@@ -4667,6 +4673,8 @@ snapshots:
   '@types/node@24.13.2':
     dependencies:
       undici-types: 7.18.2
+
+  '@types/plurals-cldr@1.0.5': {}
 
   '@types/react-reconciler@0.32.3(@types/react@19.2.17)':
     dependencies:
