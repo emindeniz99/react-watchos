@@ -59,11 +59,15 @@ are static-analysis reads.
 
 ### What's actually still open (the real prod gap)
 
-1. **No real-device verification (the ③ gap).** Every ③ in status.md is the
-   *simulator*. Sensors, BLE against a real peripheral, StoreKit purchases,
-   extended-runtime, OTA crash-loop triggers, battery — reasoned or sim-only,
-   never observed on hardware. **This is the single biggest remaining item for a
-   device-grade production claim.**
+1. **Real-device verification — first run achieved 2026-07-05, feature depth still pending.**
+   The stack now **boots and renders on a physical Apple Watch Ultra 3** (watchOS
+   26.5), properly signed against a real team with the App Group provisioned — so
+   the review's "zero real-hardware verification" no longer holds. What remains is
+   *feature-level* hardware validation: Taptic haptics, Digital Crown feel,
+   HealthKit heart-rate + GPS streams, BLE against a real peripheral, StoreKit
+   purchases, extended-runtime, OTA crash-loop triggers, battery, and the
+   complication on the live watch face. **This depth is the biggest remaining item
+   for a device-grade production claim.**
 2. **On-device AI — ⛔ blocked externally.** `generateText`/FoundationModels needs
    the **watchOS 27 SDK (Xcode 27)** to compile; unavailable today. Gate is
    corrected; nothing to do until the SDK ships.
