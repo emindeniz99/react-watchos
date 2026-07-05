@@ -25,14 +25,15 @@ export const targets = [
     entry: join(root, "demo/app.entry.tsx"),
     outfile: join(root, "dist/bundle.js"),
     asset: join(root, "../app/targets/watch/assets/bundle.js"),
-    // Tripwire, not an OS ceiling (docs/budgets-and-limits.md). The kitchen-sink
-    // demo sits ~180 KB, so 200 was only ~10% headroom — too snug, one feature
-    // tripped it. Raised to ~1.6x actual for comfortable headroom while still
-    // catching a gross bloat (a stray heavy dep). The real cold-start cost is
-    // now guarded independently by the embed-smoke boot tripwire; 1 MB was
-    // rejected — minified that's ~3-5 MB unminified = real single-threaded
-    // parse on the watch, and it would make this tripwire toothless.
-    budgetKB: 300,
+    // Sanity ceiling, not a boot-parse tripwire (docs/budgets-and-limits.md).
+    // Prod ships precompiled bytecode (build:bytecode -> bundle.qbc), so parse
+    // is BUILD-time, not boot — proven on-sim (bytecode read ~2 ms vs ~44 ms
+    // parse). A bigger app bundle costs flash + app QuickJS heap (64 MB cap) +
+    // OTA. The real app ceiling is the OTA cap (maxOTABundleBytes = 3 MB): a
+    // bundle above it still ships in the binary but can't be OTA-updated. 2 MB
+    // keeps OTA margin + generous dev headroom; raise maxOTABundleBytes too if
+    // you ever want >3 MB and still OTA it.
+    budgetKB: 2000,
     // The demo app exercises everything except sensors: storage, widgets,
     // haptics, BLE, on-device AI, OTA (fetchAndApplyUpdate → network + ota),
     // phone connectivity, notifications.
@@ -54,10 +55,11 @@ export const targets = [
     entry: join(root, "demo/widget.entry.tsx"),
     outfile: join(root, "dist/widget.bundle.js"),
     asset: join(root, "../app/targets/widget/assets/bundle.js"),
-    // ~146 KB actual; 220 keeps proportional headroom but stays tighter than
-    // the app, since the widget bundle also drives the extension's 16 MB JS
-    // heap under the ~30 MB WidgetKit limit (docs/budgets-and-limits.md).
-    budgetKB: 220,
+    // Kept far tighter than the app: the widget bundle's bytecode loads into the
+    // extension's 16 MB JS heap under the ~30 MB WidgetKit limit, so size here
+    // trades against MEMORY, not (bytecode) boot. 1 MB is ~6% of the heap —
+    // safe; do NOT match the app's ceiling (docs/budgets-and-limits.md).
+    budgetKB: 1000,
     // The widget bundle only reads/writes shared state and publishes timelines.
     requiredFeatures: ["storage", "widgets"],
   },
