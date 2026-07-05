@@ -50,7 +50,7 @@ echo "embed-smoke: quickjs heap ${HEAP_MB} MB within budget ${HEAP_BUDGET_MB} MB
 # not a gate.
 BOOT_BUDGET_MS=250
 BOOT_MS=$(printf '%s\n' "$OUTPUT" \
-  | sed -n 's/^\[boot\] parse+eval+first-commit: \([0-9.]*\) ms.*/\1/p')
+  | sed -n 's/^\[boot\] .* = \([0-9.]*\) ms total.*/\1/p')
 if [ -z "$BOOT_MS" ]; then
   echo "embed-smoke: no [boot] line in the host output — gate cannot run" >&2
   exit 1

@@ -119,6 +119,26 @@ public final class JSRuntime {
     /// single-threaded cold-start cost the JS-bundle budget trades against.
     private static let bootLog = Logger(
         subsystem: "com.reactwatchos.runtime", category: "boot")
+
+    /// Logs a cold-start with the two phases split out and totalled, e.g.
+    /// `boot bundle.js (184681 B): parse 12.0 ms + eval 19.3 ms = 31.3 ms total`.
+    /// parse and eval scale with DIFFERENT things — parse with source SIZE, eval
+    /// (which runs the first React render + commit) with the tree/logic — so the
+    /// split tells you which one grows when you raise the bundle budget.
+    private static func logBoot(
+        _ what: String, bytes: Int,
+        _ firstName: String, _ t0: DispatchTime, _ t1: DispatchTime,
+        _ secondName: String, _ t2: DispatchTime
+    ) {
+        func ms(_ a: DispatchTime, _ b: DispatchTime) -> String {
+            String(
+                format: "%.1f",
+                Double(b.uptimeNanoseconds - a.uptimeNanoseconds) / 1_000_000)
+        }
+        bootLog.notice(
+            "boot \(what, privacy: .public) (\(bytes) B): \(firstName, privacy: .public) \(ms(t0, t1), privacy: .public) ms + \(secondName, privacy: .public) \(ms(t1, t2), privacy: .public) ms = \(ms(t0, t2), privacy: .public) ms total"
+        )
+    }
     #endif
 
     // MARK: - Public API
@@ -126,23 +146,29 @@ public final class JSRuntime {
     public func evaluate(_ code: String, filename: String = "bundle.js") throws {
         try withJSEntry {
             #if canImport(os)
-            let start = DispatchTime.now()
+            let t0 = DispatchTime.now()
             #endif
-            let result = code.withCString { codePtr in
+            // Compile-only first (parse -> bytecode, no run), then run it, so
+            // parse and execute are timed separately. compile-only + run is
+            // equivalent to a single JS_Eval (which internally compiles then
+            // runs) — the same split the bytecode path and compileToBytecode use.
+            let fn = code.withCString { codePtr in
                 JS_Eval(
                     context, codePtr, strlen(codePtr), filename,
-                    qjs_eval_type_global())
+                    qjs_eval_flag_compile_only())
             }
+            if JS_IsException(fn) {
+                throw JSError.exception(takeExceptionMessage())
+            }
+            #if canImport(os)
+            let t1 = DispatchTime.now()
+            #endif
+            let result = JS_EvalFunction(context, fn)
             defer { JS_FreeValue(context, result) }
             #if canImport(os)
-            let ms = String(
-                format: "%.1f",
-                Double(
-                    DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
-                ) / 1_000_000)
-            Self.bootLog.notice(
-                "parse+eval \(filename, privacy: .public) (\(code.utf8.count) B): \(ms, privacy: .public) ms"
-            )
+            Self.logBoot(
+                filename, bytes: code.utf8.count,
+                "parse", t0, t1, "eval", DispatchTime.now())
             #endif
             if JS_IsException(result) {
                 throw JSError.exception(takeExceptionMessage())
@@ -157,7 +183,7 @@ public final class JSRuntime {
     public func evaluateBytecode(_ data: Data) throws {
         try withJSEntry {
             #if canImport(os)
-            let start = DispatchTime.now()
+            let t0 = DispatchTime.now()
             #endif
             let fn = data.withUnsafeBytes { raw -> JSValue in
                 JS_ReadObject(
@@ -167,17 +193,16 @@ public final class JSRuntime {
             if JS_IsException(fn) {
                 throw JSError.exception(takeExceptionMessage())
             }
+            #if canImport(os)
+            let t1 = DispatchTime.now()
+            #endif
             let result = JS_EvalFunction(context, fn)
             defer { JS_FreeValue(context, result) }
             #if canImport(os)
-            let ms = String(
-                format: "%.1f",
-                Double(
-                    DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
-                ) / 1_000_000)
-            Self.bootLog.notice(
-                "load+eval bytecode (\(data.count) B): \(ms, privacy: .public) ms"
-            )
+            // Bytecode skips parse: "read" is the deserialize, "eval" the run.
+            Self.logBoot(
+                "bytecode", bytes: data.count,
+                "read", t0, t1, "eval", DispatchTime.now())
             #endif
             if JS_IsException(result) {
                 throw JSError.exception(takeExceptionMessage())

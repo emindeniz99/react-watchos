@@ -173,22 +173,30 @@ int main(int argc, char **argv) {
     // parse work), which the portable heap gate ([mem]) does NOT capture.
     // Wall-clock on dev hardware, so it's a gross-regression tripwire (see
     // run.sh), never a watch-absolute number.
-    struct timespec boot_t0, boot_t1;
+    struct timespec boot_t0, boot_t1, boot_t2;
+    const char *phase1 = is_bytecode ? "read" : "parse";
     clock_gettime(CLOCK_MONOTONIC, &boot_t0);
-    JSValue result;
+    // Split the load into two timed phases: compile/read the bundle, then run
+    // it. For .js that's compile-only then eval — equivalent to a single
+    // JS_Eval but it isolates PARSE (scales with source size) from EVAL (which
+    // runs the first React render+commit; scales with tree/logic), mirroring
+    // JSRuntime.evaluate's split so a budget raise shows which half grows.
+    JSValue fn;
     if (is_bytecode) {
-        JSValue fn = JS_ReadObject(ctx, (const uint8_t *)bundle, len,
-                                   JS_READ_OBJ_BYTECODE);
-        if (JS_IsException(fn)) {
-            JSValue exc = JS_GetException(ctx);
-            const char *msg = JS_ToCString(ctx, exc);
-            fprintf(stderr, "bytecode read failed: %s\n", msg ? msg : "?");
-            return 1;
-        }
-        result = JS_EvalFunction(ctx, fn);
+        fn = JS_ReadObject(ctx, (const uint8_t *)bundle, len,
+                           JS_READ_OBJ_BYTECODE);
     } else {
-        result = JS_Eval(ctx, bundle, len, "bundle.js", JS_EVAL_TYPE_GLOBAL);
+        fn = JS_Eval(ctx, bundle, len, "bundle.js",
+                     JS_EVAL_TYPE_GLOBAL | JS_EVAL_FLAG_COMPILE_ONLY);
     }
+    clock_gettime(CLOCK_MONOTONIC, &boot_t1);
+    if (JS_IsException(fn)) {
+        JSValue exc = JS_GetException(ctx);
+        const char *msg = JS_ToCString(ctx, exc);
+        fprintf(stderr, "%s failed: %s\n", phase1, msg ? msg : "?");
+        return 1;
+    }
+    JSValue result = JS_EvalFunction(ctx, fn);
     free(bundle);
     if (JS_IsException(result)) {
         JSValue exc = JS_GetException(ctx);
@@ -198,9 +206,12 @@ int main(int argc, char **argv) {
     }
     JS_FreeValue(ctx, result);
     drain_jobs(rt);
-    clock_gettime(CLOCK_MONOTONIC, &boot_t1);
-    double boot_ms = (double)(boot_t1.tv_sec - boot_t0.tv_sec) * 1000.0
-                     + (double)(boot_t1.tv_nsec - boot_t0.tv_nsec) / 1.0e6;
+    clock_gettime(CLOCK_MONOTONIC, &boot_t2);
+    double phase1_ms = (double)(boot_t1.tv_sec - boot_t0.tv_sec) * 1000.0
+                       + (double)(boot_t1.tv_nsec - boot_t0.tv_nsec) / 1.0e6;
+    double eval_ms = (double)(boot_t2.tv_sec - boot_t1.tv_sec) * 1000.0
+                     + (double)(boot_t2.tv_nsec - boot_t1.tv_nsec) / 1.0e6;
+    double boot_ms = phase1_ms + eval_ms;
 
     JSValue summary = JS_Eval(ctx, epilogue_src, strlen(epilogue_src), epilogue_name,
                               JS_EVAL_TYPE_GLOBAL);
@@ -231,7 +242,8 @@ int main(int argc, char **argv) {
             "KB"
 #endif
     );
-    fprintf(stderr, "[boot] parse+eval+first-commit: %.1f ms\n", boot_ms);
+    fprintf(stderr, "[boot] %s %.1f ms + eval %.1f ms = %.1f ms total\n",
+            phase1, phase1_ms, eval_ms, boot_ms);
 
     free(epilogue_buf);
     JS_FreeContext(ctx);
