@@ -1,4 +1,4 @@
-// The wire contract is generated from codegen/schema.mjs into one place;
+// The wire contract is generated from codegen/schema.ts into one place;
 // the Swift models (Generated/WireModel.swift) are generated from the same
 // schema, so the two sides cannot drift. `QuickJSHostGlobal` (the raw `__host`
 // surface) is generated too (CX-023) — from the same host-method signatures

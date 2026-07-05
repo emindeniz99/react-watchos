@@ -21,7 +21,7 @@ public final class JSRuntime {
         case exception(String)
     }
 
-    /// Every synchronous `__host` callback, GENERATED from codegen/schema.mjs
+    /// Every synchronous `__host` callback, GENERATED from codegen/schema.ts
     /// (CX-023): the embedding host sets the feature closures (commit,
     /// publishWidgets, getItem/setItem, counters, playHaptic, invoke,
     /// cancelNotification, fetch/abortFetch, ble, sensor, generate); JSRuntime

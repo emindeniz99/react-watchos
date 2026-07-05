@@ -54,7 +54,7 @@ struct MyWatchApp: App {
 In an Expo app the `@bacons/apple-targets` watch target links this package via
 the `with-react-watch-package` config plugin during `expo prebuild` (or add it
 once in Xcode: Add Package Dependencies ▸ Add Local ▸ this folder). The wire
-models are generated from `js/codegen/schema.mjs` — run `npm run codegen`; never
+models are generated from `js/codegen/schema.ts` — run `npm run codegen`; never
 edit `Sources/ReactWatchCore/WireModel.swift` by hand.
 
 ## Notes

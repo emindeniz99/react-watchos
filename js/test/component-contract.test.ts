@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { components } from "../codegen/schema.mjs";
+import { components } from "../codegen/schema";
 
-// CX-024 / SD-6: the component contract (codegen/schema.mjs `components`) is the
+// CX-024 / SD-6: the component contract (codegen/schema.ts `components`) is the
 // single source of truth for the primitive vocabulary. Both SwiftUI
 // interpreters switch on `node.type` with a `default:` (logs + skips unknown
 // types for forward-compat), so Swift can't enforce exhaustiveness — this test

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { context } from "esbuild";
-import { buildOptions, root } from "./config.mjs";
+import { buildOptions, root } from "./config.ts";
 
 /**
  * Live-reload dev server. Rebuilds on every source change and serves

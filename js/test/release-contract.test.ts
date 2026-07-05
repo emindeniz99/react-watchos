@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { hostMethods } from "../codegen/schema.mjs";
-import { targets } from "../scripts/config.mjs";
+import { hostMethods } from "../codegen/schema";
+import { targets } from "../scripts/config";
 import {
   providedFeatures,
   unprovidedFeatures,
-} from "../scripts/releaseContract.mjs";
+} from "../scripts/releaseContract";
 
 // ARCH-02: the declared capability contract. The SOUND check is `declared ⊆
 // provided` — a bundle can't require a feature its target's native binary

@@ -7,6 +7,66 @@
 // mapping is unambiguous. JSONValue and the node struct are fixed templates
 // (special: a union enum and helper accessors); the rest are plain structs.
 
+/** Which native runtime a method / struct targets (the widget is a subset). */
+export type WireTarget = "watch" | "widget";
+/** Direct-method argument scalar types that cross the C boundary. */
+export type ArgType = "string" | "int" | "double";
+/** Direct-method return types (`string?` is the nullable getItem return). */
+export type ReturnType = "void" | "string?" | "int";
+
+/** A component the React tree can emit + how the widget interpreter supports it. */
+export interface Component {
+  name: string;
+  widget: "full" | "degraded";
+}
+
+/** One field of a generated struct. `swift` is absent for TS-only wire types. */
+export interface StructField {
+  name: string;
+  swift?: string;
+  ts: string;
+  doc?: string;
+  optional?: boolean;
+}
+
+/** A struct rendered to both a Swift Codable and a TS interface. */
+export interface StructDef {
+  swift: string;
+  ts: string;
+  doc?: string;
+  targets?: WireTarget[];
+  fields: StructField[];
+  swiftComputed?: string[];
+}
+
+/** A wire type rendered to TS only (Swift emits these as calls, never decodes). */
+export interface TsOnlyDef {
+  ts: string;
+  doc?: string;
+  fields: StructField[];
+}
+
+/** One argument in a direct `__host` method signature. */
+export interface HostArg {
+  name: string;
+  type: ArgType;
+}
+
+/** A `__host` bridge method (see the doc on `hostMethods`). */
+export interface HostMethod {
+  name: string;
+  targets: WireTarget[];
+  feature: string;
+  since: number;
+  doc?: string;
+  /** `"invoke"` routes through the generic channel instead of a host function. */
+  via?: string;
+  /** Non-optional in the generated TS interface (JS assumes it's present). */
+  tsRequired?: boolean;
+  args?: HostArg[];
+  returns?: ReturnType;
+}
+
 // The committed-tree wire version (SerializedTree.v / RNTree.v). Bump on ANY
 // breaking change to the shared tree structs so the native runtime can detect
 // a renderer-vs-runtime mismatch loudly instead of mis-decoding silently.
@@ -36,7 +96,7 @@ export const node = { swift: "RNNode", ts: "SerializedNode" };
  * `default:` (logs + skips, for forward-compat with newer bundles), so Swift
  * can't enforce this at compile time — hence the test.
  */
-export const components = [
+export const components: Component[] = [
   { name: "VStack", widget: "full" },
   { name: "HStack", widget: "full" },
   { name: "ZStack", widget: "full" },
@@ -90,7 +150,7 @@ export const components = [
 ];
 
 /** Plain structs, rendered for both Swift and TS from `fields`. */
-export const structs = [
+export const structs: StructDef[] = [
   {
     swift: "RNTree",
     ts: "SerializedTree",
@@ -201,7 +261,7 @@ export const structs = [
 ];
 
 /** TS-only wire type (Swift sends events as JS calls, never decodes them). */
-export const tsOnly = [
+export const tsOnly: TsOnlyDef[] = [
   {
     ts: "WatchEvent",
     fields: [
@@ -235,7 +295,7 @@ export const tsOnly = [
  * `tsRequired` marks a method the JS assumes is always present when `__host`
  * exists (commit/log/setTimer) — non-optional in the generated TS interface.
  */
-export const hostMethods = [
+export const hostMethods: HostMethod[] = [
   // The widget runtime installs commit as a defensive no-op (intent mode
   // must not mount UI), so both runtimes install it.
   {

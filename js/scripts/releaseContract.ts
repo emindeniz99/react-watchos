@@ -11,15 +11,20 @@
 // authority. Under-declaring therefore stays the developer's responsibility;
 // over-declaring is safe (a stricter gate). See docs/code-review … ARCH-02.
 
+/** The subset of a host method this contract reads (structural, so both the
+ *  schema's `hostMethods` and test fixtures satisfy it). */
+type FeatureMethod = { feature: string; targets: readonly string[] };
+
 /**
  * Features a target's native binary provides — the gateable `feature`s of the
  * host methods that target installs. "core" is infra (always present with the
  * bridge protocol), so it's excluded from the gateable set.
- * @param {ReadonlyArray<{feature: string, targets: string[]}>} hostMethods
- * @param {string} schemaTarget e.g. "watch" | "widget"
- * @returns {Set<string>}
+ * @param schemaTarget e.g. "watch" | "widget"
  */
-export function providedFeatures(hostMethods, schemaTarget) {
+export function providedFeatures(
+  hostMethods: readonly FeatureMethod[],
+  schemaTarget: string,
+): Set<string> {
   return new Set(
     hostMethods
       .filter((m) => m.targets.includes(schemaTarget) && m.feature !== "core")
@@ -30,12 +35,12 @@ export function providedFeatures(hostMethods, schemaTarget) {
 /**
  * The declared features the target's binary does NOT provide — empty means the
  * bundle can run on that target. Non-empty is a contract error (fail the build).
- * @param {string[] | undefined} declared
- * @param {ReadonlyArray<{feature: string, targets: string[]}>} hostMethods
- * @param {string} schemaTarget
- * @returns {string[]}
  */
-export function unprovidedFeatures(declared, hostMethods, schemaTarget) {
+export function unprovidedFeatures(
+  declared: string[] | undefined,
+  hostMethods: readonly FeatureMethod[],
+  schemaTarget: string,
+): string[] {
   const provided = providedFeatures(hostMethods, schemaTarget);
   return (declared ?? []).filter((f) => !provided.has(f));
 }

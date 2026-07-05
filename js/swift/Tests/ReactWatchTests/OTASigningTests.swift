@@ -4,7 +4,7 @@ import Foundation
 import ReactWatchSupport
 import XCTest
 
-/// CR-4 / CR-17 interop: a signature produced by scripts/ota-sign.mjs (Node
+/// CR-4 / CR-17 interop: a signature produced by scripts/ota-sign.ts (Node
 /// Ed25519 over "v2:<keyId>:<version>:<expiresAt>:<bundle>") must verify on
 /// the watch with CryptoKit over UpdatePlan.signedMessage. This static vector
 /// was produced by the Node signer; if the script's message format and

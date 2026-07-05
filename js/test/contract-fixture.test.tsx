@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 // The codegen schema — the source of truth for the component list, so this
 // test can't silently miss a new component.
-import { components } from "../codegen/schema.mjs";
+import { components } from "../codegen/schema";
 import {
   Alert,
   AlertAction,

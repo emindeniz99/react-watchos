@@ -1,4 +1,4 @@
-// QuickJS shims are prepended by esbuild's `inject` (scripts/config.mjs),
+// QuickJS shims are prepended by esbuild's `inject` (scripts/config.ts),
 // so they run before module init regardless of import order here.
 //
 // The WIDGET bundle (ARCH-03): the widget extension evaluates ONLY this to

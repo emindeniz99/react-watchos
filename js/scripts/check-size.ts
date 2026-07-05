@@ -7,7 +7,7 @@ import { mkdtempSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "esbuild";
-import { buildOptions, targets } from "./config.mjs";
+import { buildOptions, targets } from "./config.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "rnw-size-"));
 let failed = false;

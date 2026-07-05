@@ -39,9 +39,9 @@ WORKSPACE="$ROOT/app/ios/ReactWatchDemo.xcworkspace"
 SCHEME="React Watch"
 BUNDLE_ID="com.emindeniz99.reactwatch.watch"
 
-# 1) Fresh JS bundle → copied into app/targets/watch/assets/bundle.js by build.mjs.
+# 1) Fresh JS bundle → copied into app/targets/watch/assets/bundle.js by build.ts.
 echo "==> Building JS bundle"
-node scripts/build.mjs
+node --experimental-strip-types scripts/build.ts
 
 # 2) Pick a watchOS simulator: prefer an already-booted one, else first available.
 SIM_ID=${1:-$(

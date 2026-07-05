@@ -125,7 +125,7 @@ export async function applyUpdate(
 }
 
 /** This bundle's OTA compatibility version (CR-17), injected at build from
- *  scripts/config.mjs. Compared against the server manifest's `version`. */
+ *  scripts/config.ts. Compared against the server manifest's `version`. */
 export const BUNDLE_VERSION = Number(process.env.BUNDLE_VERSION ?? "1");
 
 /** The update manifest served by your update endpoint (dist/manifest.json). */

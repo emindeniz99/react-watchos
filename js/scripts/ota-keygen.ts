@@ -5,7 +5,7 @@ import { generateSigningKey } from "../esbuild/manifest.mjs";
  * Thin CLI over the published `generateSigningKey` (react-watchos/manifest)
  * so the repo and consumers use one keygen.
  *
- *   node scripts/ota-keygen.mjs      (or: npm run ota:keygen)
+ *   node scripts/ota-keygen.ts      (or: npm run ota:keygen)
  *
  * Prints three values:
  *   - key id  -> add `"<kid>": "<publicKey>"` to OTAConfig.signerPublicKeys AND

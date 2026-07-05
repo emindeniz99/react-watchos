@@ -65,7 +65,7 @@ final class WireContractTests: XCTestCase {
         let root = try XCTUnwrap(tree.root)
 
         // Every wire component is present and decoded (keep in lockstep with
-        // codegen/schema.mjs — the JS fixture test enforces the same list).
+        // codegen/schema.ts — the JS fixture test enforces the same list).
         var seen = Set<String>()
         func walk(_ node: RNNode) {
             seen.insert(node.type)

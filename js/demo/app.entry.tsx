@@ -1,4 +1,4 @@
-// QuickJS shims are prepended by esbuild's `inject` (scripts/config.mjs),
+// QuickJS shims are prepended by esbuild's `inject` (scripts/config.ts),
 // so they run before react/scheduler module init regardless of import
 // order here.
 //

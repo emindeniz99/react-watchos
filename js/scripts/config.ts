@@ -1,6 +1,20 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { BuildOptions } from "esbuild";
 import { watchBuildOptions } from "../esbuild/preset.mjs";
+
+/** One per-target esbuild build (app | widget). */
+export interface BuildTarget {
+  name: string;
+  /** Native target this bundle runs on (codegen/schema.ts `targets`). */
+  schemaTarget: string;
+  entry: string;
+  outfile: string;
+  asset: string;
+  budgetKB: number;
+  /** Declared capability contract (ARCH-02): native features the bundle needs. */
+  requiredFeatures: string[];
+}
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -15,10 +29,10 @@ export const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 // native features it needs, so the build can stamp them into the OTA manifest and
 // the ARCH-01 gate refuses to apply a bundle a binary can't run — no hand-passing
 // at applyUpdate time. `schemaTarget` maps each bundle to its native target so
-// the build can check `declared ⊆ what that binary provides` (codegen/schema.mjs
+// the build can check `declared ⊆ what that binary provides` (codegen/schema.ts
 // `hostMethods`). Keep these in sync with the features the entry actually uses
 // (under-declaring isn't caught automatically — see releaseContract.mjs).
-export const targets = [
+export const targets: BuildTarget[] = [
   {
     name: "app",
     schemaTarget: "watch",
@@ -77,8 +91,10 @@ export const outfile = targets[0].outfile;
 // native `OTAConfig.shippedVersion` in lockstep with this when you ship.
 export const bundleVersion = 1;
 
-/** @returns {import("esbuild").BuildOptions} */
-export function buildOptions({ minify = false, target = targets[0] } = {}) {
+export function buildOptions({
+  minify = false,
+  target = targets[0],
+}: { minify?: boolean; target?: BuildTarget } = {}): BuildOptions {
   const otaUrl = process.env.REACT_WATCH_OTA_URL ?? "";
   // The demo build is the shared QuickJS preset (shim inject, es2020,
   // neutral IIFE) with the React Compiler enabled — the same published flag

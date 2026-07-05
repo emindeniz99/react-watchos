@@ -1,0 +1,19 @@
+{
+  // Dev-only build/codegen tooling (scripts/, codegen/): real TypeScript, run
+  // directly by `node script.ts` (Node 24's native type stripping — see the
+  // project .mise.toml `node = "24"` pin), and type-checked here by the official
+  // `tsc`. Not shipped (absent from package.json `files`), so no compile step:
+  // Node runs the .ts, tsc guards it. `.ts` imports need explicit extensions for
+  // Node's stripper, so allowImportingTsExtensions lets tsc accept them (noEmit
+  // is inherited from the base — we only type-check here, never emit).
+  //
+  // Relaxes only noUncheckedIndexedAccess — build scripts index parsed argv /
+  // just-split arrays where a bad index throws and fails the run anyway (same
+  // rationale as tsconfig.test.json). Every other strict flag still applies.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["scripts", "codegen"]
+}

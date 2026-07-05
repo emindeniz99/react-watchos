@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "esbuild";
 import { describe, expect, it } from "vitest";
-import { buildOptions } from "../scripts/config.mjs";
+import { buildOptions } from "../scripts/config";
 
 // Guards that the React Compiler is wired into the build: if the plugin is
 // removed or stops emitting memoization, the compiler runtime won't be

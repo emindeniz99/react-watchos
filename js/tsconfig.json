@@ -3,5 +3,7 @@
   // Tests are checked separately (tsconfig.test.json) where that one flag is
   // relaxed — indexing just-built fixtures there is noise, not a real risk.
   "extends": "./tsconfig.base.json",
-  "include": ["src", "demo", "scripts", "codegen"]
+  // scripts/ + codegen/ are real .ts too, but checked under tsconfig.tooling.json
+  // (Node-24-run dev tooling; relaxed noUncheckedIndexedAccess like tests).
+  "include": ["src", "demo"]
 }

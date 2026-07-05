@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { hostMethods } from "../codegen/schema.mjs";
+import { hostMethods } from "../codegen/schema";
 
 const jsRoot = join(__dirname, "..");
 const swiftRoot = join(jsRoot, "swift");
@@ -12,9 +12,19 @@ describe("codegen", () => {
     // Exits non-zero and prints which file is stale if `npm run codegen`
     // would change anything — the single-source-of-truth guarantee.
     expect(() =>
-      execFileSync("node", [join(jsRoot, "codegen/generate.mjs"), "--check"], {
-        stdio: "pipe",
-      }),
+      // process.execPath = the same Node running vitest. The generator is .ts;
+      // --experimental-strip-types runs it on any Node >= 22.6 (a no-op on 24+,
+      // where stripping is the default) — so this passes whether vitest runs
+      // under the project's pinned Node 24 or an older local Node.
+      execFileSync(
+        process.execPath,
+        [
+          "--experimental-strip-types",
+          join(jsRoot, "codegen/generate.ts"),
+          "--check",
+        ],
+        { stdio: "pipe" },
+      ),
     ).not.toThrow();
   });
 

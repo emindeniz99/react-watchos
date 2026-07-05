@@ -251,7 +251,7 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 | `tools/embed-smoke/` | Reference C host: compiles the package's quickjs-ng and runs the real bundle through the exact API sequence Swift uses. |
 | `tools/qjs-compile/` | Compiles the bundle to QuickJS bytecode (`bundle.qbc`) with the *vendored* engine, so the shipped bytecode version always matches the runtime; the watch app + widget prefer it over the source (`pnpm build:bytecode`, wired into `prebuild`). |
 | `js/swift/Tests/` | The package's `swift test` wire-contract tests: decode real serializer fixtures with the codegen'd `ReactWatchCore` models on Linux. |
-| `docs/api/` | **Generated API reference** (M12) — every export + type from the TS source via typedoc (`pnpm docs:api`), plus `capabilities.md`, the component/host-method tables emitted from `codegen/schema.mjs` so they can't drift. |
+| `docs/api/` | **Generated API reference** (M12) — every export + type from the TS source via typedoc (`pnpm docs:api`), plus `capabilities.md`, the component/host-method tables emitted from `codegen/schema.ts` so they can't drift. |
 | `docs/README.md` | **Docs index + current improvement plan** — start here for reviews, the verified backlog, and the architecture decisions. |
 | `docs/research.md` | Why RN-core-on-watchOS is impossible; engine and architecture comparison. |
 | `docs/prior-art.md` | Where this sits among production React renderers (RN, Raycast, r3f, Ink, …) and which techniques we adopt/skip/defer. |
@@ -564,7 +564,7 @@ signing still untested — Rule 12):**
 - esbuild evaluates imported module bodies before the entry's statements,
   so React's scheduler captures `setTimeout` at module init — the QuickJS
   shims are therefore force-prepended via esbuild's `inject` option
-  (`scripts/config.mjs`), not by import-order convention.
+  (`scripts/config.ts`), not by import-order convention.
 - The build runs the **React Compiler** (`babel-plugin-react-compiler`) —
   a published preset flag, so consumers get it too:
   `watchBuildOptions({ reactCompiler: true })` (needs the Babel dev deps —
@@ -581,7 +581,7 @@ signing still untested — Rule 12):**
   build artifact (git-ignored), regenerated from the vendored sources at
   package time — never committed.
 - The JS↔Swift wire model and `__host` surface are generated from one
-  schema (`js/codegen/schema.mjs`) into the Swift models and TS types; a
+  schema (`js/codegen/schema.ts`) into the Swift models and TS types; a
   drift test and a host-method cross-check keep the two languages in sync.
 - **Threading.** QuickJS runs on the main thread; committed trees are
   decoded on a serial background queue (`decodeQueue`) and only `@Published`

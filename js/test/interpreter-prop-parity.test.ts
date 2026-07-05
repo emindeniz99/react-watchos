@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { components } from "../codegen/schema.mjs";
+import { components } from "../codegen/schema";
 
 // M6-interim (2026-07-04 review): the case-presence contract test guarantees
 // every primitive has a case in BOTH SwiftUI interpreters, but said nothing

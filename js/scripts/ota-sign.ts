@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { signManifest } from "../esbuild/manifest.mjs";
-import { root } from "./config.mjs";
+import { root } from "./config.ts";
 
 /**
  * Signs this repo's built OTA bundle so the watch will accept it (CR-4 / CR-17).
@@ -63,6 +63,6 @@ try {
       `${bound ? `expires ${new Date(bound * 1000).toISOString()}` : "no expiry"})`,
   );
 } catch (error) {
-  console.error(`ota:sign failed — ${error.message}`);
+  console.error(`ota:sign failed — ${(error as Error).message}`);
   process.exit(1);
 }

@@ -203,9 +203,13 @@ describe("quickjs smoke", () => {
   };
 
   beforeAll(() => {
-    execFileSync("node", [join(jsRoot, "scripts/build.mjs")], {
-      stdio: "pipe",
-    });
+    // --experimental-strip-types runs the .ts build on any Node >= 22.6 (a
+    // no-op on 24+); process.execPath = the Node running vitest.
+    execFileSync(
+      process.execPath,
+      ["--experimental-strip-types", join(jsRoot, "scripts/build.ts")],
+      { stdio: "pipe" },
+    );
     const bundle = readFileSync(bundlePath, "utf8");
     const dir = mkdtempSync(join(tmpdir(), "qjs-smoke-"));
 

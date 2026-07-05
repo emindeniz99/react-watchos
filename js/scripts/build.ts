@@ -1,10 +1,10 @@
 import { copyFileSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { build } from "esbuild";
-import { bridgeProtocol, hostMethods } from "../codegen/schema.mjs";
+import { bridgeProtocol, hostMethods } from "../codegen/schema.ts";
 import { writeOTAManifest } from "../esbuild/manifest.mjs";
-import { buildOptions, bundleVersion, root, targets } from "./config.mjs";
-import { unprovidedFeatures } from "./releaseContract.mjs";
+import { buildOptions, bundleVersion, root, targets } from "./config.ts";
+import { unprovidedFeatures } from "./releaseContract.ts";
 
 // `npm run build -- --minify` (or MINIFY=1) roughly halves the bundle;
 // unminified keeps watch-side stack traces readable during development.
@@ -23,7 +23,7 @@ for (const target of targets) {
   if (missing.length > 0) {
     throw new Error(
       `[build] ${target.name} bundle declares features its ${target.schemaTarget} ` +
-        `binary can't provide: ${missing.join(", ")} (see scripts/config.mjs)`,
+        `binary can't provide: ${missing.join(", ")} (see scripts/config.ts)`,
     );
   }
 }
