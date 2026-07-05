@@ -24,7 +24,10 @@ import { describe, expect, it } from "vitest";
 
 const jsRoot = join(__dirname, "..");
 const componentsPath = join(jsRoot, "src/components.ts");
-const rnStylePath = join(jsRoot, "swift/Sources/ReactWatchSupport/RNStyle.swift");
+const rnStylePath = join(
+  jsRoot,
+  "swift/Sources/ReactWatchSupport/RNStyle.swift",
+);
 const rnuiPath = join(jsRoot, "swift/Sources/ReactWatchUI/RNUI.swift");
 
 /** String literals inside the first `SystemColorName` union declaration. */

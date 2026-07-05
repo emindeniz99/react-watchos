@@ -5,6 +5,12 @@ import {
   useSyncExternalStore,
   version,
 } from "react";
+import type {
+  ColorValue,
+  Coordinate,
+  MapAnnotation,
+  POIResult,
+} from "../src/index";
 import {
   BUNDLE_VERSION,
   Button,
@@ -53,12 +59,6 @@ import {
   useTheme,
   VStack,
   ZStack,
-} from "../src/index";
-import type {
-  ColorValue,
-  Coordinate,
-  MapAnnotation,
-  POIResult,
 } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 import {
@@ -339,9 +339,27 @@ function MapScreen() {
       longitude={-122.402}
       span={0.03}
       annotations={[
-        { lat: 37.7955, lon: -122.3937, title: "Ferry Building", systemImage: "ferry.fill", tint: "blue" },
-        { lat: 37.8024, lon: -122.4058, title: "Coit Tower", systemImage: "building.columns.fill", tint: "orange" },
-        { lat: 37.788, lon: -122.4074, title: "Union Square", systemImage: "bag.fill", tint: "green" },
+        {
+          lat: 37.7955,
+          lon: -122.3937,
+          title: "Ferry Building",
+          systemImage: "ferry.fill",
+          tint: "blue",
+        },
+        {
+          lat: 37.8024,
+          lon: -122.4058,
+          title: "Coit Tower",
+          systemImage: "building.columns.fill",
+          tint: "orange",
+        },
+        {
+          lat: 37.788,
+          lon: -122.4074,
+          title: "Union Square",
+          systemImage: "bag.fill",
+          tint: "green",
+        },
       ]}
       route={[
         { lat: 37.7955, lon: -122.3937 },
