@@ -186,10 +186,13 @@ export interface ButtonProps
    */
   intent?: string;
   /**
-   * Liquid Glass button styles (watchOS 26+; silently the default style on
-   * older watches). "glassProminent" is the accented/filled variant.
+   * Button chrome. "glass"/"glassProminent" are Liquid Glass (watchOS 26+;
+   * silently the default on older watches; "glassProminent" is the accented
+   * fill). "plain" strips all chrome so the content IS the button — use it with
+   * your own `background`/`cornerRadius`/`padding` to build a custom control
+   * (e.g. a circular icon button). Omit for the standard watchOS button.
    */
-  buttonStyle?: "glass" | "glassProminent";
+  buttonStyle?: "glass" | "glassProminent" | "plain";
   children?: ReactNode;
 }
 

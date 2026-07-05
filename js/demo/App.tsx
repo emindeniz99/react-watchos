@@ -437,7 +437,11 @@ function MapSearchScreen() {
   };
 
   return (
-    <ZStack alignment="top">
+    // Controls anchor to the BOTTOM: the top strip is owned by the system
+    // (clock, the "Places" nav title, the back chevron), so chrome up there
+    // collides with it. The bottom is clear and thumb-reachable — where Apple
+    // Maps puts its own search + location button.
+    <ZStack alignment="bottom">
       <MapView
         fullScreen
         showsUserLocation
@@ -456,16 +460,43 @@ function MapSearchScreen() {
           }),
         )}
       />
-      <VStack spacing={2}>
-        <HStack spacing={4}>
-          <TextField value={query} placeholder="Search places" onChange={runSearch} />
-          <Button onPress={recenterOnMe} buttonStyle="glass" accessibilityLabel="Recenter on my location">
-            <Image systemName="location.fill" />
+      <VStack spacing={6} padding={{ horizontal: 8, vertical: 8 }}>
+        {results.length > 0 && (
+          // A small legible chip over the map, only while there are results —
+          // idle guidance lives in the field's placeholder instead. Light
+          // material to match the search field and the location button.
+          <Text
+            size={13}
+            color="#1C1C1E"
+            background="#FFFFFFE6"
+            cornerRadius={10}
+            padding={{ horizontal: 10, vertical: 3 }}
+          >
+            {`${results.length} places`}
+          </Text>
+        )}
+        <HStack spacing={8} alignment="center">
+          <TextField
+            value={query}
+            placeholder="Search — coffee, park…"
+            onChange={runSearch}
+            frame={{ maxWidth: "infinity" }}
+          />
+          {/* Apple's own location-button treatment: a white circle with a blue
+              glyph. `plain` strips the default chrome so the circle is exactly
+              our background; padding (not frame) sizes it so the rounded fill
+              wraps the padded glyph. */}
+          <Button
+            onPress={recenterOnMe}
+            buttonStyle="plain"
+            padding={11}
+            background="#FFFFFFE6"
+            cornerRadius={20}
+            accessibilityLabel="Recenter on my location"
+          >
+            <Image systemName="location.fill" size={18} color="blue" />
           </Button>
         </HStack>
-        <Text size={10} color="secondary">
-          {results.length ? `${results.length} places` : "coffee, park, gas…"}
-        </Text>
       </VStack>
     </ZStack>
   );

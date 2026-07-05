@@ -285,9 +285,10 @@ struct NodeView: View {
         }
     }
 
-    /// Liquid Glass button styles (GlassButtonStyle, verified watchOS 26.0);
-    /// a no-op on older OSes and for the default style, so the same JS runs
-    /// everywhere.
+    /// Applies the `buttonStyle` prop. Liquid Glass (GlassButtonStyle, verified
+    /// watchOS 26.0) is a no-op on older OSes; "plain" strips the default chrome
+    /// so a custom-styled control (own background/frame) renders cleanly. The
+    /// same JS runs everywhere.
     @ViewBuilder private func glassStyled(_ button: some View) -> some View {
         switch node.string("buttonStyle") {
         case "glass":
@@ -302,6 +303,8 @@ struct NodeView: View {
             } else {
                 button
             }
+        case "plain":
+            button.buttonStyle(.plain)
         default:
             button
         }
