@@ -361,6 +361,29 @@ they're precisely what makes **ARCH-10 Phase B** (one interpreter behind a
 `RenderContext`) worth doing, because each new surface would otherwise fork the
 render switch again. Today the watch widget surface is enough.
 
+**Scoped plan for the iOS widget host (DEFERRED — much later; watch is the focus
+now).** A 2026-07-05 scoping pass mapped the real shape, recorded so it's ready
+when we pick it up:
+
+1. *Make the widget renderer compile + render for iOS.* Ungate the 5 widget-path
+   files (`RNUI`, `WidgetNodeView`, `ReactTimeline`, `ReactWidgetButtonIntent`,
+   `WidgetIntentRuntime`) from `#if os(watchOS)` to `#if os(watchOS) || os(iOS)`
+   — but keep the genuinely watch-only bits under a tighter inner gate:
+   **`RelevanceKit`** (Smart Stack relevance — no iOS equivalent), the
+   `.accessoryCorner` family, and `@available(watchOS 11)` relevance. Add the
+   iOS **system families** (`systemSmall/Medium/Large`) to `familyKey` and the
+   JS widget family names. Verify: `xcodebuild build -destination
+   'generic/platform=iOS Simulator'` green.
+2. *A real iOS demo widget extension* (iOS app + widget target using the
+   renderer) + the Expo/apple-targets plugin scaffolding → build+run on the iOS
+   simulator.
+3. *Phase B* — with iOS-widget as the 3rd interpreter target, unify via the
+   `RenderContext` composition (see the Phase B note above).
+
+The interpreter is mostly cross-platform SwiftUI/WidgetKit already; the real work
+is separating the RelevanceKit/accessory-only pieces and the iOS family model,
+plus a host app + plugin scaffolding.
+
 ## Re-prioritized "what's next"
 
 1. **macOS build green** (gate — unchanged). Now also gates double-tap,
