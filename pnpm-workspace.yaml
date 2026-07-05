@@ -11,3 +11,10 @@ packages:
   - js
   - examples/*
   - app
+
+# Supply-chain cooldown: refuse to install any dependency version published less
+# than 7 days ago (10080 minutes), so a freshly-compromised release has a window
+# to be caught/yanked before it can land in our lockfile. Opt-in on pnpm 10.x
+# (default 0 = off; pnpm 11 defaults it to 1 day). Add names/globs to
+# `minimumReleaseAgeExclude` to exempt a package if a real update is ever blocked.
+minimumReleaseAge: 10080
