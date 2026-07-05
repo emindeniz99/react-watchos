@@ -381,11 +381,30 @@ function MapSearchScreen() {
   const [results, setResults] = useState<POIResult[]>([]);
   const [center, setCenter] = useState<Coordinate>(SF);
 
-  useEffect(() => {
+  // Fetch the fix on FOCUS, not at mount: screens stay mounted across
+  // navigation (see NavigationRoute in navigation.tsx), so a bare useEffect([])
+  // runs once at launch — before the location prompt is answered — and never
+  // again. useFocusEffect re-runs each time this screen opens, so granting the
+  // permission then reopening picks up the real location.
+  useFocusEffect(
+    useCallback(() => {
+      getCurrentLocation()
+        .then(setCenter)
+        .catch(() => {}); // keep the SF fallback
+    }, []),
+  );
+
+  // "Recenter on me": re-fetch the fix on demand and clear the search so the
+  // camera falls back to (and frames) the watch's location instead of the pins.
+  const recenterOnMe = () => {
     getCurrentLocation()
-      .then(setCenter)
-      .catch(() => {}); // keep the SF fallback
-  }, []);
+      .then((fix) => {
+        setCenter(fix);
+        setResults([]);
+        setQuery("");
+      })
+      .catch(() => {});
+  };
 
   const runSearch = (q: string) => {
     setQuery(q);
@@ -421,7 +440,12 @@ function MapSearchScreen() {
         }))}
       />
       <VStack spacing={2}>
-        <TextField value={query} placeholder="Search places" onChange={runSearch} />
+        <HStack spacing={4}>
+          <TextField value={query} placeholder="Search places" onChange={runSearch} />
+          <Button onPress={recenterOnMe} buttonStyle="glass" accessibilityLabel="Recenter on my location">
+            <Image systemName="location.fill" />
+          </Button>
+        </HStack>
         <Text size={10} color="secondary">
           {results.length ? `${results.length} places` : "coffee, park, gas…"}
         </Text>
