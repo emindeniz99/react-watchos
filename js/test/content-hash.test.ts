@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { contentHash, writeOTAManifest } from "../esbuild/manifest.mjs";
+import { contentHash, writeOTAManifest } from "../esbuild/manifest.mts";
 
 // CX-025: the build's `releaseId` (JS contentHash) and the host's
 // `__bundleReleaseId` (Swift ReactWatchSupport.ContentHash) must be byte-equal

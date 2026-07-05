@@ -36,12 +36,12 @@
       "default": "./src/index.ts"
     },
     "./build": {
-      "types": "./esbuild/preset.d.mts",
-      "default": "./esbuild/preset.mjs"
+      "types": "./esbuild/preset.mts",
+      "default": "./esbuild/preset.mts"
     },
     "./manifest": {
-      "types": "./esbuild/manifest.d.mts",
-      "default": "./esbuild/manifest.mjs"
+      "types": "./esbuild/manifest.mts",
+      "default": "./esbuild/manifest.mts"
     },
     "./testing": {
       "source": "./src/testing.ts",
@@ -50,8 +50,8 @@
       "default": "./src/testing.ts"
     },
     "./app.plugin": "./app.plugin.js",
-    "./link-swift-package": "./plugin/link-swift-package.cjs",
-    "./merge-target-infoplist": "./plugin/merge-target-infoplist.cjs",
+    "./link-swift-package": "./plugin/link-swift-package.cts",
+    "./merge-target-infoplist": "./plugin/merge-target-infoplist.cts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -72,7 +72,7 @@
     "build": "node --experimental-strip-types scripts/build.ts",
     "build:min": "node --experimental-strip-types scripts/build.ts --minify",
     "dev": "node --experimental-strip-types scripts/dev.ts",
-    "inspector": "node bin/inspector-server.mjs",
+    "inspector": "node --experimental-strip-types bin/inspector-server.mts",
     "build:bytecode": "sh ../tools/qjs-compile/run.sh",
     "bench:qjs": "sh ../tools/embed-smoke/bench.sh",
     "ota:keygen": "node --experimental-strip-types scripts/ota-keygen.ts",
@@ -84,7 +84,7 @@
     "test:swift": "cd swift && swift test",
     "test:swift:watch": "bash scripts/test-watch.sh",
     "run:watch": "bash scripts/run-watch-sim.sh",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.plugin.json && tsc -p tsconfig.tooling.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.tooling.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",
     "format": "biome format --write",
@@ -152,7 +152,7 @@
     "vitest": "^4.0.0"
   },
   "bin": {
-    "react-watchos": "./bin/react-watchos.cjs"
+    "react-watchos": "./bin/react-watchos.cts"
   },
   "publishConfig": {
     "access": "public",

@@ -20,17 +20,16 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadXcode } = require("./peerDeps");
+const { loadXcode } = require("./peerDeps.cts");
 const {
   wireLocalPackage,
   HOST_PRODUCTS,
   WIDGET_PRODUCTS,
-} = require("./wireLocalPackage");
-const { swiftPackageRelativePath } = require("./resolveSwiftPackage");
-const { readGeneratedTargets } = require("./readTargets.cjs");
+} = require("./wireLocalPackage.cts");
+const { swiftPackageRelativePath } = require("./resolveSwiftPackage.cts");
+const { readGeneratedTargets } = require("./readTargets.cts");
 
-/** @param {string} flag @returns {string | undefined} */
-function arg(flag) {
+function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
@@ -38,7 +37,7 @@ function arg(flag) {
 const projectRoot = path.resolve(arg("--project-root") ?? process.cwd());
 const iosRoot = path.join(projectRoot, "ios");
 const projName = fs.existsSync(iosRoot)
-  ? fs.readdirSync(iosRoot).find((f) => f.endsWith(".xcodeproj"))
+  ? fs.readdirSync(iosRoot).find((f: string) => f.endsWith(".xcodeproj"))
   : undefined;
 if (!projName) {
   console.error(
@@ -48,8 +47,7 @@ if (!projName) {
 }
 
 // target NAME -> SwiftPM products, by target type (watch host vs widget ext).
-/** @type {Record<string, string[]>} */
-const targetProducts = {};
+const targetProducts: Record<string, string[]> = {};
 for (const { name, type } of readGeneratedTargets(projectRoot)) {
   if (type === "watch") targetProducts[name] = HOST_PRODUCTS;
   else if (type === "watch-widget") targetProducts[name] = WIDGET_PRODUCTS;

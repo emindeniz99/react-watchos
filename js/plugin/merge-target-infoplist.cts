@@ -17,10 +17,9 @@
 //   node node_modules/react-watchos/plugin/merge-target-infoplist.cjs [--project-root <dir>]
 
 const path = require("node:path");
-const { mergeTargetInfoPlists } = require("./withNativeWiring");
+const { mergeTargetInfoPlists } = require("./withNativeWiring.cts");
 
-/** @param {string} flag @returns {string | undefined} */
-function arg(flag) {
+function arg(flag: string): string | undefined {
   const i = process.argv.indexOf(flag);
   return i >= 0 ? process.argv[i + 1] : undefined;
 }

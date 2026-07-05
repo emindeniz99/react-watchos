@@ -1,4 +1,4 @@
-import { generateSigningKey } from "../esbuild/manifest.mjs";
+import { generateSigningKey } from "../esbuild/manifest.mts";
 
 /**
  * Generates an Ed25519 keypair + a key id for OTA bundle signing (CR-4 / CR-17).

@@ -6,9 +6,8 @@
 // generates the matching @main App. Pure (no fs), so it's unit-tested.
 
 /** The identifier core of a target name ("Expo Watch" -> "ExpoWatch"),
- *  falling back to "ReactWatch" when the name has no identifier characters.
- *  @param {string} name */
-function identifierBase(name) {
+ *  falling back to "ReactWatch" when the name has no identifier characters. */
+function identifierBase(name: string) {
   const base = String(name).replace(/[^A-Za-z0-9]/g, "") || "ReactWatch";
   // A Swift identifier can't start with a digit ("2Watch" -> invalid @main
   // struct name), so prefix one when the surviving head is numeric.
@@ -16,22 +15,25 @@ function identifierBase(name) {
 }
 
 /** A valid Swift type name derived from the target name.
- *  "Expo Watch" -> "ExpoWatchApp", "React Watch" -> "ReactWatchApp".
- *  @param {string} name */
-function structName(name) {
+ *  "Expo Watch" -> "ExpoWatchApp", "React Watch" -> "ReactWatchApp". */
+function structName(name: string) {
   return `${identifierBase(name)}App`;
 }
 
-/** The widget bundle's @main struct name: "Expo Watch" -> "ExpoWatchWidgets".
- *  @param {string} name */
-function widgetStructName(name) {
+/** The widget bundle's @main struct name: "Expo Watch" -> "ExpoWatchWidgets". */
+function widgetStructName(name: string) {
   return `${identifierBase(name)}Widgets`;
 }
 
 /** The @main watch App that embeds ReactWatchRootView with the App Group the
- *  config plugin uses for shared (widget/complication) storage.
- *  @param {{ name: string, appGroupId: string }} params */
-function watchAppSwift({ name, appGroupId }) {
+ *  config plugin uses for shared (widget/complication) storage. */
+function watchAppSwift({
+  name,
+  appGroupId,
+}: {
+  name: string;
+  appGroupId: string;
+}) {
   return `import ReactWatchHost
 import SwiftUI
 
@@ -63,9 +65,14 @@ struct ${structName(name)}: App {
  *  ReactWatchWidget package. Each widget pairs a `kind` (registered on the JS
  *  side via registerWidget) with the package's ReactTimelineProvider +
  *  reactWidgetView; the package owns the interpreter, the timeline logic, and
- *  the extension's QuickJS runtime. The App Group must match the watch app's.
- *  @param {{ name: string, appGroupId: string }} params */
-function widgetBundleSwift({ name, appGroupId }) {
+ *  the extension's QuickJS runtime. The App Group must match the watch app's. */
+function widgetBundleSwift({
+  name,
+  appGroupId,
+}: {
+  name: string;
+  appGroupId: string;
+}) {
   return `import ReactWatchWidget
 import SwiftUI
 import WidgetKit

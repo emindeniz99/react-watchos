@@ -1,7 +1,7 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BuildOptions } from "esbuild";
-import { watchBuildOptions } from "../esbuild/preset.mjs";
+import { watchBuildOptions } from "../esbuild/preset.mts";
 
 /** One per-target esbuild build (app | widget). */
 export interface BuildTarget {

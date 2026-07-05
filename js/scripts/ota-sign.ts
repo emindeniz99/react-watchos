@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { signManifest } from "../esbuild/manifest.mjs";
+import { signManifest } from "../esbuild/manifest.mts";
 import { root } from "./config.ts";
 
 /**

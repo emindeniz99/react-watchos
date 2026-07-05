@@ -303,6 +303,15 @@ REACT_WATCH_OTA_URL=http://192.168.x.y:8788/manifest.json \
 The renderer is a real package: `exports` (main, `/build`, `/testing`),
 `peerDependencies` for react / react-reconciler, and a typed host surface.
 
+> **Toolchain: Node ≥ 22.18 (Node 24 recommended).** The app source ships as
+> TypeScript that your bundler compiles — but the Expo config plugin, the CLI
+> (`npx react-watchos`), and the esbuild preset (`react-watchos/build`) run in
+> **your** Node and ship as `.cts`/`.mts` source, executed by Node's native
+> type stripping. So `expo prebuild` and your bundle-build script need Node
+> ≥ 22.18 (stripping is on by default) — or ≥ 22.6 with
+> `--experimental-strip-types`. This is a pre-1.0 choice; a compiled-to-JS
+> build can be added if older Node support is needed.
+
 ```ts
 import { runApp, VStack, Text, Button, getHost } from "react-watchos";
 import { findByType } from "react-watchos/testing";   // tree queries
@@ -568,7 +577,7 @@ signing still untested — Rule 12):**
 - The build runs the **React Compiler** (`babel-plugin-react-compiler`) —
   a published preset flag, so consumers get it too:
   `watchBuildOptions({ reactCompiler: true })` (needs the Babel dev deps —
-  see `esbuild/react-compiler.mjs`; the demo and the expo example both
+  see `esbuild/react-compiler.mts`; the demo and the expo example both
   enable it). Auto-memoization means React re-renders less and emits fewer
   commits — fewer serialize/decode trips across the bridge, compounding
   with the renderer's wire-identical commit skip. React 19 ships the

@@ -1,19 +1,34 @@
 {
-  // Dev-only build/codegen tooling (scripts/, codegen/): real TypeScript, run
-  // directly by `node script.ts` (Node 24's native type stripping — see the
-  // project .mise.toml `node = "24"` pin), and type-checked here by the official
-  // `tsc`. Not shipped (absent from package.json `files`), so no compile step:
-  // Node runs the .ts, tsc guards it. `.ts` imports need explicit extensions for
-  // Node's stripper, so allowImportingTsExtensions lets tsc accept them (noEmit
-  // is inherited from the base — we only type-check here, never emit).
+  // Every Node-side tool, authored in real TypeScript and RUN by Node 24's
+  // native type stripping (the project's .mise.toml pins node = "24") — no
+  // bundler, no compile step. tsc (the official compiler) type-checks it here.
   //
-  // Relaxes only noUncheckedIndexedAccess — build scripts index parsed argv /
-  // just-split arrays where a bad index throws and fails the run anyway (same
-  // rationale as tsconfig.test.json). Every other strict flag still applies.
+  //   dev-only, not shipped:  scripts/  codegen/
+  //   shipped as source:      esbuild/  plugin/  bin/
+  //
+  // (app.plugin.js stays a literal .js — Expo's zero-config plugin resolution
+  //  looks for that exact filename; it's a one-line `require("./plugin/index.cts")`
+  //  shim, the single unavoidable .js in the package.)
+  //
+  // Unlike src/ (which the app bundler compiles to run in QuickJS), this code
+  // runs on Node — so lib ES2022 (Error `cause`, etc.) + DOM globals, and the
+  // two option-bag-friendly relaxations. Node needs explicit extensions on
+  // relative TS imports (`./foo.cts`, `../esbuild/preset.mts`), so
+  // allowImportingTsExtensions lets tsc accept them; verbatimModuleSyntax /
+  // isolatedModules off so the CommonJS plugin (.cts `require`/`module.exports`)
+  // type-checks. noEmit is inherited from the base — we only type-check.
+  //
+  // Shipping .cts/.mts SOURCE (not compiled JS) means a consumer's `expo
+  // prebuild` / build script needs Node >= 22.18 (native TS) — documented in
+  // the README. The renderer (tsconfig.json) stays ES2020-strict for QuickJS.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": false,
+    "isolatedModules": false,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": false
   },
-  "include": ["scripts", "codegen"]
+  "include": ["scripts", "codegen", "esbuild", "plugin", "bin"]
 }

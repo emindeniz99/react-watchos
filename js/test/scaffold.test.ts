@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 // DX-3: the scaffolder's pure template logic (CommonJS, loaded by the CLI).
 const require = createRequire(import.meta.url);
 const { structName, widgetStructName, watchAppSwift, widgetBundleSwift } =
-  require("../plugin/scaffold.cjs");
+  require("../plugin/scaffold.cts");
 
 describe("scaffold (DX-3)", () => {
   it("derives a valid Swift struct name from the target name", () => {

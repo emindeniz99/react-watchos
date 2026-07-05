@@ -13,11 +13,9 @@ const path = require("node:path");
 
 /**
  * Require `id` resolved from `projectRoot` (then this file as a fallback).
- * @param {string} projectRoot
- * @param {string} id
- * @returns {any} whatever the consumer's copy exports — callers narrow it
+ * @returns whatever the consumer's copy exports — callers narrow it
  */
-function requireFromProject(projectRoot, id) {
+function requireFromProject(projectRoot: string, id: string): any {
   try {
     return require(require.resolve(id, { paths: [projectRoot] }));
   } catch {
@@ -28,32 +26,28 @@ function requireFromProject(projectRoot, id) {
 /**
  * The @expo/config-plugins API the plugin uses. Typed as our own (dev-dep)
  * copy's surface — the consumer's resolved copy is API-compatible (peerDep).
- * @param {string} projectRoot
- * @returns {typeof import("@expo/config-plugins")}
  */
-function loadConfigPlugins(projectRoot) {
+function loadConfigPlugins(
+  projectRoot: string,
+): typeof import("@expo/config-plugins") {
   return requireFromProject(projectRoot, "@expo/config-plugins");
 }
 
 /**
  * The @bacons/apple-targets `withTargetsDir` plugin (no published types).
- * @param {string} projectRoot
- * @returns {import("@expo/config-plugins").ConfigPlugin<{
- *   appleTeamId?: string | undefined }>}
  */
-function loadAppleTargets(projectRoot) {
+function loadAppleTargets(
+  projectRoot: string,
+): import("@expo/config-plugins").ConfigPlugin<{
+  appleTeamId?: string | undefined;
+}> {
   return requireFromProject(projectRoot, "@bacons/apple-targets/app.plugin");
 }
 
 // `xcode` / `plist` are transitive deps of config-plugins / apple-targets, not
 // hoisted next to a post-prebuild script under pnpm — resolve them through a
 // package that owns them. (Reused by scripts that run outside Expo.)
-/**
- * @param {string} id
- * @param {string} projectRoot
- * @returns {any}
- */
-function loadTransitive(id, projectRoot) {
+function loadTransitive(id: string, projectRoot: string): any {
   const bases = ["@expo/config-plugins", "@bacons/apple-targets"];
   for (const base of bases) {
     try {
@@ -68,19 +62,24 @@ function loadTransitive(id, projectRoot) {
 
 /**
  * node-xcode (no published types for 3.x — see XcodeProjectLike).
- * @param {string} projectRoot
- * @returns {{ project: (pbxPath: string) =>
- *   import("./wireLocalPackage.js").XcodeProjectLike }}
  */
-const loadXcode = (projectRoot) => loadTransitive("xcode", projectRoot);
+const loadXcode = (
+  projectRoot: string,
+): {
+  project: (
+    pbxPath: string,
+  ) => import("./wireLocalPackage.cts").XcodeProjectLike;
+} => loadTransitive("xcode", projectRoot);
 
 /**
  * The `plist` XML builder/parser used for the target Info.plist merge.
- * @param {string} projectRoot
- * @returns {{ parse: (xml: string) => Record<string, unknown>,
- *   build: (obj: Record<string, unknown>) => string }}
  */
-const loadPlist = (projectRoot) => loadTransitive("plist", projectRoot);
+const loadPlist = (
+  projectRoot: string,
+): {
+  parse: (xml: string) => Record<string, unknown>;
+  build: (obj: Record<string, unknown>) => string;
+} => loadTransitive("plist", projectRoot);
 
 module.exports = {
   requireFromProject,

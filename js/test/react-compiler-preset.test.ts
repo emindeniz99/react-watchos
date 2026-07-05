@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "esbuild";
 import { describe, expect, it } from "vitest";
-import { watchBuildOptions } from "../esbuild/preset.mjs";
+import { watchBuildOptions } from "../esbuild/preset.mts";
 
 // NF-28: the React Compiler ships as a preset flag, so installed consumers
 // get the auto-memoization the README advertises (it used to be wired only

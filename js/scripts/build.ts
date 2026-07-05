@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, rmSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { build } from "esbuild";
 import { bridgeProtocol, hostMethods } from "../codegen/schema.ts";
-import { writeOTAManifest } from "../esbuild/manifest.mjs";
+import { writeOTAManifest } from "../esbuild/manifest.mts";
 import { buildOptions, bundleVersion, root, targets } from "./config.ts";
 import { unprovidedFeatures } from "./releaseContract.ts";
 

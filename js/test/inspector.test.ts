@@ -56,9 +56,15 @@ describe("inspector server", () => {
     const port = 20000 + Math.floor(Math.random() * 20000);
     // The server moved into bin/ (shipped in the tarball; `react-watchos
     // inspector` starts it — M11).
+    // inspector-server is real TS (.mts); process.execPath = the Node running
+    // vitest, --experimental-strip-types runs it on any Node >= 22.6 (no-op on
+    // 24+, where stripping is the default).
     const server = spawn(
-      "node",
-      [join(__dirname, "../bin/inspector-server.mjs")],
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        join(__dirname, "../bin/inspector-server.mts"),
+      ],
       {
         env: { ...process.env, INSPECTOR_PORT: String(port) },
         stdio: "ignore",

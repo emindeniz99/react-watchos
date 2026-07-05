@@ -12,10 +12,11 @@
 import { mkdirSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeOTAManifest } from "./manifest.mjs";
-import { reactCompilerPlugin } from "./react-compiler.mjs";
+import type { BuildOptions, Plugin } from "esbuild";
+import { type OTAManifest, writeOTAManifest } from "./manifest.mts";
+import { reactCompilerPlugin } from "./react-compiler.mts";
 
-export { reactCompilerPlugin } from "./react-compiler.mjs";
+export { reactCompilerPlugin } from "./react-compiler.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -25,22 +26,26 @@ export const rendererRoot = join(here, "..");
 /** The shim entry esbuild must `inject` (captures setTimeout & co. first). */
 export const shimEntry = join(rendererRoot, "src/install-shims.ts");
 
-/**
- * esbuild BuildOptions for a QuickJS-targeted watch bundle.
- *
- * @param {object} opts
- * @param {string} opts.entry         App entry (e.g. src/entry.tsx).
- * @param {string} opts.outfile       Where to write the IIFE bundle.
- * @param {boolean} [opts.minify]     Minify (≈halves size; off keeps traces).
- * @param {boolean} [opts.reactCompiler] Run the React Compiler over app +
- *                                    renderer source (auto-memoization ->
- *                                    fewer commits). Needs Babel dev deps —
- *                                    see esbuild/react-compiler.mjs.
- * @param {string[]} [opts.nodePaths] Extra resolution roots (consumer's
- *                                    node_modules, for single-React dedupe).
- * @param {import("esbuild").Plugin[]} [opts.plugins] Extra plugins.
- * @returns {import("esbuild").BuildOptions}
- */
+/** Options for {@link watchBuildOptions}. */
+export interface WatchBuildOptions {
+  /** App entry (e.g. src/entry.tsx). */
+  entry?: string;
+  /** Where to write the IIFE bundle. */
+  outfile?: string;
+  /** Minify (≈halves size; off keeps traces). */
+  minify?: boolean;
+  /**
+   * Run the React Compiler over app + renderer source (auto-memoization ->
+   * fewer commits). Needs Babel dev deps — see esbuild/react-compiler.mts.
+   */
+  reactCompiler?: boolean;
+  /** Extra resolution roots (consumer's node_modules, for single-React dedupe). */
+  nodePaths?: string[] | undefined;
+  /** Extra esbuild plugins. */
+  plugins?: Plugin[];
+}
+
+/** esbuild BuildOptions for a QuickJS-targeted watch bundle. */
 export function watchBuildOptions({
   entry,
   outfile,
@@ -48,7 +53,7 @@ export function watchBuildOptions({
   reactCompiler = false,
   nodePaths,
   plugins = [],
-} = {}) {
+}: WatchBuildOptions = {}): BuildOptions {
   if (!entry) throw new Error("watchBuildOptions: `entry` is required");
   if (!outfile) throw new Error("watchBuildOptions: `outfile` is required");
   if (reactCompiler) plugins = [reactCompilerPlugin(), ...plugins];
@@ -78,10 +83,38 @@ export function watchBuildOptions({
   };
 }
 
+/** The OTA-manifest slice a {@link BundleTarget} may stamp. */
+export interface BundleManifestInput {
+  version: number;
+  requiredFeatures?: string[];
+  minBridgeProtocol?: number;
+  bundleFileName?: string;
+  signature?: string | null;
+  expiresAt?: number;
+}
+
+/** One bundle {@link buildBundles} builds. */
+export interface BundleTarget {
+  entry: string;
+  outfile: string;
+  name?: string;
+  define?: Record<string, string>;
+  plugins?: Plugin[];
+  manifest?: BundleManifestInput;
+}
+
+/** One built bundle's result. */
+export interface BuildBundleResult {
+  name: string;
+  outfile: string;
+  sizeKB: number;
+  manifest?: OTAManifest | undefined;
+}
+
 /**
  * Build one or more watch bundles in a single call — the batteries-included
- * companion to `watchBuildOptions`, so a consumer with both a watch UI and a
- * widget (two bundles, ARCH-03) writes ONE build script instead of copying the
+ * companion to {@link watchBuildOptions}, so a consumer with both a watch UI and
+ * a widget (two bundles, ARCH-03) writes ONE build script instead of copying the
  * esbuild boilerplate per target. Each target runs through the same preset; a
  * target may add a `define` (e.g. baking `REACT_WATCH_OTA_URL` into the bundle)
  * and/or a `manifest` (stamp `manifest.json` next to the bundle via
@@ -92,33 +125,26 @@ export function watchBuildOptions({
  * A target may also pass `plugins` (esbuild plugins like the React Compiler,
  * forwarded to the preset). The manifest is stamped against the target's real
  * outfile name, so a bundle not named `bundle.js` still hashes correctly.
- *
- * @param {Array<{
- *   entry: string,
- *   outfile: string,
- *   name?: string,
- *   define?: Record<string, string>,
- *   plugins?: import("esbuild").Plugin[],
- *   manifest?: { version: number, requiredFeatures?: string[], minBridgeProtocol?: number, bundleFileName?: string, signature?: string | null },
- * }>} targets
- * @param {{ minify?: boolean, reactCompiler?: boolean, nodePaths?: string[] }} [opts]
- * @returns {Promise<Array<{ name: string, outfile: string, sizeKB: number, manifest?: object }>>}
  */
 export async function buildBundles(
-  targets,
-  { minify = false, reactCompiler = false, nodePaths } = {},
-) {
+  targets: BundleTarget[],
+  {
+    minify = false,
+    reactCompiler = false,
+    nodePaths,
+  }: { minify?: boolean; reactCompiler?: boolean; nodePaths?: string[] } = {},
+): Promise<BuildBundleResult[]> {
   if (!Array.isArray(targets) || targets.length === 0) {
     throw new Error("buildBundles: pass a non-empty array of targets");
   }
-  let build;
+  let build: typeof import("esbuild").build;
   try {
     ({ build } = await import("esbuild"));
   } catch (err) {
     // Only relabel a genuine "esbuild isn't installed"; preserve any other
     // import-time failure (e.g. a corrupt platform binary) so it isn't hidden
     // behind a misleading "run npm i" (fail loud).
-    if (err?.code === "ERR_MODULE_NOT_FOUND") {
+    if ((err as NodeJS.ErrnoException)?.code === "ERR_MODULE_NOT_FOUND") {
       throw new Error(
         "buildBundles needs esbuild installed in your project (npm i -D esbuild). " +
           "If you bring your own bundler, use watchBuildOptions instead.",
@@ -127,16 +153,9 @@ export async function buildBundles(
     }
     throw err;
   }
-  const results = [];
+  const results: BuildBundleResult[] = [];
   for (const target of targets) {
-    const {
-      entry,
-      outfile,
-      name = outfile,
-      define,
-      plugins,
-      manifest,
-    } = target;
+    const { entry, outfile, name = outfile, define, plugins, manifest } = target;
     if (!entry || !outfile) {
       throw new Error("buildBundles: each target needs `entry` and `outfile`");
     }

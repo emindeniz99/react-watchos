@@ -7,7 +7,7 @@ import {
   generateSigningKey,
   signManifest,
   writeOTAManifest,
-} from "../esbuild/manifest.mjs";
+} from "../esbuild/manifest.mts";
 
 // Wrap a raw 32-byte Ed25519 public key in its X.509 SPKI prefix so node:crypto
 // can verify with it — the mirror of how Swift's OTAConfig stores the trusted

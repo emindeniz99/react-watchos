@@ -20,16 +20,16 @@ const {
   wireLocalPackage,
   HOST_PRODUCTS,
   WIDGET_PRODUCTS,
-} = require("../plugin/wireLocalPackage.js");
-const { deepMerge } = require("../plugin/mergeInfoPlist.js");
+} = require("../plugin/wireLocalPackage.cts");
+const { deepMerge } = require("../plugin/mergeInfoPlist.cts");
 const {
   watchTargetConfig,
   widgetTargetConfig,
-} = require("../plugin/targetConfig.js");
+} = require("../plugin/targetConfig.cts");
 // index.js only requires @expo/config-plugins lazily (inside the plugin fn), so
 // loading the module to test its pure exports works without Expo installed.
-const withReactWatch = require("../plugin/index.js");
-const { mergeTargetInfoPlists } = require("../plugin/withNativeWiring.js");
+const withReactWatch = require("../plugin/index.cts");
+const { mergeTargetInfoPlists } = require("../plugin/withNativeWiring.cts");
 
 // ---------------------------------------------------------------------------
 // Minimal fake node-xcode XcodeProject: just the surface wireLocalPackage uses

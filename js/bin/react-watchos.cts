@@ -24,9 +24,8 @@ const { parseArgs } = require("node:util");
 
 /**
  * Parse the shared build/dev flags.
- * @param {string[]} args
  */
-function buildFlags(args) {
+function buildFlags(args: string[]) {
   const { values } = parseArgs({
     args,
     options: {
@@ -50,11 +49,10 @@ function buildFlags(args) {
   return { ...values, entry: values.entry };
 }
 
-/** One-shot bundle build via the published preset (+ OTA manifest stamp).
- *  @param {string[]} args */
-async function build(args) {
+/** One-shot bundle build via the published preset (+ OTA manifest stamp). */
+async function build(args: string[]) {
   const f = buildFlags(args);
-  const { buildBundles } = await import("../esbuild/preset.mjs");
+  const { buildBundles } = await import("../esbuild/preset.mts");
   const results = await buildBundles(
     [
       {
@@ -80,18 +78,16 @@ async function build(args) {
  *  A DEBUG watch build polls <host>:<port>/bundle.js every 2s and hot-restarts
  *  its QuickJS runtime when the bytes change (the polling contract; override
  *  the URL with the ReactWatchDevServerURL Info.plist key). */
-/** @param {string[]} args */
-async function dev(args) {
+async function dev(args: string[]) {
   const f = buildFlags(args);
-  /** @type {typeof import("esbuild").context} */
-  let context;
+  let context: typeof import("esbuild").context;
   try {
     ({ context } = await import("esbuild"));
   } catch (err) {
     if (
       err instanceof Error &&
       "code" in err &&
-      err.code === "ERR_MODULE_NOT_FOUND"
+      (err as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND"
     ) {
       console.error(
         "[react-watchos] dev needs esbuild installed (npm i -D esbuild).",
@@ -100,7 +96,7 @@ async function dev(args) {
     }
     throw err;
   }
-  const { watchBuildOptions } = await import("../esbuild/preset.mjs");
+  const { watchBuildOptions } = await import("../esbuild/preset.mts");
   const ctx = await context(
     watchBuildOptions({ entry: f.entry, outfile: f.outfile }),
   );
@@ -117,21 +113,19 @@ async function dev(args) {
   );
 }
 
-/** Remote inspector UI (tree + logs + errors posted by a DEBUG watch build).
- *  @param {string[]} args */
-async function inspector(args) {
+/** Remote inspector UI (tree + logs + errors posted by a DEBUG watch build). */
+async function inspector(args: string[]) {
   const { values } = parseArgs({
     args,
     options: { port: { type: "string" } },
   });
   if (values.port) process.env.INSPECTOR_PORT = values.port;
-  await import("./inspector-server.mjs"); // listens on import
+  await import("./inspector-server.mts"); // listens on import
 }
 
 /** Generate the watch app's Swift entry point, parameterized to match the
- *  plugin's resolved app.json config so the App Group + name always agree.
- *  @param {string[]} args */
-function scaffold(args) {
+ *  plugin's resolved app.json config so the App Group + name always agree. */
+function scaffold(args: string[]) {
   const projectRoot = process.cwd();
   const force = args.includes("--force");
   const appJsonPath = path.join(projectRoot, "app.json");
@@ -140,10 +134,9 @@ function scaffold(args) {
     process.exit(1);
   }
   const config = JSON.parse(fs.readFileSync(appJsonPath, "utf8")).expo ?? {};
-  const plugin = require("../plugin");
+  const plugin = require("../plugin/index.cts");
   const entry = (config.plugins ?? []).find(
-    (/** @type {unknown} */ p) =>
-      (Array.isArray(p) ? p[0] : p) === "react-watchos",
+    (p: unknown) => (Array.isArray(p) ? p[0] : p) === "react-watchos",
   );
   if (!entry) {
     console.error(
@@ -157,7 +150,7 @@ function scaffold(args) {
   const {
     watchAppSwift,
     widgetBundleSwift,
-  } = require("../plugin/scaffold.cjs");
+  } = require("../plugin/scaffold.cts");
 
   // The watch app's @main App (always) and, when the widget target is enabled,
   // the @main WidgetBundle — both thin consumers of the package, parameterized
@@ -186,13 +179,14 @@ function scaffold(args) {
 
 /**
  * Write one scaffolded file, refusing to clobber an edited one without --force.
- * @param {string} projectRoot
- * @param {string} relPath
- * @param {string} contents
- * @param {boolean} force
- * @param {string} note
  */
-function writeGlue(projectRoot, relPath, contents, force, note) {
+function writeGlue(
+  projectRoot: string,
+  relPath: string,
+  contents: string,
+  force: boolean,
+  note: string,
+) {
   const file = path.join(projectRoot, relPath);
   fs.mkdirSync(path.dirname(file), { recursive: true });
   if (fs.existsSync(file) && !force) {
@@ -244,8 +238,7 @@ switch (command) {
     process.exit(command ? 1 : 0);
 }
 
-/** @param {unknown} error */
-function fail(error) {
+function fail(error: unknown) {
   console.error(
     `[react-watchos] ${error instanceof Error ? error.message : error}`,
   );

@@ -2,8 +2,8 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { contentHash } from "../esbuild/manifest.mjs";
-import { buildBundles } from "../esbuild/preset.mjs";
+import { contentHash } from "../esbuild/manifest.mts";
+import { buildBundles } from "../esbuild/preset.mts";
 
 // The batteries-included multi-target build: a consumer with a watch bundle +
 // a widget bundle calls this once instead of copying the esbuild boilerplate

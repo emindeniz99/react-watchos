@@ -1,10 +1,20 @@
 {
-  // Tests inherit every strict flag except noUncheckedIndexedAccess: asserting
-  // on arr[0] / record[key] of fixtures built two lines up is idiomatic, and a
-  // bad index throws and fails the test anyway. All other guarantees still hold.
+  // Tests run on Node 24 (not in QuickJS), and some import the Node tooling
+  // (esbuild/*.mts, plugin/*.cts) — so lib ES2022 (Error `cause` etc.) matches
+  // the real runtime, and the two option-bag-friendly relaxations mirror
+  // tsconfig.tooling.json. src/ stays ES2020-guarded by tsconfig.json; loosening
+  // here only affects test + tooling code that never ships to the watch.
+  // noUncheckedIndexedAccess off: asserting on arr[0] of a fixture built two
+  // lines up is idiomatic, and a bad index throws and fails the test anyway.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "noUncheckedIndexedAccess": false
+    // ES2022 (Error `cause`) + DOM (fetch/Response, as the default lib gave)
+    // so tests can import the Node tooling AND keep their existing DOM globals.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    // Import the tooling sources by their real extension (../esbuild/preset.mts).
+    "allowImportingTsExtensions": true,
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false
   },
   "include": ["test"]
 }

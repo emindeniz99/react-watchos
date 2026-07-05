@@ -93,10 +93,11 @@ describe("published tarball contents (DX-4)", () => {
     for (const required of [
       "swift/Package.swift",
       "app.plugin.js",
-      "plugin/index.js",
-      "plugin/withNativeWiring.js",
-      "plugin/scaffold.cjs",
-      "bin/react-watchos.cjs",
+      "plugin/index.cts",
+      "plugin/withNativeWiring.cts",
+      "plugin/scaffold.cts",
+      "bin/react-watchos.cts",
+      "esbuild/preset.mts",
     ]) {
       expect(files, `tarball is missing ${required}`).toContain(required);
     }

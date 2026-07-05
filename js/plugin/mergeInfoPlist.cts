@@ -10,11 +10,7 @@
 // Kept free of any `@expo/config-plugins` import so it can be required from a
 // standalone post-prebuild node script outside Expo's module resolution.
 
-/**
- * @param {unknown} value
- * @returns {value is Record<string, unknown>}
- */
-function isPlainObject(value) {
+function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
@@ -22,20 +18,16 @@ function isPlainObject(value) {
  * Deep-merge `source` into `target`: nested plain objects merge recursively,
  * everything else (scalars, arrays) is replaced by the source value. Pure: does
  * not mutate either argument.
- * @template T
- * @param {unknown} target
- * @param {T} source
- * @returns {T}
  */
-function deepMerge(target, source) {
+function deepMerge<T>(target: unknown, source: T): T {
   if (!isPlainObject(target) || !isPlainObject(source)) return source;
-  const out = { ...target };
+  const out: Record<string, unknown> = { ...target };
   for (const [key, value] of Object.entries(source)) {
     out[key] = isPlainObject(value) ? deepMerge(target[key], value) : value;
   }
   // Merging two plain objects yields the source's shape with target keys
   // retained — Record-of-unknown structurally, T for the caller.
-  return /** @type {T} */ (out);
+  return out as T;
 }
 
 module.exports = { deepMerge, isPlainObject };

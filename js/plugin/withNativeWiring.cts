@@ -2,11 +2,11 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { loadConfigPlugins, loadXcode } = require("./peerDeps");
-const { wireLocalPackage } = require("./wireLocalPackage");
-const { deepMerge } = require("./mergeInfoPlist");
-const { readGeneratedTargets } = require("./readTargets.cjs");
-const { loadPlist } = require("./peerDeps");
+const { loadConfigPlugins, loadXcode } = require("./peerDeps.cts");
+const { wireLocalPackage } = require("./wireLocalPackage.cts");
+const { deepMerge } = require("./mergeInfoPlist.cts");
+const { readGeneratedTargets } = require("./readTargets.cts");
+const { loadPlist } = require("./peerDeps.cts");
 
 // In-prebuild native wiring (CX-012): link the SwiftPM host products into the
 // generated watch/widget targets and merge each target's `infoPlist`, DURING
@@ -28,13 +28,10 @@ const MOD_NAME = "reactWatchNativeWiring";
 
 /** Merge each generated target's `infoPlist` into the Info.plist apple-targets
  *  wrote, preserving apple-targets' own keys (e.g. a widget's NSExtension).
- *  Idempotent. Returns the dirs it changed.
- *  @param {string} projectRoot
- *  @returns {string[]} */
-function mergeTargetInfoPlists(projectRoot) {
+ *  Idempotent. Returns the dirs it changed. */
+function mergeTargetInfoPlists(projectRoot: string): string[] {
   const plist = loadPlist(projectRoot);
-  /** @type {string[]} */
-  const merged = [];
+  const merged: string[] = [];
   for (const { dir, config } of readGeneratedTargets(projectRoot)) {
     const infoPlist = config.infoPlist;
     if (!infoPlist || Object.keys(infoPlist).length === 0) continue;
@@ -73,10 +70,14 @@ function mergeTargetInfoPlists(projectRoot) {
  * at build time, which is far harder to diagnose. The genuinely benign case (no
  * watch/widget target to wire) doesn't throw — wireLocalPackage skips an absent
  * target — so it's reported as a warning, not swallowed.
- * @param {import("@expo/config-plugins").ExportedConfig} config
- * @param {{ packagePath: string, targetProducts: Record<string, string[]> }} props
  */
-function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
+function withReactWatchNativeWiring(
+  config: import("@expo/config-plugins").ExportedConfig,
+  {
+    packagePath,
+    targetProducts,
+  }: { packagePath: string; targetProducts: Record<string, string[]> },
+) {
   const projectRoot = config._internal?.projectRoot ?? process.cwd();
   const cp = loadConfigPlugins(projectRoot);
   const xcode = loadXcode(projectRoot);
@@ -86,7 +87,7 @@ function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
   config = cp.withMod(config, {
     platform: "ios",
     mod: MOD_NAME,
-    action: (cfg) => {
+    action: (cfg: import("@expo/config-plugins").ExportedConfigWithProps) => {
       // No try/catch: a thrown error here means the .pbxproj edit genuinely
       // failed, and that MUST fail the prebuild rather than ship a project whose
       // watch target never links the host. The "no target yet" case is handled
@@ -95,9 +96,7 @@ function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
       // modResults is our own base mod's payload (the XcodeProject the provider
       // below `read`s) — Expo types it as unknown for a custom mod name.
       const project =
-        /** @type {import("./wireLocalPackage.js").XcodeProjectLike} */ (
-          cfg.modResults
-        );
+        cfg.modResults as import("./wireLocalPackage.cts").XcodeProjectLike;
       const { linked } = wireLocalPackage(project, {
         packagePath,
         targetProducts,
@@ -135,7 +134,11 @@ function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
         // _internal is optional on the config TYPE, but prebuild always sets
         // projectRoot before mods run. Fail LOUDLY if that assumption breaks
         // (Rule 12) — a cwd fallback could silently edit the wrong pbxproj.
-        getFilePath: ({ _internal }) => {
+        getFilePath: ({
+          _internal,
+        }: {
+          _internal?: { projectRoot?: string };
+        }) => {
           const projectRoot = _internal?.projectRoot;
           if (typeof projectRoot !== "string") {
             throw new Error(
@@ -145,12 +148,15 @@ function withReactWatchNativeWiring(config, { packagePath, targetProducts }) {
           }
           return cp.IOSConfig.Paths.getPBXProjectPath(projectRoot);
         },
-        read: (filePath) => {
+        read: (filePath: string) => {
           const project = xcode.project(filePath);
           project.parseSync();
           return project;
         },
-        write: (filePath, { modResults }) => {
+        write: (
+          filePath: string,
+          { modResults }: { modResults: { writeSync(): string } },
+        ) => {
           fs.writeFileSync(filePath, modResults.writeSync());
         },
       }),
