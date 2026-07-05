@@ -62,6 +62,12 @@ feature-set model supersedes the earlier scalar capability gate).
   above. GitHub Actions are intentionally not relied on for the native build;
   verify those locally (see the build/run notes in the renderer README and
   `docs/`).
+- **Running the full demo app on the watch sim (level ③):** `cd js && pnpm
+  run:watch`. **Read [`docs/running-on-sim.md`](./docs/running-on-sim.md)
+  first** — the App Group that backs Hydration/Shopping/widgets gets stripped
+  three different sim-specific ways, and shared-state screens silently read `0`
+  if you hand-roll `xcodebuild` instead of using the script. This wasted real
+  time before it was written down.
 
 ### macOS build gotchas (these waste hours if you don't know them)
 
