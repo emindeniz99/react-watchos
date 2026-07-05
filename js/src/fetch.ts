@@ -117,11 +117,15 @@ class WatchAbortSignal {
 
   static timeout(ms: number): WatchAbortSignal {
     const signal = new WatchAbortSignal();
-    const setTimeoutFn = (
-      globalThis as {
-        setTimeout?: (fn: () => void, ms: number) => number;
-      }
-    ).setTimeout;
+    const setTimeoutFn =
+      // `as unknown as` — the watch runtime's setTimeout returns a numeric id,
+      // but a consumer's @types/node types it as NodeJS.Timeout; assert our
+      // shape through unknown so a consumer's `tsc` doesn't reject this file.
+      (
+        globalThis as unknown as {
+          setTimeout?: (fn: () => void, ms: number) => number;
+        }
+      ).setTimeout;
     signal.timerId = setTimeoutFn?.(
       () => signal.fire(abortError(`timeout after ${ms}ms`)),
       ms,

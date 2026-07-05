@@ -125,7 +125,10 @@ export function startInspector(options: InspectorOptions): () => void {
     };
   }
 
-  const g = globalThis as {
+  // `as unknown as` — the watch runtime's setInterval returns a numeric id,
+  // but a consumer's @types/node types it as NodeJS.Timeout; assert our shape
+  // through unknown so a consumer's `tsc` doesn't reject this file.
+  const g = globalThis as unknown as {
     setInterval?: (fn: () => void, ms: number) => number;
     clearInterval?: (id: number) => void;
     fetch?: (url: string, init: unknown) => Promise<unknown>;

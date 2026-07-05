@@ -192,6 +192,14 @@ globals, so every consumer needs `@types/node` in devDependencies and:
 Without it, a strict tsconfig fails with `TS2304/TS2580` errors inside the
 package (`setTimeout`, `process`, `console`).
 
+Everything else needed to type-check the shipped source is handled for you: the
+types for the untyped runtime/peer deps it imports (`plurals-cldr`,
+`react-reconciler`) are pulled in as regular dependencies, and the timer-id
+casts assert through `unknown` so `@types/node`'s `NodeJS.Timeout` return type
+doesn't clash. A fresh consumer that installs the package + the `react` /
+`react-reconciler` peers + `@types/node` gets a clean `tsc` — verified by
+packing the tarball and type-checking a consumer app against it.
+
 ## React dedupe (single instance)
 
 Inside this repo's pnpm workspace, `workspace:*` dedupes React automatically.

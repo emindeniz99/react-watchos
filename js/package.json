@@ -92,6 +92,8 @@
     "format:swift:check": "swift format lint -s -r -p swift/Sources swift/Tests ../app/targets"
   },
   "dependencies": {
+    "@types/plurals-cldr": "^1.0.5",
+    "@types/react-reconciler": "^0.32.0",
     "plist": "^3.1.0",
     "plurals-cldr": "^2.0.1"
   },
@@ -139,9 +141,7 @@
     "@babel/preset-typescript": "^8.0.0",
     "@biomejs/biome": "2.5.0",
     "@types/node": "^24.0.0",
-    "@types/plurals-cldr": "^1.0.5",
     "@types/react": "^19.2.0",
-    "@types/react-reconciler": "^0.32.0",
     "babel-plugin-react-compiler": "^1.0.0",
     "esbuild": "^0.27.0",
     "react": "^19.2.0",
