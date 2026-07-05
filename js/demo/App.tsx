@@ -22,6 +22,7 @@ import {
   href,
   Image,
   List,
+  MapView,
   NavigationLink,
   NavigationProvider,
   NavigationRoute,
@@ -313,6 +314,36 @@ function TabsScreen() {
         <Text size={12}>React-paged TabView</Text>
       </VStack>
     </TabView>
+  );
+}
+
+/**
+ * A MapKit map (watchOS 26+) with a few pinned landmarks and a route between
+ * them — exercises the `Map` primitive's region, annotations and polyline.
+ */
+function MapScreen() {
+  return (
+    <VStack spacing={4}>
+      <MapView
+        latitude={37.795}
+        longitude={-122.402}
+        span={0.03}
+        height={120}
+        annotations={[
+          { lat: 37.7955, lon: -122.3937, title: "Ferry Building", systemImage: "ferry.fill", tint: "blue" },
+          { lat: 37.8024, lon: -122.4058, title: "Coit Tower", systemImage: "building.columns.fill", tint: "orange" },
+          { lat: 37.788, lon: -122.4074, title: "Union Square", systemImage: "bag.fill", tint: "green" },
+        ]}
+        route={[
+          { lat: 37.7955, lon: -122.3937 },
+          { lat: 37.8024, lon: -122.4058 },
+          { lat: 37.788, lon: -122.4074 },
+        ]}
+      />
+      <Text size={11} color="secondary">
+        3 pins + route
+      </Text>
+    </VStack>
   );
 }
 
@@ -759,6 +790,9 @@ function DemoNavigation() {
       <NavigationRoute path="/tabs" title="Tabs">
         <TabsScreen />
       </NavigationRoute>
+      <NavigationRoute path="/map" title="Map">
+        <MapScreen />
+      </NavigationRoute>
       <NavigationRoute path="/stopwatch" title="Stopwatch">
         <StopwatchScreen />
       </NavigationRoute>
@@ -795,6 +829,7 @@ function HomeScreen() {
       <NavigationLink to="/gallery" label="Gallery" />
       <NavigationLink to="/inputs" label="Inputs" />
       <NavigationLink to="/tabs" label="Tabs" />
+      <NavigationLink to="/map" label="Map" />
       <NavigationLink to="/stopwatch" label="Stopwatch" />
       <NavigationLink to="/crown" label="Crown" />
       <NavigationLink to="/phone" label="Phone" />
