@@ -18,7 +18,6 @@ import {
   fetchAndApplyUpdate,
   Gauge,
   generateText,
-  getCurrentLocation,
   HStack,
   href,
   Image,
@@ -42,6 +41,7 @@ import {
   scheduleNotification,
   searchPOI,
   sendToPhone,
+  startLocation,
   TabView,
   Text,
   TextField,
@@ -372,8 +372,9 @@ function fitRegion(results: POIResult[]) {
  * Searchable POI map: a full-screen map with a search field floating over it
  * (ZStack, top-aligned). Typing a query runs MapKit's `searchPOI`
  * (MKLocalSearch) and drops a pin per result; the camera then zooms to fit
- * them. The search is biased to — and the map initially centered on — the
- * watch's real location (`getCurrentLocation`), falling back to SF. watchOS
+ * them. The search is biased to — and the blue "My location" marker live-
+ * tracks — the watch's real location (`startLocation`, CoreLocation's
+ * continuous stream), falling back to SF until the first fix arrives. watchOS
  * text entry is modal, so `onChange` fires once with the finished query.
  */
 function MapSearchScreen() {
@@ -381,29 +382,32 @@ function MapSearchScreen() {
   const [results, setResults] = useState<POIResult[]>([]);
   const [center, setCenter] = useState<Coordinate>(SF);
 
-  // Fetch the fix on FOCUS, not at mount: screens stay mounted across
-  // navigation (see NavigationRoute in navigation.tsx), so a bare useEffect([])
-  // runs once at launch — before the location prompt is answered — and never
-  // again. useFocusEffect re-runs each time this screen opens, so granting the
-  // permission then reopening picks up the real location.
+  // Live-track while this screen is open, not at mount: screens stay mounted
+  // across navigation (see NavigationRoute in navigation.tsx), so a bare
+  // useEffect([]) would keep CoreLocation running (and draining battery) even
+  // after the user leaves. useFocusEffect starts the stream on focus and stops
+  // it on blur/unmount, and each fix updates `center` — and the blue marker —
+  // as the watch moves.
   useFocusEffect(
-    useCallback(() => {
-      getCurrentLocation()
-        .then(setCenter)
-        .catch(() => {}); // keep the SF fallback
-    }, []),
+    useCallback(
+      () =>
+        startLocation((reading) => {
+          if (
+            typeof reading?.latitude === "number" &&
+            typeof reading?.longitude === "number"
+          ) {
+            setCenter({ lat: reading.latitude, lon: reading.longitude });
+          }
+        }),
+      [],
+    ),
   );
 
-  // "Recenter on me": re-fetch the fix on demand and clear the search so the
-  // camera falls back to (and frames) the watch's location instead of the pins.
+  // "Recenter on me": drop the search so the camera stops fitting the result
+  // pins and follows the live `center` again instead.
   const recenterOnMe = () => {
-    getCurrentLocation()
-      .then((fix) => {
-        setCenter(fix);
-        setResults([]);
-        setQuery("");
-      })
-      .catch(() => {});
+    setResults([]);
+    setQuery("");
   };
 
   const runSearch = (q: string) => {
