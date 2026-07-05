@@ -454,7 +454,7 @@ function MapSearchScreen() {
   };
 
   return (
-    <ZStack alignment="bottom">
+    <ZStack alignment="bottom" ignoresSafeArea>
       <MapView
         fullScreen
         showsUserLocation
@@ -505,14 +505,14 @@ function MapSearchScreen() {
             <HStack>
               <RoundButton
                 icon="magnifyingglass"
-                tint="#1C1C1E"
+                tint="white"
                 onPress={() => setSearching(true)}
                 label="Search places"
               />
               <Spacer />
               <RoundButton
                 icon="location.fill"
-                tint="blue"
+                tint="#0A84FF"
                 onPress={recenterOnMe}
                 label="Recenter on my location"
               />
@@ -524,9 +524,10 @@ function MapSearchScreen() {
   );
 }
 
-/** A small circular map control: white disc, tinted SF Symbol. `plain` strips
- *  the default button chrome; padding (not frame) sizes the disc around the
- *  glyph so the rounded fill hugs it (modifier order is padding → background). */
+/** A small translucent map control: a see-through dark disc (the map shows
+ *  through) with a light SF Symbol. `plain` strips the default chrome so the
+ *  disc is exactly our translucent fill and stays a precise small circle —
+ *  the `glass` style inflates into a big capsule and can't be sized round. */
 function RoundButton({
   icon,
   tint,
@@ -543,7 +544,7 @@ function RoundButton({
       onPress={onPress}
       buttonStyle="plain"
       padding={10}
-      background="#FFFFFFE6"
+      background="#00000059"
       cornerRadius={19}
       accessibilityLabel={label}
     >

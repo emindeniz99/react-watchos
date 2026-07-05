@@ -78,6 +78,12 @@ export interface ModifierProps {
   /** Accent color for this subtree's controls (SwiftUI .tint). */
   tint?: ColorValue;
   /**
+   * Let this node extend under the safe area (SwiftUI `.ignoresSafeArea()`).
+   * Set it on an overlay stacked on a `fullScreen` map so bottom-anchored
+   * controls reach the physical edge instead of floating above the inset.
+   */
+  ignoresSafeArea?: boolean;
+  /**
    * Animate this node's committed changes (SwiftUI `.animation(_:value:)`):
    * any prop or subtree change transitions with the given curve instead of
    * snapping. `duration` in seconds (omit for the curve's default). App

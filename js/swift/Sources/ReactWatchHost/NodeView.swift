@@ -1322,6 +1322,8 @@ struct LayoutModifier: ViewModifier {
                 .modifier(FrameModifier(frame: RNStyle.frame(from: node.props["frame"])))
                 .opacity(node.double("opacity") ?? 1)
                 .modifier(TintModifier(tint: NodeView.styleColor(node.string("tint"))))
+                .modifier(
+                    SafeAreaModifier(ignore: node.bool("ignoresSafeArea") == true))
         )
     }
 
@@ -1423,6 +1425,17 @@ private struct TintModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         if let tint { content.tint(tint) } else { content }
+    }
+}
+
+/// Lets a node extend under the safe area (like the map's `fullScreen`) — set
+/// on an overlay so bottom-anchored chrome reaches the physical edge instead of
+/// floating above the inset. A no-op unless opted in.
+private struct SafeAreaModifier: ViewModifier {
+    let ignore: Bool
+
+    func body(content: Content) -> some View {
+        if ignore { content.ignoresSafeArea() } else { content }
     }
 }
 
