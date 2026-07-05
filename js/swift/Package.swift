@@ -64,12 +64,21 @@ var targets: [Target] = [
 if includeAppleHost {
     products.append(.library(name: "ReactWatchHost", targets: ["ReactWatchHost"]))
     products.append(.library(name: "ReactWatchWidget", targets: ["ReactWatchWidget"]))
+    // Shared SwiftUI mapping (ARCH-10 Phase A): the byte-identical value helpers
+    // both interpreters used (color/font/alignment/chart/rich-text). Internal —
+    // consumers import Host/Widget, which pull it in transitively.
+    targets.append(
+        .target(
+            name: "ReactWatchUI",
+            dependencies: ["ReactWatchCore", "ReactWatchSupport"]
+        )
+    )
     targets.append(
         .target(
             name: "ReactWatchHost",
             dependencies: [
                 "CQuickJS", "ReactWatchCore", "ReactWatchSupport",
-                "ReactWatchRuntime"
+                "ReactWatchRuntime", "ReactWatchUI"
             ]
         )
     )
@@ -77,7 +86,8 @@ if includeAppleHost {
         .target(
             name: "ReactWatchWidget",
             dependencies: [
-                "ReactWatchCore", "ReactWatchSupport", "ReactWatchRuntime"
+                "ReactWatchCore", "ReactWatchSupport", "ReactWatchRuntime",
+                "ReactWatchUI"
             ]
         )
     )

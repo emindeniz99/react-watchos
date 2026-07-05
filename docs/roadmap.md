@@ -107,14 +107,16 @@ Tracked here for easy follow-up; each lands as its own commit.
   `noExcessiveCognitiveComplexity` is gated at 25 (today's worst); drive the 10
   flagged hot paths toward the Sonar default of 15 when they're touched
   ([quality-gates.md](./quality-gates.md)).
-- **ARCH-10 Phase A — APPROVED, in progress.** Extract the ~150 lines of
-  byte/near-identical SwiftUI-mapping helpers (systemColor, semanticFont,
-  chartMark, alignments, styled, textSegment, color, cgFloat, formatted) + the
-  duplicated layout-modifier chain out of both `NodeView.swift` and
-  `ReactWidgetView.swift` into one watchOS-only `ReactWatchUI` module both
-  import. Makes parity **structural** (not test-enforced) and deletes the second
-  `textSegment` copy so the nesting drift can't recur. Safe + DX-neutral (all
-  helpers are `private`/`static`, no public API). Design basis:
+- **ARCH-10 Phase A — SHIPPED (verified on the watchOS build).** Extracted the
+  byte/near-identical SwiftUI-mapping helpers (color/systemColor, semanticFont,
+  the three alignments, chartMark, styled, textSegment) into a new watchOS-only
+  `ReactWatchUI` module (`RNUI`) that both `NodeView` and `WidgetNodeView`
+  import; the second `textSegment` copy is gone, so the nesting drift can't
+  recur and parity is **structural**, not golden-test-enforced. The two files
+  keep only thin forwarders for the high-call-site `color`/`styled`. Verified
+  green: `xcodebuild` for the watchOS destination + `swift test` (199) + the JS
+  suite (377, golden unchanged = no prop-read drift). The layout-modifier chain
+  (Group B) and the render switch stay per-interpreter for now. Design basis:
   [human-review-2026-07-05](./human-review-2026-07-05-interpreter-duplication.md).
 - **ARCH-10 Phase B — DEFERRED (needed for a 2nd interpreter target).**
   Unifying the render *switch* (app interactive vs widget static/degraded)

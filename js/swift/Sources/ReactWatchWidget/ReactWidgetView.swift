@@ -2,6 +2,7 @@
 import Charts
 import ReactWatchCore
 import ReactWatchSupport
+import ReactWatchUI
 import SwiftUI
 import UIKit
 import os
@@ -102,16 +103,16 @@ public struct WidgetNodeView: View {
         switch node.type {
         case "VStack":
             VStack(
-                alignment: horizontalAlignment(node.string("alignment")),
+                alignment: RNUI.horizontalAlignment(node.string("alignment")),
                 spacing: cgFloat(node, "spacing")
             ) { children(node) }
         case "HStack":
             HStack(
-                alignment: verticalAlignment(node.string("alignment")),
+                alignment: RNUI.verticalAlignment(node.string("alignment")),
                 spacing: cgFloat(node, "spacing")
             ) { children(node) }
         case "ZStack":
-            ZStack(alignment: zAlignment(node.string("alignment"))) {
+            ZStack(alignment: RNUI.zAlignment(node.string("alignment"))) {
                 children(node)
             }
         case "Text":
@@ -123,7 +124,7 @@ public struct WidgetNodeView: View {
                 styled(
                     node,
                     node.children.reduce(Text(node.string("text") ?? "")) {
-                        $0 + textSegment($1)
+                        $0 + RNUI.textSegment($1)
                     })
             }
         case "TimerText":
@@ -353,16 +354,7 @@ public struct WidgetNodeView: View {
     }
 
     private func styled(_ node: RNNode, _ base: Text) -> some View {
-        var text = base
-        if node.bool("bold") == true { text = text.bold() }
-        // monospacedDigit had drifted out of the widget interpreter (CX-018).
-        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
-        if let style = node.string("textStyle") {
-            text = text.font(semanticFont(style))
-        } else if let size = node.double("size") {
-            text = text.font(.system(size: CGFloat(size)))
-        }
-        return text.foregroundStyle(color(node.string("color")) ?? .primary)
+        RNUI.styled(node, base)
     }
 
     /// Minimal Swift Charts binding, parity with NodeView.chartView.
@@ -371,89 +363,8 @@ public struct WidgetNodeView: View {
         let kind = node.string("type") ?? "line"
         let seriesColor = color(node.string("color")) ?? Color.accentColor
         Chart(Array(points.enumerated()), id: \.offset) { index, point in
-            Self.chartMark(
+            RNUI.chartMark(
                 kind: kind, point: point, index: index, color: seriesColor)
-        }
-    }
-
-    @ChartContentBuilder private static func chartMark(
-        kind: String, point: RNStyle.ChartPoint, index: Int, color: Color
-    ) -> some ChartContent {
-        if let label = point.label {
-            switch kind {
-            case "bar":
-                BarMark(x: .value("x", label), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            case "area":
-                AreaMark(x: .value("x", label), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            case "point":
-                PointMark(x: .value("x", label), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            default:
-                LineMark(x: .value("x", label), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            }
-        } else {
-            let x = point.x ?? Double(index)
-            switch kind {
-            case "bar":
-                BarMark(x: .value("x", x), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            case "area":
-                AreaMark(x: .value("x", x), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            case "point":
-                PointMark(x: .value("x", x), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            default:
-                LineMark(x: .value("x", x), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            }
-        }
-    }
-
-    /// One rich-text segment as a concatenable Text — color only when the
-    /// segment sets one, so plain segments inherit the outer style.
-    private func textSegment(_ node: RNNode) -> Text {
-        // Recurse into element children first: a segment with nested <Text>
-        // has text="" (serialize forces it) and carries its content as child
-        // <Text> nodes, so fold those in before layering this node's own
-        // styling — matching NodeView.textSegment. Without this, rich text
-        // nested >=2 deep (<Text>a<Text>b<Text>c</Text></Text></Text>) rendered
-        // "abc" in the app but dropped everything past the first level in the
-        // widget ("a"), a silent parity drift the duplication produced.
-        var text =
-            node.children.isEmpty
-            ? Text(node.string("text") ?? "")
-            : node.children.reduce(Text(node.string("text") ?? "")) {
-                $0 + textSegment($1)
-            }
-        if node.bool("bold") == true { text = text.bold() }
-        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
-        if let style = node.string("textStyle") {
-            text = text.font(semanticFont(style))
-        } else if let size = node.double("size") {
-            text = text.font(.system(size: CGFloat(size)))
-        }
-        if let segmentColor = color(node.string("color")) {
-            text = text.foregroundStyle(segmentColor)
-        }
-        return text
-    }
-
-    private func semanticFont(_ style: String) -> Font {
-        switch RNStyle.fontStyle(style) {
-        case .largeTitle: .largeTitle
-        case .title: .title
-        case .title2: .title2
-        case .title3: .title3
-        case .headline: .headline
-        case .callout: .callout
-        case .subheadline: .subheadline
-        case .footnote: .footnote
-        case .caption: .caption
-        case .body: .body
         }
     }
 
@@ -498,40 +409,10 @@ public struct WidgetNodeView: View {
         node.double(key).map { CGFloat($0) }
     }
 
-    /// Shares color parsing (named set + #RRGGBB/#RRGGBBAA hex) with the app
-    /// interpreter via RNStyle, so the widget no longer silently lacks hex
-    /// colors (CX-018). Only the name -> SwiftUI.Color mapping stays local.
+    /// Named-set + #RRGGBB[AA] hex color -> SwiftUI.Color, shared with the app
+    /// interpreter via RNUI so the two interpreters can't drift.
     private func color(_ name: String?) -> Color? {
-        guard let value = RNStyle.color(name) else { return nil }
-        switch value {
-        case .named(let named): return Self.systemColor(named)
-        case .rgba(let r, let g, let b, let a):
-            return Color(red: r, green: g, blue: b, opacity: a)
-        }
-    }
-
-    private static func systemColor(_ name: String) -> Color {
-        switch name {
-        case "red": .red
-        case "orange": .orange
-        case "yellow": .yellow
-        case "green": .green
-        case "mint": .mint
-        case "teal": .teal
-        case "cyan": .cyan
-        case "blue": .blue
-        case "indigo": .indigo
-        case "purple": .purple
-        case "pink": .pink
-        case "brown": .brown
-        case "white": .white
-        case "gray": .gray
-        case "black": .black
-        case "primary": .primary
-        case "secondary": .secondary
-        case "accentColor": .accentColor
-        default: .primary
-        }
+        RNUI.color(name)
     }
 }
 
@@ -549,36 +430,6 @@ public struct WidgetNodeView: View {
         view.widgetURL(url)
     } else {
         view
-    }
-}
-private func horizontalAlignment(_ name: String?) -> HorizontalAlignment {
-    switch name {
-    case "leading": .leading
-    case "trailing": .trailing
-    default: .center
-    }
-}
-
-private func verticalAlignment(_ name: String?) -> VerticalAlignment {
-    switch name {
-    case "top": .top
-    case "bottom": .bottom
-    case "firstTextBaseline": .firstTextBaseline
-    default: .center
-    }
-}
-
-private func zAlignment(_ name: String?) -> Alignment {
-    switch name {
-    case "topLeading": .topLeading
-    case "top": .top
-    case "topTrailing": .topTrailing
-    case "leading": .leading
-    case "trailing": .trailing
-    case "bottomLeading": .bottomLeading
-    case "bottom": .bottom
-    case "bottomTrailing": .bottomTrailing
-    default: .center
     }
 }
 

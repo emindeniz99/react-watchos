@@ -6,6 +6,7 @@ import MapKit
 import os
 import ReactWatchCore
 import ReactWatchSupport
+import ReactWatchUI
 import SwiftUI
 import UIKit
 
@@ -73,12 +74,12 @@ struct NodeView: View {
         switch node.type {
         case "VStack":
             VStack(
-                alignment: Self.horizontalAlignment(node.string("alignment")),
+                alignment: RNUI.horizontalAlignment(node.string("alignment")),
                 spacing: cgFloat("spacing")
             ) { childViews }
         case "HStack":
             HStack(
-                alignment: Self.verticalAlignment(node.string("alignment")),
+                alignment: RNUI.verticalAlignment(node.string("alignment")),
                 spacing: cgFloat("spacing")
             ) { childViews }
         case "Text":
@@ -89,7 +90,7 @@ struct NodeView: View {
             } else {
                 styled(
                     node.children.reduce(Text(node.string("text") ?? "")) {
-                        $0 + Self.textSegment($1)
+                        $0 + RNUI.textSegment($1)
                     })
             }
         case "TimerText":
@@ -108,7 +109,7 @@ struct NodeView: View {
         case "Image":
             imageView
         case "ZStack":
-            ZStack(alignment: Self.zAlignment(node.string("alignment"))) {
+            ZStack(alignment: RNUI.zAlignment(node.string("alignment"))) {
                 childViews
             }
         case "ScrollView":
@@ -381,16 +382,7 @@ struct NodeView: View {
     }
 
     private func styled(_ base: Text) -> some View {
-        var text = base
-        if node.bool("bold") == true { text = text.bold() }
-        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
-        // Semantic textStyle scales with Dynamic Type; fixed size doesn't.
-        if let style = node.string("textStyle") {
-            text = text.font(Self.semanticFont(style))
-        } else if let size = node.double("size") {
-            text = text.font(.system(size: CGFloat(size)))
-        }
-        return text.foregroundStyle(color(node.string("color")) ?? .primary)
+        RNUI.styled(node, base)
     }
 
     @ViewBuilder private var shareLink: some View {
@@ -409,47 +401,8 @@ struct NodeView: View {
         let kind = node.string("type") ?? "line"
         let seriesColor = color(node.string("color")) ?? Color.accentColor
         Chart(Array(points.enumerated()), id: \.offset) { index, point in
-            Self.chartMark(
+            RNUI.chartMark(
                 kind: kind, point: point, index: index, color: seriesColor)
-        }
-    }
-
-    /// PlottableValue is generic over the x type, so categorical (String) and
-    /// positional (Double) points branch here rather than share a variable.
-    @ChartContentBuilder private static func chartMark(
-        kind: String, point: RNStyle.ChartPoint, index: Int, color: Color
-    ) -> some ChartContent {
-        if let label = point.label {
-            switch kind {
-            case "bar":
-                BarMark(x: .value("x", label), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            case "area":
-                AreaMark(x: .value("x", label), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            case "point":
-                PointMark(x: .value("x", label), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            default:
-                LineMark(x: .value("x", label), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            }
-        } else {
-            let x = point.x ?? Double(index)
-            switch kind {
-            case "bar":
-                BarMark(x: .value("x", x), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            case "area":
-                AreaMark(x: .value("x", x), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            case "point":
-                PointMark(x: .value("x", x), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            default:
-                LineMark(x: .value("x", x), y: .value("y", point.y))
-                    .foregroundStyle(color)
-            }
         }
     }
 
@@ -520,48 +473,6 @@ struct NodeView: View {
 
     private func formatted(_ value: Double) -> String {
         RNStyle.formatValue(value)
-    }
-
-    /// One rich-text segment (a Text child of <Text>) as a concatenable
-    /// Text — only Text-returning modifiers, and color only when the segment
-    /// sets one, so plain segments inherit the outer Text's style.
-    static func textSegment(_ node: RNNode) -> Text {
-        // Recurse: a segment with element children has text="" (serialize forces
-        // it) and carries its content as nested <Text> — fold those in first, then
-        // layer this node's own styling on top (concatenated segments keep their
-        // own attributes; this node's fill the rest).
-        var text =
-            node.children.isEmpty
-            ? Text(node.string("text") ?? "")
-            : node.children.reduce(Text(node.string("text") ?? "")) {
-                $0 + Self.textSegment($1)
-            }
-        if node.bool("bold") == true { text = text.bold() }
-        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
-        if let style = node.string("textStyle") {
-            text = text.font(semanticFont(style))
-        } else if let size = node.double("size") {
-            text = text.font(.system(size: CGFloat(size)))
-        }
-        if let color = styleColor(node.string("color")) {
-            text = text.foregroundStyle(color)
-        }
-        return text
-    }
-
-    private static func semanticFont(_ style: String) -> Font {
-        switch RNStyle.fontStyle(style) {
-        case .largeTitle: .largeTitle
-        case .title: .title
-        case .title2: .title2
-        case .title3: .title3
-        case .headline: .headline
-        case .callout: .callout
-        case .subheadline: .subheadline
-        case .footnote: .footnote
-        case .caption: .caption
-        case .body: .body
-        }
     }
 
     /// Optimistic bindings: the change event round-trips through QuickJS
@@ -736,70 +647,10 @@ struct NodeView: View {
         Self.styleColor(name)
     }
 
-    /// Static so LayoutModifier (a separate ViewModifier) shares it.
+    /// Static so LayoutModifier (a separate ViewModifier) shares it; forwards to
+    /// the shared RNUI mapping so the app and widget interpreters can't drift.
     static func styleColor(_ name: String?) -> Color? {
-        guard let value = RNStyle.color(name) else { return nil }
-        switch value {
-        case .named(let named): return Self.systemColor(named)
-        case .rgba(let r, let g, let b, let a):
-            return Color(red: r, green: g, blue: b, opacity: a)
-        }
-    }
-
-    static func horizontalAlignment(_ name: String?) -> HorizontalAlignment {
-        switch name {
-        case "leading": .leading
-        case "trailing": .trailing
-        default: .center
-        }
-    }
-
-    static func verticalAlignment(_ name: String?) -> VerticalAlignment {
-        switch name {
-        case "top": .top
-        case "bottom": .bottom
-        case "firstTextBaseline": .firstTextBaseline
-        default: .center
-        }
-    }
-
-    static func zAlignment(_ name: String?) -> Alignment {
-        switch name {
-        case "topLeading": .topLeading
-        case "top": .top
-        case "topTrailing": .topTrailing
-        case "leading": .leading
-        case "trailing": .trailing
-        case "bottomLeading": .bottomLeading
-        case "bottom": .bottom
-        case "bottomTrailing": .bottomTrailing
-        default: .center
-        }
-    }
-
-    /// Maps a known RNStyle.namedColors name to its SwiftUI color.
-    private static func systemColor(_ name: String) -> Color {
-        switch name {
-        case "red": .red
-        case "orange": .orange
-        case "yellow": .yellow
-        case "green": .green
-        case "mint": .mint
-        case "teal": .teal
-        case "cyan": .cyan
-        case "blue": .blue
-        case "indigo": .indigo
-        case "purple": .purple
-        case "pink": .pink
-        case "brown": .brown
-        case "white": .white
-        case "gray": .gray
-        case "black": .black
-        case "primary": .primary
-        case "secondary": .secondary
-        case "accentColor": .accentColor
-        default: .primary
-        }
+        RNUI.color(name)
     }
 }
 

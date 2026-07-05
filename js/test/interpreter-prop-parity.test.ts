@@ -131,25 +131,29 @@ describe("interpreter per-prop parity (M6-interim golden)", () => {
     );
   });
 
-  // The golden above tracks prop READS, not control flow, so it is structurally
-  // blind to a recursion drift: the widget's textSegment once built a flat Text
-  // and did NOT fold a segment's own <Text> children, so rich text nested >=2
-  // deep dropped its deepest text on the complication only (the app folded it
-  // correctly). Neither the build nor the golden caught it. Pin the structural
-  // invariant directly until ARCH-10 Phase A makes textSegment ONE shared
-  // function tested once. Companion wire test: richtext.test.tsx ">=2 deep".
-  it("both interpreters' textSegment folds nested <Text> children (rich-text parity)", () => {
+  // Rich-text fold parity is now STRUCTURAL: ARCH-10 Phase A moved textSegment
+  // into the shared ReactWatchUI module, so both interpreters call ONE copy
+  // (RNUI.textSegment) instead of maintaining two that can drift — the exact
+  // drift that once dropped >=2-deep nesting on the complication. Guard that the
+  // single shared copy still recurses, and that neither interpreter has grown
+  // its own copy back. Companion wire test: richtext.test.tsx ">=2 deep".
+  it("the shared textSegment folds nested <Text> children (parity is structural)", () => {
+    const shared = join(jsRoot, "swift/Sources/ReactWatchUI/RNUI.swift");
+    const body = functionBody(readFileSync(shared, "utf8"), "textSegment");
+    expect(body, "ReactWatchUI defines the shared textSegment").toBeTruthy();
+    expect(
+      (body as string).includes("node.children"),
+      "shared textSegment must fold element children, not read text only",
+    ).toBe(true);
+    expect(
+      /\btextSegment\(/.test(body as string),
+      "shared textSegment must recurse into nested segments",
+    ).toBe(true);
     for (const [name, file] of Object.entries(interpreters)) {
-      const body = functionBody(readFileSync(file, "utf8"), "textSegment");
-      expect(body, `${name} interpreter defines textSegment`).toBeTruthy();
       expect(
-        (body as string).includes("node.children"),
-        `${name} textSegment must fold element children, not read text only`,
-      ).toBe(true);
-      expect(
-        /\btextSegment\(/.test(body as string),
-        `${name} textSegment must recurse into nested segments`,
-      ).toBe(true);
+        functionBody(readFileSync(file, "utf8"), "textSegment"),
+        `${name} must NOT redefine textSegment — call RNUI.textSegment`,
+      ).toBeNull();
     }
   });
 });
