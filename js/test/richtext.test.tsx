@@ -33,6 +33,38 @@ describe("rich text", () => {
     expect(outer.children[3].props.color).toBe("cyan");
   });
 
+  it("nests rich text >=2 deep as a nested child tree (each interpreter must fold recursively)", () => {
+    // The wire the Swift interpreters consume: a segment that itself contains a
+    // <Text> is text="" with its content as CHILD nodes, recursively. The app
+    // interpreter folds this recursively; the widget interpreter once did not,
+    // so ">=2 deep" rich text dropped its deepest text on the complication only.
+    // This pins the nested shape both sides depend on (its Swift companion is
+    // the textSegment-recursion guard in interpreter-prop-parity.test.ts).
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <Text>
+        a
+        <Text bold>
+          b<Text color="cyan">c</Text>
+        </Text>
+      </Text>,
+    );
+    const outer = findByType(host.lastCommit!.root!, "Text")[0];
+    // Level 0: element children -> text folds out, "a" + the middle segment.
+    expect(outer.props.text).toBe("");
+    expect(outer.children.map((c) => c.props.text)).toEqual(["a", ""]);
+    // Level 1: the middle segment ALSO has an element child, so it too is
+    // text="" and carries "b" + the inner <Text>c</Text> as its own children.
+    const middle = outer.children[1];
+    expect(middle.props.bold).toBe(true);
+    expect(middle.props.text).toBe("");
+    expect(middle.children.map((c) => c.props.text)).toEqual(["b", "c"]);
+    // Level 2: the deepest segment carries its own style, so folding must reach
+    // it (the exact node the widget used to drop).
+    expect(middle.children[1].props.color).toBe("cyan");
+  });
+
   it("scalar-only Text keeps the folded wire shape (no children)", () => {
     const host = new MemoryHost();
     const root = new WatchRoot(host);

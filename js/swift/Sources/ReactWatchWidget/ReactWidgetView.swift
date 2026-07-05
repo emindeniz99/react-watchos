@@ -416,7 +416,19 @@ public struct WidgetNodeView: View {
     /// One rich-text segment as a concatenable Text — color only when the
     /// segment sets one, so plain segments inherit the outer style.
     private func textSegment(_ node: RNNode) -> Text {
-        var text = Text(node.string("text") ?? "")
+        // Recurse into element children first: a segment with nested <Text>
+        // has text="" (serialize forces it) and carries its content as child
+        // <Text> nodes, so fold those in before layering this node's own
+        // styling — matching NodeView.textSegment. Without this, rich text
+        // nested >=2 deep (<Text>a<Text>b<Text>c</Text></Text></Text>) rendered
+        // "abc" in the app but dropped everything past the first level in the
+        // widget ("a"), a silent parity drift the duplication produced.
+        var text =
+            node.children.isEmpty
+            ? Text(node.string("text") ?? "")
+            : node.children.reduce(Text(node.string("text") ?? "")) {
+                $0 + textSegment($1)
+            }
         if node.bool("bold") == true { text = text.bold() }
         if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
         if let style = node.string("textStyle") {

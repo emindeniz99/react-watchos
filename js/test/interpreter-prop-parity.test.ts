@@ -91,6 +91,20 @@ function propReads(file: string): Record<string, string[]> {
   return out;
 }
 
+/** The balanced-brace body of a Swift `func <name>(` (first match), or null. */
+function functionBody(src: string, name: string): string | null {
+  const sig = src.search(new RegExp(`\\bfunc ${name}\\b`));
+  if (sig === -1) return null;
+  const open = src.indexOf("{", sig);
+  if (open === -1) return null;
+  let depth = 0;
+  for (let i = open; i < src.length; i++) {
+    if (src[i] === "{") depth++;
+    else if (src[i] === "}" && --depth === 0) return src.slice(open + 1, i);
+  }
+  return null;
+}
+
 describe("interpreter per-prop parity (M6-interim golden)", () => {
   const extracted: Record<string, { app: string[]; widget: string[] }> = {};
   const app = propReads(interpreters.app);
@@ -115,5 +129,27 @@ describe("interpreter per-prop parity (M6-interim golden)", () => {
     expect(Object.keys(golden).sort()).toEqual(
       (components as { name: string }[]).map((c) => c.name).sort(),
     );
+  });
+
+  // The golden above tracks prop READS, not control flow, so it is structurally
+  // blind to a recursion drift: the widget's textSegment once built a flat Text
+  // and did NOT fold a segment's own <Text> children, so rich text nested >=2
+  // deep dropped its deepest text on the complication only (the app folded it
+  // correctly). Neither the build nor the golden caught it. Pin the structural
+  // invariant directly until ARCH-10 Phase A makes textSegment ONE shared
+  // function tested once. Companion wire test: richtext.test.tsx ">=2 deep".
+  it("both interpreters' textSegment folds nested <Text> children (rich-text parity)", () => {
+    for (const [name, file] of Object.entries(interpreters)) {
+      const body = functionBody(readFileSync(file, "utf8"), "textSegment");
+      expect(body, `${name} interpreter defines textSegment`).toBeTruthy();
+      expect(
+        (body as string).includes("node.children"),
+        `${name} textSegment must fold element children, not read text only`,
+      ).toBe(true);
+      expect(
+        /\btextSegment\(/.test(body as string),
+        `${name} textSegment must recurse into nested segments`,
+      ).toBe(true);
+    }
   });
 });
