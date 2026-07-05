@@ -32,4 +32,25 @@ describe("Map primitive", () => {
     ]);
     expect((map.props.route as unknown[]).length).toBe(2);
   });
+
+  it("serializes native user-location + follow props", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(
+      <MapView
+        fullScreen
+        showsUserLocation
+        followsUserLocation
+        cameraTrigger={3}
+      />,
+    );
+    const map = host.lastCommit!.root!;
+    // These drive MapKit's native UserAnnotation + .userLocation camera — the
+    // live blue dot and smooth follow are native, not a JS-streamed marker.
+    expect(map.props).toMatchObject({
+      fullScreen: true,
+      showsUserLocation: true,
+      followsUserLocation: true,
+      cameraTrigger: 3,
+    });
+  });
 });

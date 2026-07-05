@@ -18,6 +18,7 @@ import {
   fetchAndApplyUpdate,
   Gauge,
   generateText,
+  getCurrentLocation,
   HStack,
   href,
   Image,
@@ -41,7 +42,6 @@ import {
   scheduleNotification,
   searchPOI,
   sendToPhone,
-  startLocation,
   TabView,
   Text,
   TextField,
@@ -371,90 +371,90 @@ function fitRegion(results: POIResult[]) {
 /**
  * Searchable POI map: a full-screen map with a search field floating over it
  * (ZStack, top-aligned). Typing a query runs MapKit's `searchPOI`
- * (MKLocalSearch) and drops a pin per result; the camera then zooms to fit
- * them. The search is biased to — and the blue "My location" marker live-
- * tracks — the watch's real location (`startLocation`, CoreLocation's
- * continuous stream), falling back to SF until the first fix arrives. watchOS
- * text entry is modal, so `onChange` fires once with the finished query.
+ * (MKLocalSearch) and drops a red pin per result; the camera then zooms to fit
+ * them. With no results the map shows the live blue user-location dot and the
+ * camera follows it — both native (`showsUserLocation` + `followsUserLocation`,
+ * MapKit's own `UserAnnotation` + `.userLocation` camera), so moving is smooth
+ * and there's no per-fix work crossing the bridge. `getCurrentLocation` is
+ * called once on focus only to prompt for permission and bias the search;
+ * the marker and camera don't depend on it. watchOS text entry is modal, so
+ * `onChange` fires once with the finished query.
  */
 function MapSearchScreen() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<POIResult[]>([]);
-  const [center, setCenter] = useState<Coordinate>(SF);
+  const [bias, setBias] = useState<Coordinate>(SF);
+  // Bumped to re-apply the camera target — lets the recenter button snap back
+  // to the user even after they've panned away (see MapProps.cameraTrigger).
+  const [cameraTrigger, setCameraTrigger] = useState(0);
+  const nudgeCamera = () => setCameraTrigger((n) => n + 1);
 
-  // Live-track while this screen is open, not at mount: screens stay mounted
-  // across navigation (see NavigationRoute in navigation.tsx), so a bare
-  // useEffect([]) would keep CoreLocation running (and draining battery) even
-  // after the user leaves. useFocusEffect starts the stream on focus and stops
-  // it on blur/unmount, and each fix updates `center` — and the blue marker —
-  // as the watch moves.
+  // A single fix on focus: enough to prompt for permission and bias the search.
+  // Not a stream — the live dot + follow are native, so the watch moving costs
+  // nothing here. Focus (not mount) because screens stay mounted across
+  // navigation (see NavigationRoute in navigation.tsx).
   useFocusEffect(
-    useCallback(
-      () =>
-        startLocation((reading) => {
-          if (
-            typeof reading?.latitude === "number" &&
-            typeof reading?.longitude === "number"
-          ) {
-            setCenter({ lat: reading.latitude, lon: reading.longitude });
-          }
-        }),
-      [],
-    ),
+    useCallback(() => {
+      getCurrentLocation()
+        .then(setBias)
+        .catch(() => {}); // keep the SF fallback
+    }, []),
   );
-
-  // "Recenter on me": drop the search so the camera stops fitting the result
-  // pins and follows the live `center` again instead.
-  const recenterOnMe = () => {
-    setResults([]);
-    setQuery("");
-  };
 
   const runSearch = (q: string) => {
     setQuery(q);
     if (!q.trim()) {
       setResults([]);
+      nudgeCamera();
       return;
     }
-    searchPOI(q, { latitude: center.lat, longitude: center.lon, span: 0.2 })
-      .then(setResults)
-      .catch(() => setResults([]));
+    searchPOI(q, { latitude: bias.lat, longitude: bias.lon, span: 0.2 })
+      .then((r) => {
+        setResults(r);
+        nudgeCamera();
+      })
+      .catch(() => {
+        setResults([]);
+        nudgeCamera();
+      });
   };
 
-  // Fit the results once there are any; until then, center on the watch/SF.
+  // "Recenter on me": clear the search so the camera returns to following the
+  // live location, and nudge so it re-centers even if the user had panned.
+  const recenterOnMe = () => {
+    setResults([]);
+    setQuery("");
+    nudgeCamera();
+  };
+
+  const following = results.length === 0;
+  // Fit the results when there are any; otherwise the bias region is just the
+  // fallback the native follow uses until the first live fix lands.
   const region = fitRegion(results) ?? {
-    latitude: center.lat,
-    longitude: center.lon,
+    latitude: bias.lat,
+    longitude: bias.lon,
     span: 0.15,
-  };
-
-  const myLocationMarker: MapAnnotation = {
-    lat: center.lat,
-    lon: center.lon,
-    title: "My location",
-    systemImage: "location.circle.fill",
-    tint: "blue",
   };
 
   return (
     <ZStack alignment="top">
       <MapView
         fullScreen
+        showsUserLocation
+        followsUserLocation={following}
+        cameraTrigger={cameraTrigger}
         latitude={region.latitude}
         longitude={region.longitude}
         span={region.span}
-        annotations={[
-          myLocationMarker,
-          ...results.map(
-            (r): MapAnnotation => ({
-              lat: r.lat,
-              lon: r.lon,
-              title: r.title,
-              systemImage: "mappin.circle.fill",
-              tint: "red",
-            }),
-          ),
-        ]}
+        annotations={results.map(
+          (r): MapAnnotation => ({
+            lat: r.lat,
+            lon: r.lon,
+            title: r.title,
+            systemImage: "mappin.circle.fill",
+            tint: "red",
+          }),
+        )}
       />
       <VStack spacing={2}>
         <HStack spacing={4}>

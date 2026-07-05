@@ -369,6 +369,28 @@ export interface MapProps extends A11yProps, ModifierProps {
    * realistic full-screen map; overlay any controls on top with a ZStack.
    */
   fullScreen?: boolean;
+  /**
+   * Show the device's live location as MapKit's native blue dot (accuracy ring
+   * + heading), via a `UserAnnotation`. This is the platform's own rendering —
+   * don't hand-roll a marker from a location stream. Needs When-In-Use
+   * location permission (e.g. request it once with `getCurrentLocation()`).
+   */
+  showsUserLocation?: boolean;
+  /**
+   * Make the camera smoothly track the live location natively
+   * (`MapCameraPosition.userLocation`), instead of you feeding it coordinates.
+   * The `latitude`/`longitude`/`span` region is used as the fallback until the
+   * first fix arrives. Set false to hold a fixed region (e.g. while showing
+   * search results); the user can still pan freely without being yanked back.
+   */
+  followsUserLocation?: boolean;
+  /**
+   * A monotonically increasing nudge that re-applies the camera's target
+   * (follow or region). Increment it from a "recenter" button so tapping it
+   * snaps back to the user even after they've panned away — re-issuing the
+   * same follow/region target is otherwise a no-op the map can't observe.
+   */
+  cameraTrigger?: number;
 }
 
 /** Date/time picker. value and onChange are epoch milliseconds. */

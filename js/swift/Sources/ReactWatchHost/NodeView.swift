@@ -497,6 +497,8 @@ struct NodeView: View {
     /// `RNMapView`, which owns a controlled camera so JS can recenter/zoom the
     /// map by changing the `latitude`/`longitude`/`span` props (e.g. to fit new
     /// search results) — a one-shot `initialPosition` couldn't follow updates.
+    /// The live user location (blue dot + smooth follow) is native — MapKit's
+    /// `UserAnnotation` + `.userLocation` camera — not a JS-streamed marker.
     @ViewBuilder private var mapView: some View {
         let pins = coordinates(node.props["annotations"]).map { p in
             RNMapView.Pin(
@@ -507,6 +509,9 @@ struct NodeView: View {
         RNMapView(
             pins: pins, route: route, region: mapRegion,
             fullScreen: node.bool("fullScreen") == true,
+            showsUser: node.bool("showsUserLocation") == true,
+            follow: node.bool("followsUserLocation") == true,
+            cameraTrigger: node.double("cameraTrigger") ?? 0,
             height: cgFloat("height") ?? 120)
     }
 
@@ -772,10 +777,17 @@ private struct RoutedNavigationStack: View {
     }
 }
 
-/// A MapKit map with a CONTROLLED camera. The camera animates to the `region`
-/// prop whenever it changes (recompute it in JS to fit new results); between
-/// changes the user can freely pan/zoom without being yanked back. A nil region
-/// lets the map fit its annotations automatically.
+/// A MapKit map with a CONTROLLED camera. Two camera modes, both native:
+///   - **Follow** (`follow`): the camera tracks the live location smoothly via
+///     `MapCameraPosition.userLocation` — MapKit interpolates at display rate
+///     with no per-fix work crossing the bridge, so movement never stutters.
+///   - **Region** (`follow == false`): the camera holds the `region` prop
+///     (recompute it in JS to fit new results); between changes the user can
+///     pan/zoom freely without being yanked back.
+/// `showsUser` adds MapKit's own blue user-location dot (`UserAnnotation`).
+/// The camera re-applies its target only when a JS-driven input changes — the
+/// mode, the region, or `cameraTrigger` (a recenter nudge) — never on a user
+/// pan, so panning away and tapping recenter snaps back.
 private struct RNMapView: View {
     struct Pin: Identifiable {
         let id: String
@@ -788,25 +800,45 @@ private struct RNMapView: View {
     let route: [CLLocationCoordinate2D]
     let region: MKCoordinateRegion?
     let fullScreen: Bool
+    let showsUser: Bool
+    let follow: Bool
+    let cameraTrigger: Double
     let height: CGFloat
 
     @State private var position: MapCameraPosition = .automatic
 
-    // Changes only when the REQUESTED region does, so a user pan isn't undone on
-    // the next commit — only a genuinely new region (new search) recenters.
-    private var regionKey: String {
-        guard let r = region else { return "auto" }
-        return "\(r.center.latitude),\(r.center.longitude),\(r.span.latitudeDelta)"
+    // Identity of the REQUESTED camera target. Derived only from JS inputs, so a
+    // user pan (which changes MapKit's position but none of these) leaves it
+    // stable and isn't undone; a new search (region), a mode flip (follow), or a
+    // recenter tap (cameraTrigger) changes it and re-applies.
+    private var cameraKey: String {
+        let regionPart =
+            region.map {
+                "\($0.center.latitude),\($0.center.longitude),\($0.span.latitudeDelta)"
+            } ?? "auto"
+        return "\(follow):\(regionPart):\(cameraTrigger)"
+    }
+
+    /// The region as a camera position, or `.automatic` (fit annotations) when
+    /// no region is given.
+    private var regionPosition: MapCameraPosition {
+        region.map { .region($0) } ?? .automatic
     }
 
     var body: some View {
-        map.onChange(of: regionKey, initial: true) {
-            withAnimation { position = region.map { .region($0) } ?? .automatic }
+        map.onChange(of: cameraKey, initial: true) {
+            withAnimation {
+                position =
+                    follow
+                    ? .userLocation(fallback: regionPosition)
+                    : regionPosition
+            }
         }
     }
 
     @ViewBuilder private var map: some View {
         let base = Map(position: $position) {
+            if showsUser { UserAnnotation() }
             ForEach(pins) { p in
                 Marker(p.title, systemImage: p.systemImage, coordinate: p.coordinate)
                     .tint(p.tint)
