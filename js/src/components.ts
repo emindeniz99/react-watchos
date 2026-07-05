@@ -9,6 +9,41 @@ import type { FC, ReactNode } from "react";
 type TextContent = string | number | Array<string | number>;
 
 /**
+ * The SwiftUI semantic color names the interpreter maps (`systemColor`). These
+ * follow the user's accent/appearance, so prefer them over hex for anything
+ * that should stay consistent when the accent changes.
+ */
+export type SystemColorName =
+  | "red"
+  | "orange"
+  | "yellow"
+  | "green"
+  | "mint"
+  | "teal"
+  | "cyan"
+  | "blue"
+  | "indigo"
+  | "purple"
+  | "pink"
+  | "brown"
+  | "white"
+  | "gray"
+  | "black"
+  | "primary"
+  | "secondary"
+  | "accentColor";
+
+/**
+ * A color prop value (design-system Tier 1, borrowed from Restyle's typed-token
+ * idea): a {@link SystemColorName} — autocompleted, and a misspelled name is a
+ * compile error — or a `#RRGGBB`/`#RRGGBBAA` hex string. Pure types, zero
+ * runtime bytes and no wire change (the interpreter still parses a plain
+ * string). A computed non-hex color (rare) needs `as ColorValue` or a theme
+ * token; that friction is the price of catching the common name typo.
+ */
+export type ColorValue = SystemColorName | `#${string}`;
+
+/**
  * VoiceOver metadata supported by every primitive (applied as SwiftUI
  * .accessibilityLabel/.accessibilityHint in NodeView). Watch users rely
  * on VoiceOver, so author labels for icon-only or composite controls.
@@ -35,13 +70,13 @@ export interface ModifierProps {
     maxHeight?: number | "infinity";
   };
   /** Fill color behind the content (rounded when cornerRadius is set). */
-  background?: string;
+  background?: ColorValue;
   /** Rounds the background — or clips the content when there is none. */
   cornerRadius?: number;
   /** 0 (invisible) … 1 (opaque). */
   opacity?: number;
   /** Accent color for this subtree's controls (SwiftUI .tint). */
-  tint?: string;
+  tint?: ColorValue;
   /**
    * Animate this node's committed changes (SwiftUI `.animation(_:value:)`):
    * any prop or subtree change transitions with the given curve instead of
@@ -82,11 +117,11 @@ export interface GestureProps {
 export interface SwipeActionProps {
   swipeActionLabel?: string;
   swipeActionSystemImage?: string;
-  swipeActionTint?: string;
+  swipeActionTint?: ColorValue;
   onSwipeAction?: () => void;
   leadingSwipeActionLabel?: string;
   leadingSwipeActionSystemImage?: string;
-  leadingSwipeActionTint?: string;
+  leadingSwipeActionTint?: ColorValue;
   onLeadingSwipeAction?: () => void;
 }
 
@@ -128,7 +163,7 @@ export interface TextProps extends A11yProps, ModifierProps {
     | "footnote"
     | "caption";
   /** SwiftUI system color name ("green", "secondary") or "#RRGGBB"/"#RRGGBBAA". */
-  color?: string;
+  color?: ColorValue;
   /** Use fixed-width digits for counters/timers to avoid layout jitter. */
   monospacedDigit?: boolean;
 }
@@ -173,7 +208,7 @@ export interface ImageProps extends A11yProps, ModifierProps {
   source?: string;
   /** Base64 PNG/JPEG for small inline bitmaps (bloats the tree — avoid for large). */
   data?: string;
-  color?: string;
+  color?: ColorValue;
   size?: number;
 }
 
@@ -209,7 +244,7 @@ export interface GaugeProps extends A11yProps, ModifierProps {
   label?: string;
   /** "circular" | "linear"; widgets pick accessory styles by family. */
   style?: string;
-  color?: string;
+  color?: ColorValue;
 }
 
 export interface ProgressViewProps extends A11yProps, ModifierProps {
@@ -311,7 +346,7 @@ export interface MapAnnotation {
   title?: string;
   /** SF Symbol for the marker. */
   systemImage?: string;
-  tint?: string;
+  tint?: ColorValue;
 }
 
 /** A MapKit map (watchOS 26): a region with markers and an optional route. */
@@ -373,7 +408,7 @@ export interface TimerTextProps extends A11yProps, ModifierProps {
   milliseconds?: boolean;
   bold?: boolean;
   size?: number;
-  color?: string;
+  color?: ColorValue;
 }
 
 /**
@@ -404,7 +439,7 @@ export interface FormattedTextProps extends A11yProps, ModifierProps {
   maxFractionDigits?: number;
   bold?: boolean;
   size?: number;
-  color?: string;
+  color?: ColorValue;
 }
 
 /** An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
@@ -469,7 +504,7 @@ export interface LabelProps extends A11yProps, ModifierProps {
   label: string;
   /** SF Symbol name. */
   systemName: string;
-  color?: string;
+  color?: ColorValue;
 }
 
 /** Aligned rows/columns (SwiftUI `Grid`); children must be <GridRow>. */
@@ -506,7 +541,7 @@ export interface ChartProps extends A11yProps, ModifierProps {
   type: "line" | "bar" | "area" | "point";
   points: ChartPoint[];
   /** Series color (system name or hex); defaults to the accent. */
-  color?: string;
+  color?: ColorValue;
 }
 
 /** A label:value row (SwiftUI `LabeledContent`); children are the value

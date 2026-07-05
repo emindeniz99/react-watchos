@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { createContext, createElement, useContext } from "react";
-import type { TextProps } from "./components";
+import type { ColorValue, TextProps } from "./components";
 
 /**
  * Design-system Tier 2: semantic tokens, resolved in JS (2026-07-01 review
@@ -41,17 +41,17 @@ export interface WatchTheme {
    */
   colors: {
     /** App accent — buttons, gauges, links. */
-    accent: string;
+    accent: ColorValue;
     /** Card/section fill behind content. */
-    surface: string;
+    surface: ColorValue;
     /** De-emphasized text. */
-    muted: string;
+    muted: ColorValue;
     /** Positive state (goal reached, connected). */
-    positive: string;
+    positive: ColorValue;
     /** Warning state (low battery, degraded). */
-    warning: string;
+    warning: ColorValue;
     /** Destructive/error state. */
-    destructive: string;
+    destructive: ColorValue;
   };
   /** Text variants — spread onto <Text>: `<Text {...theme.text.title}>`. */
   text: {
