@@ -6,7 +6,7 @@
 
 # Interface: DatePickerProps
 
-Defined in: [js/src/components.ts:419](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L419)
+Defined in: [js/src/components.ts:427](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L427)
 
 Date/time picker. value and onChange are epoch milliseconds.
 
@@ -143,7 +143,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:421](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L421)
+Defined in: [js/src/components.ts:429](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L429)
 
 ***
 
@@ -151,7 +151,7 @@ Defined in: [js/src/components.ts:421](https://github.com/emindeniz99/playground
 
 > `optional` **mode?**: `"date"` \| `"hourAndMinute"` \| `"dateAndTime"`
 
-Defined in: [js/src/components.ts:423](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L423)
+Defined in: [js/src/components.ts:431](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L431)
 
 "date" | "hourAndMinute" | "dateAndTime" (default).
 
@@ -161,7 +161,7 @@ Defined in: [js/src/components.ts:423](https://github.com/emindeniz99/playground
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:424](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L424)
+Defined in: [js/src/components.ts:432](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L432)
 
 #### Parameters
 
@@ -221,4 +221,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:420](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L420)
+Defined in: [js/src/components.ts:428](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L428)

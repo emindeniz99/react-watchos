@@ -7,7 +7,7 @@ Generated from [`codegen/schema.mjs`](../../js/codegen/schema.mjs) — the
 single source of truth the wire/codegen drift tests pin — so these tables
 cannot disagree with the shipped contract. Bridge protocol: **1**.
 
-## Components (40)
+## Components (41)
 
 "full" renders identically in the widget/complication interpreter; "degraded"
 renders a reduced form there (interaction, live ticking, and presentation
@@ -37,6 +37,7 @@ surfaces don't exist in WidgetKit).
 | `Picker` | degraded |
 | `DatePicker` | degraded |
 | `TextField` | degraded |
+| `SecureField` | degraded |
 | `CrownRotation` | degraded |
 | `NavigationStack` | degraded |
 | `NavigationLink` | degraded |

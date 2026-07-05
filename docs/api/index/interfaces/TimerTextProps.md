@@ -6,7 +6,7 @@
 
 # Interface: TimerTextProps
 
-Defined in: [js/src/components.ts:454](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L454)
+Defined in: [js/src/components.ts:462](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L462)
 
 A self-ticking time label. React renders this ONCE with a start/end
 timestamp and SwiftUI animates the digits natively (Text(timerInterval:)),
@@ -86,7 +86,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **bold?**: `boolean`
 
-Defined in: [js/src/components.ts:463](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L463)
+Defined in: [js/src/components.ts:471](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L471)
 
 ***
 
@@ -94,7 +94,7 @@ Defined in: [js/src/components.ts:463](https://github.com/emindeniz99/playground
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:465](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L465)
+Defined in: [js/src/components.ts:473](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L473)
 
 ***
 
@@ -162,7 +162,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **milliseconds?**: `boolean`
 
-Defined in: [js/src/components.ts:462](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L462)
+Defined in: [js/src/components.ts:470](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L470)
 
 Show mm:ss.SSS using native SwiftUI ticking instead of JS intervals.
  Watch-only: in a widget this degrades to the seconds timer (WidgetKit
@@ -202,7 +202,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **since?**: `number`
 
-Defined in: [js/src/components.ts:456](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L456)
+Defined in: [js/src/components.ts:464](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L464)
 
 Count up from this epoch-ms start (elapsed time).
 
@@ -212,7 +212,7 @@ Count up from this epoch-ms start (elapsed time).
 
 > `optional` **size?**: `number`
 
-Defined in: [js/src/components.ts:464](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L464)
+Defined in: [js/src/components.ts:472](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L472)
 
 ***
 
@@ -234,6 +234,6 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **until?**: `number`
 
-Defined in: [js/src/components.ts:458](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L458)
+Defined in: [js/src/components.ts:466](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L466)
 
 Count down to this epoch-ms deadline. Takes precedence over `since`.

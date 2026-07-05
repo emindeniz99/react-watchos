@@ -6,7 +6,7 @@
 
 # Interface: PickerProps
 
-Defined in: [js/src/components.ts:318](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L318)
+Defined in: [js/src/components.ts:326](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L326)
 
 ## Extends
 
@@ -141,7 +141,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:319](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L319)
+Defined in: [js/src/components.ts:327](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L327)
 
 ***
 
@@ -149,7 +149,7 @@ Defined in: [js/src/components.ts:319](https://github.com/emindeniz99/playground
 
 > `optional` **onChange?**: (`index`) => `void`
 
-Defined in: [js/src/components.ts:323](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L323)
+Defined in: [js/src/components.ts:331](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L331)
 
 #### Parameters
 
@@ -181,7 +181,7 @@ Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/playground/
 
 > **options**: `string`[]
 
-Defined in: [js/src/components.ts:320](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L320)
+Defined in: [js/src/components.ts:328](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L328)
 
 ***
 
@@ -217,6 +217,6 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `number`
 
-Defined in: [js/src/components.ts:322](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L322)
+Defined in: [js/src/components.ts:330](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L330)
 
 Selected index into options.

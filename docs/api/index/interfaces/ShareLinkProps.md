@@ -6,7 +6,7 @@
 
 # Interface: ShareLinkProps
 
-Defined in: [js/src/components.ts:578](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L578)
+Defined in: [js/src/components.ts:586](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L586)
 
 System share sheet (SwiftUI `ShareLink`). Children are the custom
  tappable label; omit them for the system's default share label.
@@ -84,7 +84,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:581](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L581)
+Defined in: [js/src/components.ts:589](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L589)
 
 ***
 
@@ -152,7 +152,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > **item**: `string`
 
-Defined in: [js/src/components.ts:580](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L580)
+Defined in: [js/src/components.ts:588](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L588)
 
 The text or URL to share.
 

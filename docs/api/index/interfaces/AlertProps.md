@@ -6,7 +6,7 @@
 
 # Interface: AlertProps
 
-Defined in: [js/src/components.ts:515](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L515)
+Defined in: [js/src/components.ts:523](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L523)
 
 System alert (SwiftUI `.alert`), React-controlled like Toggle: you present
 it with `presented`, the system dismisses it (action tap), and
@@ -19,7 +19,7 @@ it with `presented`, the system dismisses it (action tap), and
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:525](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L525)
+Defined in: [js/src/components.ts:533](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L533)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [js/src/components.ts:525](https://github.com/emindeniz99/playground
 
 > `optional` **message?**: `string`
 
-Defined in: [js/src/components.ts:518](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L518)
+Defined in: [js/src/components.ts:526](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L526)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [js/src/components.ts:518](https://github.com/emindeniz99/playground
 
 > `optional` **onChange?**: (`presented`) => `void`
 
-Defined in: [js/src/components.ts:524](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L524)
+Defined in: [js/src/components.ts:532](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L532)
 
 REQUIRED for the alert to actually present: without it React could never
 observe the system's dismissal and the seq-ack would re-present forever,
@@ -57,7 +57,7 @@ so a handler-less presentation stays hidden (the controlled-input rule).
 
 > `optional` **presented?**: `boolean`
 
-Defined in: [js/src/components.ts:516](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L516)
+Defined in: [js/src/components.ts:524](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L524)
 
 ***
 
@@ -65,4 +65,4 @@ Defined in: [js/src/components.ts:516](https://github.com/emindeniz99/playground
 
 > **title**: `string`
 
-Defined in: [js/src/components.ts:517](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L517)
+Defined in: [js/src/components.ts:525](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L525)

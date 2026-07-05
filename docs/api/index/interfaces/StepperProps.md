@@ -6,7 +6,7 @@
 
 # Interface: StepperProps
 
-Defined in: [js/src/components.ts:350](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L350)
+Defined in: [js/src/components.ts:358](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L358)
 
 Numeric +/- stepper.
 
@@ -127,7 +127,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **from?**: `number`
 
-Defined in: [js/src/components.ts:352](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L352)
+Defined in: [js/src/components.ts:360](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L360)
 
 ***
 
@@ -151,7 +151,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:355](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L355)
+Defined in: [js/src/components.ts:363](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L363)
 
 ***
 
@@ -159,7 +159,7 @@ Defined in: [js/src/components.ts:355](https://github.com/emindeniz99/playground
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:356](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L356)
+Defined in: [js/src/components.ts:364](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L364)
 
 #### Parameters
 
@@ -205,7 +205,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **step?**: `number`
 
-Defined in: [js/src/components.ts:354](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L354)
+Defined in: [js/src/components.ts:362](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L362)
 
 ***
 
@@ -213,7 +213,7 @@ Defined in: [js/src/components.ts:354](https://github.com/emindeniz99/playground
 
 > `optional` **through?**: `number`
 
-Defined in: [js/src/components.ts:353](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L353)
+Defined in: [js/src/components.ts:361](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L361)
 
 ***
 
@@ -235,4 +235,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:351](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L351)
+Defined in: [js/src/components.ts:359](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L359)

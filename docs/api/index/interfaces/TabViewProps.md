@@ -6,7 +6,7 @@
 
 # Interface: TabViewProps
 
-Defined in: [js/src/components.ts:326](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L326)
+Defined in: [js/src/components.ts:334](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L334)
 
 ## Extends
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:328](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L328)
+Defined in: [js/src/components.ts:336](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L336)
 
 Each child is one page.
 
@@ -52,7 +52,7 @@ Each child is one page.
 
 > `optional` **onChange?**: (`index`) => `void`
 
-Defined in: [js/src/components.ts:337](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L337)
+Defined in: [js/src/components.ts:345](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L345)
 
 Fires with the new page index as the user swipes between pages.
 
@@ -72,7 +72,7 @@ Fires with the new page index as the user swipes between pages.
 
 > `optional` **selection?**: `number`
 
-Defined in: [js/src/components.ts:335](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L335)
+Defined in: [js/src/components.ts:343](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L343)
 
 Controlled selected page index (0-based). When set, the native TabView
 binds to it optimistically (a swipe holds until React acks) — keep it in

@@ -6,7 +6,7 @@
 
 # Interface: SliderProps
 
-Defined in: [js/src/components.ts:341](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L341)
+Defined in: [js/src/components.ts:349](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L349)
 
 A draggable value slider (also Crown-adjustable when focused).
 
@@ -127,7 +127,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **from?**: `number`
 
-Defined in: [js/src/components.ts:343](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L343)
+Defined in: [js/src/components.ts:351](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L351)
 
 ***
 
@@ -151,7 +151,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:346](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L346)
+Defined in: [js/src/components.ts:354](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L354)
 
 #### Parameters
 
@@ -197,7 +197,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **step?**: `number`
 
-Defined in: [js/src/components.ts:345](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L345)
+Defined in: [js/src/components.ts:353](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L353)
 
 ***
 
@@ -205,7 +205,7 @@ Defined in: [js/src/components.ts:345](https://github.com/emindeniz99/playground
 
 > `optional` **through?**: `number`
 
-Defined in: [js/src/components.ts:344](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L344)
+Defined in: [js/src/components.ts:352](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L352)
 
 ***
 
@@ -227,4 +227,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:342](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L342)
+Defined in: [js/src/components.ts:350](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L350)

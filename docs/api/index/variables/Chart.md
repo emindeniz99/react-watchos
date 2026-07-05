@@ -8,4 +8,4 @@
 
 > `const` **Chart**: `FC`\<[`ChartProps`](../interfaces/ChartProps.md)\>
 
-Defined in: [js/src/components.ts:669](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L669)
+Defined in: [js/src/components.ts:678](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L678)

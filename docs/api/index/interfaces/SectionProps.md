@@ -6,7 +6,7 @@
 
 # Interface: SectionProps
 
-Defined in: [js/src/components.ts:550](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L550)
+Defined in: [js/src/components.ts:558](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L558)
 
 Grouped rows with an optional header/footer — meaningful inside <List>
  (SwiftUI `Section`).
@@ -84,7 +84,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:553](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L553)
+Defined in: [js/src/components.ts:561](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L561)
 
 ***
 
@@ -106,7 +106,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **footer?**: `string`
 
-Defined in: [js/src/components.ts:552](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L552)
+Defined in: [js/src/components.ts:560](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L560)
 
 ***
 
@@ -144,7 +144,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **header?**: `string`
 
-Defined in: [js/src/components.ts:551](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L551)
+Defined in: [js/src/components.ts:559](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L559)
 
 ***
 
