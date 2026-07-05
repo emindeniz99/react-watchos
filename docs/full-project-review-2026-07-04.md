@@ -72,8 +72,21 @@ are static-analysis reads.
    pending.
 4. **M6 Phase B** (collapse the two SwiftUI interpreters into one) — deferred
    quality/maintenance work, not shipping-blocking.
-5. **Deferred minors** — uncontrolled `NavigationStack` path correctness
-   (self-review Cycle 6), root-route a11y labels (Cycle 7): low severity.
+
+The two "deferred minors" from the 07-02 self-review are **both resolved in code**
+(verified 2026-07-06): the uncontrolled `NavigationStack` path is tracked in
+`navigation.tsx` (`localPath`) and reported natively (`RoutedNavigationStack`'s
+uncontrolled `else` branch dispatches `pathChange`); the root-route a11y is
+applied in **both** interpreters (`NodeView.RoutedNavigationStack` and
+`ReactWidgetView.navigationStackRoot`).
+
+### Verified consumer packaging (2026-07-06)
+`npm pack` → install the tarball into a fresh consumer → `tsc --noEmit` exits 0
+(after fixing the `Timeout`/`number` casts and shipping the transitive
+`@types`). A private end-to-end publish rehearsal also passed: published
+`react-watchos@0.1.0-alpha.0` (`--tag next`) to a local Verdaccio registry and
+`npm install react-watchos@next` pulled it into a fresh project cleanly. Secret
+scan (`gitleaks`, config committed) is clean — no first-party secrets.
 
 **Bottom line:** the 4 blockers and 18 majors from this review are closed
 (M6 partial by design); what remains is a **real-hardware pass** plus the
