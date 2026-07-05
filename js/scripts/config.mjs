@@ -47,6 +47,7 @@ export const targets = [
       "ota",
       "connectivity",
       "notifications",
+      "location",
     ],
   },
   {

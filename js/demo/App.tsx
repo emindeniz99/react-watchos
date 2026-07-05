@@ -39,6 +39,7 @@ import {
   ScrollView,
   Spacer,
   scheduleNotification,
+  searchPOI,
   sendToPhone,
   TabView,
   Text,
@@ -52,6 +53,7 @@ import {
   VStack,
   ZStack,
 } from "../src/index";
+import type { POIResult } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 import {
   addItem,
@@ -341,6 +343,50 @@ function MapScreen() {
         { lat: 37.788, lon: -122.4074 },
       ]}
     />
+  );
+}
+
+/**
+ * Searchable POI map: a full-screen map with a search field floating over it
+ * (ZStack, top-aligned). Typing a query runs MapKit's `searchPOI`
+ * (MKLocalSearch) and drops a pin for each result. watchOS text entry is modal,
+ * so `onChange` fires once with the finished query — one search per entry.
+ */
+function MapSearchScreen() {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<POIResult[]>([]);
+  const runSearch = (q: string) => {
+    setQuery(q);
+    if (!q.trim()) {
+      setResults([]);
+      return;
+    }
+    searchPOI(q, { latitude: 37.7793, longitude: -122.4193, span: 0.2 })
+      .then(setResults)
+      .catch(() => setResults([]));
+  };
+  return (
+    <ZStack alignment="top">
+      <MapView
+        fullScreen
+        latitude={37.7793}
+        longitude={-122.4193}
+        span={0.2}
+        annotations={results.map((r) => ({
+          lat: r.lat,
+          lon: r.lon,
+          title: r.title,
+          systemImage: "mappin.circle.fill",
+          tint: "red",
+        }))}
+      />
+      <VStack spacing={2}>
+        <TextField value={query} placeholder="Search places" onChange={runSearch} />
+        <Text size={10} color="secondary">
+          {results.length ? `${results.length} places` : "coffee, park, gas…"}
+        </Text>
+      </VStack>
+    </ZStack>
   );
 }
 
@@ -790,6 +836,9 @@ function DemoNavigation() {
       <NavigationRoute path="/map" title="Map">
         <MapScreen />
       </NavigationRoute>
+      <NavigationRoute path="/map-search" title="Places">
+        <MapSearchScreen />
+      </NavigationRoute>
       <NavigationRoute path="/stopwatch" title="Stopwatch">
         <StopwatchScreen />
       </NavigationRoute>
@@ -827,6 +876,7 @@ function HomeScreen() {
       <NavigationLink to="/inputs" label="Inputs" />
       <NavigationLink to="/tabs" label="Tabs" />
       <NavigationLink to="/map" label="Map" />
+      <NavigationLink to="/map-search" label="Places" />
       <NavigationLink to="/stopwatch" label="Stopwatch" />
       <NavigationLink to="/crown" label="Crown" />
       <NavigationLink to="/phone" label="Phone" />

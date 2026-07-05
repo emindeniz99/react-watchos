@@ -184,6 +184,8 @@ export {
   unregisterAllIntents,
 } from "./intents";
 export { Keychain } from "./keychain";
+export type { POIResult, POISearchOptions } from "./maps";
+export { searchPOI } from "./maps";
 export type { NativeEventHandler, Unsubscribe } from "./nativeEvents";
 export {
   dispatchNativeEvent,

@@ -2,6 +2,7 @@
 // file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
 #if os(watchOS)
 import CryptoKit
+import MapKit
 import ReactWatchCore
 import ReactWatchRuntime
 import ReactWatchSupport
@@ -350,6 +351,8 @@ final class ReactWatchModel: ObservableObject {
             handleCurrentEntitlements(id: id)
         case "restorePurchases":
             handleRestorePurchases(id: id)
+        case "searchPOI":
+            handleSearchPOI(id: id, payload: payload)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -373,6 +376,46 @@ final class ReactWatchModel: ObservableObject {
             if let expiresAt = record.expiresAt { result["expiresAt"] = expiresAt }
         }
         runtime?.resolveInvoke(id: id, resultJson: Self.jsonObject(result))
+    }
+
+    /// MapKit local POI search (MKLocalSearch): resolves the invoke with an
+    /// array of {lat, lon, title, subtitle} for the natural-language `query`,
+    /// biased to the optional region. An empty or failed search resolves to
+    /// `[]` (not a rejection) so the UI just shows no pins. The completion is
+    /// generation-guarded (CX-008) so a search settling after a dev-reload is
+    /// dropped.
+    private func handleSearchPOI(id: Int, payload: String) {
+        guard let data = payload.data(using: .utf8),
+            let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let query = obj["query"] as? String, !query.isEmpty
+        else {
+            runtime?.resolveInvoke(id: id, resultJson: "[]")
+            return
+        }
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = query
+        if let lat = obj["latitude"] as? Double, let lon = obj["longitude"] as? Double {
+            let span = obj["span"] as? Double ?? 0.1
+            request.region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+                span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span))
+        }
+        let gen = generation
+        MKLocalSearch(request: request).start { [weak self] response, _ in
+            guard let self, gen == self.generation else { return }
+            let items: [[String: Any]] = (response?.mapItems ?? []).prefix(15).map { item in
+                var d: [String: Any] = [
+                    "lat": item.placemark.coordinate.latitude,
+                    "lon": item.placemark.coordinate.longitude,
+                    "title": item.name ?? "",
+                ]
+                if let locality = item.placemark.locality { d["subtitle"] = locality }
+                return d
+            }
+            let json = (try? JSONSerialization.data(withJSONObject: items))
+                .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+            self.runtime?.resolveInvoke(id: id, resultJson: json)
+        }
     }
 
     /// Runs the staging pipeline and *resolves* the invoke with a

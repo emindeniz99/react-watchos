@@ -595,4 +595,14 @@ export const hostMethods = [
     since: 1,
     via: "invoke",
   },
+  // --- MapKit local POI search (MKLocalSearch): a natural-language query +
+  //     region -> nearby places, for the searchable Map. Fallible + async, so
+  //     routed via invoke. ---
+  {
+    name: "searchPOI",
+    targets: ["watch"],
+    feature: "location",
+    since: 1,
+    via: "invoke",
+  },
 ];

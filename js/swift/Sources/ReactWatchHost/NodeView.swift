@@ -804,8 +804,9 @@ private struct NavigationRouteDestination: View {
             navigationDestinationRootTypes.contains(only.type)
                 // A full-screen Map owns the whole screen too — rendering it
                 // inside the default ScrollView would collapse it to its minimal
-                // height (the map can't fill a scroll view). Let it through raw.
-                || (only.type == "Map" && only.bool("fullScreen") == true)
+                // height (the map can't fill a scroll view). Let it through raw,
+                // whether it's the bare Map or a ZStack overlaying controls on it.
+                || Self.ownsFullScreen(only)
         {
             NodeView(node: only)
         } else {
@@ -815,6 +816,19 @@ private struct NavigationRouteDestination: View {
                 }
             }
         }
+    }
+
+    /// Whether `node` should own the whole screen (bypass the default
+    /// ScrollView): a full-screen Map, or a ZStack overlaying controls on one.
+    private static func ownsFullScreen(_ node: RNNode) -> Bool {
+        func isFullScreenMap(_ n: RNNode) -> Bool {
+            n.type == "Map" && n.bool("fullScreen") == true
+        }
+        if isFullScreenMap(node) { return true }
+        if node.type == "ZStack" {
+            return node.children.contains(where: isFullScreenMap)
+        }
+        return false
     }
 }
 
