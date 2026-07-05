@@ -515,7 +515,9 @@ struct NodeView: View {
             showsUser: node.bool("showsUserLocation") == true,
             follow: node.bool("followsUserLocation") == true,
             cameraTrigger: node.double("cameraTrigger") ?? 0,
-            height: cgFloat("height") ?? 120)
+            height: cgFloat("height") ?? 120,
+            onTap: node.bool("onPress") == true
+                ? { model.dispatch(nodeId: node.id, event: "press") } : nil)
     }
 
     /// Region from the `latitude`/`longitude`/`span` props (CX-015). When absent,
@@ -807,6 +809,9 @@ private struct RNMapView: View {
     let follow: Bool
     let cameraTrigger: Double
     let height: CGFloat
+    /// Fired on a single tap (not a pan) — the demo toggles its overlay chrome
+    /// with it, like a full-screen map going immersive. nil = no tap handler.
+    let onTap: (() -> Void)?
 
     @State private var position: MapCameraPosition = .automatic
 
@@ -840,6 +845,8 @@ private struct RNMapView: View {
     }
 
     @ViewBuilder private var map: some View {
+        // A tap gesture (single tap, not a drag) coexists with the map's own
+        // pan/zoom, so panning still works; only a discrete tap fires onTap.
         let base = Map(position: $position) {
             if showsUser { UserAnnotation() }
             ForEach(pins) { p in
@@ -850,6 +857,7 @@ private struct RNMapView: View {
                 MapPolyline(coordinates: route).stroke(.blue, lineWidth: 3)
             }
         }
+        .onTapGesture { onTap?() }
         if fullScreen {
             base.frame(maxWidth: .infinity, maxHeight: .infinity).ignoresSafeArea()
         } else {
@@ -931,6 +939,7 @@ private struct MissingNavigationRoute: View {
 private struct OptimisticTextField: View {
     let node: RNNode
     @EnvironmentObject private var model: ReactWatchModel
+    @FocusState private var focused: Bool
 
     private var textBinding: Binding<String> {
         Binding(
@@ -946,6 +955,16 @@ private struct OptimisticTextField: View {
 
     var body: some View {
         TextField(node.string("placeholder") ?? "", text: textBinding)
+            .focused($focused)
+            // autoFocus requests focus once the field is in the hierarchy
+            // (deferred a tick — focusing in onAppear is too early). On iOS this
+            // opens the keyboard; on watchOS the system still needs a tap on the
+            // field to present the input modal, so this is a best-effort hint.
+            .task {
+                guard node.bool("autoFocus") == true else { return }
+                try? await Task.sleep(for: .milliseconds(50))
+                focused = true
+            }
     }
 }
 

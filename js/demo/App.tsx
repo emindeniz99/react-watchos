@@ -54,7 +54,12 @@ import {
   VStack,
   ZStack,
 } from "../src/index";
-import type { Coordinate, MapAnnotation, POIResult } from "../src/index";
+import type {
+  ColorValue,
+  Coordinate,
+  MapAnnotation,
+  POIResult,
+} from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 import {
   addItem,
@@ -388,6 +393,10 @@ function MapSearchScreen() {
   // to the user even after they've panned away (see MapProps.cameraTrigger).
   const [cameraTrigger, setCameraTrigger] = useState(0);
   const nudgeCamera = () => setCameraTrigger((n) => n + 1);
+  // Immersive map: a tap on the map hides the overlay chrome, another shows it.
+  const [chromeVisible, setChromeVisible] = useState(true);
+  // The search field is revealed by the search button (and auto-focuses).
+  const [searching, setSearching] = useState(false);
 
   // A single fix on focus: enough to prompt for permission and bias the search.
   // Not a stream — the live dot + follow are native, so the watch moving costs
@@ -402,6 +411,7 @@ function MapSearchScreen() {
   );
 
   const runSearch = (q: string) => {
+    setSearching(false);
     setQuery(q);
     if (!q.trim()) {
       setResults([]);
@@ -422,9 +432,16 @@ function MapSearchScreen() {
   // "Recenter on me": clear the search so the camera returns to following the
   // live location, and nudge so it re-centers even if the user had panned.
   const recenterOnMe = () => {
+    setSearching(false);
     setResults([]);
     setQuery("");
     nudgeCamera();
+  };
+
+  // A tap on the map: leave search if we're in it, else toggle the chrome.
+  const onMapTap = () => {
+    if (searching) setSearching(false);
+    else setChromeVisible((v) => !v);
   };
 
   const following = results.length === 0;
@@ -437,10 +454,6 @@ function MapSearchScreen() {
   };
 
   return (
-    // Controls anchor to the BOTTOM: the top strip is owned by the system
-    // (clock, the "Places" nav title, the back chevron), so chrome up there
-    // collides with it. The bottom is clear and thumb-reachable — where Apple
-    // Maps puts its own search + location button.
     <ZStack alignment="bottom">
       <MapView
         fullScreen
@@ -450,6 +463,7 @@ function MapSearchScreen() {
         latitude={region.latitude}
         longitude={region.longitude}
         span={region.span}
+        onPress={onMapTap}
         annotations={results.map(
           (r): MapAnnotation => ({
             lat: r.lat,
@@ -460,45 +474,81 @@ function MapSearchScreen() {
           }),
         )}
       />
-      <VStack spacing={6} padding={{ horizontal: 8, vertical: 8 }}>
-        {results.length > 0 && (
-          // A small legible chip over the map, only while there are results —
-          // idle guidance lives in the field's placeholder instead. Light
-          // material to match the search field and the location button.
-          <Text
-            size={13}
-            color="#1C1C1E"
-            background="#FFFFFFE6"
-            cornerRadius={10}
-            padding={{ horizontal: 10, vertical: 3 }}
-          >
-            {`${results.length} places`}
-          </Text>
-        )}
-        <HStack spacing={8} alignment="center">
+      {searching ? (
+        // The search field, revealed by the search button and auto-focused so
+        // the keyboard opens in one tap. Commit → runSearch collapses it back.
+        <VStack padding={{ horizontal: 8, vertical: 8 }}>
           <TextField
             value={query}
             placeholder="Search — coffee, park…"
             onChange={runSearch}
+            autoFocus
             frame={{ maxWidth: "infinity" }}
           />
-          {/* Apple's own location-button treatment: a white circle with a blue
-              glyph. `plain` strips the default chrome so the circle is exactly
-              our background; padding (not frame) sizes it so the rounded fill
-              wraps the padded glyph. */}
-          <Button
-            onPress={recenterOnMe}
-            buttonStyle="plain"
-            padding={11}
-            background="#FFFFFFE6"
-            cornerRadius={20}
-            accessibilityLabel="Recenter on my location"
-          >
-            <Image systemName="location.fill" size={18} color="blue" />
-          </Button>
-        </HStack>
-      </VStack>
+        </VStack>
+      ) : (
+        // Immersive chrome: two small round buttons pinned to the bottom
+        // corners (Spacer splits them), tap the map to hide/show them.
+        chromeVisible && (
+          <VStack spacing={6} padding={{ horizontal: 8, vertical: 8 }}>
+            {results.length > 0 && (
+              <Text
+                size={13}
+                color="#1C1C1E"
+                background="#FFFFFFE6"
+                cornerRadius={10}
+                padding={{ horizontal: 10, vertical: 3 }}
+              >
+                {`${results.length} places`}
+              </Text>
+            )}
+            <HStack>
+              <RoundButton
+                icon="magnifyingglass"
+                tint="#1C1C1E"
+                onPress={() => setSearching(true)}
+                label="Search places"
+              />
+              <Spacer />
+              <RoundButton
+                icon="location.fill"
+                tint="blue"
+                onPress={recenterOnMe}
+                label="Recenter on my location"
+              />
+            </HStack>
+          </VStack>
+        )
+      )}
     </ZStack>
+  );
+}
+
+/** A small circular map control: white disc, tinted SF Symbol. `plain` strips
+ *  the default button chrome; padding (not frame) sizes the disc around the
+ *  glyph so the rounded fill hugs it (modifier order is padding → background). */
+function RoundButton({
+  icon,
+  tint,
+  onPress,
+  label,
+}: {
+  icon: string;
+  tint: ColorValue;
+  onPress: () => void;
+  label: string;
+}) {
+  return (
+    <Button
+      onPress={onPress}
+      buttonStyle="plain"
+      padding={10}
+      background="#FFFFFFE6"
+      cornerRadius={19}
+      accessibilityLabel={label}
+    >
+      <Image systemName={icon} size={16} color={tint} />
+    </Button>
   );
 }
 

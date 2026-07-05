@@ -300,6 +300,13 @@ export interface TextFieldProps extends A11yProps, ModifierProps {
   placeholder?: string;
   /** Fired on input commit (watchOS input is modal: dictation/scribble/QWERTY). */
   onChange?: (value: string) => void;
+  /**
+   * Request focus as soon as the field appears (e.g. a search field revealed by
+   * a button). On iOS this opens the keyboard; on **watchOS the system still
+   * requires a tap on the field** to present the input modal, so it's a hint,
+   * not a guarantee — the field stays tappable either way.
+   */
+  autoFocus?: boolean;
 }
 
 export interface PickerProps extends A11yProps, ModifierProps {
@@ -394,6 +401,12 @@ export interface MapProps extends A11yProps, ModifierProps {
    * same follow/region target is otherwise a no-op the map can't observe.
    */
   cameraTrigger?: number;
+  /**
+   * Fired on a single tap on the map (a pan/zoom does NOT fire it). Use it to
+   * toggle overlay chrome for an immersive full-screen map, the way native maps
+   * hide their controls while you explore.
+   */
+  onPress?: () => void;
 }
 
 /** Date/time picker. value and onChange are epoch milliseconds. */

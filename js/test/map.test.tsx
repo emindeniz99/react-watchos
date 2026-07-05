@@ -53,4 +53,12 @@ describe("Map primitive", () => {
       cameraTrigger: 3,
     });
   });
+
+  it("serializes an onPress tap handler (for immersive chrome toggling)", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(<MapView fullScreen onPress={() => {}} />);
+    // Handlers cross the wire as `true`; the interpreter wires a tap gesture
+    // that coexists with the map's pan and dispatches "press".
+    expect(host.lastCommit!.root!.props.onPress).toBe(true);
+  });
 });
