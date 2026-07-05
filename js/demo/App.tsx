@@ -18,6 +18,7 @@ import {
   fetchAndApplyUpdate,
   Gauge,
   generateText,
+  getCurrentLocation,
   HStack,
   href,
   Image,
@@ -53,7 +54,7 @@ import {
   VStack,
   ZStack,
 } from "../src/index";
-import type { POIResult } from "../src/index";
+import type { Coordinate, POIResult } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 import {
   addItem,
@@ -346,32 +347,71 @@ function MapScreen() {
   );
 }
 
+// San Francisco — the fallback center when the watch location is unavailable.
+const SF: Coordinate = { lat: 37.7793, lon: -122.4193 };
+
+/** Region (center + padded span) that fits every result, or null when empty. */
+function fitRegion(results: POIResult[]) {
+  if (results.length === 0) return null;
+  const lats = results.map((r) => r.lat);
+  const lons = results.map((r) => r.lon);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+  return {
+    latitude: (minLat + maxLat) / 2,
+    longitude: (minLon + maxLon) / 2,
+    // Pad the wider axis so pins aren't flush to the edge; floor so a single
+    // result still zooms to street level instead of the whole world.
+    span: Math.max(maxLat - minLat, maxLon - minLon, 0.008) * 1.5 + 0.01,
+  };
+}
+
 /**
  * Searchable POI map: a full-screen map with a search field floating over it
  * (ZStack, top-aligned). Typing a query runs MapKit's `searchPOI`
- * (MKLocalSearch) and drops a pin for each result. watchOS text entry is modal,
- * so `onChange` fires once with the finished query — one search per entry.
+ * (MKLocalSearch) and drops a pin per result; the camera then zooms to fit
+ * them. The search is biased to — and the map initially centered on — the
+ * watch's real location (`getCurrentLocation`), falling back to SF. watchOS
+ * text entry is modal, so `onChange` fires once with the finished query.
  */
 function MapSearchScreen() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<POIResult[]>([]);
+  const [center, setCenter] = useState<Coordinate>(SF);
+
+  useEffect(() => {
+    getCurrentLocation()
+      .then(setCenter)
+      .catch(() => {}); // keep the SF fallback
+  }, []);
+
   const runSearch = (q: string) => {
     setQuery(q);
     if (!q.trim()) {
       setResults([]);
       return;
     }
-    searchPOI(q, { latitude: 37.7793, longitude: -122.4193, span: 0.2 })
+    searchPOI(q, { latitude: center.lat, longitude: center.lon, span: 0.2 })
       .then(setResults)
       .catch(() => setResults([]));
   };
+
+  // Fit the results once there are any; until then, center on the watch/SF.
+  const region = fitRegion(results) ?? {
+    latitude: center.lat,
+    longitude: center.lon,
+    span: 0.15,
+  };
+
   return (
     <ZStack alignment="top">
       <MapView
         fullScreen
-        latitude={37.7793}
-        longitude={-122.4193}
-        span={0.2}
+        latitude={region.latitude}
+        longitude={region.longitude}
+        span={region.span}
         annotations={results.map((r) => ({
           lat: r.lat,
           lon: r.lon,

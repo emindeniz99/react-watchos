@@ -353,6 +353,8 @@ final class ReactWatchModel: ObservableObject {
             handleRestorePurchases(id: id)
         case "searchPOI":
             handleSearchPOI(id: id, payload: payload)
+        case "getCurrentLocation":
+            handleGetCurrentLocation(id: id)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -415,6 +417,39 @@ final class ReactWatchModel: ObservableObject {
             let json = (try? JSONSerialization.data(withJSONObject: items))
                 .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
             self.runtime?.resolveInvoke(id: id, resultJson: json)
+        }
+    }
+
+    /// Active one-shot location requests, retained (keyed by invoke id) until
+    /// they settle. CLLocationManager needs a live delegate + run loop, so the
+    /// request is created and its callbacks run on the main queue.
+    private var pendingLocations: [Int: OneShotLocation] = [:]
+
+    /// One-shot current location (CLLocationManager.requestLocation): resolves
+    /// {lat, lon} for centering a map / biasing a POI search, or rejects
+    /// LOCATION_UNAVAILABLE if denied or no fix arrives. Generation-guarded.
+    private func handleGetCurrentLocation(id: Int) {
+        let gen = generation
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let request = OneShotLocation { [weak self] result in
+                guard let self else { return }
+                self.pendingLocations[id] = nil
+                guard gen == self.generation else { return }
+                switch result {
+                case .success(let c):
+                    self.runtime?.resolveInvoke(
+                        id: id,
+                        resultJson: Self.jsonObject(["lat": c.latitude, "lon": c.longitude]))
+                case .failure:
+                    self.runtime?.rejectInvoke(
+                        id: id,
+                        errorJson: Self.errorJSON(
+                            code: "LOCATION_UNAVAILABLE",
+                            message: "current location unavailable"))
+                }
+            }
+            self.pendingLocations[id] = request
         }
     }
 

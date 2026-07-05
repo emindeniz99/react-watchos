@@ -605,4 +605,14 @@ export const hostMethods = [
     since: 1,
     via: "invoke",
   },
+  // One-shot current location (CLLocationManager.requestLocation): a single
+  // {lat, lon} fix, for centering a map / biasing a POI search. Prompts for
+  // When-In-Use authorization if undetermined; rejects if denied.
+  {
+    name: "getCurrentLocation",
+    targets: ["watch"],
+    feature: "location",
+    since: 1,
+    via: "invoke",
+  },
 ];

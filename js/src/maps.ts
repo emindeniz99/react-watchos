@@ -32,3 +32,20 @@ export function searchPOI(
 ): Promise<POIResult[]> {
   return invoke<POIResult[]>("searchPOI", { query, ...options });
 }
+
+/** A latitude/longitude fix from {@link getCurrentLocation}. */
+export interface Coordinate {
+  lat: number;
+  lon: number;
+}
+
+/**
+ * Resolves the watch's current location as a single `{lat, lon}` fix — for
+ * centering a map or biasing a {@link searchPOI} call. Prompts for When-In-Use
+ * location permission the first time; rejects if permission is denied or no fix
+ * is available (e.g. a simulator with no location set), so callers should catch
+ * and fall back to a default region.
+ */
+export function getCurrentLocation(): Promise<Coordinate> {
+  return invoke<Coordinate>("getCurrentLocation");
+}

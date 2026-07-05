@@ -493,46 +493,33 @@ struct NodeView: View {
         )
     }
 
-    /// MapKit map with markers + an optional polyline route. Annotations and
-    /// route are nested JSONValue arrays-of-objects in the wire tree.
+    /// MapKit map with markers + an optional polyline route. Rendered through
+    /// `RNMapView`, which owns a controlled camera so JS can recenter/zoom the
+    /// map by changing the `latitude`/`longitude`/`span` props (e.g. to fit new
+    /// search results) — a one-shot `initialPosition` couldn't follow updates.
     @ViewBuilder private var mapView: some View {
-        let annotations = coordinates(node.props["annotations"])
+        let pins = coordinates(node.props["annotations"]).map { p in
+            RNMapView.Pin(
+                id: p.id, coordinate: p.coordinate, title: p.title ?? "",
+                systemImage: p.systemImage ?? "mappin", tint: color(p.tint) ?? .red)
+        }
         let route = coordinates(node.props["route"]).map(\.coordinate)
-        let map = Map(initialPosition: mapPosition) {
-            ForEach(annotations) { a in
-                Marker(
-                    a.title ?? "", systemImage: a.systemImage ?? "mappin",
-                    coordinate: a.coordinate
-                )
-                .tint(color(a.tint) ?? .red)
-            }
-            if route.count > 1 {
-                MapPolyline(coordinates: route).stroke(.blue, lineWidth: 3)
-            }
-        }
-        // fullScreen fills edge-to-edge (under the nav bar, back chevron floats
-        // over it); otherwise it's a fixed-height inline card. A bare
-        // `.ignoresSafeArea()` collapses the Map to its minimal height — it must
-        // first be told to greedily fill, then extend under the safe area.
-        if node.bool("fullScreen") == true {
-            map.frame(maxWidth: .infinity, maxHeight: .infinity).ignoresSafeArea()
-        } else {
-            map.frame(height: cgFloat("height") ?? 120)
-        }
+        RNMapView(
+            pins: pins, route: route, region: mapRegion,
+            fullScreen: node.bool("fullScreen") == true,
+            height: cgFloat("height") ?? 120)
     }
 
-    /// Region from the `latitude`/`longitude`/`span` props (CX-015) — these were
-    /// public but ignored. When absent, `.automatic` fits the annotations/route.
-    private var mapPosition: MapCameraPosition {
+    /// Region from the `latitude`/`longitude`/`span` props (CX-015). When absent,
+    /// nil -> the camera fits the annotations/route automatically.
+    private var mapRegion: MKCoordinateRegion? {
         guard let lat = node.double("latitude"),
             let lon = node.double("longitude")
-        else { return .automatic }
+        else { return nil }
         let span = node.double("span") ?? 0.02
-        return .region(
-            MKCoordinateRegion(
-                center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
-                span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span)
-            ))
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span))
     }
 
     private struct MapPoint: Identifiable {
@@ -782,6 +769,57 @@ private struct RoutedNavigationStack: View {
     private func normalized(_ route: String) -> String {
         if route.isEmpty || route == "/" { return "/" }
         return route.hasPrefix("/") ? route : "/\(route)"
+    }
+}
+
+/// A MapKit map with a CONTROLLED camera. The camera animates to the `region`
+/// prop whenever it changes (recompute it in JS to fit new results); between
+/// changes the user can freely pan/zoom without being yanked back. A nil region
+/// lets the map fit its annotations automatically.
+private struct RNMapView: View {
+    struct Pin: Identifiable {
+        let id: String
+        let coordinate: CLLocationCoordinate2D
+        let title: String
+        let systemImage: String
+        let tint: Color
+    }
+    let pins: [Pin]
+    let route: [CLLocationCoordinate2D]
+    let region: MKCoordinateRegion?
+    let fullScreen: Bool
+    let height: CGFloat
+
+    @State private var position: MapCameraPosition = .automatic
+
+    // Changes only when the REQUESTED region does, so a user pan isn't undone on
+    // the next commit — only a genuinely new region (new search) recenters.
+    private var regionKey: String {
+        guard let r = region else { return "auto" }
+        return "\(r.center.latitude),\(r.center.longitude),\(r.span.latitudeDelta)"
+    }
+
+    var body: some View {
+        map.onChange(of: regionKey, initial: true) {
+            withAnimation { position = region.map { .region($0) } ?? .automatic }
+        }
+    }
+
+    @ViewBuilder private var map: some View {
+        let base = Map(position: $position) {
+            ForEach(pins) { p in
+                Marker(p.title, systemImage: p.systemImage, coordinate: p.coordinate)
+                    .tint(p.tint)
+            }
+            if route.count > 1 {
+                MapPolyline(coordinates: route).stroke(.blue, lineWidth: 3)
+            }
+        }
+        if fullScreen {
+            base.frame(maxWidth: .infinity, maxHeight: .infinity).ignoresSafeArea()
+        } else {
+            base.frame(height: height)
+        }
     }
 }
 
