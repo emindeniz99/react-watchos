@@ -18,7 +18,7 @@ raise it**. Two framings to read the table with:
 
 | # | Limit | Our value | Set in | Who can change | Real OS / hardware limit | How high we could go |
 |---|---|---|---|---|---|---|
-| 1 | **App JS bundle** | 300 KB min (demo ~180) | [`js/scripts/config.mjs`](../js/scripts/config.mjs) `budgetKB` | lib-internal (CI tripwire) | none directly — bundle size costs **parse-time + flash**, not an OS cap | ~0.7 MB uncompressed before it's a low-end-phone problem ([web.dev](https://web.dev/articles/optimizing-content-efficiency-javascript-startup-optimization)); pair any raise with the boot tripwire (#6) and prefer bytecode precompile. Raised 200→300 (2026-07-05): demo was at ~90% of 200, too snug; 1 MB rejected as toothless + real watch parse cost |
+| 1 | **App JS bundle** | 300 KB min (demo ~180) | [`js/scripts/config.mjs`](../js/scripts/config.mjs) `budgetKB` | lib-internal (CI tripwire) | none directly — bundle size costs **parse-time + flash**, not an OS cap | ~0.7 MB uncompressed before it's a low-end-phone problem ([web.dev](https://web.dev/articles/optimizing-content-efficiency-javascript-startup-optimization)); pair any raise with the boot tripwire (#6) and prefer bytecode precompile. Raised 200→300 (2026-07-05): demo was at ~90% of 200, too snug; 1 MB rejected as toothless (the cost is flash + OTA-download + memory, NOT boot parse — prod ships bytecode, §JS bundle size) |
 | 2 | **Widget JS bundle** | 220 KB min (demo ~146) | `config.mjs` `budgetKB` | lib-internal (CI tripwire) | the **~30 MB widget-extension RSS** is the real wall, not source KB — [§ Widget memory](#widget-memory-the-30-mb-story) | bounded by the widget's 16 MB JS-heap cap (#4) + 30 MB total RSS, not by KB. Raised 160→220 (2026-07-05), kept tighter than the app since it feeds the 16 MB heap |
 | 3 | **App QuickJS heap** | 64 MB | [`ReactWatchHost.swift:143`](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift#L143) `memoryLimitBytes` | lib-internal | watchOS **foreground Jetsam**, undocumented; historically **30 MB** (watchOS 3), raised since without a published figure | it's a **runaway guard**, likely already ≥ the whole app limit — see [§ Heap caps](#heap-caps-are-guards-not-ceilings) |
 | 4 | **Widget QuickJS heap** | 16 MB | [`WidgetIntentRuntime.swift:64`](../js/swift/Sources/ReactWatchWidget/WidgetIntentRuntime.swift#L64) | lib-internal | **~30 MB** widget extension (iOS figure, best watchOS proxy) | conservative-but-tight; leaves ~14 MB for Swift + timeline snapshots. **Don't raise without on-device RSS measurement** |
@@ -41,13 +41,23 @@ watch, three things scale with a bigger bundle, in order of what bites first:
 
 - **Memory** (retained bytecode + heap) — the **first wall** on watchOS, per the
   memory research below.
-- **Parse/compile** — scales ~linearly with source size, and lands **on the
-  cold-start critical path**: QuickJS is a no-JIT, single-pass bytecode
-  interpreter, so parse is cheap-per-byte but *single-threaded* — unlike V8 it
-  can't hide parse on a worker thread
-  ([QuickJS overview](https://blogs.igalia.com/compilers/2023/06/12/quickjs-an-overview-and-guide-to-adding-a-new-feature/)).
-  This is exactly what the **boot tripwire (#6)** measures.
+- **Parse/compile** — scales ~linearly with source size. It *would* sit on the
+  cold-start critical path (QuickJS is a no-JIT single-pass interpreter, parse is
+  single-threaded — unlike V8 it can't hide parse on a worker thread,
+  [QuickJS overview](https://blogs.igalia.com/compilers/2023/06/12/quickjs-an-overview-and-guide-to-adding-a-new-feature/))
+  — **BUT the production build ships precompiled bytecode** (`build:bytecode` →
+  `bundle.qbc`; `loadShipped` prefers it and only parses `bundle.js` as a
+  fallback), so **at runtime parse is SKIPPED** — it's paid at BUILD time
+  instead. Measured on the watch sim (2026-07-05): the app boots `bytecode
+  (186 KB): read 1.8 ms + eval 45.4 ms` — a ~2 ms bytecode *read* replaces the
+  ~44 ms parse. So a bigger bundle grows build-time parse + flash + a slightly
+  larger bytecode `read`, **not boot parse**; boot is dominated by **eval** (the
+  first React render + commit, which scales with the tree, not source size).
 - **Download/flash IO** — scales with wire bytes.
+
+  ⚠️ The **boot tripwire (#6)** runs the *source* (`bundle.js`) path, so it
+  measures the fallback parse+eval — a useful source-size regression signal, but
+  **not the prod boot cost** (prod = bytecode `read` + eval).
 
 **Guidance we can lean on** (general low-end-mobile, no watch-specific number
 exists): web.dev's budget is **~170 KB compressed / ~0.7 MB uncompressed** JS,
