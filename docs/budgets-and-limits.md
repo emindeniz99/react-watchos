@@ -128,9 +128,15 @@ When you consciously raise a size/memory budget (the common case is #1/#2):
    the heap (#5) and boot (#6) gates must still pass; **retune #6** if the raise
    legitimately moved boot time (it's dev-relative, so widen the tripwire rather
    than fighting it).
-3. **Measure real RSS on-device / on-simulator** for the affected process — the
-   dev-machine gates can't see the watchOS Jetsam ceiling, and that ceiling is
-   the only limit that actually kills you.
+3. **Measure on a real device.** For memory, read real RSS for the affected
+   process — the dev-machine gates can't see the watchOS Jetsam ceiling, and that
+   ceiling is the only limit that actually kills you. For **cold-start parse
+   cost**, `JSRuntime` logs the parse+eval wall-clock on every launch: open
+   Console.app, filter subsystem `com.reactwatchos.runtime` category `boot`
+   (`parse+eval bundle.js (N B): X.X ms`). The watchOS **simulator runs at Mac
+   speed**, so only a physical **Series 9+** gives the true single-threaded
+   number the bundle budget trades against — the embed-smoke boot tripwire (#6)
+   is only a dev-relative regression signal, not that real number.
 4. **Update this doc** — the value, and *why* it moved.
 
 The point of #6 pairing #1 is exactly this: a bundle-size raise is only safe

@@ -1,6 +1,10 @@
 import CQuickJS
 import Foundation
 
+#if canImport(os)
+import os
+#endif
+
 /// Embeds QuickJS and hosts the React bundle. Mirrors the verified
 /// reference embedding in tools/embed-smoke/embed-host.c:
 ///   1. install __host.{commit,log,setTimer,clearTimer}
@@ -106,16 +110,40 @@ public final class JSRuntime {
         JS_FreeRuntime(runtime)
     }
 
+    #if canImport(os)
+    /// Cold-start visibility (docs/budgets-and-limits.md): `evaluate` /
+    /// `evaluateBytecode` log the wall-clock to parse+eval the bundle here, so
+    /// the REAL number is readable in Console.app on a physical device — filter
+    /// by subsystem `com.reactwatchos.runtime`, category `boot`. NB the watchOS
+    /// SIMULATOR runs at Mac speed, so only a real Series 9+ shows the true
+    /// single-threaded cold-start cost the JS-bundle budget trades against.
+    private static let bootLog = Logger(
+        subsystem: "com.reactwatchos.runtime", category: "boot")
+    #endif
+
     // MARK: - Public API
 
     public func evaluate(_ code: String, filename: String = "bundle.js") throws {
         try withJSEntry {
+            #if canImport(os)
+            let start = DispatchTime.now()
+            #endif
             let result = code.withCString { codePtr in
                 JS_Eval(
                     context, codePtr, strlen(codePtr), filename,
                     qjs_eval_type_global())
             }
             defer { JS_FreeValue(context, result) }
+            #if canImport(os)
+            let ms = String(
+                format: "%.1f",
+                Double(
+                    DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+                ) / 1_000_000)
+            Self.bootLog.notice(
+                "parse+eval \(filename, privacy: .public) (\(code.utf8.count) B): \(ms, privacy: .public) ms"
+            )
+            #endif
             if JS_IsException(result) {
                 throw JSError.exception(takeExceptionMessage())
             }
@@ -128,6 +156,9 @@ public final class JSRuntime {
     /// source if this throws.
     public func evaluateBytecode(_ data: Data) throws {
         try withJSEntry {
+            #if canImport(os)
+            let start = DispatchTime.now()
+            #endif
             let fn = data.withUnsafeBytes { raw -> JSValue in
                 JS_ReadObject(
                     context, raw.bindMemory(to: UInt8.self).baseAddress,
@@ -138,6 +169,16 @@ public final class JSRuntime {
             }
             let result = JS_EvalFunction(context, fn)
             defer { JS_FreeValue(context, result) }
+            #if canImport(os)
+            let ms = String(
+                format: "%.1f",
+                Double(
+                    DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+                ) / 1_000_000)
+            Self.bootLog.notice(
+                "load+eval bytecode (\(data.count) B): \(ms, privacy: .public) ms"
+            )
+            #endif
             if JS_IsException(result) {
                 throw JSError.exception(takeExceptionMessage())
             }
