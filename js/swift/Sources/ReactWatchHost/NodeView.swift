@@ -498,7 +498,7 @@ struct NodeView: View {
     @ViewBuilder private var mapView: some View {
         let annotations = coordinates(node.props["annotations"])
         let route = coordinates(node.props["route"]).map(\.coordinate)
-        Map(initialPosition: mapPosition) {
+        let map = Map(initialPosition: mapPosition) {
             ForEach(annotations) { a in
                 Marker(
                     a.title ?? "", systemImage: a.systemImage ?? "mappin",
@@ -510,7 +510,15 @@ struct NodeView: View {
                 MapPolyline(coordinates: route).stroke(.blue, lineWidth: 3)
             }
         }
-        .frame(height: cgFloat("height") ?? 120)
+        // fullScreen fills edge-to-edge (under the nav bar, back chevron floats
+        // over it); otherwise it's a fixed-height inline card. A bare
+        // `.ignoresSafeArea()` collapses the Map to its minimal height — it must
+        // first be told to greedily fill, then extend under the safe area.
+        if node.bool("fullScreen") == true {
+            map.frame(maxWidth: .infinity, maxHeight: .infinity).ignoresSafeArea()
+        } else {
+            map.frame(height: cgFloat("height") ?? 120)
+        }
     }
 
     /// Region from the `latitude`/`longitude`/`span` props (CX-015) — these were
@@ -794,6 +802,10 @@ private struct NavigationRouteDestination: View {
         if let only = node.children.first,
             node.children.count == 1,
             navigationDestinationRootTypes.contains(only.type)
+                // A full-screen Map owns the whole screen too — rendering it
+                // inside the default ScrollView would collapse it to its minimal
+                // height (the map can't fill a scroll view). Let it through raw.
+                || (only.type == "Map" && only.bool("fullScreen") == true)
         {
             NodeView(node: only)
         } else {

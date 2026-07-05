@@ -358,7 +358,17 @@ export interface MapProps extends A11yProps, ModifierProps {
   annotations?: MapAnnotation[];
   /** Polyline route as lat/lon points. */
   route?: Array<{ lat: number; lon: number }>;
+  /**
+   * Fixed map height in points. Ignored when `fullScreen` is set. Defaults to
+   * 120 — a small inline map card.
+   */
   height?: number;
+  /**
+   * Fill the whole screen edge-to-edge (ignores the safe area, so the map runs
+   * under the navigation bar and the back chevron floats over it). Use for a
+   * realistic full-screen map; overlay any controls on top with a ZStack.
+   */
+  fullScreen?: boolean;
 }
 
 /** Date/time picker. value and onChange are epoch milliseconds. */

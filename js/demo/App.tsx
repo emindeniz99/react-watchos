@@ -318,32 +318,29 @@ function TabsScreen() {
 }
 
 /**
- * A MapKit map (watchOS 26+) with a few pinned landmarks and a route between
- * them — exercises the `Map` primitive's region, annotations and polyline.
+ * A full-screen MapKit map (watchOS 26+) with a few pinned landmarks and a
+ * route between them — exercises the `Map` primitive's region, annotations,
+ * polyline and edge-to-edge `fullScreen` layout (the back chevron floats over
+ * the map).
  */
 function MapScreen() {
   return (
-    <VStack spacing={4}>
-      <MapView
-        latitude={37.795}
-        longitude={-122.402}
-        span={0.03}
-        height={120}
-        annotations={[
-          { lat: 37.7955, lon: -122.3937, title: "Ferry Building", systemImage: "ferry.fill", tint: "blue" },
-          { lat: 37.8024, lon: -122.4058, title: "Coit Tower", systemImage: "building.columns.fill", tint: "orange" },
-          { lat: 37.788, lon: -122.4074, title: "Union Square", systemImage: "bag.fill", tint: "green" },
-        ]}
-        route={[
-          { lat: 37.7955, lon: -122.3937 },
-          { lat: 37.8024, lon: -122.4058 },
-          { lat: 37.788, lon: -122.4074 },
-        ]}
-      />
-      <Text size={11} color="secondary">
-        3 pins + route
-      </Text>
-    </VStack>
+    <MapView
+      fullScreen
+      latitude={37.795}
+      longitude={-122.402}
+      span={0.03}
+      annotations={[
+        { lat: 37.7955, lon: -122.3937, title: "Ferry Building", systemImage: "ferry.fill", tint: "blue" },
+        { lat: 37.8024, lon: -122.4058, title: "Coit Tower", systemImage: "building.columns.fill", tint: "orange" },
+        { lat: 37.788, lon: -122.4074, title: "Union Square", systemImage: "bag.fill", tint: "green" },
+      ]}
+      route={[
+        { lat: 37.7955, lon: -122.3937 },
+        { lat: 37.8024, lon: -122.4058 },
+        { lat: 37.788, lon: -122.4074 },
+      ]}
+    />
   );
 }
 
