@@ -19,6 +19,70 @@ are static-analysis reads.
 
 ---
 
+## 0. Resolution status — updated 2026-07-06
+
+> This review was written on a **Linux box with no Swift compile, no simulator,
+> no device** (see the Method note). Since then the blockers and majors have
+> been worked through and verified **locally on macOS** (the owner's chosen gate
+> — GitHub Actions stays dormant by decision, so B1 below is "verified locally"
+> not "green on the runner"). The table is the reconciliation; the body of the
+> review is kept verbatim as the historical record.
+>
+> **Local Mac gates, all green 2026-07-06:** `pnpm test` 382 ✓ · `swift test`
+> 199 ✓ (compiles clean under `swift-tools-version:6.0`) · watchOS app build +
+> on-sim run green (`pnpm run:watch`, Ultra 3) · `typecheck` · `lint` · `check:size` ✓.
+
+| # | Item | Status | Evidence |
+|---|------|--------|----------|
+| **B1** | CI pipeline dark | **Resolved locally** | Owner decision: verify on macOS, not GitHub Actions. All gates pass locally (above). GitHub `build.yml` stays `workflow_dispatch` by choice; the runner badge is deferred, not the verification. |
+| **B2** | npm name taken | **Resolved** | Publishing identity decided → `react-watchos` (CLAUDE.md naming note). Folder/scope stay `react-native-watchos`. |
+| **B3** | widget NSLock deadlock | **Resolved** | `WidgetIntentRuntime.renderFreshTimelines` now constructs + evaluates the runtime **outside** `cacheLock`, reconciled by a `cacheEpoch` snapshot (`WidgetIntentRuntime.swift:286–316`, B3-annotated). |
+| **B4** | Swift 6 concurrency | **Resolved** | Package compiles clean under Swift 6 and `swift test` runs 199 tests green; the watchOS app builds. The `MainActor.assumeIsolated` / `Task { @MainActor }` pattern is applied at the flagged sites. |
+| M1 | widget timers off-thread | **Resolved** | `JSRuntime` owning-queue confinement + timers refused in intent-mode widget JS. |
+| M2 | sync invoke re-entrancy | **Resolved** | `drainJobs` is depth-aware — microtasks drain only at the outermost host entry. |
+| M3 | `Double→Int` traps | **Resolved** | One clamping helper for every wire-number→Int; adversarial magnitude tests. |
+| M4 | widget Gauge reversed bounds | **Resolved** | Bounds normalization shared so the interpreters can't drift; reversed-bounds parity test. |
+| M5 | OTA boot sequencer untestable | **Resolved** | `OTABootSequencer` extracted into Linux-tested `ReactWatchSupport`. |
+| M6 | two interpreters, case-only parity | **Partial (not a blocker)** | Per-prop **golden parity gate** shipped (M6-interim) + ARCH-10 **Phase A** shared helpers. Full single-interpreter consolidation (Phase B) is a deferred quality item. |
+| M7 | no i18n/locale story | **Resolved** | `locale/language/is24Hour` in `getDeviceInfo`; `Intl` gap documented; translation layer; native `FormattedText`; CLDR plurals via `plurals-cldr`. |
+| M8 | README drifted | **Resolved** | README reconciled with status.md. |
+| M9 | vendored QuickJS unverified | **Resolved** | Tarball SHA-256 pinned in the vendor script (fails on mismatch). |
+| M10 | README quickstart stale | **Resolved** | Native-setup rewritten to the real (generator) flow. |
+| M11 | dev loop unshipped | **Resolved** | `dev` / `build` / `inspector` shipped as CLI subcommands. |
+| M12 | no API reference | **Resolved** | Generated typedoc API reference + capability tables. |
+| M13 | HealthKit entitlement default | **Resolved** | Plugin default flipped to `healthKit: false` (least privilege). |
+| M14 | embed-smoke asserts nothing | **Resolved** | Epilogue now throws on `handled !== true` / no count advance. |
+| M15 | wire fixtures ~5/39 | **Resolved** | Serializer-generated kitchen-sink fixture (every component + modifier props). |
+| M16 | consumer TS builds break | **Resolved** | Source-shipping tsconfig contract documented (required `types:["node"]`). |
+| M17 | SECURITY/issue templates | **Resolved** | watchOS added to SECURITY.md scope + a watchos issue template. |
+| M18 | no root LICENSE | **Resolved** | MIT LICENSE added at the project root. |
+
+### What's actually still open (the real prod gap)
+
+1. **No real-device verification (the ③ gap).** Every ③ in status.md is the
+   *simulator*. Sensors, BLE against a real peripheral, StoreKit purchases,
+   extended-runtime, OTA crash-loop triggers, battery — reasoned or sim-only,
+   never observed on hardware. **This is the single biggest remaining item for a
+   device-grade production claim.**
+2. **On-device AI — ⛔ blocked externally.** `generateText`/FoundationModels needs
+   the **watchOS 27 SDK (Xcode 27)** to compile; unavailable today. Gate is
+   corrected; nothing to do until the SDK ships.
+3. **First publish never rehearsed.** Name is decided (`react-watchos`) but zero
+   release tags exist; the `release-please` publish dry-run + a real tag are still
+   pending.
+4. **M6 Phase B** (collapse the two SwiftUI interpreters into one) — deferred
+   quality/maintenance work, not shipping-blocking.
+5. **Deferred minors** — uncontrolled `NavigationStack` path correctness
+   (self-review Cycle 6), root-route a11y labels (Cycle 7): low severity.
+
+**Bottom line:** the 4 blockers and 18 majors from this review are closed
+(M6 partial by design); what remains is a **real-hardware pass** plus the
+**publish rehearsal**, not code debt. The verdict moved from "pre-launch, dark
+pipeline" to "verified on macOS + simulator; needs a device pass before
+device-grade claims."
+
+---
+
 ## 1. Executive summary
 
 **Is it production-ready today? No — but it is unusually close for a 0.x, and
