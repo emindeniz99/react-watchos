@@ -118,11 +118,21 @@ Tracked here for easy follow-up; each lands as its own commit.
   suite (377, golden unchanged = no prop-read drift). The layout-modifier chain
   (Group B) and the render switch stay per-interpreter for now. Design basis:
   [human-review-2026-07-05](./human-review-2026-07-05-interpreter-duplication.md).
-- **ARCH-10 Phase B — DEFERRED (needed for a 2nd interpreter target).**
-  Unifying the render *switch* (app interactive vs widget static/degraded)
-  behind a `RenderContext` is the higher-risk half and is NOT needed for the
-  watch. It becomes worth doing when a SECOND target appears (an iOS widget host
-  — see §7 below), where a third copy of the switch would be the real cost.
+- **ARCH-10 Phase B — DEFERRED; do NOT do it now.** Unifying the render *switch*
+  (app interactive vs widget static/degraded) is the higher-risk half and is NOT
+  needed for the watch: the container/display cases are already shared (Phase A
+  helpers), and the ~12 interactive/presentation/nav cases genuinely DIFFER per
+  interpreter — they're not duplication, so merging them removes none. At two
+  targets the two clear switches + the M6 parity golden are fine.
+  **If it is ever done (target #3 — an iOS widget host, §7), do it as
+  COMPOSITION, not a switch full of `if isInteractive`:** a `RenderContext`
+  protocol whose methods (`button(node,children)`, `presentation(node)`,
+  `slider(node)`, …) each interpreter implements, so the single shared switch
+  dispatches `ctx.button(…)` with NO conditionals — polymorphism picks
+  interactive-vs-degraded and the container/display cases stay context-free.
+  Design the protocol for all three targets at once. The SwiftUI `some
+  View`/type-erasure friction this incurs is itself part of why it's not worth
+  it below three targets.
 - **Theme type-safety follow-up — planned.** Borrow Restyle's compile-time
   pattern for the token layer (`type Theme = typeof theme` + token-keyed props):
   autocomplete + typo-catching on token props, **types-only, zero runtime/OTA
