@@ -524,10 +524,10 @@ function MapSearchScreen() {
   );
 }
 
-/** A small translucent map control: a see-through dark disc (the map shows
- *  through) with a light SF Symbol. `plain` strips the default chrome so the
- *  disc is exactly our translucent fill and stays a precise small circle —
- *  the `glass` style inflates into a big capsule and can't be sized round. */
+/** A small round Liquid Glass map control — the same frosted material as the
+ *  system back button. `plain` strips the default button chrome, the `glass`
+ *  modifier applies `.glassEffect()`, and equal padding around the glyph makes
+ *  the glass capsule read as a circle. */
 function RoundButton({
   icon,
   tint,
@@ -543,9 +543,8 @@ function RoundButton({
     <Button
       onPress={onPress}
       buttonStyle="plain"
+      glass
       padding={10}
-      background="#00000059"
-      cornerRadius={19}
       accessibilityLabel={label}
     >
       <Image systemName={icon} size={16} color={tint} />
