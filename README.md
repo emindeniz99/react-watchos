@@ -34,11 +34,11 @@ This project does the same *category* of thing with ~500 lines instead of a
 framework fork: a JS engine on the device, JSX + hooks driving real native
 widgets, events bridged back to JS. It shares no code with RN core — RN
 ecosystem libraries won't run here — and the component vocabulary is
-SwiftUI-like, all 40 primitives: `VStack`, `HStack`, `ZStack`, `ScrollView`,
+SwiftUI-like, all 41 primitives: `VStack`, `HStack`, `ZStack`, `ScrollView`,
 `List`, `TabView`, `Spacer`, `Divider`, `Text`, `TimerText`, `FormattedText`,
 `Image`, `Map`,
 `Gauge`, `ProgressView`, `Button`, `Toggle`, `Slider`, `Stepper`, `Picker`,
-`DatePicker`, `TextField`, `CrownRotation`, `NavigationStack`,
+`DatePicker`, `TextField`, `SecureField`, `CrownRotation`, `NavigationStack`,
 `NavigationLink`, `NavigationRoute`, `Alert`, `AlertAction`,
 `ConfirmationDialog`, `Sheet`, `Section`, `Label`, `Grid`, `GridRow`,
 `ShareLink`, `Chart`, `LabeledContent`, `ContentUnavailable`, `Toolbar`,

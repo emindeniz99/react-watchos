@@ -35,6 +35,7 @@ import {
   renderWidgets,
   ScrollView,
   Section,
+  SecureField,
   ShareLink,
   Sheet,
   Slider,
@@ -180,6 +181,11 @@ describe("swift contract fixtures", () => {
         <Picker value={1} options={["a", "b"]} label="P" onChange={() => {}} />
         <DatePicker value={1_700_000_000_000} onChange={() => {}} />
         <TextField value="draft" placeholder="type" onChange={() => {}} />
+        <SecureField
+          value="s3cret"
+          placeholder="passcode"
+          onChange={() => {}}
+        />
         <CrownRotation value={5} from={0} through={10} onChange={() => {}}>
           <Text>5</Text>
         </CrownRotation>

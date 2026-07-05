@@ -315,6 +315,14 @@ export interface TextFieldProps extends A11yProps, ModifierProps {
   autoFocus?: boolean;
 }
 
+/**
+ * Masked text entry (passwords, PINs). Identical surface to {@link TextFieldProps}
+ * — `value`/`placeholder`/`onChange`/`autoFocus` behave the same — but the
+ * characters are obscured on screen, and the watchOS secure-entry modal offers
+ * no dictation or Scribble (only the on-screen keyboard), by system design.
+ */
+export type SecureFieldProps = TextFieldProps;
+
 export interface PickerProps extends A11yProps, ModifierProps {
   label?: string;
   options: string[];
@@ -644,6 +652,7 @@ export const NavigationLink =
 // NavigationStack and NavigationRoute are function components (they expose
 // route params via useParams); see ./navigation.
 export const TextField = "TextField" as unknown as FC<TextFieldProps>;
+export const SecureField = "SecureField" as unknown as FC<SecureFieldProps>;
 export const Picker = "Picker" as unknown as FC<PickerProps>;
 export const TabView = "TabView" as unknown as FC<TabViewProps>;
 export const TimerText = "TimerText" as unknown as FC<TimerTextProps>;

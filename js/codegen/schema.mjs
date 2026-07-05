@@ -64,6 +64,8 @@ export const components = [
   { name: "Picker", widget: "degraded" },
   { name: "DatePicker", widget: "degraded" },
   { name: "TextField", widget: "degraded" },
+  // Masked text entry; a widget shows only the placeholder (never a secret).
+  { name: "SecureField", widget: "degraded" },
   { name: "CrownRotation", widget: "degraded" },
   { name: "NavigationStack", widget: "degraded" },
   { name: "NavigationLink", widget: "degraded" },

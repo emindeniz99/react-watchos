@@ -69,7 +69,7 @@ struct NodeView: View {
     private var isHandlerlessControl: Bool {
         let controls: Set = [
             "Toggle", "Slider", "Stepper", "Picker", "DatePicker", "TextField",
-            "CrownRotation",
+            "SecureField", "CrownRotation",
         ]
         return controls.contains(node.type) && node.bool("onChange") != true
     }
@@ -213,6 +213,8 @@ struct NodeView: View {
             EmptyView()
         case "TextField":
             OptimisticTextField(node: node)
+        case "SecureField":
+            OptimisticTextField(node: node, secure: true)
         case "Picker":
             Picker(node.string("label") ?? "", selection: pickerBinding) {
                 let options = node.stringArray("options") ?? []
@@ -942,6 +944,9 @@ private struct MissingNavigationRoute: View {
 /// when React acks the commit.
 private struct OptimisticTextField: View {
     let node: RNNode
+    /// SecureField masks input (passwords/PINs); everything else — the
+    /// optimistic binding, autoFocus, the commit-on-close contract — is shared.
+    var secure = false
     @EnvironmentObject private var model: ReactWatchModel
     @FocusState private var focused: Bool
 
@@ -958,7 +963,7 @@ private struct OptimisticTextField: View {
     }
 
     var body: some View {
-        TextField(node.string("placeholder") ?? "", text: textBinding)
+        field
             .focused($focused)
             // autoFocus requests focus once the field is in the hierarchy
             // (deferred a tick — focusing in onAppear is too early). On iOS this
@@ -969,6 +974,15 @@ private struct OptimisticTextField: View {
                 try? await Task.sleep(for: .milliseconds(50))
                 focused = true
             }
+    }
+
+    @ViewBuilder private var field: some View {
+        let placeholder = node.string("placeholder") ?? ""
+        if secure {
+            SecureField(placeholder, text: textBinding)
+        } else {
+            TextField(placeholder, text: textBinding)
+        }
     }
 }
 

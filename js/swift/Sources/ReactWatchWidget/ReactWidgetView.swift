@@ -271,6 +271,10 @@ public struct WidgetNodeView: View {
             Image(systemName: "map")
         case "TextField":
             Text(node.string("value") ?? node.string("placeholder") ?? "")
+        case "SecureField":
+            // A secret never belongs on a complication — show only the
+            // placeholder, never the (masked or plain) value.
+            Text(node.string("placeholder") ?? "")
         case "Picker":
             Text(pickerSummary(node))
         default:

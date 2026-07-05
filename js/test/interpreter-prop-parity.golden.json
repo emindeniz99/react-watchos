@@ -154,6 +154,12 @@
       "value"
     ]
   },
+  "SecureField": {
+    "app": [],
+    "widget": [
+      "placeholder"
+    ]
+  },
   "CrownRotation": {
     "app": [],
     "widget": []

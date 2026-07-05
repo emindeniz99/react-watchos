@@ -17,6 +17,7 @@ import {
   ProgressView,
   playHaptic,
   ScrollView,
+  SecureField,
   type SerializedNode,
   Slider,
   Stepper,
@@ -132,6 +133,33 @@ describe("input primitives", () => {
       type: "TextField",
       props: { value: "Emin", placeholder: "Name", onChange: true },
     });
+  });
+
+  it("serializes SecureField like TextField (distinct type, same props)", () => {
+    const root = render(
+      <SecureField
+        value="hunter2"
+        placeholder="Passcode"
+        onChange={() => {}}
+      />,
+    );
+    expect(root).toMatchObject({
+      type: "SecureField",
+      props: { value: "hunter2", placeholder: "Passcode", onChange: true },
+    });
+  });
+
+  it("dispatches change events to a SecureField handler", () => {
+    const onSecret = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<SecureField onChange={onSecret} />);
+    root.dispatchEvent({
+      nodeId: host.lastCommit!.root!.id,
+      event: "change",
+      payload: { value: "s3cret" },
+    });
+    expect(onSecret).toHaveBeenCalledWith("s3cret");
   });
 
   it("serializes Picker with its options array intact", () => {
