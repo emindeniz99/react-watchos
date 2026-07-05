@@ -89,6 +89,45 @@ already implemented. Revisit only if a real app needs an iOS Live Activity.
 All SwiftUI/CoreBluetooth code added across these passes is **unverified
 until the macOS build runs green** — that's the gate.
 
+## Approved & in-flight (2026-07-05 session)
+
+Tracked here for easy follow-up; each lands as its own commit.
+
+- **Rich-text nesting fix — shipped.** The widget interpreter's `textSegment`
+  didn't recurse into nested `<Text>`, so rich text ≥2 deep dropped its deepest
+  text on the complication only. Fixed in place + a JS wire test for the ≥2-deep
+  shape + a structural parity guard (both interpreters' `textSegment` must fold
+  children). Found by the
+  [interpreter hand review](./human-review-2026-07-05-interpreter-duplication.md).
+- **Boot parse-time gate — shipped.** embed-smoke now measures + gates
+  cold-start (`[boot]` line, 250 ms dev-relative tripwire) so a JS-bundle-size
+  budget raise is paired with its cold-start cost. See
+  [budgets-and-limits.md](./budgets-and-limits.md).
+- **Cognitive-complexity ratchet — shipped, ongoing.** Biome's
+  `noExcessiveCognitiveComplexity` is gated at 25 (today's worst); drive the 10
+  flagged hot paths toward the Sonar default of 15 when they're touched
+  ([quality-gates.md](./quality-gates.md)).
+- **ARCH-10 Phase A — APPROVED, in progress.** Extract the ~150 lines of
+  byte/near-identical SwiftUI-mapping helpers (systemColor, semanticFont,
+  chartMark, alignments, styled, textSegment, color, cgFloat, formatted) + the
+  duplicated layout-modifier chain out of both `NodeView.swift` and
+  `ReactWidgetView.swift` into one watchOS-only `ReactWatchUI` module both
+  import. Makes parity **structural** (not test-enforced) and deletes the second
+  `textSegment` copy so the nesting drift can't recur. Safe + DX-neutral (all
+  helpers are `private`/`static`, no public API). Design basis:
+  [human-review-2026-07-05](./human-review-2026-07-05-interpreter-duplication.md).
+- **ARCH-10 Phase B — DEFERRED (needed for a 2nd interpreter target).**
+  Unifying the render *switch* (app interactive vs widget static/degraded)
+  behind a `RenderContext` is the higher-risk half and is NOT needed for the
+  watch. It becomes worth doing when a SECOND target appears (an iOS widget host
+  — see §7 below), where a third copy of the switch would be the real cost.
+- **Theme type-safety follow-up — planned.** Borrow Restyle's compile-time
+  pattern for the token layer (`type Theme = typeof theme` + token-keyed props):
+  autocomplete + typo-catching on token props, **types-only, zero runtime/OTA
+  bytes**. Prior-art verdict was keep-and-improve (not adopt a lib, not go
+  native — watchOS is always-dark so the native theming win is nil); see the
+  theme decision note in [prior-art.md](./prior-art.md).
+
 ## Track 1 — Input & interaction
 
 Owns `components.ts`, `NodeView.swift` (append-only), demo screens.
@@ -270,6 +309,45 @@ behind the same `HostBridge` seam:
   fetch) as tools.
 - **App Shortcuts / Siri** — surface app actions to Siri so a phrase can drive
   the React app; pairs with the **double-tap** primary action already shipped.
+
+## 7. Apple widget / timeline surfaces — watch-first, then everywhere
+
+The moat isn't the engine (every other Apple platform already has JSC); it's
+that our renderer emits an **archived, static SwiftUI timeline**, which is
+exactly the out-of-process model WidgetKit/ActivityKit use — a shape RN's live
+UIView reconciler structurally can't match, on any engine. So the renderer could
+target every Apple timeline surface. Full inventory:
+
+**Supported today (watchOS):**
+
+- watchOS **WidgetKit** complications + Smart Stack widgets — the full
+  interpreter (`ReactWidgetView`), timeline providers (`ReactTimeline`:
+  `reactTimeline`/`reactSnapshotEntry`, currentIndex/reload-policy handling),
+  the widget's own QuickJS runtime (`WidgetIntentRuntime`), per-`WidgetFamily`
+  rendering (`familyKey`), and **interactive widget buttons** via AppIntent
+  (`ReactWidgetButtonIntent`, watchOS 11+). Smart Stack *relevance ranking* is
+  in; predictive `relevantContexts` surfacing is decoded-not-applied (CX-017).
+
+**Missing — reachable by the same model, not yet targeted:**
+
+- **iOS / iPadOS Home Screen + Lock Screen widgets** — everything is
+  `#if os(watchOS)` today; needs an iOS widget target/host and the interpreter
+  ungated for iOS. The biggest single surface, and it also brings **iOS StandBy**
+  and **macOS Notification Center** widgets largely for free.
+- **Live Activities / ActivityKit** (Dynamic Island + Lock Screen) — push/
+  ActivityKit-driven rather than rendered through our pipeline today; needs an
+  iOS target plus an ActivityKit timeline adapter. (Currently deferred by
+  design, see "Live Activities — deferred" above.)
+- **Control Center / Action Button / Lock Screen controls** (`ControlWidget`,
+  iOS 18 / watchOS 11) — our published control metadata (`reactControlMetadata`)
+  already matches the shape; needs a `ControlWidget` host to render it.
+
+**Strategy — watch-first.** Ship the watch (app + complication) to production
+first: it's the hardest target and it's what this project *is*. The
+widget-everywhere surfaces are the deliberate post-launch expansion — and
+they're precisely what makes **ARCH-10 Phase B** (one interpreter behind a
+`RenderContext`) worth doing, because each new surface would otherwise fork the
+render switch again. Today the watch widget surface is enough.
 
 ## Re-prioritized "what's next"
 
