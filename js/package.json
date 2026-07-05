@@ -83,6 +83,7 @@
     "test": "vitest run",
     "test:swift": "cd swift && swift test",
     "test:swift:watch": "bash scripts/test-watch.sh",
+    "run:watch": "bash scripts/run-watch-sim.sh",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json && tsc -p tsconfig.plugin.json",
     "lint": "biome check",
     "lint:fix": "biome check --write",
