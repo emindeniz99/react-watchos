@@ -8,4 +8,4 @@
 
 > `const` **Button**: `FC`\<[`ButtonProps`](../interfaces/ButtonProps.md)\>
 
-Defined in: [js/src/components.ts:543](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L543)
+Defined in: [js/src/components.ts:632](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L632)

@@ -8,4 +8,4 @@
 
 > `const` **NavigationLink**: `FC`\<[`NavigationLinkProps`](../type-aliases/NavigationLinkProps.md)\>
 
-Defined in: [js/src/components.ts:553](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L553)
+Defined in: [js/src/components.ts:642](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L642)

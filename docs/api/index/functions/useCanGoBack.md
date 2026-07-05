@@ -8,7 +8,7 @@
 
 > **useCanGoBack**(): `boolean`
 
-Defined in: [js/src/navigation.tsx:440](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L440)
+Defined in: [js/src/navigation.tsx:465](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L465)
 
 ## Returns
 

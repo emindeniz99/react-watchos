@@ -8,7 +8,7 @@
 
 > **useRoute**(): `string`
 
-Defined in: [js/src/navigation.tsx:436](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L436)
+Defined in: [js/src/navigation.tsx:461](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L461)
 
 ## Returns
 

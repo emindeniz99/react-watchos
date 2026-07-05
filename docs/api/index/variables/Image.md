@@ -8,4 +8,4 @@
 
 > `const` **Image**: `FC`\<[`ImageProps`](../interfaces/ImageProps.md)\>
 
-Defined in: [js/src/components.ts:546](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L546)
+Defined in: [js/src/components.ts:635](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L635)

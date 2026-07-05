@@ -8,7 +8,7 @@
 
 > **matchRoute**(`pattern`, `route`): [`RouteMatch`](../interfaces/RouteMatch.md) \| `null`
 
-Defined in: [js/src/navigation.tsx:123](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L123)
+Defined in: [js/src/navigation.tsx:148](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L148)
 
 ## Parameters
 

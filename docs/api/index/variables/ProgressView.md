@@ -8,4 +8,4 @@
 
 > `const` **ProgressView**: `FC`\<[`ProgressViewProps`](../interfaces/ProgressViewProps.md)\>
 
-Defined in: [js/src/components.ts:552](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L552)
+Defined in: [js/src/components.ts:641](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L641)

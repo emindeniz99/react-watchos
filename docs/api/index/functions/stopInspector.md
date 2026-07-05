@@ -8,7 +8,7 @@
 
 > **stopInspector**(): `void`
 
-Defined in: [js/src/inspector.ts:155](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L155)
+Defined in: [js/src/inspector.ts:158](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L158)
 
 Stops the running inspector poll (if any). Safe to call repeatedly; a later
  startInspector restarts it (optionally with changed options).

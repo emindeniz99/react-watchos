@@ -8,4 +8,4 @@
 
 > **RouteParams** = `Record`\<`string`, [`RouteParamValue`](RouteParamValue.md)\>
 
-Defined in: [js/src/navigation.tsx:72](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L72)
+Defined in: [js/src/navigation.tsx:97](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L97)

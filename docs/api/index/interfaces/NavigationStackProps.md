@@ -6,7 +6,7 @@
 
 # Interface: NavigationStackProps
 
-Defined in: [js/src/components.ts:222](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L222)
+Defined in: [js/src/components.ts:266](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L266)
 
 ## Extends
 
@@ -18,7 +18,7 @@ Defined in: [js/src/components.ts:222](https://github.com/emindeniz99/playground
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:18](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L18)
+Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L53)
 
 #### Inherited from
 
@@ -30,7 +30,7 @@ Defined in: [js/src/components.ts:18](https://github.com/emindeniz99/playground/
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:17](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L17)
+Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L52)
 
 #### Inherited from
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:17](https://github.com/emindeniz99/playground/
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:231](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L231)
+Defined in: [js/src/components.ts:275](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L275)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:231](https://github.com/emindeniz99/playground
 
 > `optional` **onPathChange?**: (`path`) => `void`
 
-Defined in: [js/src/components.ts:230](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L230)
+Defined in: [js/src/components.ts:274](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L274)
 
 Fired when native back/link gestures mutate the NavigationStack path.
 
@@ -70,7 +70,7 @@ Fired when native back/link gestures mutate the NavigationStack path.
 
 > `optional` **path?**: `string`[]
 
-Defined in: [js/src/components.ts:228](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L228)
+Defined in: [js/src/components.ts:272](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L272)
 
 Controlled native stack path. Root is represented by [] and pushed
 routes are stable path strings such as ["/hydration"].
@@ -81,4 +81,4 @@ routes are stable path strings such as ["/hydration"].
 
 > `optional` **title?**: `string`
 
-Defined in: [js/src/components.ts:223](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L223)
+Defined in: [js/src/components.ts:267](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L267)

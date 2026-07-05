@@ -8,4 +8,4 @@
 
 > `const` **Slider**: `FC`\<[`SliderProps`](../interfaces/SliderProps.md)\>
 
-Defined in: [js/src/components.ts:565](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L565)
+Defined in: [js/src/components.ts:654](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L654)

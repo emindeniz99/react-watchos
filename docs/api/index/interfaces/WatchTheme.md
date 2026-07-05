@@ -22,37 +22,37 @@ screens stay consistent when the accent changes.
 
 #### accent
 
-> **accent**: `string`
+> **accent**: [`ColorValue`](../type-aliases/ColorValue.md)
 
 App accent — buttons, gauges, links.
 
 #### destructive
 
-> **destructive**: `string`
+> **destructive**: [`ColorValue`](../type-aliases/ColorValue.md)
 
 Destructive/error state.
 
 #### muted
 
-> **muted**: `string`
+> **muted**: [`ColorValue`](../type-aliases/ColorValue.md)
 
 De-emphasized text.
 
 #### positive
 
-> **positive**: `string`
+> **positive**: [`ColorValue`](../type-aliases/ColorValue.md)
 
 Positive state (goal reached, connected).
 
 #### surface
 
-> **surface**: `string`
+> **surface**: [`ColorValue`](../type-aliases/ColorValue.md)
 
 Card/section fill behind content.
 
 #### warning
 
-> **warning**: `string`
+> **warning**: [`ColorValue`](../type-aliases/ColorValue.md)
 
 Warning state (low battery, degraded).
 

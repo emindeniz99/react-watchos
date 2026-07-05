@@ -8,7 +8,7 @@
 
 > **useParams**\<`T`\>(): `T` *extends* `string` ? [`ParamsOf`](../type-aliases/ParamsOf.md)\<`T`\> : `T`
 
-Defined in: [js/src/navigation.tsx:195](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L195)
+Defined in: [js/src/navigation.tsx:220](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L220)
 
 Dynamic-segment params of the active route. Pass the route TEMPLATE to infer
 the shape (`useParams<"/list/[id]">()` -> `{ id: string }`), or an explicit

@@ -6,7 +6,7 @@
 
 # Interface: CrownRotationProps
 
-Defined in: [js/src/components.ts:345](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L345)
+Defined in: [js/src/components.ts:434](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L434)
 
 Binds the Digital Crown to a numeric value over its children (SwiftUI
 `digitalCrownRotation`). The wrapped view becomes crown-focusable;
@@ -24,7 +24,7 @@ Crown's implicit role inside Picker/ScrollView).
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:18](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L18)
+Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L53)
 
 #### Inherited from
 
@@ -36,7 +36,7 @@ Defined in: [js/src/components.ts:18](https://github.com/emindeniz99/playground/
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:17](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L17)
+Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L52)
 
 #### Inherited from
 
@@ -48,7 +48,7 @@ Defined in: [js/src/components.ts:17](https://github.com/emindeniz99/playground/
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:356](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L356)
+Defined in: [js/src/components.ts:445](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L445)
 
 ***
 
@@ -56,7 +56,7 @@ Defined in: [js/src/components.ts:356](https://github.com/emindeniz99/playground
 
 > `optional` **from?**: `number`
 
-Defined in: [js/src/components.ts:348](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L348)
+Defined in: [js/src/components.ts:437](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L437)
 
 Range lower bound (default 0).
 
@@ -66,7 +66,7 @@ Range lower bound (default 0).
 
 > `optional` **haptic?**: `boolean`
 
-Defined in: [js/src/components.ts:354](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L354)
+Defined in: [js/src/components.ts:443](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L443)
 
 Crown haptic detents (default true).
 
@@ -76,7 +76,7 @@ Crown haptic detents (default true).
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:355](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L355)
+Defined in: [js/src/components.ts:444](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L444)
 
 #### Parameters
 
@@ -94,7 +94,7 @@ Defined in: [js/src/components.ts:355](https://github.com/emindeniz99/playground
 
 > `optional` **step?**: `number`
 
-Defined in: [js/src/components.ts:352](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L352)
+Defined in: [js/src/components.ts:441](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L441)
 
 Detent size (default 1).
 
@@ -104,7 +104,7 @@ Detent size (default 1).
 
 > `optional` **through?**: `number`
 
-Defined in: [js/src/components.ts:350](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L350)
+Defined in: [js/src/components.ts:439](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L439)
 
 Range upper bound (default 100).
 
@@ -114,4 +114,4 @@ Range upper bound (default 100).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:346](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L346)
+Defined in: [js/src/components.ts:435](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L435)

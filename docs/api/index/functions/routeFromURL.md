@@ -8,7 +8,7 @@
 
 > **routeFromURL**(`url`, `scheme?`): `string` \| `null`
 
-Defined in: [js/src/navigation.tsx:54](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L54)
+Defined in: [js/src/navigation.tsx:79](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L79)
 
 ## Parameters
 
@@ -18,7 +18,7 @@ Defined in: [js/src/navigation.tsx:54](https://github.com/emindeniz99/playground
 
 ### scheme?
 
-`string` = `"reactwatch"`
+`string` = `...`
 
 ## Returns
 

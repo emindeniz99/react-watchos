@@ -56,7 +56,7 @@ surfaces don't exist in WidgetKit).
 | `Toolbar` | degraded |
 | `ToolbarItem` | degraded |
 
-## Host methods (42) by capability feature
+## Host methods (44) by capability feature
 
 An OTA bundle's `requiredFeatures` must be a subset of the binary's
 feature set (ARCH-01); `since` is the bridge-protocol version the method
@@ -107,3 +107,5 @@ appeared in. "invoke" methods route through the generic invoke channel
 |  | `purchase` | watch | invoke | 1 |
 |  | `currentEntitlements` | watch | invoke | 1 |
 |  | `restorePurchases` | watch | invoke | 1 |
+| `location` | `searchPOI` | watch | invoke | 1 |
+|  | `getCurrentLocation` | watch | invoke | 1 |
