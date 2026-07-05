@@ -37,3 +37,27 @@ if ! awk -v heap="$HEAP_MB" -v budget="$HEAP_BUDGET_MB" \
   exit 1
 fi
 echo "embed-smoke: quickjs heap ${HEAP_MB} MB within budget ${HEAP_BUDGET_MB} MB"
+
+# Boot parse-time tripwire: wall-clock to parse+eval the bundle and commit the
+# first tree (docs/budgets-and-limits.md §JS bundle). This is the axis a
+# bundle-size-budget raise trades against — the heap gate above cannot see it.
+# UNLIKE the heap number this is dev-hardware-relative (wall-clock, not a
+# portable engine metric), so the budget is deliberately loose: ~6x the current
+# baseline (~40 ms here) — enough headroom for a slow/loaded CI runner while
+# still tripping on a gross regression (e.g. a dependency that triples
+# cold-start). Retune (don't tighten) when you consciously raise the size
+# budget. A missing [boot] line fails too — a gate that can silently skip is
+# not a gate.
+BOOT_BUDGET_MS=250
+BOOT_MS=$(printf '%s\n' "$OUTPUT" \
+  | sed -n 's/^\[boot\] parse+eval+first-commit: \([0-9.]*\) ms.*/\1/p')
+if [ -z "$BOOT_MS" ]; then
+  echo "embed-smoke: no [boot] line in the host output — gate cannot run" >&2
+  exit 1
+fi
+if ! awk -v boot="$BOOT_MS" -v budget="$BOOT_BUDGET_MS" \
+  'BEGIN { exit !(boot <= budget) }'; then
+  echo "embed-smoke: boot ${BOOT_MS} ms exceeds the ${BOOT_BUDGET_MS} ms tripwire (dev-relative)" >&2
+  exit 1
+fi
+echo "embed-smoke: boot ${BOOT_MS} ms within tripwire ${BOOT_BUDGET_MS} ms (dev-relative)"

@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/resource.h>
+#include <time.h>
 #include "quickjs.h"
 
 static void push_to_global_array(JSContext *ctx, const char *name, JSValueConst value) {
@@ -165,6 +166,15 @@ int main(int argc, char **argv) {
     // exactly like JSRuntime.swift; .js goes through the source parser.
     size_t arglen = strlen(argv[1]);
     int is_bytecode = arglen > 4 && strcmp(argv[1] + arglen - 4, ".qbc") == 0;
+    // Cold-start cost: time the bundle load — parse+compile+eval (which renders
+    // the app and commits the first tree) plus the microtask drain, i.e. the
+    // "boot to first frame" window JSRuntime.swift pays on launch. This is the
+    // axis a bundle-size-budget raise trades against (bigger source => more
+    // parse work), which the portable heap gate ([mem]) does NOT capture.
+    // Wall-clock on dev hardware, so it's a gross-regression tripwire (see
+    // run.sh), never a watch-absolute number.
+    struct timespec boot_t0, boot_t1;
+    clock_gettime(CLOCK_MONOTONIC, &boot_t0);
     JSValue result;
     if (is_bytecode) {
         JSValue fn = JS_ReadObject(ctx, (const uint8_t *)bundle, len,
@@ -188,6 +198,9 @@ int main(int argc, char **argv) {
     }
     JS_FreeValue(ctx, result);
     drain_jobs(rt);
+    clock_gettime(CLOCK_MONOTONIC, &boot_t1);
+    double boot_ms = (double)(boot_t1.tv_sec - boot_t0.tv_sec) * 1000.0
+                     + (double)(boot_t1.tv_nsec - boot_t0.tv_nsec) / 1.0e6;
 
     JSValue summary = JS_Eval(ctx, epilogue_src, strlen(epilogue_src), epilogue_name,
                               JS_EVAL_TYPE_GLOBAL);
@@ -218,6 +231,7 @@ int main(int argc, char **argv) {
             "KB"
 #endif
     );
+    fprintf(stderr, "[boot] parse+eval+first-commit: %.1f ms\n", boot_ms);
 
     free(epilogue_buf);
     JS_FreeContext(ctx);
