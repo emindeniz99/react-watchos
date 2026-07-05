@@ -69,8 +69,8 @@ function resolveOptions(config, options) {
   return {
     name,
     widgetName: `${name} Widgets`,
-    // bundleId-derived App Group => the demo's group.com.emindeniz99.reactwatch
-    // for bundleId com.emindeniz99.reactwatch; overridable.
+    // App Group derived from the consumer's own bundle id (e.g. bundleId
+    // "com.acme.myapp" => "group.com.acme.myapp"); overridable via `appGroup`.
     appGroup: o.appGroup ?? `group.${bundleIdentifier}`,
     widget: o.widget ?? true,
     // Least privilege (M13): a sensitive entitlement must be an explicit

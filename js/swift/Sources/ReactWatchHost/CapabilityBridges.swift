@@ -78,10 +78,16 @@ enum DeviceSnapshot {
 // MARK: - Keychain (Security framework)
 
 enum KeychainStore {
+    /// Scope keychain items to the CONSUMER's app, not a hardcoded id — every
+    /// app that embeds this library gets its own keychain namespace derived from
+    /// its own bundle identifier (fallback for the rare nil-bundle case).
+    private static let service =
+        "\(Bundle.main.bundleIdentifier ?? "reactwatch").keychain"
+
     private static func query(for key: String) -> [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "com.emindeniz99.reactwatch.keychain",
+            kSecAttrService as String: service,
             kSecAttrAccount as String: key,
         ]
     }

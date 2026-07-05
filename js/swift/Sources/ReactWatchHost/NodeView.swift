@@ -14,8 +14,10 @@ import UIKit
 /// on every pass would flood; an unknown type means a newer JS bundle reached an
 /// older interpreter. We still skip the node (degrade gracefully, keep rendering
 /// siblings) but make it diagnosable instead of a silent no-op.
+// Subsystem is the CONSUMER's bundle id (not a hardcoded one), so each app's
+// interpreter logs surface under its own identifier in Console/log streams.
 private let interpreterLog = Logger(
-    subsystem: "com.emindeniz99.reactwatch", category: "interpreter")
+    subsystem: Bundle.main.bundleIdentifier ?? "ReactWatch", category: "interpreter")
 private let loggedUnsupportedTypes = OSAllocatedUnfairLock(initialState: Set<String>())
 
 private func unsupportedNode(_ type: String) -> some View {
