@@ -54,7 +54,7 @@ import {
   VStack,
   ZStack,
 } from "../src/index";
-import type { Coordinate, POIResult } from "../src/index";
+import type { Coordinate, MapAnnotation, POIResult } from "../src/index";
 import { hydrationStore } from "./hydrationStore";
 import {
   addItem,
@@ -424,6 +424,14 @@ function MapSearchScreen() {
     span: 0.15,
   };
 
+  const myLocationMarker: MapAnnotation = {
+    lat: center.lat,
+    lon: center.lon,
+    title: "My location",
+    systemImage: "location.circle.fill",
+    tint: "blue",
+  };
+
   return (
     <ZStack alignment="top">
       <MapView
@@ -431,13 +439,18 @@ function MapSearchScreen() {
         latitude={region.latitude}
         longitude={region.longitude}
         span={region.span}
-        annotations={results.map((r) => ({
-          lat: r.lat,
-          lon: r.lon,
-          title: r.title,
-          systemImage: "mappin.circle.fill",
-          tint: "red",
-        }))}
+        annotations={[
+          myLocationMarker,
+          ...results.map(
+            (r): MapAnnotation => ({
+              lat: r.lat,
+              lon: r.lon,
+              title: r.title,
+              systemImage: "mappin.circle.fill",
+              tint: "red",
+            }),
+          ),
+        ]}
       />
       <VStack spacing={2}>
         <HStack spacing={4}>
