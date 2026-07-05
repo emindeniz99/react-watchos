@@ -1,4 +1,5 @@
 import {
+  deepLinkURL,
   Gauge,
   HStack,
   Image,
@@ -101,7 +102,7 @@ export function registerDemoWidgets(): void {
         }
       })();
       return {
-        entries: [{ date: now, view, url: "reactwatch://hydration" }],
+        entries: [{ date: now, view, url: deepLinkURL("/hydration") }],
         reloadAfter: now + 24 * 3_600_000,
       };
     },
@@ -160,7 +161,7 @@ export function registerDemoWidgets(): void {
           {
             date: now,
             view,
-            url: list ? `reactwatch://list/${list.id}` : "reactwatch://",
+            url: list ? deepLinkURL(`/list/${list.id}`) : deepLinkURL("/"),
           },
         ],
         reloadAfter: now + 6 * 3_600_000,

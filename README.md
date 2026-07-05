@@ -177,11 +177,19 @@ use `const navigate = useNavigate(); navigate("/hydration")`; use
 `navigate("/", { action: "reset" })` to return to root.
 
 The same route table handles external entry points. A widget timeline entry
-can publish `url: "reactwatch://hydration"`; WidgetKit installs it as
+can publish `url: deepLinkURL("/hydration")`; WidgetKit installs it as
 `.widgetURL`, the watch host forwards `.onOpenURL` to JS as `openURL`, and
-`NavigationProvider` maps it back to `["/hydration"]`. Consumers using a
-custom scheme must register it in the watch target's `CFBundleURLTypes`
-(the reference app's target config registers `reactwatch`).
+`NavigationProvider` maps it back to `["/hydration"]`.
+
+**One scheme, no double-config.** The config plugin registers the deep-link
+scheme in the watch target's `CFBundleURLTypes`, defaulting to your app's
+bundle id (like the App Group) so two apps that both embed this library never
+collide on a shared `reactwatch://`. The native host surfaces that exact scheme
+to JS (`globalThis.__urlScheme`), so `deepLinkURL()` builds URLs and
+`NavigationProvider` parses them from the *same* value — you don't set the
+scheme a second time in JS. Override the default with the plugin's `scheme`
+option for a shorter custom scheme; `deepLinkURL()`/`getURLScheme()` follow it
+automatically.
 
 ## Complications & widgets (React-authored)
 
@@ -197,7 +205,7 @@ registerWidget({
   render: ({ family, now }) => ({
     entries: [{
       date: now,
-      url: "reactwatch://hydration",
+      url: deepLinkURL("/hydration"),
       view: <Gauge value={glasses} max={8} label="Water" />,
     }],
     reloadAfter: now + 24 * 3_600_000,

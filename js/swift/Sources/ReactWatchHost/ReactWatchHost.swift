@@ -92,6 +92,10 @@ final class ReactWatchModel: ObservableObject {
     init(appGroupId: String?, ota: OTAConfig = .init(), useJSCallBridge: Bool = true) {
         store = SharedWidgetStore(appGroupId: appGroupId)
         counters = CoordinatedCounterStore(appGroupId: appGroupId)
+        // Single source for the deep-link scheme: only the APP process can read
+        // its registered CFBundleURLSchemes, so publish it into the App Group for
+        // the widget extension to read (HostURLScheme / deepLinkURL). Idempotent.
+        store.saveURLScheme(HostURLScheme.registered())
         let keys = ota.signerPublicKeys.compactMapValues {
             Data(base64Encoded: $0)
                 .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
@@ -280,7 +284,11 @@ final class ReactWatchModel: ObservableObject {
             .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         try? js.evaluate(
             "globalThis.__hostFeatures=\(json);"
-                + "globalThis.__bridgeProtocol=\(RNWire.bridgeProtocol);",
+                + "globalThis.__bridgeProtocol=\(RNWire.bridgeProtocol);"
+                // The app's registered deep-link scheme, so navigation.tsx
+                // parses/builds URLs from the Info.plist value instead of a
+                // hardcoded literal (empty string when unregistered → JS default).
+                + HostURLScheme.inject(HostURLScheme.registered()),
             filename: "host-capabilities.js"
         )
     }

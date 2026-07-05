@@ -51,9 +51,34 @@ function normalizeStack(path: string[]): string[] {
   return path.map(normalizeRoute).filter((route) => route !== "/");
 }
 
+/**
+ * The app's custom URL scheme. The native host injects it as
+ * `globalThis.__urlScheme` at boot, sourced from the app's registered
+ * `CFBundleURLSchemes` — which the config plugin's `scheme` option writes (it
+ * defaults to your bundle id, so two apps never collide on a shared scheme).
+ * Falls back to `"reactwatch"` only with no host (Node/tests); a real build
+ * always injects the real value, so both processes agree without you wiring the
+ * scheme in two places.
+ */
+export function getURLScheme(): string {
+  const s = (globalThis as unknown as { __urlScheme?: unknown }).__urlScheme;
+  return typeof s === "string" && s.length > 0 ? s : "reactwatch";
+}
+
+/**
+ * Build a deep-link URL from a route (`deepLinkURL("/hydration")` ->
+ * `"<scheme>://hydration"`) using the app's registered scheme. Use it for
+ * widget entry `url`s and any `openURL` target so the URL you construct matches
+ * what `NavigationProvider` parses — one scheme source, no literal to keep in
+ * sync across the app, the widget, and the Info.plist.
+ */
+export function deepLinkURL(route: string, scheme = getURLScheme()): string {
+  return `${scheme}://${route.replace(/^\/+/, "")}`;
+}
+
 export function routeFromURL(
   url: string,
-  scheme = "reactwatch",
+  scheme = getURLScheme(),
 ): string | null {
   const prefix = `${scheme}://`;
   if (!url.startsWith(prefix)) return null;
@@ -367,7 +392,7 @@ export function NavigationRoute(props: NavigationRouteProps) {
 
 export function NavigationProvider({
   initialPath = [],
-  scheme = "reactwatch",
+  scheme = getURLScheme(),
   children,
 }: NavigationProviderProps) {
   const [path, setRawPath] = useState(() => normalizeStack(initialPath));

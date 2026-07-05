@@ -76,4 +76,22 @@ public struct SharedWidgetStore: Sendable {
     public func setOTABootAttempts(_ count: Int) {
         defaults?.set(count, forKey: Self.otaBootAttemptsKey)
     }
+
+    /// App → widget: the app's custom URL scheme (see `HostURLScheme`). Only the
+    /// app process can read `CFBundleURLSchemes` from its Info.plist; it
+    /// publishes the value here so the widget extension — whose own Bundle.main
+    /// has no URL types — builds deep links (`deepLinkURL`) from the same scheme
+    /// the app parses. No-op with no App Group or an empty scheme.
+    public static let urlSchemeKey = "react.urlScheme"
+
+    public func saveURLScheme(_ scheme: String?) {
+        guard let scheme, !scheme.isEmpty else { return }
+        defaults?.set(scheme, forKey: Self.urlSchemeKey)
+    }
+
+    /// The scheme the app published, or nil before the app has run once (the
+    /// widget then falls back to the JS default).
+    public func urlScheme() -> String? {
+        defaults?.string(forKey: Self.urlSchemeKey)
+    }
 }

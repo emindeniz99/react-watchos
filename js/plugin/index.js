@@ -80,7 +80,14 @@ function resolveOptions(config, options) {
     healthKit: o.healthKit ?? false,
     deploymentTarget: o.deploymentTarget ?? "10.0",
     appleTeamId: o.appleTeamId ?? config.ios?.appleTeamId,
-    scheme: o.scheme ?? "reactwatch",
+    // Deep-link scheme, defaulted to the consumer's own bundle id (like the App
+    // Group) so two apps that both embed this library never register the same
+    // `reactwatch://` and collide in the OS's URL routing. Reverse-DNS schemes
+    // are valid + conventional (Firebase/Google do the same). The native host
+    // surfaces this exact value to JS (globalThis.__urlScheme), so navigation
+    // parses/builds from it with no second place to configure. Override for a
+    // shorter custom scheme.
+    scheme: o.scheme ?? bundleIdentifier,
     watchBundleSuffix: o.watchBundleSuffix ?? ".watch",
     widgetBundleSuffix: o.widgetBundleSuffix ?? ".watch.widgets",
     // Standalone-first (the framework's premise: the watch app runs without the

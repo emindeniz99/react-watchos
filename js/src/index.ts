@@ -203,6 +203,8 @@ export type {
   RouteParamValue,
 } from "./navigation";
 export {
+  deepLinkURL,
+  getURLScheme,
   href,
   matchRoute,
   NavigationProvider,

@@ -253,7 +253,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     widget: true,
     healthKit: true,
     deploymentTarget: "10.0",
-    scheme: "reactwatch",
+    scheme: "com.emindeniz99.reactwatch",
     watchBundleSuffix: ".watch",
     widgetBundleSuffix: ".watch.widgets",
     independent: true,
@@ -275,7 +275,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(c.infoPlist.CFBundleURLTypes).toEqual([
       {
         CFBundleURLName: "com.emindeniz99.reactwatch.routes",
-        CFBundleURLSchemes: ["reactwatch"],
+        CFBundleURLSchemes: ["com.emindeniz99.reactwatch"],
       },
     ]);
     // HealthKit on => the HealthKit/motion usage strings are present.
@@ -346,7 +346,9 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
     expect(o.widgetName).toBe("React Watch Widgets");
     expect(o.appGroup).toBe("group.com.emindeniz99.reactwatch");
     expect(o.deploymentTarget).toBe("10.0");
-    expect(o.scheme).toBe("reactwatch");
+    // Scheme defaults to the bundle id (collision-safe across apps); the native
+    // host surfaces it to JS, so there's no second place to configure it.
+    expect(o.scheme).toBe("com.emindeniz99.reactwatch");
     expect(o.watchBundleSuffix).toBe(".watch");
     expect(o.widgetBundleSuffix).toBe(".watch.widgets");
     expect(o.widget).toBe(true);
@@ -360,6 +362,17 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
   it("healthKit is an explicit opt-in", () => {
     const o = resolveOptions(config, { healthKit: true });
     expect(o.healthKit).toBe(true);
+  });
+
+  it("scheme is overridable for a shorter custom scheme", () => {
+    const o = resolveOptions(config, { scheme: "myapp" });
+    expect(o.scheme).toBe("myapp");
+    expect(watchTargetConfig(o).infoPlist.CFBundleURLTypes).toEqual([
+      {
+        CFBundleURLName: "com.emindeniz99.reactwatch.routes",
+        CFBundleURLSchemes: ["myapp"],
+      },
+    ]);
   });
 
   it("respects overrides and a custom name flows to the widget name", () => {

@@ -2,6 +2,8 @@ import { useCallback } from "react";
 import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
 import {
   Button,
+  deepLinkURL,
+  getURLScheme,
   href,
   MemoryHost,
   matchRoute,
@@ -29,6 +31,7 @@ afterEach(() => {
   unregisterAllNativeListeners();
   delete (globalThis as Record<string, unknown>).__pushNativeEvent;
   delete (globalThis as Record<string, unknown>).__dispatchEvent;
+  delete (globalThis as Record<string, unknown>).__urlScheme;
 });
 
 function RouteProbe() {
@@ -65,6 +68,27 @@ describe("navigation helpers", () => {
       "/stopwatch",
     );
     expect(routeFromURL("other://hydration")).toBe(null);
+  });
+
+  it("defaults the scheme to the host-injected value, else 'reactwatch'", () => {
+    // No host global (Node/tests) -> the built-in fallback.
+    expect(getURLScheme()).toBe("reactwatch");
+    expect(deepLinkURL("/hydration")).toBe("reactwatch://hydration");
+
+    // A real build injects globalThis.__urlScheme (the app's registered scheme);
+    // both building and parsing then follow it with no second place to set it.
+    (globalThis as Record<string, unknown>).__urlScheme = "com.acme.myapp";
+    expect(getURLScheme()).toBe("com.acme.myapp");
+    expect(deepLinkURL("/list/42")).toBe("com.acme.myapp://list/42");
+    expect(deepLinkURL("/")).toBe("com.acme.myapp://");
+    // routeFromURL parses the host scheme, and rejects the stale literal.
+    expect(routeFromURL("com.acme.myapp://stopwatch")).toBe("/stopwatch");
+    expect(routeFromURL("reactwatch://stopwatch")).toBe(null);
+  });
+
+  it("round-trips deepLinkURL through routeFromURL", () => {
+    (globalThis as Record<string, unknown>).__urlScheme = "com.acme.myapp";
+    expect(routeFromURL(deepLinkURL("/shop/beans"))).toBe("/shop/beans");
   });
 
   it("pushes, pops, and accepts native openURL events", () => {

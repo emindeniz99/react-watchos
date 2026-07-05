@@ -115,7 +115,12 @@ public final class WidgetIntentRuntime {
             .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         try? js.evaluate(
             "globalThis.__hostFeatures=\(json);"
-                + "globalThis.__bridgeProtocol=\(RNWire.bridgeProtocol);",
+                + "globalThis.__bridgeProtocol=\(RNWire.bridgeProtocol);"
+                // The app publishes its deep-link scheme into the App Group (the
+                // widget's own Bundle.main has no CFBundleURLTypes), so widget
+                // timeline `url`s built via deepLinkURL match what the app parses.
+                // Empty until the app has run once → JS keeps its default.
+                + HostURLScheme.inject(store.urlScheme()),
             filename: "host-capabilities.js"
         )
     }

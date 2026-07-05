@@ -1349,3 +1349,41 @@ final class UpdateURLPolicyTests: XCTestCase {
         XCTAssertNotNil(UpdateURLPolicy.violation(of: "/relative/manifest.json"))
     }
 }
+
+/// The deep-link scheme bridge: parsing CFBundleURLTypes, the JS injection
+/// string, and the App-Group publish/read the widget process relies on.
+final class HostURLSchemeTests: XCTestCase {
+    func testFirstSchemeReadsFirstNonEmptyEntry() {
+        let types: [[String: Any]] = [
+            ["CFBundleURLName": "x", "CFBundleURLSchemes": [String]()],
+            ["CFBundleURLName": "y", "CFBundleURLSchemes": ["com.acme.myapp", "alt"]],
+        ]
+        XCTAssertEqual(HostURLScheme.firstScheme(in: types), "com.acme.myapp")
+        XCTAssertNil(HostURLScheme.firstScheme(in: nil))
+        XCTAssertNil(HostURLScheme.firstScheme(in: []))
+    }
+
+    func testInjectEmitsGlobalOrEmpty() {
+        XCTAssertEqual(
+            HostURLScheme.inject("com.acme.myapp"),
+            "globalThis.__urlScheme='com.acme.myapp';")
+        XCTAssertEqual(HostURLScheme.inject(nil), "")
+        XCTAssertEqual(HostURLScheme.inject(""), "")
+        // Defensive escaping so a crafted scheme can't break out of the literal.
+        XCTAssertEqual(
+            HostURLScheme.inject("a'b\\c"),
+            "globalThis.__urlScheme='a\\'b\\\\c';")
+    }
+
+    func testAppGroupSchemePublishRoundTrips() {
+        let suite = "group.test.\(UUID().uuidString)"
+        let store = SharedWidgetStore(appGroupId: suite)
+        XCTAssertNil(store.urlScheme())
+        store.saveURLScheme("com.acme.myapp")
+        XCTAssertEqual(store.urlScheme(), "com.acme.myapp")
+        // Empty/nil is a no-op (never clobbers a published value with "").
+        store.saveURLScheme("")
+        XCTAssertEqual(store.urlScheme(), "com.acme.myapp")
+        UserDefaults().removePersistentDomain(forName: suite)
+    }
+}
