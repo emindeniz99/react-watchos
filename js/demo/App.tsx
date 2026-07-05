@@ -490,7 +490,7 @@ function MapSearchScreen() {
         // Immersive chrome: two small round buttons pinned to the bottom
         // corners (Spacer splits them), tap the map to hide/show them.
         chromeVisible && (
-          <VStack spacing={6} padding={{ horizontal: 8, vertical: 8 }}>
+          <VStack spacing={6} padding={{ horizontal: 16, vertical: 24 }}>
             {results.length > 0 && (
               <Text
                 size={13}
