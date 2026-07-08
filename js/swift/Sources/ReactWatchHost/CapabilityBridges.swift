@@ -249,6 +249,11 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
                     this.player = player
                     settle(nil)
                 } catch {
+                    // setActive(true) may have already powered the audio route
+                    // before AVAudioPlayer(data:) threw; without this the session
+                    // stays active with no player until the next reload. Mirrors
+                    // stop()/didFinishPlaying, which both deactivate.
+                    try? AVAudioSession.sharedInstance().setActive(false)
                     settle(error.localizedDescription)
                 }
             }
