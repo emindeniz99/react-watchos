@@ -135,6 +135,29 @@ function toMs(value: number | Date): number {
   return value instanceof Date ? value.getTime() : value;
 }
 
+/**
+ * WidgetKit budgets complication reloads to roughly a few dozen a day, so it
+ * never honors a sub-few-minute cadence literally — but a tiny/past
+ * `reloadAfter` still wastes budget, and every honored reload re-renders the
+ * tree in the extension (a QuickJS pass). Floor author-supplied values
+ * defensively and warn (fail-loud) when we clamp, rather than forwarding a
+ * runaway cadence verbatim to native.
+ */
+const MIN_RELOAD_AFTER_MS = 5 * 60 * 1000;
+
+function flooredReloadAfter(value: number | Date, now: number): number {
+  const requested = toMs(value);
+  const floor = now + MIN_RELOAD_AFTER_MS;
+  if (requested < floor) {
+    getHost()?.log?.(
+      `[react-watch-widget] reloadAfter ${requested} is below the ` +
+        `${MIN_RELOAD_AFTER_MS}ms floor; clamped to ${floor}`,
+    );
+    return floor;
+  }
+  return requested;
+}
+
 let renderingWidgets = false;
 
 /** Renders every registered widget for every family it supports. */
@@ -175,7 +198,7 @@ function renderWidgetsInner(now: number): PublishedWidgets {
               ...(entry.relevance ? { relevance: entry.relevance } : {}),
             })),
             ...(timeline.reloadAfter !== undefined
-              ? { reloadAfter: toMs(timeline.reloadAfter) }
+              ? { reloadAfter: flooredReloadAfter(timeline.reloadAfter, now) }
               : {}),
             ...(timeline.relevantContexts
               ? {

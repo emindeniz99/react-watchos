@@ -91,6 +91,22 @@ describe("widget timelines", () => {
     expect(timeline.reloadAfter).toBe(NOW + 3_600_000);
   });
 
+  it("floors a sub-5-minute reloadAfter to protect the WidgetKit budget", () => {
+    // WidgetKit never honors a sub-few-minute complication cadence anyway, and
+    // each honored reload re-renders the tree in the extension — so a tiny/past
+    // reloadAfter is clamped rather than forwarded verbatim to native.
+    registerWidget({
+      kind: "spammy",
+      families: ["accessoryInline"],
+      render: ({ now }) => ({
+        entries: [{ date: now, view: <Text>hi</Text> }],
+        reloadAfter: now + 1_000, // 1s — well below the 5min floor
+      }),
+    });
+    const timeline = renderWidgets(NOW).widgets.spammy.accessoryInline;
+    expect(timeline.reloadAfter).toBe(NOW + 5 * 60 * 1000);
+  });
+
   it("re-registering a kind replaces its definition", () => {
     registerHydration(1);
     registerHydration(5);
