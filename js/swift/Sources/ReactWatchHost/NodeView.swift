@@ -64,14 +64,20 @@ struct NodeView: View {
                 ))
     }
 
+    /// Controls whose local edits React must accept before they take effect.
+    /// `static` so `body` doesn't rebuild this 8-element Set for every node on
+    /// every render — `isHandlerlessControl` is read via `.disabled(...)` in the
+    /// top-level body, i.e. once per node per render pass.
+    private static let handlerlessControls: Set<String> = [
+        "Toggle", "Slider", "Stepper", "Picker", "DatePicker", "TextField",
+        "SecureField", "CrownRotation",
+    ]
+
     /// A native input control whose change handler is absent. `.disabled(false)`
     /// on every other node is a SwiftUI no-op, so this is safe to apply in body.
     private var isHandlerlessControl: Bool {
-        let controls: Set = [
-            "Toggle", "Slider", "Stepper", "Picker", "DatePicker", "TextField",
-            "SecureField", "CrownRotation",
-        ]
-        return controls.contains(node.type) && node.bool("onChange") != true
+        Self.handlerlessControls.contains(node.type)
+            && node.bool("onChange") != true
     }
 
     @ViewBuilder private var rendered: some View {
