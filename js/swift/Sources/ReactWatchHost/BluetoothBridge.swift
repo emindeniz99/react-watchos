@@ -241,6 +241,10 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     }
 
     private func disconnect() {
+        // Stop any in-flight auto-reconnect scan first: when the drop happened
+        // while scanning (peripheral == nil), nothing else here stops it, so the
+        // BLE radio would keep active-scanning after the user disconnected.
+        central?.stopScan()
         // Reject every in-flight promise (connect/write/subscribe AND queued
         // writes) before tearing down — drained BEFORE endByUser, which clears
         // the queue, or the queued-write ids would be lost (leaked promise).
@@ -329,6 +333,10 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         advertisementData _: [String: Any], rssi _: NSNumber
     ) {
         central.stopScan()
+        // Only connect if this discovery belongs to a live connect/auto-reconnect
+        // intent. A scan that outlived a user disconnect (or landed just as one
+        // arrived) must not silently reconnect the peripheral the user dropped.
+        guard session.shouldAutoReconnect else { return }
         self.peripheral = peripheral
         peripheral.delegate = self
         central.connect(peripheral)
