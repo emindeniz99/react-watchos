@@ -364,7 +364,7 @@ public final class JSRuntime {
     /// legacy eval-string path. The two are behaviorally identical — same args.
     private func bridgeCall(_ name: String, _ args: [JSArg], filename: String) {
         if useJSCallBridge {
-            callGlobalFunction(name, args.map(makeValue))
+            callGlobal(name, args) { _ in () }
         } else {
             let rendered = args.map(renderArg).joined(separator: ", ")
             evaluateReportingErrors("globalThis.\(name)(\(rendered))", filename: filename)
@@ -393,38 +393,40 @@ public final class JSRuntime {
         }
     }
 
-    /// JS_Call a cached global function, discarding the result (routes a thrown
-    /// exception to onError).
-    private func callGlobalFunction(_ name: String, _ args: [JSValue]) {
-        if let result = callGlobalReturning(name, args) {
-            JS_FreeValue(context, result)
-        }
-    }
-
-    /// JS_Call a cached global function and return the (owned) result for the
-    /// caller to convert + free; nil on a missing function or thrown exception
-    /// (reported to onError). `args` are owned here and freed after the call.
-    private func callGlobalReturning(_ name: String, _ args: [JSValue]) -> JSValue? {
+    /// The one JS_Call core: builds the argument values, calls the cached
+    /// global, and hands the (owned) result to `convert` — ALL inside a single
+    /// JS entry on the owning queue. Previously `args.map(makeValue)` ran on
+    /// the CALLER's thread before the hop and the Bool/String result
+    /// conversion after it returned, so a future cross-thread caller could
+    /// touch the engine heap off-queue; now the M1 confinement is airtight
+    /// (review note). Returns nil on a missing function or thrown exception
+    /// (reported to onError). The result is freed here after `convert`.
+    @discardableResult
+    private func callGlobal<T>(
+        _ name: String, _ args: [JSArg], convert: (JSValue) -> T
+    ) -> T? {
         withJSEntry {
+            let values = args.map(makeValue)
             let fn = cachedGlobalFunction(name)
             guard JS_IsFunction(context, fn) else {
-                args.forEach { JS_FreeValue(context, $0) }
+                values.forEach { JS_FreeValue(context, $0) }
                 onError?("global \(name) is not a function")
                 return nil
             }
             let global = JS_GetGlobalObject(context)
             defer { JS_FreeValue(context, global) }
-            var argv = args
+            var argv = values
             let result = argv.withUnsafeMutableBufferPointer {
                 JS_Call(context, fn, global, Int32($0.count), $0.baseAddress)
             }
-            args.forEach { JS_FreeValue(context, $0) }
+            values.forEach { JS_FreeValue(context, $0) }
             if JS_IsException(result) {
                 onError?(takeExceptionMessage())
                 JS_FreeValue(context, result)
                 return nil
             }
-            return result
+            defer { JS_FreeValue(context, result) }
+            return convert(result)
         }
     }
 
@@ -435,10 +437,9 @@ public final class JSRuntime {
         guard useJSCallBridge else {
             return evaluateBool("globalThis.\(name)(\(jsStringLiteral(stringArg)))")
         }
-        guard let result = callGlobalReturning(name, [makeValue(.string(stringArg))])
-        else { return false }
-        defer { JS_FreeValue(context, result) }
-        return JS_ToBool(context, result) == 1
+        return callGlobal(name, [.string(stringArg)]) {
+            JS_ToBool(context, $0) == 1
+        } ?? false
     }
 
     /// Calls `globalThis.<name>(numberArg)` and returns its String result (nil
@@ -447,12 +448,12 @@ public final class JSRuntime {
         guard useJSCallBridge else {
             return evaluateString("globalThis.\(name)(\(numberArg))")
         }
-        guard let result = callGlobalReturning(name, [makeValue(.double(numberArg))])
-        else { return nil }
-        defer { JS_FreeValue(context, result) }
-        guard let cString = JS_ToCString(context, result) else { return nil }
-        defer { JS_FreeCString(context, cString) }
-        return String(cString: cString)
+        let converted: String?? = callGlobal(name, [.double(numberArg)]) {
+            guard let cString = JS_ToCString(context, $0) else { return nil }
+            defer { JS_FreeCString(context, cString) }
+            return String(cString: cString)
+        }
+        return converted ?? nil
     }
 
     /// Looks up and retains a global function for reuse. Not cached until the
