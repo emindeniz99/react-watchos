@@ -41,6 +41,9 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         let op: String
         let kind: String
         let keepAliveInBackground: Bool?
+        let updateIntervalMs: Double?
+        let accuracy: String?
+        let distanceFilterMeters: Double?
     }
 
     func handleOp(_ json: String) {
@@ -50,11 +53,14 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         case ("start", "heartRate"):
             startHeartRate(keepAliveInBackground: op.keepAliveInBackground ?? false)
         case ("stop", "heartRate"): stopHeartRate()
-        case ("start", "motion"): startMotion()
+        case ("start", "motion"): startMotion(intervalMs: op.updateIntervalMs)
         case ("stop", "motion"): stopMotion()
-        case ("start", "gyroscope"): startGyroscope()
+        case ("start", "gyroscope"): startGyroscope(intervalMs: op.updateIntervalMs)
         case ("stop", "gyroscope"): motion.stopGyroUpdates()
-        case ("start", "location"): startLocation()
+        case ("start", "location"):
+            startLocation(
+                accuracy: op.accuracy,
+                distanceFilterMeters: op.distanceFilterMeters)
         case ("stop", "location"): location.stopUpdatingLocation()
         default: break
         }
@@ -99,18 +105,45 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
 
     // MARK: - Gyroscope / location
 
-    private func startGyroscope() {
+    /// JS-tunable update period (P2): every reading crosses the bridge and can
+    /// commit a render, so the period is a direct battery knob. Floor 20ms —
+    /// CoreMotion won't deliver meaningfully faster on-watch and a 0 would ask
+    /// for max-rate sampling.
+    private static func motionInterval(_ intervalMs: Double?) -> TimeInterval {
+        max(0.02, (intervalMs ?? 100) / 1000)
+    }
+
+    private func startGyroscope(intervalMs: Double? = nil) {
         guard motion.isGyroAvailable else { return }
-        motion.gyroUpdateInterval = 0.1
+        motion.gyroUpdateInterval = Self.motionInterval(intervalMs)
         motion.startGyroUpdates(to: .main) { [weak self] data, _ in
             guard let r = data?.rotationRate else { return }
             self?.onReading?("gyroscope", ["x": r.x, "y": r.y, "z": r.z])
         }
     }
 
-    private func startLocation() {
+    private func startLocation(
+        accuracy: String?, distanceFilterMeters: Double?
+    ) {
         location.requestWhenInUseAuthorization()
+        // Battery-sane defaults (P1-11): the CLLocationManager defaults are
+        // kCLLocationAccuracyBest + no distance filter — full GPS engagement
+        // with a callback (→ bridge → JS) on every micro-movement. Default to
+        // ten-meter accuracy with a 10m filter; apps that genuinely need
+        // navigation-grade fixes opt in via startLocation options.
+        location.desiredAccuracy = Self.clAccuracy(accuracy)
+        location.distanceFilter = distanceFilterMeters ?? 10
         location.startUpdatingLocation()
+    }
+
+    private static func clAccuracy(_ name: String?) -> CLLocationAccuracy {
+        switch name {
+        case "navigation": kCLLocationAccuracyBestForNavigation
+        case "best": kCLLocationAccuracyBest
+        case "hundredMeters": kCLLocationAccuracyHundredMeters
+        case "kilometer": kCLLocationAccuracyKilometer
+        default: kCLLocationAccuracyNearestTenMeters
+        }
     }
 
     func locationManager(
@@ -189,9 +222,9 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
 
     // MARK: - Motion (CoreMotion)
 
-    private func startMotion() {
+    private func startMotion(intervalMs: Double? = nil) {
         guard motion.isDeviceMotionAvailable else { return }
-        motion.deviceMotionUpdateInterval = 0.1
+        motion.deviceMotionUpdateInterval = Self.motionInterval(intervalMs)
         motion.startDeviceMotionUpdates(to: .main) { [weak self] data, _ in
             guard let self, let a = data?.userAcceleration else { return }
             onReading?("motion", ["x": a.x, "y": a.y, "z": a.z])

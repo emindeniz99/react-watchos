@@ -233,7 +233,12 @@ export {
   scheduleNotification,
 } from "./notifications";
 export { WatchRoot } from "./renderer";
-export type { HeartRateOptions, SensorKind } from "./sensors";
+export type {
+  HeartRateOptions,
+  LocationOptions,
+  MotionOptions,
+  SensorKind,
+} from "./sensors";
 export {
   SENSOR_EVENT_PREFIX,
   startGyroscope,

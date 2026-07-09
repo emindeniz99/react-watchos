@@ -116,17 +116,72 @@ export function startHeartRate(
   );
 }
 
+/** Options for {@link startMotion} / {@link startGyroscope}. */
+export interface MotionOptions {
+  /**
+   * Update period in ms. Default 100 (10 Hz). Every reading crosses the
+   * bridge and can commit a render, so raise this as far as your use case
+   * tolerates — it is a direct battery knob. Only the FIRST subscriber's
+   * value takes effect (the native stream is shared).
+   */
+  updateIntervalMs?: number;
+}
+
+/** Options for {@link startLocation}. */
+export interface LocationOptions {
+  /**
+   * Positioning accuracy — coarser keeps the GPS hardware colder. Default
+   * "tenMeters" (right for maps/route tracking); use "best" or "navigation"
+   * only for turn-by-turn-grade needs. Only the first subscriber's value
+   * takes effect.
+   */
+  accuracy?:
+    | "navigation"
+    | "best"
+    | "tenMeters"
+    | "hundredMeters"
+    | "kilometer";
+  /** Minimum movement in meters between callbacks. Default 10. */
+  distanceFilterMeters?: number;
+}
+
 /** Device motion: handler gets `{ x, y, z }` (user acceleration). */
-export function startMotion(handler: NativeEventHandler): Unsubscribe {
-  return startSensor("motion", handler);
+export function startMotion(
+  handler: NativeEventHandler,
+  options?: MotionOptions,
+): Unsubscribe {
+  return startSensor(
+    "motion",
+    handler,
+    options?.updateIntervalMs !== undefined
+      ? { updateIntervalMs: options.updateIntervalMs }
+      : undefined,
+  );
 }
 
 /** Gyroscope rotation rate: handler gets `{ x, y, z }` (rad/s). */
-export function startGyroscope(handler: NativeEventHandler): Unsubscribe {
-  return startSensor("gyroscope", handler);
+export function startGyroscope(
+  handler: NativeEventHandler,
+  options?: MotionOptions,
+): Unsubscribe {
+  return startSensor(
+    "gyroscope",
+    handler,
+    options?.updateIntervalMs !== undefined
+      ? { updateIntervalMs: options.updateIntervalMs }
+      : undefined,
+  );
 }
 
 /** Location: handler gets `{ latitude, longitude, speed, course }`. */
-export function startLocation(handler: NativeEventHandler): Unsubscribe {
-  return startSensor("location", handler);
+export function startLocation(
+  handler: NativeEventHandler,
+  options?: LocationOptions,
+): Unsubscribe {
+  return startSensor("location", handler, {
+    ...(options?.accuracy ? { accuracy: options.accuracy } : {}),
+    ...(options?.distanceFilterMeters !== undefined
+      ? { distanceFilterMeters: options.distanceFilterMeters }
+      : {}),
+  });
 }

@@ -6,6 +6,7 @@ import {
   startGyroscope,
   startHeartRate,
   startLocation,
+  startMotion,
   startSensor,
   stopSensor,
   Text,
@@ -72,6 +73,24 @@ describe("sensor streams", () => {
     expect(host.sensor.mock.calls.map((c) => JSON.parse(c[0]).kind)).toEqual([
       "gyroscope",
       "location",
+    ]);
+  });
+
+  it("forwards motion rate and location tuning options only when set", () => {
+    const host = installMockHost();
+    startMotion(() => {}, { updateIntervalMs: 500 });
+    startLocation(() => {}, {
+      accuracy: "hundredMeters",
+      distanceFilterMeters: 25,
+    });
+    expect(host.sensor.mock.calls.map((c) => JSON.parse(c[0]))).toEqual([
+      { op: "start", kind: "motion", updateIntervalMs: 500 },
+      {
+        op: "start",
+        kind: "location",
+        accuracy: "hundredMeters",
+        distanceFilterMeters: 25,
+      },
     ]);
   });
 });
