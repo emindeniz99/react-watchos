@@ -55,6 +55,10 @@ final class ReactWatchModel: ObservableObject {
     private var warnedWireMismatch = false
     /// Serial queue for decoding committed trees off the main thread.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
+    /// Reused across commits — only ever touched on the serial decodeQueue.
+    /// A fresh JSONDecoder per commit is pure allocation churn at
+    /// sensor-driven commit rates (10-20 commits/sec).
+    private let treeDecoder = JSONDecoder()
     private let connectivity = PhoneConnectivity()
     private let bluetooth = BluetoothBridge()
     private let sensors = SensorBridge()
@@ -838,7 +842,7 @@ final class ReactWatchModel: ObservableObject {
             // that was missing the guard every other one has.
             let gen = self.generation
             self.decodeQueue.async { [weak self] in
-                let decoded = try? JSONDecoder().decode(
+                let decoded = try? self?.treeDecoder.decode(
                     RNTree.self, from: Data(json.utf8)
                 )
                 DispatchQueue.main.async { [weak self] in
@@ -881,9 +885,18 @@ final class ReactWatchModel: ObservableObject {
                 }
             }
         }
-        js.bridge.publishWidgets = { [store] json in
+        js.bridge.publishWidgets = { [weak self, store] json in
+            // The save is immediate — published data must never be lost — but
+            // the extension wake is coalesced (P1-3): a burst of publishes (a
+            // tap streak, a subscription firing) collapses to ONE
+            // reloadAllTimelines instead of waking the widget extension per
+            // call and burning the WidgetKit refresh budget.
             store.save(json)
-            WidgetCenter.shared.reloadAllTimelines()
+            guard let self else {
+                WidgetCenter.shared.reloadAllTimelines()
+                return
+            }
+            self.scheduleWidgetReload()
         }
         js.bridge.getItem = { [store] in store.getItem($0) }
         js.bridge.setItem = { [store] in store.setItem($0, $1) }
@@ -994,6 +1007,28 @@ final class ReactWatchModel: ObservableObject {
         runtime?.pushNativeEvent(name, payload: payload)
     }
 
+    /// Trailing-edge debounce for the widget-extension wake (P1-3). Main-
+    /// confined like the bridge callbacks that schedule it.
+    private var widgetReloadDebounce: DispatchWorkItem?
+
+    private func scheduleWidgetReload() {
+        widgetReloadDebounce?.cancel()
+        let work = DispatchWorkItem { WidgetCenter.shared.reloadAllTimelines() }
+        widgetReloadDebounce = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+    }
+
+    /// Fire a pending debounced reload NOW — called on background so a publish
+    /// just before suspension isn't left waiting for a timer that won't run
+    /// until the app is next foregrounded (the widget would show stale data all
+    /// that time).
+    private func flushPendingWidgetReload() {
+        guard let work = widgetReloadDebounce else { return }
+        widgetReloadDebounce = nil
+        work.cancel()
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     /// scenePhase teardown backstop (P0-3). A backgrounded app is not unmounted,
     /// so JS effect/focus cleanups never fire on background — native must stop
     /// the high-drain heart-rate workout session (unless the app opted into
@@ -1002,6 +1037,7 @@ final class ReactWatchModel: ObservableObject {
     func handleScenePhase(background: Bool) {
         if background {
             sensors.pauseForBackground()
+            flushPendingWidgetReload()
         } else {
             sensors.resumeFromForeground()
         }
