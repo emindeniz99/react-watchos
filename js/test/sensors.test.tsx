@@ -54,6 +54,17 @@ describe("sensor streams", () => {
     ]);
   });
 
+  it("heart rate forwards keepAliveInBackground only when opted in", () => {
+    const host = installMockHost();
+    startHeartRate(() => {}); // default: no keep-alive field
+    __resetSensorCountsForTest(); // let the next start re-send its op
+    startHeartRate(() => {}, { keepAliveInBackground: true });
+    expect(host.sensor.mock.calls.map((c) => JSON.parse(c[0]))).toEqual([
+      { op: "start", kind: "heartRate" },
+      { op: "start", kind: "heartRate", keepAliveInBackground: true },
+    ]);
+  });
+
   it("gyroscope and location conveniences start their kinds", () => {
     const host = installMockHost();
     startGyroscope(() => {});

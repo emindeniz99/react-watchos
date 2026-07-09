@@ -32,17 +32,23 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     /// workout session that drains battery and pushes readings into a runtime
     /// that no longer wants them.
     private var wantHeartRate = false
+    /// Whether heart rate should keep running when the app backgrounds (opt-in
+    /// from `startHeartRate` options). Default false: `pauseForBackground` ends
+    /// the workout session so the app can suspend instead of draining forever.
+    private var heartRateKeepAlive = false
 
     private struct Op: Decodable {
         let op: String
         let kind: String
+        let keepAliveInBackground: Bool?
     }
 
     func handleOp(_ json: String) {
         guard let op = try? JSONDecoder().decode(Op.self, from: Data(json.utf8))
         else { return }
         switch (op.op, op.kind) {
-        case ("start", "heartRate"): startHeartRate()
+        case ("start", "heartRate"):
+            startHeartRate(keepAliveInBackground: op.keepAliveInBackground ?? false)
         case ("stop", "heartRate"): stopHeartRate()
         case ("start", "motion"): startMotion()
         case ("stop", "motion"): stopMotion()
@@ -62,6 +68,30 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         stopMotion()
         motion.stopGyroUpdates()
         location.stopUpdatingLocation()
+    }
+
+    /// scenePhase -> .background backstop (P0-3). The HealthKit live-workout
+    /// session is what keeps the app alive (and the HR sensor sampling) after
+    /// backgrounding; end it unless the app opted into background HR, so the app
+    /// can suspend normally. Motion/gyro/location don't keep the app alive and
+    /// stop on suspension on their own, so they're left running. A backgrounded
+    /// app isn't unmounted, so JS effect cleanups never fire — native owns this.
+    func pauseForBackground() {
+        guard !heartRateKeepAlive else { return }
+        // Keeps wantHeartRate, so resumeFromForeground can restart it.
+        endWorkoutSession()
+    }
+
+    /// scenePhase -> .active: restart HR if it was wanted and we paused it.
+    func resumeFromForeground() {
+        if wantHeartRate, workoutSession == nil { beginWorkout() }
+    }
+
+    deinit {
+        // A discarded bridge must not leak the daemon-owned HKWorkoutSession
+        // (CMMotionManager/CLLocationManager stop on dealloc; the workout
+        // session does not).
+        stopAll()
     }
 
     // MARK: - Gyroscope / location
@@ -96,9 +126,10 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
 
     // MARK: - Heart rate (HealthKit live workout)
 
-    private func startHeartRate() {
+    private func startHeartRate(keepAliveInBackground: Bool = false) {
         guard HKHealthStore.isHealthDataAvailable() else { return }
         wantHeartRate = true
+        heartRateKeepAlive = keepAliveInBackground
         let hrType = HKQuantityType(.heartRate)
         healthStore.requestAuthorization(toShare: [], read: [hrType]) { [weak self] ok, _ in
             guard ok, let self else { return }
@@ -140,6 +171,13 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
 
     private func stopHeartRate() {
         wantHeartRate = false
+        endWorkoutSession()
+    }
+
+    /// End the live workout session (releasing its background keep-alive and the
+    /// HR sensor) without touching `wantHeartRate` — shared by `stopHeartRate`
+    /// and the background pause, which keeps the intent so it can resume.
+    private func endWorkoutSession() {
         workoutSession?.end()
         workoutBuilder?.endCollection(withEnd: Date()) { _, _ in }
         workoutSession = nil

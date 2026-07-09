@@ -21,8 +21,12 @@ export type SensorKind =
   | "location"
   | string;
 
-function sensor(op: "start" | "stop", kind: SensorKind): void {
-  getHost()?.sensor?.(JSON.stringify({ op, kind }));
+function sensor(
+  op: "start" | "stop",
+  kind: SensorKind,
+  extra?: Record<string, unknown>,
+): void {
+  getHost()?.sensor?.(JSON.stringify({ op, kind, ...extra }));
 }
 
 // Per-kind set of live subscriber TOKENS (not a count). A sensor's native
@@ -45,6 +49,7 @@ const activeTokens = new Map<SensorKind, Set<object>>();
 export function startSensor(
   kind: SensorKind,
   handler: NativeEventHandler,
+  startOptions?: Record<string, unknown>,
 ): Unsubscribe {
   const off = registerNativeListener(SENSOR_EVENT_PREFIX + kind, handler);
   const token = {};
@@ -53,7 +58,9 @@ export function startSensor(
     tokens = new Set<object>();
     activeTokens.set(kind, tokens);
   }
-  if (tokens.size === 0) sensor("start", kind);
+  // startOptions ride the start op, which is sent once (first subscriber) since
+  // the native stream is shared — so the first subscriber's options win.
+  if (tokens.size === 0) sensor("start", kind, startOptions);
   tokens.add(token);
   let cleaned = false;
   return () => {
@@ -83,9 +90,30 @@ export function __resetSensorCountsForTest(): void {
   activeTokens.clear();
 }
 
+/** Options for {@link startHeartRate}. */
+export interface HeartRateOptions {
+  /**
+   * Keep the heart-rate stream running when the app backgrounds. Default
+   * `false`: the native side ends the underlying HealthKit workout session on
+   * background (so the app suspends instead of staying alive with the sensor
+   * hot) and restarts it on foreground — so a forgotten stop can't drain the
+   * battery indefinitely. Set `true` only for a genuine background use case
+   * (e.g. an active workout). While the stream is shared, only the FIRST
+   * subscriber's value takes effect.
+   */
+  keepAliveInBackground?: boolean;
+}
+
 /** Live heart rate (bpm): handler gets `{ bpm }`. */
-export function startHeartRate(handler: NativeEventHandler): Unsubscribe {
-  return startSensor("heartRate", handler);
+export function startHeartRate(
+  handler: NativeEventHandler,
+  options?: HeartRateOptions,
+): Unsubscribe {
+  return startSensor(
+    "heartRate",
+    handler,
+    options?.keepAliveInBackground ? { keepAliveInBackground: true } : undefined,
+  );
 }
 
 /** Device motion: handler gets `{ x, y, z }` (user acceleration). */

@@ -994,6 +994,19 @@ final class ReactWatchModel: ObservableObject {
         runtime?.pushNativeEvent(name, payload: payload)
     }
 
+    /// scenePhase teardown backstop (P0-3). A backgrounded app is not unmounted,
+    /// so JS effect/focus cleanups never fire on background — native must stop
+    /// the high-drain heart-rate workout session (unless the app opted into
+    /// background HR) and restart it on foreground. `sensors` is private, so the
+    /// scenePhase handler routes through here.
+    func handleScenePhase(background: Bool) {
+        if background {
+            sensors.pauseForBackground()
+        } else {
+            sensors.resumeFromForeground()
+        }
+    }
+
     /// Runs a JS fetch over URLSession; settles the Promise back on main.
     /// Request parsing + response assembly are ReactWatchSupport (FetchPlan /
     /// FetchResponse), tested on Linux; the host only orchestrates URLSession.
@@ -1265,6 +1278,14 @@ public struct ReactWatchRootView: View {
         .onAppear { model.start() }
         .onChange(of: scenePhase) { _, phase in
             model.pushNativeEvent("scenePhase", payload: ["phase": "\(phase)"])
+            // Native teardown backstop: stop the high-drain HR workout session on
+            // background, resume on foreground. JS effect cleanups don't fire on
+            // background (the app isn't unmounted), so native owns this.
+            switch phase {
+            case .background: model.handleScenePhase(background: true)
+            case .active: model.handleScenePhase(background: false)
+            default: break
+            }
         }
         .onOpenURL { url in
             model.pushNativeEvent("openURL", payload: ["url": url.absoluteString])
