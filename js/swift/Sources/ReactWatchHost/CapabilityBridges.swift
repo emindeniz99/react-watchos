@@ -291,8 +291,13 @@ final class ExtendedRuntimeBridge: NSObject, WKExtendedRuntimeSessionDelegate {
     private var session: WKExtendedRuntimeSession?
 
     func start() {
-        // A session can only run once; replace any finished one.
-        if session?.state == .running { return }
+        // A session can only run once; replace any finished one. Guard on
+        // "not yet invalid", not ".running": start() is asynchronous, so a
+        // second start() arriving in the .notStarted window would otherwise
+        // create a second session and overwrite this reference — orphaning a
+        // session the system may still start, with nothing left to
+        // invalidate() it (watchOS allows only one at a time).
+        if let session, session.state != .invalid { return }
         let session = WKExtendedRuntimeSession()
         session.delegate = self
         session.start()
