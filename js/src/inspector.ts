@@ -158,16 +158,24 @@ export function startInspector(options: InspectorOptions): () => void {
       })
       .catch(() => {
         consecutiveFailures += 1;
-        if (consecutiveFailures >= maxConsecutiveFailures) stopFn?.();
+        // Stop THIS instance, not whatever stopFn currently points at: a
+        // rejection settling after a stop+restart must not kill the
+        // successor inspector.
+        if (consecutiveFailures >= maxConsecutiveFailures) stop();
       });
   }, options.intervalMs ?? 1000);
 
-  stopFn = () => {
+  const stop = () => {
     if (interval !== undefined) g.clearInterval?.(interval);
-    started = false;
-    stopFn = null;
+    // Only the ACTIVE instance may release the singleton state; a late stop
+    // from a superseded instance just clears its own (dead) interval.
+    if (stopFn === stop) {
+      started = false;
+      stopFn = null;
+    }
   };
-  return stopFn;
+  stopFn = stop;
+  return stop;
 }
 
 /** Stops the running inspector poll (if any). Safe to call repeatedly; a later
