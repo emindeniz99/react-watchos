@@ -21,6 +21,9 @@ public struct OptimisticStore: Sendable {
 
     /// Drops every entry React has caught up to (commit `seq` >= its dispatch).
     public mutating func ack(throughSeq seq: Int) {
+        // Runs on every acked commit; the common case is no pending optimistic
+        // values — skip the fresh dictionary the filter would allocate.
+        guard !values.isEmpty else { return }
         values = values.filter { $0.value.seq > seq }
     }
 
