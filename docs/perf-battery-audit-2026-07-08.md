@@ -300,9 +300,11 @@ the only failures are the two pre-existing Swift-toolchain-dependent suites).
 | P1-11 location accuracy/filter defaults + options; motion/gyro rate options | ✅ | JS: sensors 10/10 · Swift watch-only |
 | P1-12 `console.*` → `os.Logger` | ✅ | Swift, un-compiled |
 | P2 batch: `freshCache` per App Group · `JSONDecoder` reuse · extended-runtime start guard · `markHealthy` once/boot · `OptimisticStore.ack` guard · inspector dedupe+dead-server stop · route-pattern cache · demo debounce+lazy read | ✅ | JS parts vitest-verified; Swift parts un-compiled |
+| **Security**: widget honored unsigned `bytecodeHash` under `.enforced` (App-Group writer could pin malicious bytecode) + OTA staged bytecode nothing would run | ✅ fixed together — enforced always runs re-verified source, staging skips the compile | WidgetBundleChoice + sequencer tests updated (Mac `swift test`) |
+| P1-8 inline-image decode cache (app side; widget deliberately skipped — 16MB cap) | ✅ | Swift, un-compiled |
+| Gap-audit P2s: `markHealthy` once/boot · `OptimisticStore.ack` guard · route-pattern cache · inspector instance-scoped stop · demo leading-edge publish + lazy read · bench stale-binary rebuild · **`.qbc` production-boot gate in embed-smoke** | ✅ | JS vitest-verified; tooling verified by running it here |
 | P1-5 `@Observable` migration | ⏳ deferred | architectural — do with a build loop + Instruments before/after |
-| P1-8 image decode cache/downsample · P2-A ms-TimerText style hoist | ⏳ deferred | watch-only render path; needs build loop |
-| Gap-audit deferred: OTA bytecode compile under `.enforced` keys (wasted parse + 2 flash writes per update) **and the related widget bytecode-trust inconsistency** (widget honors unsigned `bytecodeHash` under enforcement — `WidgetBundleChoice.swift:43-51` — contradicting the app's refusal at `OTABootSequencer.swift:526-535`); `SharedWidgetStore` UserDefaults hoist (Sendable question); per-callback payload re-decode in shopping/control providers; tooling gaps (no `.qbc` boot gate, no timer-churn metric, no commit-size gate) | ⏳ deferred | OTA/security change must not be made blind — needs the build loop and a deliberate security review |
+| P2-A ms-TimerText per-tick style resolve · image downsampling · `SharedWidgetStore` UserDefaults hoist (Sendable question) · per-callback payload re-decode in shopping/control providers · timer-churn + commit-size CI metrics | ⏳ deferred | marginal wins or open questions; take with the build loop |
 
 **Design decisions taken:** BLE reconnect defaults to 5 attempts × 60s per
 attempt, both tunable per `bleConnect` (`maxReconnectAttempts: 0` disables).
@@ -326,6 +328,19 @@ defers its republish to the next WidgetKit refresh; formatter caches pin
 locale prefs until relaunch. Remaining verification gate: CI is disabled
 repo-wide and has never run for this branch — `swift test` (Linux/macOS),
 simulator `xcodebuild test`, and a device Energy trace are all still owed.
+
+**Engine-level verification (2026-07-09, third pass):** a C toolchain exists
+in the authoring environment, so the vendored quickjs-ng gates now actually
+ran against this branch's production bundle: embed-smoke source path (heap
+2.3 MB ≤ 6 MB, boot ~41 ms ≤ 250 ms), the NEW `.qbc` bytecode gate
+(production boot path loads and handles the interaction; boot ~13 ms — the
+3× win that justifies shipping bytecode), the tree-commit bench
+(perDispatch 1.32 ms / 152 nodes / 13.4 KB — matches the documented
+baseline, no regression), and the previously-always-skipped qjs-smoke suite
+(9/9 — it caught and forced the fix of the demo's deferred-first-publish
+regression). JS status: typecheck clean, 390/391 vitest (the one failure is
+the codegen drift check, which needs the absent `swift format` binary).
+The Swift compile/simulator/device gates remain owed as above.
 
 ## Prioritized roadmap
 
