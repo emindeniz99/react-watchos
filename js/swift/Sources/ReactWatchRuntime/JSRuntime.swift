@@ -551,7 +551,11 @@ public final class JSRuntime {
     private var isDraining = false
 
     /// Identifies the owning queue from inside a running block (set in init).
-    private static let queueMarker = DispatchSpecificKey<ObjectIdentifier>()
+    /// `nonisolated(unsafe)`: DispatchSpecificKey is immutable after init and
+    /// only its identity is used (setSpecific/getSpecific) — Linux's Dispatch
+    /// overlay doesn't mark it Sendable, which fails the Swift 6 build there.
+    nonisolated(unsafe) private static let queueMarker =
+        DispatchSpecificKey<ObjectIdentifier>()
 
     /// Whether the caller is already executing on the owning queue. Main is
     /// special-cased to `Thread.isMainThread` so main-run-loop callbacks (which
@@ -569,8 +573,23 @@ public final class JSRuntime {
     /// hop otherwise. This replaces the old DEBUG main-thread assertion with a
     /// structural guarantee: a cross-thread caller is serialized, not trapped.
     private func onOwningQueue<T>(_ body: () throws -> T) rethrows -> T {
-        if isOnOwningQueue { return try body() }
-        return try owningQueue.sync(execute: body)
+        if isOnOwningQueue {
+            if jsEntryDepth == 0 { JS_UpdateStackTop(runtime) }
+            return try body()
+        }
+        return try owningQueue.sync {
+            // A sync hop executes on the CALLER's thread (serialized under the
+            // queue), and source/timer handlers run on whichever pool thread
+            // services the queue — but the engine recorded its stack-guard
+            // anchor on the thread that created it. Re-anchor at each
+            // OUTERMOST entry or entries from any other thread's stack misfire
+            // the guard as a spurious "stack overflow" (the M1 cross-thread
+            // tests catch this; the widget runtime is called from varying
+            // WidgetKit threads in production). Depth-gated so a nested
+            // re-entry can't loosen the guard mid-recursion.
+            if jsEntryDepth == 0 { JS_UpdateStackTop(runtime) }
+            return try body()
+        }
     }
 
     /// Runs `body` as one JS entry on the owning queue; the microtask queue
