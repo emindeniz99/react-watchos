@@ -61,14 +61,14 @@ final class ReactWatchModel {
     private let store: SharedWidgetStore
     /// Cross-process-atomic counters (ARCH-05), same App Group as `store`.
     private let counters: CoordinatedCounterStore
-    private var runtime: JSRuntime?
-    private var nextSeq = 1
+    @ObservationIgnored private var runtime: JSRuntime?
+    @ObservationIgnored private var nextSeq = 1
     /// Set once after reporting a renderer-vs-runtime wire mismatch.
-    private var warnedWireMismatch = false
+    @ObservationIgnored private var warnedWireMismatch = false
     /// markHealthy runs once per boot (see the commit handler) — after the
     /// first healthy commit it's a no-op that still cost a UserDefaults read
     /// per commit.
-    private var markedHealthyThisBoot = false
+    @ObservationIgnored private var markedHealthyThisBoot = false
     /// Serial queue for decoding committed trees off the main thread.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
     /// Reused across commits — only ever touched on the serial decodeQueue,
@@ -85,13 +85,13 @@ final class ReactWatchModel {
     private let speechBridge = SpeechBridge()
     private let audioBridge = AudioBridge()
     private let extendedRuntime = ExtendedRuntimeBridge()
-    private var fetchTasks: [Int: URLSessionDataTask] = [:]
+    @ObservationIgnored private var fetchTasks: [Int: URLSessionDataTask] = [:]
     /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
     /// the JS-assigned id of a request whose id space resets with the runtime, so
     /// a callback from a previous generation could settle the WRONG pending
     /// request in the new one. Each async op captures the generation it started
     /// in and drops its result if it no longer matches.
-    private var generation = 0
+    @ObservationIgnored private var generation = 0
 
     /// The live model, so the package's WKApplicationDelegate can forward a
     /// fired background-refresh task to JS (`deliverBackgroundRefresh`). A watch
@@ -114,10 +114,6 @@ final class ReactWatchModel {
     init(appGroupId: String?, ota: OTAConfig = .init(), useJSCallBridge: Bool = true) {
         store = SharedWidgetStore(appGroupId: appGroupId)
         counters = CoordinatedCounterStore(appGroupId: appGroupId)
-        // Single source for the deep-link scheme: only the APP process can read
-        // its registered CFBundleURLSchemes, so publish it into the App Group for
-        // the widget extension to read (HostURLScheme / deepLinkURL). Idempotent.
-        store.saveURLScheme(HostURLScheme.registered())
         let keys = ota.signerPublicKeys.compactMapValues {
             Data(base64Encoded: $0)
                 .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
@@ -183,6 +179,14 @@ final class ReactWatchModel {
     func start() {
         guard runtime == nil else { return }
         Self.shared = self
+        // Single source for the deep-link scheme: only the APP process can read
+        // its registered CFBundleURLSchemes, so publish it into the App Group
+        // for the widget extension (HostURLScheme / deepLinkURL). Idempotent.
+        // In start(), not init: `@State`'s initialValue evaluates on every
+        // ReactWatchRootView.init (a parent re-evaluation constructs and
+        // discards a model), and side effects belong to the ONE retained
+        // instance that actually starts.
+        store.saveURLScheme(HostURLScheme.registered())
         connectivity.onMessage = { [weak self] message in
             self?.pushNativeEvent("watchConnectivity", payload: message)
         }
@@ -320,7 +324,7 @@ final class ReactWatchModel {
     /// The OTA record this launch actually booted (nil = running shipped). Set in
     /// `load`; read in the first-healthy-commit handler to promote it to the
     /// known-good snapshot.
-    private var bootedOTARecord: OTARecord?
+    @ObservationIgnored private var bootedOTARecord: OTARecord?
 
     /// Ceiling for an OTA bundle. The app parses the whole source through
     /// QuickJS at launch, so a multi-MB bundle risks an out-of-memory kill on a
@@ -455,7 +459,7 @@ final class ReactWatchModel {
     /// Active one-shot location requests, retained (keyed by invoke id) until
     /// they settle. CLLocationManager needs a live delegate + run loop, so the
     /// request is created and its callbacks run on the main queue.
-    private var pendingLocations: [Int: OneShotLocation] = [:]
+    @ObservationIgnored private var pendingLocations: [Int: OneShotLocation] = [:]
 
     /// One-shot current location (CLLocationManager.requestLocation): resolves
     /// {lat, lon} for centering a map / biasing a POI search, or rejects
@@ -1039,7 +1043,7 @@ final class ReactWatchModel {
 
     /// Trailing-edge debounce for the widget-extension wake (P1-3). Main-
     /// confined like the bridge callbacks that schedule it.
-    private var widgetReloadDebounce: DispatchWorkItem?
+    @ObservationIgnored private var widgetReloadDebounce: DispatchWorkItem?
 
     private func scheduleWidgetReload() {
         widgetReloadDebounce?.cancel()
@@ -1201,8 +1205,8 @@ final class ReactWatchModel {
         }
         return URL(string: "http://127.0.0.1:8788/bundle.js")!
     }()
-    private var devTask: Task<Void, Never>?
-    private var lastDevBundle: String?
+    @ObservationIgnored private var devTask: Task<Void, Never>?
+    @ObservationIgnored private var lastDevBundle: String?
 
     private func startDevReload() {
         guard devTask == nil else { return }
