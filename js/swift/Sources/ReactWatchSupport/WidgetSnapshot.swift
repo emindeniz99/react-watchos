@@ -28,4 +28,27 @@ public enum WidgetSnapshot {
         }
         return earliest
     }
+
+    /// Whether a published family timeline is still CURRENT at `now`, i.e. the
+    /// widget extension can decode-and-display it without a fresh in-extension
+    /// React render (a render is a full QuickJS boot — the extension's dominant
+    /// avoidable cost). Pure, so the rule is unit-tested off-device.
+    ///
+    /// Current means the timeline's own re-render horizon hasn't passed:
+    /// - `reloadAfter` set → the author declared "this data is good until
+    ///   then"; current exactly while that date is in the future.
+    /// - no `reloadAfter` → current while a future entry remains (WidgetKit is
+    ///   just advancing pre-rendered entries), or briefly after a publish
+    ///   (`publishBurstWindow`) so the reload an app/intent pushes right after
+    ///   writing the store decodes that payload instead of re-rendering it.
+    /// - empty timelines are never current.
+    public static func isCurrent(
+        entryDates: [Date], reloadAfter: Date?, publishedAt: Date, now: Date,
+        publishBurstWindow: TimeInterval = 60
+    ) -> Bool {
+        guard !entryDates.isEmpty else { return false }
+        if let reloadAfter { return reloadAfter > now }
+        if entryDates.contains(where: { $0 > now }) { return true }
+        return now.timeIntervalSince(publishedAt) < publishBurstWindow
+    }
 }

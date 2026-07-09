@@ -788,6 +788,66 @@ final class WidgetSnapshotTests: XCTestCase {
     func testEmptyIsNil() {
         XCTAssertNil(WidgetSnapshot.currentIndex(dates: [], now: date(0)))
     }
+
+    // The staleness gate for in-extension re-renders: a CURRENT stored payload
+    // is decoded, not re-rendered (each re-render is a full QuickJS boot).
+    func testIsCurrentTrustsAFutureReloadAfter() {
+        // Author declared the data good until 1000 — current at 999 even though
+        // every entry is in the past, stale at 1000 sharp.
+        XCTAssertTrue(
+            WidgetSnapshot.isCurrent(
+                entryDates: [date(0)], reloadAfter: date(1000),
+                publishedAt: date(0), now: date(999)))
+        XCTAssertFalse(
+            WidgetSnapshot.isCurrent(
+                entryDates: [date(0)], reloadAfter: date(1000),
+                publishedAt: date(0), now: date(1000)))
+    }
+
+    func testIsCurrentWithoutReloadAfterTracksFutureEntries() {
+        // Mid-timeline reload (future entries remain) → decode-only; after the
+        // last entry passes (.atEnd exhausted) → stale, fresh render.
+        let dates = [date(0), date(500)]
+        XCTAssertTrue(
+            WidgetSnapshot.isCurrent(
+                entryDates: dates, reloadAfter: nil,
+                publishedAt: date(0), now: date(100)))
+        XCTAssertFalse(
+            WidgetSnapshot.isCurrent(
+                entryDates: dates, reloadAfter: nil,
+                publishedAt: date(0), now: date(600)))
+    }
+
+    func testIsCurrentHonorsThePublishBurstWindow() {
+        // A single "now" entry with no horizon: the reload the publisher pushed
+        // right behind its own write decodes the store (within the burst
+        // window) — this is what stops an intent tap costing two engine boots —
+        // but a later system reload re-renders.
+        XCTAssertTrue(
+            WidgetSnapshot.isCurrent(
+                entryDates: [date(1000)], reloadAfter: nil,
+                publishedAt: date(1000), now: date(1030)))
+        XCTAssertFalse(
+            WidgetSnapshot.isCurrent(
+                entryDates: [date(1000)], reloadAfter: nil,
+                publishedAt: date(1000), now: date(1100)))
+    }
+
+    func testIsCurrentEmptyTimelineIsNeverCurrent() {
+        XCTAssertFalse(
+            WidgetSnapshot.isCurrent(
+                entryDates: [], reloadAfter: date(9000),
+                publishedAt: date(0), now: date(0)))
+    }
+
+    func testIsCurrentPassedReloadAfterBeatsFutureEntries() {
+        // The author asked for a re-render after 100 — stale at 200 even though
+        // a future entry exists.
+        XCTAssertFalse(
+            WidgetSnapshot.isCurrent(
+                entryDates: [date(0), date(5000)], reloadAfter: date(100),
+                publishedAt: date(0), now: date(200)))
+    }
 }
 
 // OP-1: the source<->bytecode pairing hash must be deterministic across launches

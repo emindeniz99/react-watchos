@@ -51,7 +51,26 @@ public func reactTimeline(
     forKind kind: String, family: WidgetFamily, appGroupId: String
 ) -> Timeline<ReactEntry> {
     let stored = SharedWidgetStore(appGroupId: appGroupId).loadPublishedWidgets()
-    let fresh = WidgetIntentRuntime.renderFreshTimelines(appGroupId: appGroupId)
+    // Fresh-render (a full in-extension QuickJS boot) ONLY when the stored
+    // payload can no longer cover this widget — the header's "decode and
+    // display, render on stale refreshes" contract. Reloads that arrive while
+    // the store is current (the app's own publish→reloadAllTimelines, an
+    // intent that just republished, a system snapshot) decode the stored
+    // payload instead of re-rendering the same data, which both saves the
+    // engine boot and stops an intent tap from paying for TWO boots.
+    let storedIsCurrent: Bool = {
+        guard let stored,
+            let timeline = stored.widgets[kind]?[familyKey(family)]
+        else { return false }
+        return WidgetSnapshot.isCurrent(
+            entryDates: timeline.entries.map(\.entryDate),
+            reloadAfter: timeline.reloadAfterDate,
+            publishedAt: Date(timeIntervalSince1970: stored.publishedAt / 1000),
+            now: Date())
+    }()
+    let fresh =
+        storedIsCurrent
+        ? nil : WidgetIntentRuntime.renderFreshTimelines(appGroupId: appGroupId)
     let payload = newestPayload(stored, fresh)
     guard let timeline = payload?.widgets[kind]?[familyKey(family)],
         !timeline.entries.isEmpty
