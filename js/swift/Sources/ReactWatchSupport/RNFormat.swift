@@ -65,6 +65,9 @@ public enum RNFormat {
     /// synchronization), and formatting through a configured formatter is
     /// thread-safe on every deployed OS (Apple: since iOS 7/macOS 10.9). A
     /// simultaneous miss builds two equivalent instances and one wins — fine.
+    /// Known trade: cached instances pin the locale prefs read at first use
+    /// (a mid-session 12/24-hour toggle shows up after process relaunch) —
+    /// accepted for killing the per-render ICU construction.
     nonisolated(unsafe) private static let dateFormatters =
         NSCache<NSString, DateFormatter>()
     nonisolated(unsafe) private static let numberFormatters =
@@ -122,10 +125,20 @@ public enum RNFormat {
         let maxDigits = maxFractionDigits.map {
             max(0, min(15, RNStyle.clampedInt($0)))
         }
+        // Length-prefixed fields make the key unambiguous: format/currency are
+        // author-controlled strings, so a bare delimiter join could collide
+        // (format "currency|USD" vs currency "USD|"), and nil vs "" currency
+        // configure the formatter differently but would share a key.
+        func field(_ s: String?) -> String {
+            guard let s else { return "nil" }
+            return "\(s.count):\(s)"
+        }
         let key =
-            "\(locale.identifier)|\(format ?? "")|\(currency ?? "")"
-            + "|\(minDigits.map(String.init) ?? "")"
-            + "|\(maxDigits.map(String.init) ?? "")" as NSString
+            [
+                field(locale.identifier), field(format), field(currency),
+                field(minDigits.map(String.init)),
+                field(maxDigits.map(String.init)),
+            ].joined(separator: "|") as NSString
         let formatter: NumberFormatter
         if let cached = numberFormatters.object(forKey: key) {
             formatter = cached
