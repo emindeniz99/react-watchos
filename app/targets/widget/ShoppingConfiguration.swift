@@ -64,9 +64,13 @@ struct ShoppingTimelineProvider: AppIntentTimelineProvider {
     @available(watchOS 11.0, *)
     func relevance() async -> WidgetRelevance<SelectShoppingListIntent> {
         var attributes: [WidgetRelevanceAttribute<SelectShoppingListIntent>] = []
+        // ONE payload decode for the whole pass: the payload carries every
+        // timeline's serialized trees, and the per-list lookup was re-decoding
+        // all of it N times per relevance callback.
+        let payload = reactPublishedWidgets(appGroupId: WidgetStore.appGroupId)
         for list in ShoppingData.lists() {
             let contexts = reactRelevantContexts(
-                forKind: "shopping/\(list.id)", appGroupId: WidgetStore.appGroupId)
+                forKind: "shopping/\(list.id)", in: payload)
             guard !contexts.isEmpty else { continue }
             let intent = SelectShoppingListIntent()
             intent.list = ShoppingListEntity(id: list.id, name: list.name)

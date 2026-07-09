@@ -107,16 +107,29 @@ public func reactSnapshotEntry(
     return reactEntry(from: entries[index])
 }
 
+/// The last-published payload, decoded once. The payload carries EVERY
+/// timeline's serialized trees, so a provider callback that needs several
+/// lookups (an N-list relevance pass, control metadata + timelines) should
+/// decode it once with this and hand it to the `in payload:` variants below
+/// instead of paying a full JSON decode per lookup.
+public func reactPublishedWidgets(appGroupId: String) -> PublishedWidgets? {
+    SharedWidgetStore(appGroupId: appGroupId).loadPublishedWidgets()
+}
+
 /// The label/symbol a React-published control should show (the visual is an
 /// OS template; React owns the metadata). nil when nothing's published for
 /// `intent`, so the consumer can supply a static default.
 public func reactControlMetadata(
     _ intent: String, appGroupId: String
 ) -> (label: String, systemName: String?)? {
-    guard
-        let control = SharedWidgetStore(appGroupId: appGroupId)
-            .loadPublishedWidgets()?.controls?[intent]
-    else { return nil }
+    reactControlMetadata(intent, in: reactPublishedWidgets(appGroupId: appGroupId))
+}
+
+/// Payload-accepting variant — reuse one decoded payload across lookups.
+public func reactControlMetadata(
+    _ intent: String, in payload: PublishedWidgets?
+) -> (label: String, systemName: String?)? {
+    guard let control = payload?.controls?[intent] else { return nil }
     return (control.label, control.systemName)
 }
 
@@ -125,10 +138,15 @@ public func reactControlMetadata(
 public func reactRelevantContexts(
     forKind kind: String, appGroupId: String
 ) -> [PublishedRelevantContext] {
-    guard
-        let families = SharedWidgetStore(appGroupId: appGroupId)
-            .loadPublishedWidgets()?.widgets[kind]
-    else { return [] }
+    reactRelevantContexts(
+        forKind: kind, in: reactPublishedWidgets(appGroupId: appGroupId))
+}
+
+/// Payload-accepting variant — reuse one decoded payload across lookups.
+public func reactRelevantContexts(
+    forKind kind: String, in payload: PublishedWidgets?
+) -> [PublishedRelevantContext] {
+    guard let families = payload?.widgets[kind] else { return [] }
     for timeline in families.values {
         if let contexts = timeline.relevantContexts, !contexts.isEmpty {
             return contexts
