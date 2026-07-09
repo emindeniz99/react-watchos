@@ -303,8 +303,11 @@ the only failures are the two pre-existing Swift-toolchain-dependent suites).
 | **Security**: widget honored unsigned `bytecodeHash` under `.enforced` (App-Group writer could pin malicious bytecode) + OTA staged bytecode nothing would run | ✅ fixed together — enforced always runs re-verified source, staging skips the compile | WidgetBundleChoice + sequencer tests updated (Mac `swift test`) |
 | P1-8 inline-image decode cache (app side; widget deliberately skipped — 16MB cap) | ✅ | Swift, un-compiled |
 | Gap-audit P2s: `markHealthy` once/boot · `OptimisticStore.ack` guard · route-pattern cache · inspector instance-scoped stop · demo leading-edge publish + lazy read · bench stale-binary rebuild · **`.qbc` production-boot gate in embed-smoke** | ✅ | JS vitest-verified; tooling verified by running it here |
-| P1-5 `@Observable` migration | ⏳ deferred | architectural — do with a build loop + Instruments before/after |
-| P2-A ms-TimerText per-tick style resolve · image downsampling · `SharedWidgetStore` UserDefaults hoist (Sendable question) · per-callback payload re-decode in shopping/control providers · timer-churn + commit-size CI metrics | ⏳ deferred | marginal wins or open questions; take with the build loop |
+| P1-5 `@Observable` migration (model + all 7 view sites; ack write-gated on `optimistic.isEmpty`) | ✅ written | Linux targets still 211/211; the SwiftUI half needs the Xcode build + an Instruments before/after on a crown-scroll scenario |
+| P2-A ms-TimerText style resolved once (`RNUI.TextStyle`, `styled` funnels through it) | ✅ written | watch-only; Xcode build |
+| `SharedWidgetStore` UserDefaults hoisted to init | ✅ | Linux build + store tests 5/5 |
+| Provider decode-once (`reactPublishedWidgets` + payload-accepting metadata/relevance variants; demo relevance loop decodes once) | ✅ written | Linux 211/211; app-target wiring needs Xcode |
+| Image downsampling · timer-churn + commit-size CI metrics · `ShoppingIntent.defaultId` double-read | ⏳ deferred | marginal; take with the device loop |
 
 **Design decisions taken:** BLE reconnect defaults to 5 attempts × 60s per
 attempt, both tunable per `bleConnect` (`maxReconnectAttempts: 0` disables).
