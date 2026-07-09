@@ -120,6 +120,78 @@ final class BluetoothBridgeTests: XCTestCase {
         XCTAssertTrue(rejects().allSatisfy { $0.json.contains("failed to connect") })
     }
 
+    // MARK: - bounded auto-reconnect (P0-1): window expiry driven directly
+
+    /// Like makeBridge, but also captures pushed connection states. The huge
+    /// reconnectWindowMs keeps the real asyncAfter window from ever firing
+    /// during a test — expiry is driven manually, like handleConnectTimeout.
+    private func makeReconnectBridge(payloadExtra: String = "")
+        -> (bridge: BluetoothBridge, states: () -> [String])
+    {
+        let bridge = BluetoothBridge()
+        var states: [String] = []
+        bridge.onState = { states.append($0) }
+        bridge.handleInvoke(
+            id: 1, method: "bleConnect",
+            payload: #"{"service":"180D","reconnectWindowMs":600000"# + payloadExtra + "}")
+        return (bridge, { states })
+    }
+
+    func testWindowExpiryAdvancesAttemptsThenGoesTerminal() {
+        let (bridge, states) = makeReconnectBridge(
+            payloadExtra: #","maxReconnectAttempts":2"#)
+        // The drop starts reconnect attempt 1 of 2 (no central on the test
+        // host, so the scan itself pushes nothing).
+        bridge.failConnectionAttempt(message: "failed")
+        XCTAssertEqual(states(), ["disconnected"])
+
+        // First window expiry: attempt 2 starts — not terminal, no state push.
+        // (generation is 1: connect() bumped it once; epoch 0: no reload.)
+        bridge.handleReconnectWindowExpiry(epoch: 0, generation: 1, attempt: 1)
+        XCTAssertEqual(states(), ["disconnected"])
+
+        // Second expiry: budget spent — the terminal "disconnected" is pushed
+        // (the JS side's last observed state from this window was scanning).
+        bridge.handleReconnectWindowExpiry(epoch: 0, generation: 1, attempt: 2)
+        XCTAssertEqual(states(), ["disconnected", "disconnected"])
+    }
+
+    func testStaleGenerationWindowDoesNotTouchTheLiveAttempt() {
+        let (bridge, states) = makeReconnectBridge(
+            payloadExtra: #","maxReconnectAttempts":1"#)
+        bridge.failConnectionAttempt(message: "failed")  // attempt 1 (of 1)
+
+        // A window armed under a PREVIOUS generation fires late with a matching
+        // attempt number: it must no-op, not advance/terminate the live attempt.
+        bridge.handleReconnectWindowExpiry(epoch: 0, generation: 0, attempt: 1)
+        XCTAssertEqual(states(), ["disconnected"])
+
+        // The live window still terminates the exhausted budget.
+        bridge.handleReconnectWindowExpiry(epoch: 0, generation: 1, attempt: 1)
+        XCTAssertEqual(states(), ["disconnected", "disconnected"])
+    }
+
+    func testUserDisconnectNeutralizesAnArmedWindow() {
+        let (bridge, states) = makeReconnectBridge()
+        bridge.failConnectionAttempt(message: "failed")  // attempt 1 armed
+        bridge.handleOp(#"{"op":"disconnect"}"#)  // deliberate disconnect
+        let settled = states().count
+
+        // The armed window firing after bleDisconnect() must not rescan or
+        // push any further state.
+        bridge.handleReconnectWindowExpiry(epoch: 0, generation: 1, attempt: 1)
+        XCTAssertEqual(states().count, settled)
+    }
+
+    func testReconnectDisabledStaysDownAfterADrop() {
+        let (bridge, states) = makeReconnectBridge(
+            payloadExtra: #","maxReconnectAttempts":0"#)
+        bridge.failConnectionAttempt(message: "failed")
+        // No attempt starts and the drop's own "disconnected" is terminal —
+        // exactly one push, no duplicate.
+        XCTAssertEqual(states(), ["disconnected"])
+    }
+
     func testReloadEpochNeutralizesStaleConnectTimeout() {
         let (bridge, rejects) = makeBridge()
         bridge.handleInvoke(id: 1, method: "bleConnect", payload: #"{"service":"180D"}"#)

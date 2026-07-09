@@ -66,6 +66,12 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     /// can't reject a NEW runtime's connect that reused the same invoke id (ids
     /// reset per runtime).
     private var connectEpoch = 0
+    /// Bumped on every fresh connect AND every successful (re)connect. A
+    /// reconnect scan-window captures it when armed: without this, a stale
+    /// window from a PREVIOUS connection lifecycle whose attempt number happens
+    /// to match the current one (both "attempt 1") would pass the count guard
+    /// and cut the live attempt's window short, burning budget early.
+    private var reconnectGeneration = 0
 
     /// A connection exists or is being established. Used to fast-reject a
     /// write/subscribe issued with no connect in flight, which would otherwise
@@ -186,41 +192,47 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         attemptReconnect()
     }
 
-    /// Begin (or continue) a BOUNDED auto-reconnect. If the attempt budget
-    /// allows, scan and arm a scan-window timeout for this attempt; when the
-    /// budget is exhausted, stop and stay disconnected so the radio can't
-    /// active-scan forever for a peripheral that never returns (P0-1). A no-op
-    /// when the consumer disconnected deliberately (budget check covers that).
-    private func attemptReconnect() {
-        guard session.beginReconnectAttempt() else {
-            central?.stopScan()
-            onState?("disconnected")
-            return
-        }
+    /// Begin (or continue) a BOUNDED auto-reconnect: if the attempt budget
+    /// allows, scan and arm a scan-window timeout for this attempt. Returns
+    /// false when no attempt started — the consumer disconnected deliberately
+    /// or the budget is spent (P0-1) — so the radio can't active-scan forever
+    /// for a peripheral that never returns. The drop paths already pushed
+    /// "disconnected"; only the window-expiry caller pushes the terminal state.
+    @discardableResult
+    private func attemptReconnect() -> Bool {
+        guard session.beginReconnectAttempt() else { return false }
         startScan()
-        armReconnectWindow(epoch: connectEpoch, attempt: session.reconnectAttempts)
+        armReconnectWindow(
+            epoch: connectEpoch, generation: reconnectGeneration,
+            attempt: session.reconnectAttempts)
+        return true
     }
 
     /// Abandon this reconnect scan if it hasn't connected within the window,
     /// then move to the next attempt (or terminal). Mirrors `armConnectTimeout`
-    /// — epoch-guarded so a stale window from a previous runtime can't fire.
-    private func armReconnectWindow(epoch: Int, attempt: Int) {
+    /// — epoch/generation-guarded so a stale window (previous runtime, or a
+    /// previous connection lifecycle) can't fire into the live one.
+    private func armReconnectWindow(epoch: Int, generation: Int, attempt: Int) {
         nonisolated(unsafe) let bridge = self
         DispatchQueue.main.asyncAfter(deadline: .now() + reconnectWindow) {
-            bridge.handleReconnectWindowExpiry(epoch: epoch, attempt: attempt)
+            bridge.handleReconnectWindowExpiry(
+                epoch: epoch, generation: generation, attempt: attempt)
         }
     }
 
     /// The reconnect-window firing, factored out for deterministic unit tests.
-    /// No-ops unless we're still scanning for THIS attempt: same epoch, nothing
-    /// connected since (peripheral == nil), the attempt count is unchanged, and
-    /// the consumer hasn't disconnected.
-    func handleReconnectWindowExpiry(epoch: Int, attempt: Int) {
-        guard connectEpoch == epoch, peripheral == nil,
-            session.reconnectAttempts == attempt, !session.userInitiatedDisconnect
+    /// No-ops unless we're still scanning for THIS attempt: same epoch and
+    /// connection generation, nothing connected since (peripheral == nil), the
+    /// attempt count is unchanged, and the consumer hasn't disconnected. Going
+    /// terminal (budget spent) pushes the final "disconnected" — the last state
+    /// the JS side saw from this window was "scanning".
+    func handleReconnectWindowExpiry(epoch: Int, generation: Int, attempt: Int) {
+        guard connectEpoch == epoch, reconnectGeneration == generation,
+            peripheral == nil, session.reconnectAttempts == attempt,
+            !session.userInitiatedDisconnect
         else { return }
         central?.stopScan()
-        attemptReconnect()
+        if !attemptReconnect() { onState?("disconnected") }
     }
 
     /// Reject this connect if it's still the pending one after the timeout (it
@@ -254,6 +266,8 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
 
     private func connect(serviceUUID: String) {
         session.beginConnect()
+        // New connection lifecycle: orphan any scan-window armed by the old one.
+        reconnectGeneration &+= 1
         // CBUUID(string:) raises an uncaught NSException on a malformed UUID,
         // which would crash the whole app from untrusted JS input — validate
         // the format first and ignore a bad value instead.
@@ -321,6 +335,15 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         // Invalidate any in-flight connect timeout armed by the old runtime, so
         // it can't reject a new connect that reuses the same (reset) invoke id.
         connectEpoch &+= 1
+        // That bump also orphaned any armed scan-window. If a (re)connect scan
+        // is still running, re-arm under the new epoch so the surviving scan
+        // stays BOUNDED — otherwise a reload mid-scan reintroduces exactly the
+        // unbounded radio drain the attempt budget removed (P0-1).
+        if central?.isScanning == true, peripheral == nil {
+            armReconnectWindow(
+                epoch: connectEpoch, generation: reconnectGeneration,
+                attempt: session.reconnectAttempts)
+        }
     }
 
     private func write(
@@ -397,7 +420,11 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     ) {
         // A successful connect clears the reconnect budget, so a later drop
         // gets a fresh set of attempts rather than inheriting a spent count.
+        // The generation bump orphans this scan's own armed window — without it
+        // a stale window could match a LATER drop's identical attempt number
+        // and cut that attempt short.
         session.noteConnected()
+        reconnectGeneration &+= 1
         onState?("connected")
         // Resolve the bleConnect promise on the FIRST connect; a later
         // auto-reconnect finds nothing pending, so it never re-resolves.
