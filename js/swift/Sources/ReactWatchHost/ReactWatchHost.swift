@@ -53,6 +53,10 @@ final class ReactWatchModel: ObservableObject {
     private var nextSeq = 1
     /// Set once after reporting a renderer-vs-runtime wire mismatch.
     private var warnedWireMismatch = false
+    /// markHealthy runs once per boot (see the commit handler) — after the
+    /// first healthy commit it's a no-op that still cost a UserDefaults read
+    /// per commit.
+    private var markedHealthyThisBoot = false
     /// Serial queue for decoding committed trees off the main thread.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
     /// Reused across commits — only ever touched on the serial decodeQueue.
@@ -254,6 +258,8 @@ final class ReactWatchModel: ObservableObject {
         // reset, a second bad bundle after a dev hot-reload would be rejected
         // with no banner at all.
         warnedWireMismatch = false
+        // Re-arm the once-per-boot markHealthy for the incoming generation.
+        markedHealthyThisBoot = false
         // Only the .runOTA branches repopulate this; without the reset a later
         // .runShipped or DEBUG dev-code boot retains the previous OTA record,
         // and the first-healthy-commit handler could promote a bundle that is
@@ -875,9 +881,13 @@ final class ReactWatchModel: ObservableObject {
                     // A committed tree means the bundle booted healthily — clear
                     // the crash-loop counter so only *boot* failures accumulate
                     // (ARCH-04), and snapshot the running OTA bundle as the
-                    // known-good rollback target (no-op when running shipped, or
-                    // when the snapshot already matches).
-                    self.otaSequencer.markHealthy(bootedRecord: self.bootedOTARecord)
+                    // known-good rollback target. Once per boot: after the first
+                    // healthy commit this was a semantic no-op that still read
+                    // UserDefaults on every commit (10-20/sec under sensors).
+                    if !self.markedHealthyThisBoot {
+                        self.markedHealthyThisBoot = true
+                        self.otaSequencer.markHealthy(bootedRecord: self.bootedOTARecord)
+                    }
                     if tree.seq > self.ackedSeq {
                         self.ackedSeq = tree.seq
                         self.optimistic.ack(throughSeq: tree.seq)
