@@ -57,6 +57,19 @@ public enum RNFormat {
         return ""
     }
 
+    /// DateFormatter/NumberFormatter are among the most expensive Foundation
+    /// objects to construct (ICU tables + locale resolution), and FormattedText
+    /// re-renders built one per node per SwiftUI body pass — in the app AND the
+    /// widget. Cache configured instances by their full configuration. NSCache
+    /// is thread-safe (hence `nonisolated(unsafe)` — the cache IS the
+    /// synchronization), and formatting through a configured formatter is
+    /// thread-safe on every deployed OS (Apple: since iOS 7/macOS 10.9). A
+    /// simultaneous miss builds two equivalent instances and one wins — fine.
+    nonisolated(unsafe) private static let dateFormatters =
+        NSCache<NSString, DateFormatter>()
+    nonisolated(unsafe) private static let numberFormatters =
+        NSCache<NSString, NumberFormatter>()
+
     /// Epoch-ms → localized date/time. Defaults: a bare `date` renders
     /// dateStyle "medium" with no time; naming EITHER style switches the
     /// other's default to "none" (so `timeStyle: "short"` alone is just the
@@ -68,12 +81,24 @@ public enum RNFormat {
         locale: Locale = .current,
         timeZone: TimeZone = .current
     ) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = timeZone
-        formatter.dateStyle = Self.style(
+        let resolvedDate = Self.style(
             dateStyle ?? (timeStyle == nil ? "medium" : "none"))
-        formatter.timeStyle = Self.style(timeStyle ?? "none")
+        let resolvedTime = Self.style(timeStyle ?? "none")
+        let key =
+            "\(locale.identifier)|\(timeZone.identifier)"
+            + "|\(resolvedDate.rawValue)|\(resolvedTime.rawValue)" as NSString
+        let formatter: DateFormatter
+        if let cached = dateFormatters.object(forKey: key) {
+            formatter = cached
+        } else {
+            let built = DateFormatter()
+            built.locale = locale
+            built.timeZone = timeZone
+            built.dateStyle = resolvedDate
+            built.timeStyle = resolvedTime
+            dateFormatters.setObject(built, forKey: key)
+            formatter = built
+        }
         return formatter.string(from: Date(timeIntervalSince1970: ms / 1000))
     }
 
@@ -88,25 +113,37 @@ public enum RNFormat {
         maxFractionDigits: Double?,
         locale: Locale = .current
     ) -> String {
-        let formatter = NumberFormatter()
-        formatter.locale = locale
-        switch format {
-        case "percent": formatter.numberStyle = .percent
-        case "currency": formatter.numberStyle = .currency
-        default: formatter.numberStyle = .decimal
-        }
-        if format == "currency", let currency {
-            formatter.currencyCode = currency
-        }
         // clampedInt: a huge/NaN JS value would trap the plain Int() (M3);
         // NumberFormatter itself tolerates any Int but keep digits sane.
-        if let minFractionDigits {
-            formatter.minimumFractionDigits = max(
-                0, min(15, RNStyle.clampedInt(minFractionDigits)))
+        // Resolved BEFORE the cache key so equivalent configs share an entry.
+        let minDigits = minFractionDigits.map {
+            max(0, min(15, RNStyle.clampedInt($0)))
         }
-        if let maxFractionDigits {
-            formatter.maximumFractionDigits = max(
-                0, min(15, RNStyle.clampedInt(maxFractionDigits)))
+        let maxDigits = maxFractionDigits.map {
+            max(0, min(15, RNStyle.clampedInt($0)))
+        }
+        let key =
+            "\(locale.identifier)|\(format ?? "")|\(currency ?? "")"
+            + "|\(minDigits.map(String.init) ?? "")"
+            + "|\(maxDigits.map(String.init) ?? "")" as NSString
+        let formatter: NumberFormatter
+        if let cached = numberFormatters.object(forKey: key) {
+            formatter = cached
+        } else {
+            let built = NumberFormatter()
+            built.locale = locale
+            switch format {
+            case "percent": built.numberStyle = .percent
+            case "currency": built.numberStyle = .currency
+            default: built.numberStyle = .decimal
+            }
+            if format == "currency", let currency {
+                built.currencyCode = currency
+            }
+            if let minDigits { built.minimumFractionDigits = minDigits }
+            if let maxDigits { built.maximumFractionDigits = maxDigits }
+            numberFormatters.setObject(built, forKey: key)
+            formatter = built
         }
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
