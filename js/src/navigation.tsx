@@ -112,8 +112,19 @@ function splitSegments(route: string): string[] {
   return route.split("/").filter((part) => part.length > 0);
 }
 
+/**
+ * Parsed patterns, cached by string. Patterns are static route literals (a
+ * handful per app), but parsePattern otherwise re-runs three RegExp.exec per
+ * segment on every NavigationStack re-render (`props.children` is a fresh
+ * array each parent render, so the route-matching useMemo recomputes) and on
+ * every href() call — in an interpreter with no regex JIT.
+ */
+const patternCache = new Map<string, PatternSegment[]>();
+
 function parsePattern(pattern: string): PatternSegment[] {
-  return splitSegments(pattern).map((raw): PatternSegment => {
+  const cached = patternCache.get(pattern);
+  if (cached) return cached;
+  const parsed = splitSegments(pattern).map((raw): PatternSegment => {
     const optional = /^\[\[\.\.\.(.+)\]\]$/.exec(raw);
     if (optional?.[1])
       return { kind: "catchAll", name: optional[1], optional: true };
@@ -124,6 +135,8 @@ function parsePattern(pattern: string): PatternSegment[] {
     if (param?.[1]) return { kind: "param", name: param[1] };
     return { kind: "literal", value: raw };
   });
+  patternCache.set(pattern, parsed);
+  return parsed;
 }
 
 /**
