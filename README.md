@@ -82,6 +82,40 @@ update frequency:
   Same idea as the widget timelines: hand native the declarative target and
   let it run. (Demo: the Stopwatch screen.)
 
+## Battery & power defaults
+
+The default behavior is always the battery-safe one; anything that keeps a
+radio or sensor hot is bounded or opt-in:
+
+- **Heart rate stops in the background.** The HealthKit workout session
+  behind `startHeartRate` ends on scenePhase `.background` and restarts on
+  `.active` — a forgotten stop can't drain the battery overnight. A real
+  workout app opts in: `startHeartRate(cb, { keepAliveInBackground: true })`.
+- **BLE auto-reconnect is bounded.** An unexpected drop re-scans for 5
+  attempts × 60 s each, then stays `disconnected` instead of scanning
+  forever for a peripheral that left. Tune per connection:
+  `bleConnect(uuid, { maxReconnectAttempts, reconnectWindowMs })` —
+  `maxReconnectAttempts: 0` disables auto-reconnect.
+- **Location defaults to ten-meter accuracy with a 10 m distance filter**
+  (CoreLocation's own defaults are best-accuracy GPS with a callback on
+  every micro-movement). Navigation-grade fixes are the opt-in:
+  `startLocation(cb, { accuracy: "navigation", distanceFilterMeters: 0 })`.
+- **Motion/gyro default to 10 Hz and tune down:**
+  `startMotion(cb, { updateIntervalMs: 500 })`. Every reading crosses the
+  bridge and can commit a render — the rate is a direct battery knob.
+- **JS timers carry leeway** (~10% of the delay) so watchOS can coalesce
+  wakeups; the `setInterval` shim floors its re-arm period, and widget
+  `reloadAfter` is floored to 5 minutes to protect the WidgetKit refresh
+  budget.
+- **Widget reloads are coalesced and decode-first.** A burst of
+  `publishWidgets()` calls collapses to one extension wake, and a reload
+  arriving while the published payload is still current decodes it instead
+  of booting the JS engine inside the extension.
+
+How to *measure* (Instruments, the embed-smoke gates, what we can and can't
+claim) is in `docs/performance-measurement.md`; the dated perf/battery audit
+in `docs/` records why each default is what it is.
+
 ## Architecture
 
 ```
