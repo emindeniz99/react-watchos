@@ -36,6 +36,15 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     /// from `startHeartRate` options). Default false: `pauseForBackground` ends
     /// the workout session so the app can suspend instead of draining forever.
     private var heartRateKeepAlive = false
+    /// scenePhase mirror (P0-3): the auth completion must not START a workout
+    /// while backgrounded — the session would keep the app alive draining HR
+    /// until the next foreground.
+    private var isBackgrounded = false
+    /// Set when the background pause ended a live session, or when an auth
+    /// completion was deferred by backgrounding. Resume restarts only what
+    /// this flags — never a blind beginWorkout while auth is still pending
+    /// (a session begun pre-authorization can occupy the slot dead).
+    private var heartRatePendingRestart = false
 
     private struct Op: Decodable {
         let op: String
@@ -83,14 +92,22 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     /// stop on suspension on their own, so they're left running. A backgrounded
     /// app isn't unmounted, so JS effect cleanups never fire — native owns this.
     func pauseForBackground() {
+        isBackgrounded = true
         guard !heartRateKeepAlive else { return }
-        // Keeps wantHeartRate, so resumeFromForeground can restart it.
+        // Keeps wantHeartRate; the flag tells resume there is a live stream to
+        // restore (vs. an auth still pending, which must not be blind-begun).
+        if workoutSession != nil { heartRatePendingRestart = true }
         endWorkoutSession()
     }
 
-    /// scenePhase -> .active: restart HR if it was wanted and we paused it.
+    /// scenePhase -> .active: restart exactly what the background pause (or a
+    /// background-deferred auth completion) put on hold.
     func resumeFromForeground() {
-        if wantHeartRate, workoutSession == nil { beginWorkout() }
+        isBackgrounded = false
+        if wantHeartRate, heartRatePendingRestart, workoutSession == nil {
+            heartRatePendingRestart = false
+            beginWorkout()
+        }
     }
 
     deinit {
@@ -176,6 +193,13 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
             DispatchQueue.main.async {
                 // Dropped if heart rate was stopped/reloaded during the auth window.
                 guard this.wantHeartRate else { return }
+                // Backgrounded during the auth window (non-keepAlive): starting
+                // now would revive the exact background drain P0-3 removes.
+                // Defer to the next foreground via the restart flag instead.
+                if this.isBackgrounded, !this.heartRateKeepAlive {
+                    this.heartRatePendingRestart = true
+                    return
+                }
                 this.beginWorkout()
             }
         }
@@ -207,6 +231,7 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
 
     private func stopHeartRate() {
         wantHeartRate = false
+        heartRatePendingRestart = false
         endWorkoutSession()
     }
 
