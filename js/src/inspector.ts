@@ -133,8 +133,17 @@ export function startInspector(options: InspectorOptions): () => void {
     clearInterval?: (id: number) => void;
     fetch?: (url: string, init: unknown) => Promise<unknown>;
   };
+  // Battery guards on a schedule that serializes the full tree every tick:
+  // an unchanged snapshot (idle app) skips the POST entirely, and a server
+  // that never answers stops the inspector after ~30 ticks instead of posting
+  // into the void forever — the backstop for a startInspector() call shipped
+  // by accident in a release bundle.
+  let lastPosted: string | undefined;
+  let consecutiveFailures = 0;
+  const maxConsecutiveFailures = 30;
   const interval = g.setInterval?.(() => {
     const body = JSON.stringify(inspectorSnapshot());
+    if (body === lastPosted) return;
     // Swallow network errors: when the inspector server isn't running, each
     // poll would otherwise reject and — via the runtime's promise-rejection
     // tracker — spam the dev overlay every interval.
@@ -142,7 +151,15 @@ export function startInspector(options: InspectorOptions): () => void {
       method: "POST",
       headers: { "content-type": "application/json" },
       body,
-    })?.catch?.(() => {});
+    })
+      ?.then(() => {
+        lastPosted = body;
+        consecutiveFailures = 0;
+      })
+      .catch(() => {
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= maxConsecutiveFailures) stopFn?.();
+      });
   }, options.intervalMs ?? 1000);
 
   stopFn = () => {
