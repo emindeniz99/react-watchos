@@ -36,7 +36,7 @@ private func unsupportedNode(_ type: String) -> some View {
 /// primitive in js/src/components.ts.
 struct NodeView: View {
     let node: RNNode
-    @EnvironmentObject private var model: ReactWatchModel
+    @Environment(ReactWatchModel.self) private var model
     /// Min height for the wheel Picker, scaled with the user's text size so a
     /// large Dynamic Type setting doesn't re-clip the selected row.
     @ScaledMetric private var pickerMinHeight: CGFloat = 90
@@ -697,7 +697,7 @@ private let navigationDestinationRootTypes: Set<String> = [
 
 private struct RoutedNavigationStack: View {
     let node: RNNode
-    @EnvironmentObject private var model: ReactWatchModel
+    @Environment(ReactWatchModel.self) private var model
     @State private var localPath: [String] = []
 
     var body: some View {
@@ -973,7 +973,7 @@ private struct OptimisticTextField: View {
     /// SecureField masks input (passwords/PINs); everything else — the
     /// optimistic binding, autoFocus, the commit-on-close contract — is shared.
     var secure = false
-    @EnvironmentObject private var model: ReactWatchModel
+    @Environment(ReactWatchModel.self) private var model
     @FocusState private var focused: Bool
 
     private var textBinding: Binding<String> {
@@ -1038,7 +1038,7 @@ private struct A11yModifier: ViewModifier {
 /// acks the change, like the other input controls.
 private struct CrownRotationView: View {
     let node: RNNode
-    @EnvironmentObject private var model: ReactWatchModel
+    @Environment(ReactWatchModel.self) private var model
 
     var body: some View {
         // Normalize bounds so a reversed from/through can't trap the crown range.
@@ -1245,7 +1245,7 @@ private struct ToolbarNode: View {
 private struct AlertNode: View {
     let node: RNNode
     let dialog: Bool
-    @EnvironmentObject private var model: ReactWatchModel
+    @Environment(ReactWatchModel.self) private var model
 
     var body: some View {
         let title = node.string("title") ?? ""
@@ -1272,7 +1272,7 @@ private struct AlertNode: View {
 /// node's children are the sheet content.
 private struct SheetNode: View {
     let node: RNNode
-    @EnvironmentObject private var model: ReactWatchModel
+    @Environment(ReactWatchModel.self) private var model
 
     var body: some View {
         Color.clear.frame(width: 0, height: 0)

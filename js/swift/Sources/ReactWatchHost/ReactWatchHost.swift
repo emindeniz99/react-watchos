@@ -3,6 +3,7 @@
 #if os(watchOS)
 import CryptoKit
 import MapKit
+import Observation
 import ReactWatchCore
 import ReactWatchRuntime
 import ReactWatchSupport
@@ -26,23 +27,34 @@ import FoundationModels
 
 /// Loads bundle.js into QuickJS and republishes every committed React tree
 /// as SwiftUI state.
+///
+/// `@Observable` (Observation framework), NOT legacy `ObservableObject`
+/// (audit P1-5): the old model fired `objectWillChange` on EVERY `@Published`
+/// write, and every `NodeView` observed the whole model — so each optimistic
+/// tick (toggle/slider/crown/drag) re-evaluated the body of every node on
+/// screen, re-running all their per-render work. With per-property tracking a
+/// node re-renders only when a property it actually READ changes: plain
+/// content never touches `optimistic`, so interactions no longer redraw it,
+/// and per-commit bookkeeping writes (`ackedSeq`) invalidate no views at all.
+@Observable
 @MainActor
-final class ReactWatchModel: ObservableObject {
-    @Published var root: RNNode?
-    @Published var startupError: String?
+final class ReactWatchModel {
+    var root: RNNode?
+    var startupError: String?
     /// Non-fatal JS errors (event handlers, timers) surfaced as a banner.
-    @Published var runtimeError: String?
+    var runtimeError: String?
     /// Set when the hard update gate refuses to boot stale JS (CR-17): the only
     /// available bundle is older than one already applied, so we show a native
     /// "update required" screen instead of running it against a newer-schema db.
-    @Published var updateRequired = false
+    var updateRequired = false
     /// Highest event seq React has acknowledged (tree.seq). Optimistic
     /// controls hold their local value until their dispatch is acked.
-    @Published var ackedSeq = 0
+    /// Not read from any view body, so its per-commit bump invalidates nothing.
+    var ackedSeq = 0
     /// Optimistic values keyed by node id — lives on the model (not view
     /// @State) so it survives SwiftUI view identity changes mid-flight. The
     /// bookkeeping is ReactWatchSupport.OptimisticStore (unit-tested on Linux).
-    @Published private var optimistic = OptimisticStore()
+    private var optimistic = OptimisticStore()
 
     /// App Group storage, configured with the consumer's group id at init —
     /// no global mutable state. nil disables widget/Storage sharing.
@@ -873,10 +885,10 @@ final class ReactWatchModel: ObservableObject {
                         }
                         return
                     }
-                    // @Published fires objectWillChange on every assignment
-                    // regardless of equality; guard so an ack-only or
-                    // value-identical commit (high-frequency sensor pushes)
-                    // doesn't re-diff the whole SwiftUI tree (NF-22).
+                    // Equality guard (NF-22): even with @Observable's
+                    // per-property tracking, assigning an identical tree would
+                    // still invalidate every reader of `root` — skip ack-only /
+                    // value-identical commits (high-frequency sensor pushes).
                     if self.root != tree.root {
                         self.root = tree.root
                     }
@@ -892,7 +904,13 @@ final class ReactWatchModel: ObservableObject {
                     }
                     if tree.seq > self.ackedSeq {
                         self.ackedSeq = tree.seq
-                        self.optimistic.ack(throughSeq: tree.seq)
+                        // Calling a mutating method registers an observation
+                        // WRITE on `optimistic` even when it early-returns —
+                        // gate on isEmpty so ack-only commits (the common
+                        // case) don't invalidate every control that read it.
+                        if !self.optimistic.isEmpty {
+                            self.optimistic.ack(throughSeq: tree.seq)
+                        }
                     }
                 }
             }
@@ -1259,7 +1277,7 @@ public struct OTAConfig: Sendable {
 /// runs against a newer-schema db. Native, because the JS app isn't booted in
 /// this state; recovery (re-fetching a current bundle) is wired separately.
 private struct UpdateRequiredView: View {
-    @EnvironmentObject private var model: ReactWatchModel
+    @Environment(ReactWatchModel.self) private var model
 
     var body: some View {
         ScrollView {
@@ -1288,15 +1306,15 @@ private struct UpdateRequiredView: View {
 /// path or, set to `false`, the legacy eval path — set it per launch (e.g. a
 /// random bucket) to A/B them on-device before the eval path is retired.
 public struct ReactWatchRootView: View {
-    @StateObject private var model: ReactWatchModel
+    @State private var model: ReactWatchModel
     @Environment(\.scenePhase) private var scenePhase
 
     public init(
         appGroupId: String? = nil, ota: OTAConfig = .init(),
         useJSCallBridge: Bool = true
     ) {
-        _model = StateObject(
-            wrappedValue: ReactWatchModel(
+        _model = State(
+            initialValue: ReactWatchModel(
                 appGroupId: appGroupId, ota: ota, useJSCallBridge: useJSCallBridge
             ))
     }
@@ -1330,7 +1348,7 @@ public struct ReactWatchRootView: View {
                 .onTapGesture { model.runtimeError = nil }
             }
         }
-        .environmentObject(model)
+        .environment(model)
         .onAppear { model.start() }
         .onChange(of: scenePhase) { _, phase in
             model.pushNativeEvent("scenePhase", payload: ["phase": "\(phase)"])
