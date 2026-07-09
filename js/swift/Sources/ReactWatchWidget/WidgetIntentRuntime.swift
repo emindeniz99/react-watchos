@@ -277,10 +277,14 @@ public final class WidgetIntentRuntime {
     public static func renderFreshTimelines(
         appGroupId: String, now: Date = .now, maxAge: TimeInterval = 5
     ) -> PublishedWidgets? {
-        // Fast path: a fresh-enough cached payload, read under the lock. The
-        // epoch snapshot makes a concurrent invalidation detectable below.
+        // Fast path: a fresh-enough cached payload FOR THIS APP GROUP, read
+        // under the lock (a host with two groups must not be served the other
+        // group's render within the freshness window). The epoch snapshot
+        // makes a concurrent invalidation detectable below.
         cacheLock.lock()
-        if let cache = freshCache, now.timeIntervalSince(cache.date) < maxAge {
+        if let cache = freshCache[appGroupId],
+            now.timeIntervalSince(cache.date) < maxAge
+        {
             let payload = cache.payload
             cacheLock.unlock()
             return payload
@@ -317,7 +321,7 @@ public final class WidgetIntentRuntime {
         cacheLock.lock()
         if cacheEpoch == startEpoch {
             runtime.store.save(json)
-            freshCache = (now, payload)
+            freshCache[appGroupId] = (now, payload)
         }
         cacheLock.unlock()
         return payload
@@ -325,8 +329,10 @@ public final class WidgetIntentRuntime {
 
     private static let cacheLock = NSLock()
     // Guarded by cacheLock (a short-lived burst of timeline requests shares
-    // one bundle eval); the lock is the synchronization, hence unsafe.
-    nonisolated(unsafe) private static var freshCache: (date: Date, payload: PublishedWidgets)?
+    // one bundle eval); the lock is the synchronization, hence unsafe. Keyed
+    // by App Group id — the render is per-group state.
+    nonisolated(unsafe) private static var freshCache:
+        [String: (date: Date, payload: PublishedWidgets)] = [:]
     /// Bumped by every invalidation (guarded by cacheLock) so an in-flight
     /// render can tell its result was superseded before it finished.
     nonisolated(unsafe) private static var cacheEpoch = 0
@@ -334,7 +340,7 @@ public final class WidgetIntentRuntime {
     /// Called when an intent handler publishes a newer payload.
     static func invalidateCache() {
         cacheLock.lock()
-        freshCache = nil
+        freshCache.removeAll()
         cacheEpoch += 1
         cacheLock.unlock()
     }
