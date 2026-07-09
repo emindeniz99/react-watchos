@@ -202,15 +202,31 @@ function CounterScreen() {
  * store and republishes all widget timelines (App Group storage +
  * WidgetCenter reload on the native side).
  */
+// Trailing debounce for the republish (same 200ms pattern as the shopping
+// subscription in app.entry.tsx): renderWidgets() re-renders EVERY registered
+// widget timeline, so a tap streak must collapse to one publish, not one per
+// tap. The counter itself is already written atomically in applyDelta — only
+// the widget re-render is deferred.
+let publishTimer: ReturnType<typeof setTimeout> | undefined;
+function schedulePublish() {
+  if (publishTimer !== undefined) clearTimeout(publishTimer);
+  publishTimer = setTimeout(() => {
+    publishTimer = undefined;
+    publishWidgets();
+  }, 200);
+}
 function HydrationScreen() {
-  const [glasses, setGlasses] = useState(hydrationStore.glasses);
+  // Lazy initializer: the glasses getter is a bridge hop into a coordinated
+  // file read, and a non-lazy useState re-runs it on EVERY render (screens
+  // stay mounted across navigation) just to throw the value away.
+  const [glasses, setGlasses] = useState(() => hydrationStore.glasses);
   // Atomic add (ARCH-05): the widget extension may increment the same counter,
   // so we add a delta rather than set an absolute value (which would lose the
   // extension's update). The returned total is the authoritative new value.
   const applyDelta = (delta: number) => {
     const total = hydrationStore.addGlasses(delta);
     setGlasses(total);
-    publishWidgets();
+    schedulePublish();
     if (total === hydrationStore.goal) playHaptic("success");
   };
   const remind = () => {
