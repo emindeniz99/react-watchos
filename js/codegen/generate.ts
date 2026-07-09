@@ -35,11 +35,22 @@ const swiftFormatConfig = join(root, "..", ".swift-format");
 function formatSwift(source: string) {
   try {
     // `-` reads the source from stdin (implicit stdin is deprecated).
-    return execFileSync(
+    const formatted = execFileSync(
       "swift",
       ["format", "--configuration", swiftFormatConfig, "-"],
       { input: source, encoding: "utf8" },
     );
+    // A formatter can "succeed" with empty stdout on an incompatible CLI
+    // (seen with a Linux toolchain whose `swift format -` wrote nothing) —
+    // and silently emptied @generated files would then land on disk. Fail
+    // loud: formatting never shrinks real code to under half its size.
+    if (formatted.trim().length < source.trim().length / 2) {
+      throw new Error(
+        "swift format produced implausibly small output " +
+          `(${formatted.length} bytes from ${source.length})`,
+      );
+    }
+    return formatted;
   } catch (error) {
     throw new Error(
       "swift-format failed to format generated Swift — is the Swift toolchain " +
