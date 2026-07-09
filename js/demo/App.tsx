@@ -202,16 +202,26 @@ function CounterScreen() {
  * store and republishes all widget timelines (App Group storage +
  * WidgetCenter reload on the native side).
  */
-// Trailing debounce for the republish (same 200ms pattern as the shopping
-// subscription in app.entry.tsx): renderWidgets() re-renders EVERY registered
-// widget timeline, so a tap streak must collapse to one publish, not one per
-// tap. The counter itself is already written atomically in applyDelta — only
-// the widget re-render is deferred.
+// Leading+trailing debounce for the republish: renderWidgets() re-renders
+// EVERY registered widget timeline, so a tap streak must collapse — but the
+// FIRST tap publishes immediately (a single tap-then-wrist-down must not
+// lose its complication update to a timer that won't run while suspended;
+// the qjs-smoke engine suite pins this). Later taps within the window fold
+// into one trailing publish carrying the streak's final state. The counter
+// write itself is always immediate and atomic in applyDelta.
 let publishTimer: ReturnType<typeof setTimeout> | undefined;
+let lastPublishMs = 0;
 function schedulePublish() {
+  const now = Date.now();
+  if (publishTimer === undefined && now - lastPublishMs > 200) {
+    lastPublishMs = now;
+    publishWidgets();
+    return;
+  }
   if (publishTimer !== undefined) clearTimeout(publishTimer);
   publishTimer = setTimeout(() => {
     publishTimer = undefined;
+    lastPublishMs = Date.now();
     publishWidgets();
   }, 200);
 }
