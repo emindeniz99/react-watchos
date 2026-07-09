@@ -311,6 +311,22 @@ Background heart rate defaults to **stop on background**, opt-in via
 changed to ten-meter accuracy + 10m distance filter (was Best + no filter);
 navigation-grade accuracy is opt-in via `startLocation` options.
 
+**Adversarial diff review (2026-07-09):** a fresh-eyes review of the whole
+branch tried to refute every change. It confirmed the JS half and the test
+arithmetic, and found 1 blocker + 5 majors in the un-compiled Swift — all
+fixed on the branch: `treeDecoder` Swift 6 cross-actor error
+(`nonisolated(unsafe)`), the `.poweredOn` scan path bypassing the reconnect
+budget, mid-connect attempts escaping the scan window (connects never time
+out on their own), reconnect options sticky across connections, the HR auth
+window starting a workout in the background, and the widget-reload debounce
+re-firing an executed item on background flush. Known accepted minors: the
+inspector's stop-after-failures can, in a stop/restart race, stop a
+successor instance (DEBUG tooling); a demo tap within 200ms of suspension
+defers its republish to the next WidgetKit refresh; formatter caches pin
+locale prefs until relaunch. Remaining verification gate: CI is disabled
+repo-wide and has never run for this branch — `swift test` (Linux/macOS),
+simulator `xcodebuild test`, and a device Energy trace are all still owed.
+
 ## Prioritized roadmap
 
 Grouped by (impact × likelihood × fix cost). Each item is independently
