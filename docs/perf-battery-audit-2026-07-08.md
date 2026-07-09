@@ -275,29 +275,41 @@ re-litigated:
 
 ---
 
-## Implementation status (updated 2026-07-09)
+## Implementation status (updated 2026-07-09, second pass)
 
 Landed on `claude/watchos-perf-battery-review-ledrjq`. **No Swift toolchain was
 available in the authoring environment**, so every Swift change is un-compiled
-here; `SensorBridge`/`ReactWatchHost` are `#if os(watchOS)` and aren't even
-covered by `swift test` on macOS — they need a device/simulator build. JS
-changes are verified (typecheck + vitest).
+here; `SensorBridge`/`ReactWatchHost`/`BluetoothBridge` are `#if os(watchOS)`
+and aren't even covered by `swift test` on macOS — they need a
+device/simulator build (`xcodebuild test` runs the added BluetoothBridge
+reconnect tests). JS changes are verified (typecheck + vitest, 380 passing;
+the only failures are the two pre-existing Swift-toolchain-dependent suites).
 
 | Finding | Status | Verification |
 |---|---|---|
-| P2 `reloadAfter` floor | ✅ done | JS: typecheck + widgets 15/15 |
-| P1-6 `handlerlessControls` static | ✅ done | Swift, un-compiled |
-| P1-10 audio session on error | ✅ done | Swift, un-compiled |
-| P0-2 BLE stopScan + reconnect guard | ✅ done | Swift, un-compiled |
-| P0-1 BLE bounded reconnect (5×60s, configurable) | ✅ done | JS: bluetooth 5/5 · Swift `BleSession` tests added (run on Mac) |
-| P0-3 / P1-9 HR workout background teardown (+opt-in) | ✅ done | JS: sensors 9/9 · Swift watch-only (device build) |
-| P1-1 timer leeway · P1-2/3/4 widget gate+debounce · P1-5 `@Observable` · P1-7/8 formatter/image cache | ⏳ not started | need a watch build loop |
-| P1-11 location accuracy/filter · P2 batch | ⏳ not started | — |
+| P2 `reloadAfter` floor | ✅ | JS: widgets 15/15 |
+| P1-6 `handlerlessControls` static | ✅ | Swift, un-compiled |
+| P1-10 audio session on decode error | ✅ | Swift, un-compiled |
+| P0-2 BLE stopScan + `didDiscover` guard | ✅ | Swift, un-compiled |
+| P0-1 BLE bounded reconnect (5×60s, configurable, `0` disables) | ✅ + hardened (generation guard, reload re-arm, no dup state) | JS: bluetooth 6/6 · BleSession tests (Mac `swift test`) · 4 bridge tests (simulator) |
+| P0-3 / P1-9 HR background teardown (+`keepAliveInBackground` opt-in) | ✅ + deinit lazy-location fix | JS: sensors 10/10 · watch-only |
+| P1-1 timer leeway (`DispatchSourceTimer`, 10% leeway 1ms–30s) | ✅ | Swift, un-compiled (RuntimeSmokeTests on Mac) |
+| P1-2/P1-4 widget staleness gate (`WidgetSnapshot.isCurrent`) | ✅ | 5 predicate tests (Mac) · wiring watch-only |
+| P1-3 `publishWidgets` reload debounce (1s trailing + background flush) | ✅ | Swift, un-compiled |
+| P1-7 formatter caches (NSCache, config-keyed) | ✅ | existing RNFormat matrix tests (Mac) |
+| P1-11 location accuracy/filter defaults + options; motion/gyro rate options | ✅ | JS: sensors 10/10 · Swift watch-only |
+| P1-12 `console.*` → `os.Logger` | ✅ | Swift, un-compiled |
+| P2 batch: `freshCache` per App Group · `JSONDecoder` reuse · extended-runtime start guard · `markHealthy` once/boot · `OptimisticStore.ack` guard · inspector dedupe+dead-server stop · route-pattern cache · demo debounce+lazy read | ✅ | JS parts vitest-verified; Swift parts un-compiled |
+| P1-5 `@Observable` migration | ⏳ deferred | architectural — do with a build loop + Instruments before/after |
+| P1-8 image decode cache/downsample · P2-A ms-TimerText style hoist | ⏳ deferred | watch-only render path; needs build loop |
+| Gap-audit deferred: OTA bytecode compile under `.enforced` keys (wasted parse + 2 flash writes per update) **and the related widget bytecode-trust inconsistency** (widget honors unsigned `bytecodeHash` under enforcement — `WidgetBundleChoice.swift:43-51` — contradicting the app's refusal at `OTABootSequencer.swift:526-535`); `SharedWidgetStore` UserDefaults hoist (Sendable question); per-callback payload re-decode in shopping/control providers; tooling gaps (no `.qbc` boot gate, no timer-churn metric, no commit-size gate) | ⏳ deferred | OTA/security change must not be made blind — needs the build loop and a deliberate security review |
 
 **Design decisions taken:** BLE reconnect defaults to 5 attempts × 60s per
 attempt, both tunable per `bleConnect` (`maxReconnectAttempts: 0` disables).
 Background heart rate defaults to **stop on background**, opt-in via
-`startHeartRate(handler, { keepAliveInBackground: true })`.
+`startHeartRate(handler, { keepAliveInBackground: true })`. Location defaults
+changed to ten-meter accuracy + 10m distance filter (was Best + no filter);
+navigation-grade accuracy is opt-in via `startLocation` options.
 
 ## Prioritized roadmap
 
