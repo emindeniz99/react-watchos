@@ -48,7 +48,11 @@ public final class JSRuntime {
     /// hop with `sync` — and timers fire on it, so a cross-thread caller can no
     /// longer corrupt the engine heap (the old DEBUG-assert-only protection).
     public let owningQueue: DispatchQueue
-    private var pendingTimers: [Int32: DispatchWorkItem] = [:]
+    /// Armed JS timers by id. DispatchSourceTimer (not asyncAfter work items)
+    /// so each timer carries LEEWAY — see scheduleTimer. All access is on the
+    /// owning queue: setTimer/clearTimer arrive through JS entries and the
+    /// sources fire on owningQueue.
+    private var pendingTimers: [Int32: DispatchSourceTimer] = [:]
 
     /// Selects the Swift→JS call mechanism (CR-5). true: direct `JS_Call` on
     /// cached global functions — no per-call parse/compile, and not the
@@ -501,17 +505,32 @@ public final class JSRuntime {
     }
 
     private func scheduleTimer(id: Int32, milliseconds: Double) {
-        let work = DispatchWorkItem { [weak self] in
+        // Defensive: re-arming an id that is somehow still pending must not
+        // leave the old source to fire later (the shims never re-arm a live id
+        // today — __fireTimer re-arms only after removing itself).
+        pendingTimers.removeValue(forKey: id)?.cancel()
+        // A timer SOURCE instead of asyncAfter for the leeway (P1-1):
+        // asyncAfter carries near-zero tolerance, making every JS timer its own
+        // precise CPU wakeup — watchOS can only coalesce deferrable fires into
+        // shared wake windows when granted leeway. ~10% of the delay, floored
+        // at 1ms (short UI timers stay visually exact) and capped at 30s (long
+        // debounces/polls coalesce aggressively). Fires on the OWNING queue,
+        // not main (M1): a non-main runtime's timer delivered on main would
+        // touch the context cross-thread.
+        let source = DispatchSource.makeTimerSource(queue: owningQueue)
+        let delay = max(0, milliseconds)
+        let leewayMs = Int(min(max(delay * 0.1, 1), 30_000))
+        source.setEventHandler { [weak self] in
             guard let self else { return }
-            pendingTimers[id] = nil
+            // One-shot: release the source before the callback so a JS re-arm
+            // of the same id (setInterval's __fireTimer) stores a fresh one.
+            pendingTimers.removeValue(forKey: id)?.cancel()
             bridgeCall("__fireTimer", [.int(Int(id))], filename: "timer.js")
         }
-        pendingTimers[id] = work
-        // Fire on the OWNING queue, not main (M1): a non-main runtime's timer
-        // delivered on main would touch the context cross-thread.
-        owningQueue.asyncAfter(
-            deadline: .now() + milliseconds / 1000.0, execute: work
-        )
+        source.schedule(
+            deadline: .now() + delay / 1000.0, leeway: .milliseconds(leewayMs))
+        pendingTimers[id] = source
+        source.activate()
     }
 
     private func cancelTimer(id: Int32) {
