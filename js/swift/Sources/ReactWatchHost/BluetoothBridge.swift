@@ -41,8 +41,10 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
 
     /// Per-attempt auto-reconnect scan window (P0-1): how long each reconnect
     /// scan runs before that attempt is abandoned. Set from `bleConnect`
-    /// options; default 60s. The attempt-count cap lives in `BleSession`.
-    private var reconnectWindow: TimeInterval = 60
+    /// options and RESET to the default on every connect (options must not
+    /// leak across connections). The attempt-count cap lives in `BleSession`.
+    private static let defaultReconnectWindow: TimeInterval = 60
+    private var reconnectWindow: TimeInterval = defaultReconnectWindow
 
     init(connectTimeout: TimeInterval = 15) {
         self.connectTimeout = connectTimeout
@@ -123,11 +125,15 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             if let stale = session.awaitConnect(id: id) {
                 reject(stale, "INVALID_REQUEST", "superseded by a newer bleConnect")
             }
-            // Apply per-connection reconnect config before connecting (P0-1).
-            session.configureReconnect(maxAttempts: p?.maxReconnectAttempts)
-            if let windowMs = p?.reconnectWindowMs {
-                reconnectWindow = max(0, windowMs) / 1000
-            }
+            // Per-connection reconnect config (P0-1). Absent options RESET to
+            // the defaults — bluetooth.ts documents "omit for the defaults",
+            // so a previous connect's tuning must not leak into this one.
+            session.configureReconnect(
+                maxAttempts: p?.maxReconnectAttempts
+                    ?? BleSession.defaultMaxReconnectAttempts)
+            reconnectWindow =
+                (p?.reconnectWindowMs).map { max(0, $0) / 1000 }
+                ?? Self.defaultReconnectWindow
             connect(serviceUUID: service)
             armConnectTimeout(id: id)
         case "bleWrite":
@@ -221,17 +227,29 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     }
 
     /// The reconnect-window firing, factored out for deterministic unit tests.
-    /// No-ops unless we're still scanning for THIS attempt: same epoch and
-    /// connection generation, nothing connected since (peripheral == nil), the
-    /// attempt count is unchanged, and the consumer hasn't disconnected. Going
-    /// terminal (budget spent) pushes the final "disconnected" — the last state
-    /// the JS side saw from this window was "scanning".
+    /// No-ops unless this attempt is still the live one: same epoch and
+    /// connection generation (didConnect bumps the generation, so "same
+    /// generation" ⇒ nothing connected since this window was armed), the
+    /// attempt count is unchanged, and the consumer hasn't disconnected. The
+    /// attempt may be stuck SCANNING (peripheral nil) or stuck MID-CONNECT —
+    /// didDiscover fired and the peripheral moved away; CoreBluetooth
+    /// connection attempts never time out on their own — so cancel whichever
+    /// is in flight and move on. Going terminal (budget spent) pushes the
+    /// final "disconnected" — the JS side's last observed state was
+    /// "scanning".
     func handleReconnectWindowExpiry(epoch: Int, generation: Int, attempt: Int) {
         guard connectEpoch == epoch, reconnectGeneration == generation,
-            peripheral == nil, session.reconnectAttempts == attempt,
+            session.reconnectAttempts == attempt,
             !session.userInitiatedDisconnect
         else { return }
         central?.stopScan()
+        if let peripheral {
+            // Cancelling a not-yet-connected attempt produces NO delegate
+            // callback (didDisconnect fires only for connected peripherals),
+            // so continue synchronously.
+            central?.cancelPeripheralConnection(peripheral)
+            self.peripheral = nil
+        }
         if !attemptReconnect() { onState?("disconnected") }
     }
 
@@ -391,7 +409,17 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            startScan()
+            // Scan only with LIVE intent (the P0-1 invariant: every scan is
+            // bounded and deliberate): a pending bleConnect, or an in-flight
+            // bounded reconnect with budget left. Without this gate, a
+            // Bluetooth power-cycle after a terminal state (budget spent, or
+            // a bleDisconnect) restarted an unbounded, windowless scan.
+            if session.pendingConnect != nil
+                || (session.canReconnect && session.reconnectAttempts > 0
+                    && peripheral == nil)
+            {
+                startScan()
+            }
         case .unauthorized:
             onState?("unauthorized")
         case .poweredOff:

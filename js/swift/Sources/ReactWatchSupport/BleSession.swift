@@ -36,13 +36,18 @@ public struct BleSession: Sendable {
     /// auto-reconnect while a deliberate disconnect stays down.
     public private(set) var userInitiatedDisconnect = false
 
+    /// Default auto-reconnect attempt budget — single-sourced so the bridge's
+    /// per-connect reset (absent options must mean defaults, not the previous
+    /// connect's values) can't drift from the property default below.
+    public static let defaultMaxReconnectAttempts = 5
+
     /// Bounded auto-reconnect budget (P0-1). Without a cap, a peripheral that
     /// never re-advertises (out of range, powered off, off-wrist) leaves the
     /// central active-scanning forever — a top-tier BLE drain. Both knobs are
     /// per-connection, set from `bleConnect` options; the bridge owns the
     /// per-attempt scan-window *timer*, this owns the pure attempt accounting.
     /// `maxReconnectAttempts == 0` disables auto-reconnect entirely.
-    public private(set) var maxReconnectAttempts = 5
+    public private(set) var maxReconnectAttempts = defaultMaxReconnectAttempts
     /// Reconnect scan attempts spent since the last successful connect.
     public private(set) var reconnectAttempts = 0
 
