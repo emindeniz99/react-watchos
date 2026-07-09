@@ -329,6 +329,26 @@ locale prefs until relaunch. Remaining verification gate: CI is disabled
 repo-wide and has never run for this branch — `swift test` (Linux/macOS),
 simulator `xcodebuild test`, and a device Energy trace are all still owed.
 
+**Swift-level verification (2026-07-09, fourth pass):** a Swift 6.0.3 Linux
+toolchain was installed into the authoring environment — the FIRST compile
+and `swift test` run this package has ever had (CI disabled, zero runs).
+Results: the whole package builds under Swift 6 strict concurrency after
+three pre-existing Linux fixes (`queueMarker` Sendable, Darwin-only
+`containerURL` guards), and **211/211 tests pass** — including the
+DispatchSourceTimer rewrite exercised on the real engine, the BleSession
+budget, `WidgetSnapshot.isCurrent`, the RNFormat cache behavior, and the
+bytecode-trust security fix. Running the suite also exposed and fixed a
+REAL latent production bug: the quickjs stack-guard anchor was never
+re-anchored per entry (`JS_UpdateStackTop`), so JS entries from any thread
+other than the runtime's creator — the widget runtime's normal WidgetKit
+shape, and every `sync` hop — could fail with a spurious "stack overflow"
+(4 M1 tests failed on origin/main too; 16/16 after the fix). A codegen
+fail-loud guard was added after this environment's `swift format` emitted
+empty output and codegen briefly wrote zero-byte generated files (restored;
+now aborts loudly). Still owed: watch-only targets (`#if os(watchOS)`
+bridges/host/widget UI) compile only under Xcode — simulator
+`xcodebuild test` and the device Energy trace remain the final gates.
+
 **Engine-level verification (2026-07-09, third pass):** a C toolchain exists
 in the authoring environment, so the vendored quickjs-ng gates now actually
 ran against this branch's production bundle: embed-smoke source path (heap
