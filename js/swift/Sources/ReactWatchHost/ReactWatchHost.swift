@@ -59,10 +59,12 @@ final class ReactWatchModel: ObservableObject {
     private var markedHealthyThisBoot = false
     /// Serial queue for decoding committed trees off the main thread.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
-    /// Reused across commits — only ever touched on the serial decodeQueue.
-    /// A fresh JSONDecoder per commit is pure allocation churn at
-    /// sensor-driven commit rates (10-20 commits/sec).
-    private let treeDecoder = JSONDecoder()
+    /// Reused across commits — only ever touched on the serial decodeQueue,
+    /// which is the actual synchronization (hence `nonisolated(unsafe)`: a
+    /// plain isolated `let` would be a Swift 6 cross-actor error when read
+    /// from the decode closure). A fresh JSONDecoder per commit is pure
+    /// allocation churn at sensor-driven commit rates (10-20 commits/sec).
+    nonisolated(unsafe) private let treeDecoder = JSONDecoder()
     private let connectivity = PhoneConnectivity()
     private let bluetooth = BluetoothBridge()
     private let sensors = SensorBridge()
@@ -1023,7 +1025,15 @@ final class ReactWatchModel: ObservableObject {
 
     private func scheduleWidgetReload() {
         widgetReloadDebounce?.cancel()
-        let work = DispatchWorkItem { WidgetCenter.shared.reloadAllTimelines() }
+        // The item clears its own reference when it RUNS — otherwise a later
+        // background flush would find the executed-but-still-referenced item
+        // (cancel() no-ops post-execution) and fire a spurious extra
+        // reloadAllTimelines at suspension time, wasting the exact budget this
+        // debounce protects.
+        let work = DispatchWorkItem { [weak self] in
+            self?.widgetReloadDebounce = nil
+            WidgetCenter.shared.reloadAllTimelines()
+        }
         widgetReloadDebounce = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
     }
