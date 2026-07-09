@@ -447,11 +447,16 @@ struct NodeView: View {
         if node.bool("milliseconds") == true {
             let untilMs = node.double("until")
             let sinceMs = node.double("since") ?? 0
+            // Resolve the node's text style ONCE (P2-A): this closure re-runs
+            // at 20 Hz, and re-reading props + re-parsing color/font per tick
+            // was pure waste — each tick now pays only the string format and
+            // the modifier application.
+            let style = RNUI.TextStyle(node)
             TimelineView(.periodic(from: .now, by: 0.05)) { context in
                 let interval = timerInterval(
                     at: context.date, sinceMs: sinceMs, untilMs: untilMs
                 )
-                styledTimer(Text(formatTimer(interval)))
+                style.apply(to: Text(formatTimer(interval)).monospacedDigit())
             }
         } else if let until = node.double("until") {
             let end = Date(timeIntervalSince1970: until / 1000)

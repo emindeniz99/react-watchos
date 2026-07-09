@@ -104,18 +104,43 @@ public enum RNUI {
         }
     }
 
+    /// A node's text styling, resolved once. For callers that re-render the
+    /// SAME node's text at a high rate — the millisecond TimerText ticks at
+    /// 20 Hz — so each tick pays only the string format + modifier apply, not
+    /// the prop lookups and color/font parsing (audit P2-A). `styled` funnels
+    /// through this, so there is exactly one styling implementation.
+    public struct TextStyle {
+        let bold: Bool
+        let monospacedDigit: Bool
+        let font: Font?
+        let color: Color
+
+        public init(_ node: RNNode) {
+            bold = node.bool("bold") == true
+            monospacedDigit = node.bool("monospacedDigit") == true
+            if let style = node.string("textStyle") {
+                font = RNUI.semanticFont(style)
+            } else if let size = node.double("size") {
+                font = .system(size: CGFloat(size))
+            } else {
+                font = nil
+            }
+            color = RNUI.color(node.string("color")) ?? .primary
+        }
+
+        public func apply(to base: Text) -> some View {
+            var text = base
+            if bold { text = text.bold() }
+            if monospacedDigit { text = text.monospacedDigit() }
+            if let font { text = text.font(font) }
+            return text.foregroundStyle(color)
+        }
+    }
+
     /// Applies a node's own text styling to a base `Text` (the whole rich-text
     /// concatenation) — the outermost layer over `textSegment`'s children.
     public static func styled(_ node: RNNode, _ base: Text) -> some View {
-        var text = base
-        if node.bool("bold") == true { text = text.bold() }
-        if node.bool("monospacedDigit") == true { text = text.monospacedDigit() }
-        if let style = node.string("textStyle") {
-            text = text.font(semanticFont(style))
-        } else if let size = node.double("size") {
-            text = text.font(.system(size: CGFloat(size)))
-        }
-        return text.foregroundStyle(color(node.string("color")) ?? .primary)
+        TextStyle(node).apply(to: base)
     }
 
     /// One rich-text segment as a concatenable `Text`. Recurses into a segment's
