@@ -369,14 +369,34 @@ struct NodeView: View {
         }
     }
 
+    /// Decoded inline images by their base64 payload. `body` re-runs for every
+    /// node on every render pass, and re-decoding base64 + rebuilding a
+    /// UIImage each pass burns CPU AND hands SwiftUI a fresh image identity to
+    /// re-rasterize. NSCache is thread-safe (the cache is the synchronization,
+    /// hence `nonisolated(unsafe)`) and evicts under memory pressure; base64
+    /// is documented for SMALL inline bitmaps only, so 32 entries is plenty.
+    nonisolated(unsafe) private static let inlineImageCache: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 32
+        return cache
+    }()
+
+    private static func inlineImage(base64 b64: String) -> UIImage? {
+        let key = b64 as NSString
+        if let cached = inlineImageCache.object(forKey: key) { return cached }
+        guard let data = Data(base64Encoded: b64), let ui = UIImage(data: data)
+        else { return nil }
+        inlineImageCache.setObject(ui, forKey: key)
+        return ui
+    }
+
     /// Three image sources: base64 inline bitmap, remote URL (AsyncImage,
     /// native-loaded + cached), or an SF Symbol. Symbols for icons, URLs for
     /// photos/posters, base64 only for small inline bitmaps.
     @ViewBuilder private var imageView: some View {
         let side = cgFloat("size")
         if let b64 = node.string("data"),
-            let data = Data(base64Encoded: b64),
-            let ui = UIImage(data: data)
+            let ui = Self.inlineImage(base64: b64)
         {
             Image(uiImage: ui).resizable().scaledToFit()
                 .frame(width: side, height: side)
