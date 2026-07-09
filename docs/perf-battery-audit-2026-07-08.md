@@ -275,6 +275,30 @@ re-litigated:
 
 ---
 
+## Implementation status (updated 2026-07-09)
+
+Landed on `claude/watchos-perf-battery-review-ledrjq`. **No Swift toolchain was
+available in the authoring environment**, so every Swift change is un-compiled
+here; `SensorBridge`/`ReactWatchHost` are `#if os(watchOS)` and aren't even
+covered by `swift test` on macOS — they need a device/simulator build. JS
+changes are verified (typecheck + vitest).
+
+| Finding | Status | Verification |
+|---|---|---|
+| P2 `reloadAfter` floor | ✅ done | JS: typecheck + widgets 15/15 |
+| P1-6 `handlerlessControls` static | ✅ done | Swift, un-compiled |
+| P1-10 audio session on error | ✅ done | Swift, un-compiled |
+| P0-2 BLE stopScan + reconnect guard | ✅ done | Swift, un-compiled |
+| P0-1 BLE bounded reconnect (5×60s, configurable) | ✅ done | JS: bluetooth 5/5 · Swift `BleSession` tests added (run on Mac) |
+| P0-3 / P1-9 HR workout background teardown (+opt-in) | ✅ done | JS: sensors 9/9 · Swift watch-only (device build) |
+| P1-1 timer leeway · P1-2/3/4 widget gate+debounce · P1-5 `@Observable` · P1-7/8 formatter/image cache | ⏳ not started | need a watch build loop |
+| P1-11 location accuracy/filter · P2 batch | ⏳ not started | — |
+
+**Design decisions taken:** BLE reconnect defaults to 5 attempts × 60s per
+attempt, both tunable per `bleConnect` (`maxReconnectAttempts: 0` disables).
+Background heart rate defaults to **stop on background**, opt-in via
+`startHeartRate(handler, { keepAliveInBackground: true })`.
+
 ## Prioritized roadmap
 
 Grouped by (impact × likelihood × fix cost). Each item is independently
