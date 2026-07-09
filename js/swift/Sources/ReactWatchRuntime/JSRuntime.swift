@@ -120,6 +120,11 @@ public final class JSRuntime {
     private static let bootLog = Logger(
         subsystem: "com.reactwatchos.runtime", category: "boot")
 
+    /// Default sink for JS `console.*` (a host may override `bridge.log`).
+    /// Same subsystem as boot logging; filter category `js` in Console.app.
+    private static let jsLog = Logger(
+        subsystem: "com.reactwatchos.runtime", category: "js")
+
     /// Logs a cold-start with the two phases split out and totalled, e.g.
     /// `boot bundle.js (184681 B): parse 12.0 ms + eval 19.3 ms = 31.3 ms total`.
     /// parse and eval scale with DIFFERENT things — parse with source SIZE, eval
@@ -476,7 +481,16 @@ public final class JSRuntime {
             self?.scheduleTimer(id: Int32(id), milliseconds: ms)
         }
         bridge.clearTimer = { [weak self] id in self?.cancelTimer(id: Int32(id)) }
+        #if canImport(os)
+        // console.* must never block the owning (main) queue in release:
+        // `print` takes the stdio lock and makes a synchronous write syscall
+        // per call, so a stray console.log on a render/event/timer path is an
+        // ongoing main-thread stall. os.Logger is non-blocking and filterable;
+        // Linux (no os) keeps print — the tests there read stdout.
+        bridge.log = { Self.jsLog.notice("\($0, privacy: .public)") }
+        #else
         bridge.log = { print("[js]", $0) }
+        #endif
 
         let host = JS_NewObject(context)
         // Every direct host function for this target is installed from the schema
