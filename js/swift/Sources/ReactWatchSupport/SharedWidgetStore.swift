@@ -13,13 +13,16 @@ public struct SharedWidgetStore: Sendable {
 
     public let appGroupId: String?
 
+    /// Resolved once at init: the computed-property version constructed a
+    /// UserDefaults per operation, and this store sits on the Storage bridge
+    /// hot path (every JS getItem/setItem) plus the OTA counters. UserDefaults
+    /// is documented thread-safe; `nonisolated(unsafe)` keeps the struct's
+    /// Sendable conformance (the class type itself isn't marked Sendable).
+    nonisolated(unsafe) private let defaults: UserDefaults?
+
     public init(appGroupId: String?) {
         self.appGroupId = appGroupId
-    }
-
-    private var defaults: UserDefaults? {
-        guard let appGroupId else { return nil }
-        return UserDefaults(suiteName: appGroupId)
+        defaults = appGroupId.flatMap { UserDefaults(suiteName: $0) }
     }
 
     public func save(_ payloadJson: String) {
