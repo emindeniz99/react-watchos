@@ -191,8 +191,10 @@ final class OTABootSequencerTests: XCTestCase {
         XCTAssertTrue(reason.contains("downgrade blocked"))
     }
 
-    func testStageAcceptsEqualVersionAndPersistsPinnedRecord() {
+    func testStageAcceptsEqualVersionAndPersistsRecordWithoutBytecodeUnderEnforcement() {
         counters.highWater = 2
+        // A blob left over from an earlier unsigned phase must not linger.
+        active.bytecode = Data("stale".utf8)
         let seq = makeSequencer()
         XCTAssertEqual(seq.stage(signedPayload(version: 2)), .accepted)
         let record = decodeActiveRecord()
@@ -200,9 +202,22 @@ final class OTABootSequencerTests: XCTestCase {
         XCTAssertEqual(record?.keyId, "k1")
         XCTAssertEqual(record?.version, 2)
         XCTAssertEqual(record?.signature, Self.goodSignatureB64)
-        // The record pins the exact compiled blob written next to it (OP-1).
+        // Under enforced keys nothing runs unsigned-hash bytecode (evalOTA and
+        // WidgetBundleChoice both refuse it), so staging skips the compile and
+        // the flash writes entirely and pins nothing.
+        XCTAssertNil(active.bytecode)
+        XCTAssertNil(record?.bytecodeHash)
+    }
+
+    func testStageDisabledPinsCompiledBytecode() {
+        // Off-enforcement (unsigned dev opt-in) the bytecode fast path is live:
+        // the record pins the exact compiled blob written next to it (OP-1).
+        let seq = makeSequencer(keyState: .disabled)
+        XCTAssertEqual(seq.stage(signedPayload(version: 2)), .accepted)
         XCTAssertEqual(active.bytecode, Data("qbc:app()".utf8))
-        XCTAssertEqual(record?.bytecodeHash, ContentHash.of(Data("qbc:app()".utf8)))
+        XCTAssertEqual(
+            decodeActiveRecord()?.bytecodeHash,
+            ContentHash.of(Data("qbc:app()".utf8)))
     }
 
     func testStageValidatorFailureRejectsBeforePersisting() {
@@ -217,8 +232,10 @@ final class OTABootSequencerTests: XCTestCase {
     }
 
     func testStageCompileFailureDropsStaleCacheAndPinsNothing() {
+        // .disabled so the cacheBytecode failure branch itself is exercised —
+        // under .enforced the compile is skipped before it could fail.
         active.bytecode = Data("stale".utf8)
-        let seq = makeSequencer(compile: { _ in nil })
+        let seq = makeSequencer(keyState: .disabled, compile: { _ in nil })
         XCTAssertEqual(seq.stage(signedPayload()), .accepted)
         XCTAssertNil(active.bytecode, "stale cache must not outlive its record")
         XCTAssertNil(decodeActiveRecord()?.bytecodeHash)

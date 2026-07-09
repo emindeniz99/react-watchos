@@ -1168,12 +1168,15 @@ final class WidgetBundleChoiceTests: XCTestCase {
 
     func testEnforcedRunsKnownGoodOnlyWhenSignatureVerifies() {
         // NF-35: with keys enforced, the App-Group known-good record must
-        // re-verify in the extension. Verified → run it...
+        // re-verify in the extension. Verified → run its SOURCE — never the
+        // bytecode, even on a hash match: the signature covers the source
+        // only, and `bytecodeHash` is an unsigned field an App-Group writer
+        // also controls (the same attack the app's evalOTA refuses).
         XCTAssertEqual(
             WidgetBundleChoice.decide(
                 knownGood: record("globalThis.x=1;"), bytecodeHashMatches: true,
                 keyState: .enforced, recordVerified: true),
-            .knownGoodBytecode)
+            .knownGoodSource)
         // ...unverified (attacker-overwritten record) → shipped, NOT the record.
         XCTAssertEqual(
             WidgetBundleChoice.decide(

@@ -279,8 +279,19 @@ public struct OTABootSequencer: Sendable {
             return .rejected("OTA update rejected: bundle failed to evaluate: \(error)")
         }
         // Compile the bytecode first so the record can pin the exact blob written
-        // (OP-1); a nil hash just means boot will parse the source.
-        let bytecodeHash = cacheBytecode(source: js)
+        // (OP-1); a nil hash just means boot will parse the source. NOT under
+        // enforced keys: neither the app boot (evalOTA) nor the widget
+        // (WidgetBundleChoice) will run unsigned-hash bytecode under
+        // enforcement, so compiling would be a wasted full parse plus flash
+        // writes per staged update for an artifact nothing runs. Clearing the
+        // cache keeps a blob from an earlier unsigned phase from lingering.
+        let bytecodeHash: String?
+        if config.keyState == .enforced {
+            active.removeBytecode()
+            bytecodeHash = nil
+        } else {
+            bytecodeHash = cacheBytecode(source: js)
+        }
         let record = OTARecord(
             js: js, keyId: keyId, version: version, signature: signature,
             bytecodeHash: bytecodeHash, expiresAt: expiresAt

@@ -43,6 +43,13 @@ public enum WidgetBundleChoice: Sendable, Equatable {
         switch keyState {
         case .enforced:
             guard recordVerified else { return .shipped }
+            // The Ed25519 signature covers the SOURCE; `bytecodeHash` is an
+            // unsigned record field an App-Group writer also controls. Trusting
+            // it here would let that writer pin malicious bytecode and have the
+            // widget run it despite a valid signature — the exact attack the
+            // app's evalOTA refuses under enforcement (NF-35). Enforced always
+            // runs the re-verified source.
+            return .knownGoodSource
         case .unconfigured, .misconfigured:
             return .shipped
         case .disabled:
