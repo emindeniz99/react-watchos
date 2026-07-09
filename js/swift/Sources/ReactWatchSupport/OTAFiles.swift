@@ -17,10 +17,16 @@ public enum OTAFiles {
     public static let knownGoodBytecode = "ota-bundle.good.qbc"
 
     /// The App Group container file for `name`, or nil when the group is
-    /// unavailable (missing entitlement / nil id).
+    /// unavailable (missing entitlement / nil id). App Group containers are a
+    /// Darwin concept — corelibs-foundation has no `containerURL`, so on Linux
+    /// (where only the pure logic is under test) this is always nil.
     public static func url(appGroupId: String, _ name: String) -> URL? {
+        #if canImport(Darwin)
         FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: appGroupId)?
             .appendingPathComponent(name)
+        #else
+        nil
+        #endif
     }
 }

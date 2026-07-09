@@ -31,11 +31,18 @@ public struct CoordinatedCounterStore: Sendable {
     /// `SharedWidgetStore`). Counters live in a `counters/` subdirectory so they
     /// never collide with other App Group files.
     public init(appGroupId: String?) {
+        // App Group containers are Darwin-only (no `containerURL` in
+        // corelibs-foundation); on Linux — where only the pure logic is under
+        // test via init(directory:) — sharing is simply disabled.
+        #if canImport(Darwin)
         directory = appGroupId.flatMap {
             FileManager.default
                 .containerURL(forSecurityApplicationGroupIdentifier: $0)?
                 .appendingPathComponent("counters", isDirectory: true)
         }
+        #else
+        directory = nil
+        #endif
     }
 
     /// Custom storage location (tests, or a consumer that wants its own dir).
