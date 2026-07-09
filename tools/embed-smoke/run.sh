@@ -61,3 +61,26 @@ if ! awk -v boot="$BOOT_MS" -v budget="$BOOT_BUDGET_MS" \
   exit 1
 fi
 echo "embed-smoke: boot ${BOOT_MS} ms within tripwire ${BOOT_BUDGET_MS} ms (dev-relative)"
+
+# Production boot path (.qbc): the shipped watch app boots BYTECODE, not
+# source, yet nothing above exercises JS_ReadObject + JS_EvalFunction — an
+# engine bump or eval-type mismatch would previously only surface on-device.
+# Compile with the same vendored engine (qjs-compile) and run the identical
+# smoke through the bytecode loader; gate on the interaction handling, which
+# proves the whole mount ran from bytecode. (~3x faster than the source
+# parse here — read ~1 ms vs parse ~30 ms — which is why the app ships it.)
+QBC=../../js/dist/bundle.qbc
+if ! (cd ../qjs-compile && sh run.sh >/dev/null); then
+  echo "embed-smoke: qjs-compile failed — bytecode gate cannot run" >&2
+  exit 1
+fi
+QBC_OUTPUT=$(./embed-host "$QBC" 2>&1)
+printf '%s\n' "$QBC_OUTPUT"
+case $QBC_OUTPUT in
+*'"handled":true'*) ;;
+*)
+  echo "embed-smoke: bytecode (.qbc) boot did not handle the interaction" >&2
+  exit 1
+  ;;
+esac
+echo "embed-smoke: bytecode (.qbc) production boot path verified"
