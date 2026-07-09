@@ -17,7 +17,7 @@ export {
   onBackgroundRefresh,
   scheduleBackgroundRefresh,
 } from "./background";
-export type { BleState, BleWriteOptions } from "./bluetooth";
+export type { BleConnectOptions, BleState, BleWriteOptions } from "./bluetooth";
 export {
   BLE_NOTIFY_EVENT,
   BLE_STATE_EVENT,

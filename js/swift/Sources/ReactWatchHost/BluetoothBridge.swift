@@ -39,6 +39,11 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     /// 15s real-time wait (see BluetoothBridgeTests).
     private let connectTimeout: TimeInterval
 
+    /// Per-attempt auto-reconnect scan window (P0-1): how long each reconnect
+    /// scan runs before that attempt is abandoned. Set from `bleConnect`
+    /// options; default 60s. The attempt-count cap lives in `BleSession`.
+    private var reconnectWindow: TimeInterval = 60
+
     init(connectTimeout: TimeInterval = 15) {
         self.connectTimeout = connectTimeout
         super.init()
@@ -85,6 +90,9 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         let characteristic: String?
         let value: String?
         let confirm: Bool?
+        // Optional per-connection auto-reconnect config (P0-1).
+        let maxReconnectAttempts: Int?
+        let reconnectWindowMs: Double?
     }
 
     /// connect / write / subscribe via invoke — each settles a JS promise on the
@@ -108,6 +116,11 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             // the stale one rather than leaving it hanging.
             if let stale = session.awaitConnect(id: id) {
                 reject(stale, "INVALID_REQUEST", "superseded by a newer bleConnect")
+            }
+            // Apply per-connection reconnect config before connecting (P0-1).
+            session.configureReconnect(maxAttempts: p?.maxReconnectAttempts)
+            if let windowMs = p?.reconnectWindowMs {
+                reconnectWindow = max(0, windowMs) / 1000
             }
             connect(serviceUUID: service)
             armConnectTimeout(id: id)
@@ -170,7 +183,44 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         peripheral = nil
         onState?("disconnected")
         failPendingOps(message)
-        if session.shouldAutoReconnect { startScan() }
+        attemptReconnect()
+    }
+
+    /// Begin (or continue) a BOUNDED auto-reconnect. If the attempt budget
+    /// allows, scan and arm a scan-window timeout for this attempt; when the
+    /// budget is exhausted, stop and stay disconnected so the radio can't
+    /// active-scan forever for a peripheral that never returns (P0-1). A no-op
+    /// when the consumer disconnected deliberately (budget check covers that).
+    private func attemptReconnect() {
+        guard session.beginReconnectAttempt() else {
+            central?.stopScan()
+            onState?("disconnected")
+            return
+        }
+        startScan()
+        armReconnectWindow(epoch: connectEpoch, attempt: session.reconnectAttempts)
+    }
+
+    /// Abandon this reconnect scan if it hasn't connected within the window,
+    /// then move to the next attempt (or terminal). Mirrors `armConnectTimeout`
+    /// — epoch-guarded so a stale window from a previous runtime can't fire.
+    private func armReconnectWindow(epoch: Int, attempt: Int) {
+        nonisolated(unsafe) let bridge = self
+        DispatchQueue.main.asyncAfter(deadline: .now() + reconnectWindow) {
+            bridge.handleReconnectWindowExpiry(epoch: epoch, attempt: attempt)
+        }
+    }
+
+    /// The reconnect-window firing, factored out for deterministic unit tests.
+    /// No-ops unless we're still scanning for THIS attempt: same epoch, nothing
+    /// connected since (peripheral == nil), the attempt count is unchanged, and
+    /// the consumer hasn't disconnected.
+    func handleReconnectWindowExpiry(epoch: Int, attempt: Int) {
+        guard connectEpoch == epoch, peripheral == nil,
+            session.reconnectAttempts == attempt, !session.userInitiatedDisconnect
+        else { return }
+        central?.stopScan()
+        attemptReconnect()
     }
 
     /// Reject this connect if it's still the pending one after the timeout (it
@@ -345,6 +395,9 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     func centralManager(
         _: CBCentralManager, didConnect peripheral: CBPeripheral
     ) {
+        // A successful connect clears the reconnect budget, so a later drop
+        // gets a fresh set of attempts rather than inheriting a spent count.
+        session.noteConnected()
         onState?("connected")
         // Resolve the bleConnect promise on the FIRST connect; a later
         // auto-reconnect finds nothing pending, so it never re-resolves.
@@ -361,9 +414,9 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         onState?("disconnected")
         // A drop mid-write/subscribe must settle those promises, not hang JS.
         failPendingOps("disconnected")
-        // Auto-reconnect on an unexpected drop (range/power); stay down if the
-        // consumer called bleDisconnect().
-        if session.shouldAutoReconnect { startScan() }
+        // Bounded auto-reconnect on an unexpected drop (range/power); stays down
+        // if the consumer called bleDisconnect() or the attempt budget is spent.
+        attemptReconnect()
     }
 
     func centralManager(

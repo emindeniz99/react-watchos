@@ -83,6 +83,25 @@ describe("BLE bridge", () => {
     ]);
   });
 
+  it("forwards auto-reconnect options only when set (0 preserved)", async () => {
+    const host = installMockHost();
+    await bleConnect("ABCD"); // defaults: no reconnect fields
+    await bleConnect("ABCD", {
+      maxReconnectAttempts: 3,
+      reconnectWindowMs: 15_000,
+    });
+    await bleConnect("ABCD", { maxReconnectAttempts: 0 }); // 0 disables reconnect
+
+    const connects = host.invoke.mock.calls
+      .filter((c) => c[1] === "bleConnect")
+      .map((c) => JSON.parse(c[2]));
+    expect(connects).toEqual([
+      { service: "ABCD" },
+      { service: "ABCD", maxReconnectAttempts: 3, reconnectWindowMs: 15_000 },
+      { service: "ABCD", maxReconnectAttempts: 0 },
+    ]);
+  });
+
   it("rejects (not hangs) without an invoke-capable host", async () => {
     // No host installed (afterEach cleared it) — the promise rejects with a
     // machine code rather than leaving JS awaiting forever.

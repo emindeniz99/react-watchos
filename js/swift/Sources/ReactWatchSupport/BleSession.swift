@@ -36,12 +36,49 @@ public struct BleSession: Sendable {
     /// auto-reconnect while a deliberate disconnect stays down.
     public private(set) var userInitiatedDisconnect = false
 
+    /// Bounded auto-reconnect budget (P0-1). Without a cap, a peripheral that
+    /// never re-advertises (out of range, powered off, off-wrist) leaves the
+    /// central active-scanning forever — a top-tier BLE drain. Both knobs are
+    /// per-connection, set from `bleConnect` options; the bridge owns the
+    /// per-attempt scan-window *timer*, this owns the pure attempt accounting.
+    /// `maxReconnectAttempts == 0` disables auto-reconnect entirely.
+    public private(set) var maxReconnectAttempts = 5
+    /// Reconnect scan attempts spent since the last successful connect.
+    public private(set) var reconnectAttempts = 0
+
     public init() {}
 
     /// User asked to connect — clear the deliberate-disconnect latch so a
-    /// later unexpected drop auto-reconnects.
+    /// later unexpected drop auto-reconnects, and start with a fresh budget.
     public mutating func beginConnect() {
         userInitiatedDisconnect = false
+        reconnectAttempts = 0
+    }
+
+    /// Apply per-connection reconnect config from `bleConnect` options. `nil`
+    /// leaves the current value; the count is clamped to `>= 0`.
+    public mutating func configureReconnect(maxAttempts: Int?) {
+        if let maxAttempts { maxReconnectAttempts = max(0, maxAttempts) }
+    }
+
+    /// Whether another auto-reconnect scan is allowed right now: not a user
+    /// disconnect, and still under the attempt budget.
+    public var canReconnect: Bool {
+        !userInitiatedDisconnect && reconnectAttempts < maxReconnectAttempts
+    }
+
+    /// Count one reconnect attempt. Returns whether it's permitted (still under
+    /// budget); `false` means the caller must stop scanning and go terminal.
+    public mutating func beginReconnectAttempt() -> Bool {
+        guard canReconnect else { return false }
+        reconnectAttempts += 1
+        return true
+    }
+
+    /// A successful connect clears the budget, so a later drop gets a fresh set
+    /// of attempts rather than inheriting the exhausted count.
+    public mutating func noteConnected() {
+        reconnectAttempts = 0
     }
 
     /// User asked to disconnect — latch it and forget what we wanted, so the

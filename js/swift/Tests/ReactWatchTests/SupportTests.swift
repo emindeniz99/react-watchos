@@ -549,6 +549,66 @@ final class BleSessionTests: XCTestCase {
         XCTAssertNil(s.takeWriteAck(characteristic: "CMD"))
         XCTAssertNil(s.takeSubscribeSettle(characteristic: "HR"))
     }
+
+    // P0-1: bounded auto-reconnect. Without a cap, a peripheral that never
+    // re-advertises leaves the central active-scanning forever. These pin the
+    // pure attempt accounting; the bridge owns the per-attempt scan-window timer.
+    func testReconnectBudgetExhaustsAfterDefaultFiveAttempts() {
+        var s = BleSession()
+        s.beginConnect()
+        for _ in 0..<5 { XCTAssertTrue(s.beginReconnectAttempt()) }
+        XCTAssertEqual(s.reconnectAttempts, 5)
+        // The sixth is denied → caller stops scanning and goes terminal.
+        XCTAssertFalse(s.beginReconnectAttempt())
+        XCTAssertFalse(s.canReconnect)
+    }
+
+    func testSuccessfulConnectRefreshesTheReconnectBudget() {
+        var s = BleSession()
+        s.beginConnect()
+        _ = s.beginReconnectAttempt()
+        _ = s.beginReconnectAttempt()
+        XCTAssertEqual(s.reconnectAttempts, 2)
+        // A successful connect clears the count so a later drop gets a full budget.
+        s.noteConnected()
+        XCTAssertEqual(s.reconnectAttempts, 0)
+        XCTAssertTrue(s.canReconnect)
+    }
+
+    func testConfigureReconnectSetsLimitAndZeroDisablesReconnect() {
+        var s = BleSession()
+        s.beginConnect()
+        s.configureReconnect(maxAttempts: 2)
+        XCTAssertTrue(s.beginReconnectAttempt())
+        XCTAssertTrue(s.beginReconnectAttempt())
+        XCTAssertFalse(s.beginReconnectAttempt())  // capped at 2
+
+        // 0 disables auto-reconnect entirely — not even the first attempt.
+        var off = BleSession()
+        off.beginConnect()
+        off.configureReconnect(maxAttempts: 0)
+        XCTAssertFalse(off.canReconnect)
+        XCTAssertFalse(off.beginReconnectAttempt())
+
+        // nil leaves the current limit untouched.
+        var keep = BleSession()
+        keep.configureReconnect(maxAttempts: 3)
+        keep.configureReconnect(maxAttempts: nil)
+        XCTAssertEqual(keep.maxReconnectAttempts, 3)
+    }
+
+    func testUserDisconnectAndFreshConnectResetTheBudget() {
+        var s = BleSession()
+        s.beginConnect()
+        _ = s.beginReconnectAttempt()
+        // A deliberate disconnect stops reconnect regardless of remaining budget.
+        s.endByUser()
+        XCTAssertFalse(s.canReconnect)
+        // A fresh connect re-arms it AND resets the spent count.
+        s.beginConnect()
+        XCTAssertEqual(s.reconnectAttempts, 0)
+        XCTAssertTrue(s.canReconnect)
+    }
 }
 
 // ARCH-01: the capability gate decides whether an OTA bundle may run on this

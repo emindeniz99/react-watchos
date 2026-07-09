@@ -21,10 +21,13 @@ import {
  *
  * The bridge auto-reconnects: an unexpected drop (range/power) re-scans and,
  * once reconnected, re-subscribes to the same characteristics — you'll see
- * `disconnected` -> `scanning` -> `connected` on `onBleState`. The original
- * `bleConnect` promise resolves only on the FIRST connect, not on auto-reconnects.
- * Calling `bleDisconnect()` stays disconnected (no auto-reconnect) and rejects
- * any in-flight connect/write/subscribe.
+ * `disconnected` -> `scanning` -> `connected` on `onBleState`. Reconnection is
+ * BOUNDED (default 5 attempts × 60s, tunable via `bleConnect` options): if the
+ * peripheral never returns, the bridge stops scanning and stays `disconnected`
+ * rather than draining the radio forever. The original `bleConnect` promise
+ * resolves only on the FIRST connect, not on auto-reconnects. Calling
+ * `bleDisconnect()` stays disconnected (no auto-reconnect) and rejects any
+ * in-flight connect/write/subscribe.
  */
 export const BLE_STATE_EVENT = "ble.state";
 export const BLE_NOTIFY_EVENT = "ble.notify";
@@ -36,14 +39,44 @@ function ble(op: string, payload: Record<string, unknown> = {}): void {
   getHost()?.ble?.(JSON.stringify({ op, ...payload }));
 }
 
+/** Options for {@link bleConnect}. */
+export interface BleConnectOptions {
+  /**
+   * Max auto-reconnect scan attempts after an unexpected drop before the bridge
+   * gives up and stays disconnected. `0` disables auto-reconnect. Default 5.
+   * Bounds the BLE radio so a peripheral that never re-advertises (out of range,
+   * powered off) can't leave the central active-scanning forever.
+   */
+  maxReconnectAttempts?: number;
+  /**
+   * How long (ms) each reconnect scan runs before that attempt is abandoned.
+   * Default 60000 (1 min). Worst-case total scan time ≈ attempts × window.
+   */
+  reconnectWindowMs?: number;
+}
+
 /**
  * Scan for and connect to the first peripheral advertising `serviceUUID`.
  * Resolves on the first successful connect; rejects on failure or after a
  * connect timeout (`UNAVAILABLE`). A second `bleConnect` before the first
  * settles rejects the first (`INVALID_REQUEST`).
+ *
+ * `options` tunes the bounded auto-reconnect (see {@link BleConnectOptions});
+ * omit for the defaults (5 attempts × 60s).
  */
-export function bleConnect(serviceUUID: string): Promise<void> {
-  return invoke("bleConnect", { service: serviceUUID });
+export function bleConnect(
+  serviceUUID: string,
+  options?: BleConnectOptions,
+): Promise<void> {
+  return invoke("bleConnect", {
+    service: serviceUUID,
+    ...(options?.maxReconnectAttempts !== undefined
+      ? { maxReconnectAttempts: options.maxReconnectAttempts }
+      : {}),
+    ...(options?.reconnectWindowMs !== undefined
+      ? { reconnectWindowMs: options.reconnectWindowMs }
+      : {}),
+  });
 }
 
 export function bleDisconnect(): void {
