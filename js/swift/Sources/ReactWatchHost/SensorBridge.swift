@@ -88,10 +88,13 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     }
 
     deinit {
-        // A discarded bridge must not leak the daemon-owned HKWorkoutSession
-        // (CMMotionManager/CLLocationManager stop on dealloc; the workout
-        // session does not).
-        stopAll()
+        // A discarded bridge must not leak the daemon-owned HKWorkoutSession —
+        // the ONE stream that outlives its manager (CMMotionManager and
+        // CLLocationManager stop on dealloc by themselves). Deliberately NOT
+        // stopAll(): `location` is a lazy var, and touching it here would
+        // instantiate a CLLocationManager mid-deinit and hand it a deallocating
+        // delegate.
+        endWorkoutSession()
     }
 
     // MARK: - Gyroscope / location
