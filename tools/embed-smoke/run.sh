@@ -13,8 +13,14 @@ cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o embed-host \
   embed-host.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
   "$VENDOR"/libunicode.c "$VENDOR"/dtoa.c -lm -lpthread
 # The [mem] diagnostic goes to stderr (the JSON result owns stdout) —
-# capture both so the gate can read it.
-OUTPUT=$(./embed-host "$BUNDLE" 2>&1)
+# capture both so the gate can read it. The `if !` keeps `set -e` from
+# killing the script AT the assignment on a non-zero exit, which would
+# swallow the very diagnostics that explain the failure.
+if ! OUTPUT=$(./embed-host "$BUNDLE" 2>&1); then
+  printf '%s\n' "$OUTPUT" >&2
+  echo "embed-smoke: embed-host failed on the source bundle" >&2
+  exit 1
+fi
 printf '%s\n' "$OUTPUT"
 
 # Memory budget gate (review §6.13): the demo bundle's QuickJS heap after a
@@ -74,7 +80,11 @@ if ! (cd ../qjs-compile && sh run.sh >/dev/null); then
   echo "embed-smoke: qjs-compile failed — bytecode gate cannot run" >&2
   exit 1
 fi
-QBC_OUTPUT=$(./embed-host "$QBC" 2>&1)
+if ! QBC_OUTPUT=$(./embed-host "$QBC" 2>&1); then
+  printf '%s\n' "$QBC_OUTPUT" >&2
+  echo "embed-smoke: embed-host failed on the bytecode bundle" >&2
+  exit 1
+fi
 printf '%s\n' "$QBC_OUTPUT"
 case $QBC_OUTPUT in
 *'"handled":true'*) ;;
