@@ -48,8 +48,8 @@ final class WireContractTests: XCTestCase {
         XCTAssertNotNil(findText(root, "Connected"), "Text didn't fold to props.text")
 
         let crown = try XCTUnwrap(find(root, "CrownRotation"))
-        XCTAssertEqual(crown.double("from"), 0)
-        XCTAssertEqual(crown.double("through"), 10)
+        XCTAssertEqual(crown.double("min"), 0)
+        XCTAssertEqual(crown.double("max"), 10)
         XCTAssertEqual(crown.double("value"), 5)
     }
 

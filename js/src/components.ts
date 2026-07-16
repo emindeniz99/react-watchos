@@ -355,8 +355,8 @@ export interface TabViewProps extends A11yProps {
 /** A draggable value slider (also Crown-adjustable when focused). */
 export interface SliderProps extends A11yProps, ModifierProps {
   value: number;
-  from?: number;
-  through?: number;
+  min?: number;
+  max?: number;
   step?: number;
   onChange?: (value: number) => void;
 }
@@ -364,8 +364,8 @@ export interface SliderProps extends A11yProps, ModifierProps {
 /** Numeric +/- stepper. */
 export interface StepperProps extends A11yProps, ModifierProps {
   value: number;
-  from?: number;
-  through?: number;
+  min?: number;
+  max?: number;
   step?: number;
   label?: string;
   onChange?: (value: number) => void;
@@ -449,9 +449,9 @@ export interface DatePickerProps extends A11yProps, ModifierProps {
 export interface CrownRotationProps extends A11yProps {
   value: number;
   /** Range lower bound (default 0). */
-  from?: number;
+  min?: number;
   /** Range upper bound (default 100). */
-  through?: number;
+  max?: number;
   /** Detent size (default 1). */
   step?: number;
   /** Crown haptic detents (default true). */

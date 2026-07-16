@@ -69,13 +69,7 @@ describe("swift contract fixtures", () => {
       <VStack spacing={8}>
         <TimerText since={1000} bold size={28} color="green" />
         <Toggle value={true} label="Live" onChange={() => {}} />
-        <CrownRotation
-          value={5}
-          from={0}
-          through={10}
-          step={1}
-          onChange={() => {}}
-        >
+        <CrownRotation value={5} min={0} max={10} step={1} onChange={() => {}}>
           <Text>5</Text>
         </CrownRotation>
         <Text>Connected</Text>
@@ -170,14 +164,8 @@ describe("swift contract fixtures", () => {
           <Text>tap</Text>
         </Button>
         <Toggle value={true} label="on" onChange={() => {}} />
-        <Slider
-          value={0.5}
-          from={0}
-          through={1}
-          step={0.1}
-          onChange={() => {}}
-        />
-        <Stepper value={3} from={0} through={9} onChange={() => {}} />
+        <Slider value={0.5} min={0} max={1} step={0.1} onChange={() => {}} />
+        <Stepper value={3} min={0} max={9} onChange={() => {}} />
         <Picker value={1} options={["a", "b"]} label="P" onChange={() => {}} />
         <DatePicker value={1_700_000_000_000} onChange={() => {}} />
         <TextField value="draft" placeholder="type" onChange={() => {}} />
@@ -186,7 +174,7 @@ describe("swift contract fixtures", () => {
           placeholder="passcode"
           onChange={() => {}}
         />
-        <CrownRotation value={5} from={0} through={10} onChange={() => {}}>
+        <CrownRotation value={5} min={0} max={10} onChange={() => {}}>
           <Text>5</Text>
         </CrownRotation>
         <TabView selection={1} onChange={() => {}}>

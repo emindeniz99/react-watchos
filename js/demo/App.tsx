@@ -660,8 +660,8 @@ function MovieRemoteScreen() {
       </HStack>
       <CrownRotation
         value={volume}
-        from={0}
-        through={100}
+        min={0}
+        max={100}
         accessibilityLabel="Volume"
         onChange={(v) => {
           setVolume(v);
@@ -760,8 +760,8 @@ function CrownScreen() {
   return (
     <CrownRotation
       value={volume}
-      from={0}
-      through={100}
+      min={0}
+      max={100}
       step={1}
       onChange={setVolume}
       accessibilityLabel="Volume"

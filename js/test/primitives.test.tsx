@@ -234,8 +234,8 @@ describe("input primitives", () => {
     const root = render(
       <CrownRotation
         value={5}
-        from={0}
-        through={10}
+        min={0}
+        max={10}
         step={1}
         haptic
         onChange={() => {}}
@@ -247,8 +247,8 @@ describe("input primitives", () => {
       type: "CrownRotation",
       props: {
         value: 5,
-        from: 0,
-        through: 10,
+        min: 0,
+        max: 10,
         step: 1,
         haptic: true,
         onChange: true,
@@ -280,18 +280,12 @@ describe("input primitives", () => {
     const host = new MemoryHost();
     const root = new WatchRoot(host);
     root.render(
-      <Slider
-        value={0.5}
-        from={0}
-        through={1}
-        step={0.1}
-        onChange={onChange}
-      />,
+      <Slider value={0.5} min={0} max={1} step={0.1} onChange={onChange} />,
     );
     const slider = host.lastCommit!.root!;
     expect(slider).toMatchObject({
       type: "Slider",
-      props: { value: 0.5, from: 0, through: 1, step: 0.1, onChange: true },
+      props: { value: 0.5, min: 0, max: 1, step: 0.1, onChange: true },
     });
     root.dispatchEvent({
       nodeId: slider.id,
@@ -305,8 +299,8 @@ describe("input primitives", () => {
     const root = render(
       <Stepper
         value={3}
-        from={0}
-        through={10}
+        min={0}
+        max={10}
         step={1}
         label="Count"
         onChange={() => {}}
@@ -316,13 +310,23 @@ describe("input primitives", () => {
       type: "Stepper",
       props: {
         value: 3,
-        from: 0,
-        through: 10,
+        min: 0,
+        max: 10,
         step: 1,
         label: "Count",
         onChange: true,
       },
     });
+  });
+
+  it("rejects the retired SwiftUI-flavored range names (from/through)", () => {
+    // One range vocabulary across Gauge/Slider/Stepper/CrownRotation: min/max.
+    // The old names must not silently cross the wire — the interpreter only
+    // reads min/max, so a `from` that serialized would be a dead prop.
+    // @ts-expect-error — `from` was renamed to `min`
+    const slider = render(<Slider value={0.5} from={0} onChange={() => {}} />);
+    expect(slider.props.min).toBeUndefined();
+    expect(slider.props.max).toBeUndefined();
   });
 
   it("serializes DatePicker and dispatches its change (epoch ms)", () => {

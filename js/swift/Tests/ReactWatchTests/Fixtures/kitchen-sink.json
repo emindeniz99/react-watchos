@@ -197,8 +197,8 @@
         "type": "Slider",
         "props": {
           "value": 0.5,
-          "from": 0,
-          "through": 1,
+          "min": 0,
+          "max": 1,
           "step": 0.1,
           "onChange": true
         },
@@ -209,8 +209,8 @@
         "type": "Stepper",
         "props": {
           "value": 3,
-          "from": 0,
-          "through": 9,
+          "min": 0,
+          "max": 9,
           "onChange": true
         },
         "children": []
@@ -263,8 +263,8 @@
         "type": "CrownRotation",
         "props": {
           "value": 5,
-          "from": 0,
-          "through": 10,
+          "min": 0,
+          "max": 10,
           "onChange": true
         },
         "children": [

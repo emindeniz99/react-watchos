@@ -34,8 +34,8 @@
         "type": "CrownRotation",
         "props": {
           "value": 5,
-          "from": 0,
-          "through": 10,
+          "min": 0,
+          "max": 10,
           "step": 1,
           "onChange": true
         },

@@ -108,26 +108,26 @@
   },
   "Slider": {
     "app": [
-      "from",
-      "step",
-      "through"
+      "max",
+      "min",
+      "step"
     ],
     "widget": [
-      "from",
-      "through",
+      "max",
+      "min",
       "value"
     ]
   },
   "Stepper": {
     "app": [
-      "from",
       "label",
-      "step",
-      "through"
+      "max",
+      "min",
+      "step"
     ],
     "widget": [
-      "from",
-      "through",
+      "max",
+      "min",
       "value"
     ]
   },

@@ -251,10 +251,10 @@ struct NodeView: View {
         case "CrownRotation":
             CrownRotationView(node: node)
         case "Slider":
-            // Normalize bounds: a reversed from/through would trap building the
+            // Normalize bounds: a reversed min/max would trap building the
             // ClosedRange and crash the whole render, not just this node.
-            let lo = node.double("from") ?? 0
-            let hi = node.double("through") ?? 1
+            let lo = node.double("min") ?? 0
+            let hi = node.double("max") ?? 1
             let range = lo <= hi ? lo...hi : hi...lo
             if let step = node.double("step") {
                 Slider(value: doubleBinding, in: range, step: step)
@@ -262,8 +262,8 @@ struct NodeView: View {
                 Slider(value: doubleBinding, in: range)
             }
         case "Stepper":
-            let lo = node.double("from") ?? 0
-            let hi = node.double("through") ?? 100
+            let lo = node.double("min") ?? 0
+            let hi = node.double("max") ?? 100
             Stepper(
                 value: doubleBinding,
                 in: lo <= hi ? lo...hi : hi...lo,
@@ -1089,9 +1089,9 @@ private struct CrownRotationView: View {
     @Environment(ReactWatchModel.self) private var model
 
     var body: some View {
-        // Normalize bounds so a reversed from/through can't trap the crown range.
-        let lo = node.double("from") ?? 0
-        let hi = node.double("through") ?? 100
+        // Normalize bounds so a reversed min/max can't trap the crown range.
+        let lo = node.double("min") ?? 0
+        let hi = node.double("max") ?? 100
         return VStack { ForEach(node.children) { NodeView(node: $0) } }
             .focusable()
             .digitalCrownRotation(

@@ -257,8 +257,8 @@ public struct WidgetNodeView: View {
             // Read-only in widgets: show the value as a fraction. Defaults mirror
             // the app interpreter — Slider spans 0...1, Stepper 0...100 — so the
             // implicit-range fraction reads the same in both.
-            let lo = node.double("from") ?? 0
-            let hi = node.double("through") ?? (node.type == "Stepper" ? 100 : 1)
+            let lo = node.double("min") ?? 0
+            let hi = node.double("max") ?? (node.type == "Stepper" ? 100 : 1)
             let v = node.double("value") ?? 0
             ProgressView(value: max(0, min(1, hi > lo ? (v - lo) / (hi - lo) : 0)))
         case "DatePicker":
