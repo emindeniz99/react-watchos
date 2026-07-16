@@ -57,7 +57,9 @@ export function installMockHost() {
       } else if (
         method === "bleConnect" ||
         method === "bleWrite" ||
-        method === "bleSubscribe"
+        method === "bleSubscribe" ||
+        method === "updateApplicationContext" ||
+        method === "transferUserInfo"
       ) {
         g.__resolveInvoke?.(id, ""); // success → resolves void
       } else {

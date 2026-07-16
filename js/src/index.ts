@@ -119,10 +119,16 @@ export {
 } from "./components";
 export type { MessageContract, TypedMessages } from "./connectivity";
 export {
+  APPLICATION_CONTEXT_EVENT,
   defineMessages,
+  onApplicationContext,
   onPhoneMessage,
+  onUserInfo,
   PHONE_MESSAGE_EVENT,
   sendToPhone,
+  transferUserInfo,
+  USER_INFO_EVENT,
+  updateApplicationContext,
 } from "./connectivity";
 export type { DeviceInfo } from "./device";
 export { enableWaterLock, getDeviceInfo } from "./device";

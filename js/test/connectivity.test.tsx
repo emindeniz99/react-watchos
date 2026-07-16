@@ -3,11 +3,15 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   defineMessages,
   MemoryHost,
+  onApplicationContext,
   onPhoneMessage,
+  onUserInfo,
   runApp,
   sendToPhone,
   Text,
+  transferUserInfo,
   unregisterAllNativeListeners,
+  updateApplicationContext,
 } from "../src/index";
 import { installMockHost } from "./helpers";
 
@@ -45,6 +49,43 @@ describe("WatchConnectivity bridge", () => {
 
     expect(handled).toBe(true);
     expect(host.lastCommit!.root!.props.text).toBe("synced");
+  });
+
+  it("background channels forward their payloads through invoke", async () => {
+    const host = installMockHost();
+    await updateApplicationContext({ theme: "dark", glasses: 3 });
+    await transferUserInfo({ workout: "run", seq: 7 });
+
+    const calls = host.invoke.mock.calls
+      .filter(
+        (c) =>
+          String(c[1]).startsWith("update") ||
+          String(c[1]).startsWith("transfer"),
+      )
+      .map((c) => [c[1], JSON.parse(c[2])]);
+    expect(calls).toEqual([
+      ["updateApplicationContext", { theme: "dark", glasses: 3 }],
+      ["transferUserInfo", { workout: "run", seq: 7 }],
+    ]);
+  });
+
+  it("routes each delivery channel to its own listener (ARCH-12 split)", () => {
+    // runApp installs __pushNativeEvent (the native push entry point).
+    runApp(<Text>x</Text>, new MemoryHost());
+    const seen: Record<string, unknown[]> = { msg: [], ctx: [], info: [] };
+    onPhoneMessage((p) => seen.msg.push(p?.v));
+    onApplicationContext((p) => seen.ctx.push(p?.v));
+    onUserInfo((p) => seen.info.push(p?.v));
+
+    const push = (globalThis as { __pushNativeEvent?: PushFn })
+      .__pushNativeEvent!;
+    push("watchConnectivity", JSON.stringify({ v: "m" }));
+    push("watchConnectivity.applicationContext", JSON.stringify({ v: "c" }));
+    push("watchConnectivity.userInfo", JSON.stringify({ v: "u" }));
+
+    // The channels carry different guarantees; a listener must never see a
+    // sibling channel's payload.
+    expect(seen).toEqual({ msg: ["m"], ctx: ["c"], info: ["u"] });
   });
 
   it("sendToPhone forwards a JSON message through invoke and resolves the reply", async () => {

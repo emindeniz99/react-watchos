@@ -187,8 +187,11 @@ final class ReactWatchModel {
         // discards a model), and side effects belong to the ONE retained
         // instance that actually starts.
         store.saveURLScheme(HostURLScheme.registered())
-        connectivity.onMessage = { [weak self] message in
-            self?.pushNativeEvent("watchConnectivity", payload: message)
+        // One wiring for all three inbound channels — PhoneConnectivity names
+        // the event by delivery semantics (message / applicationContext /
+        // userInfo, ARCH-12) and this just forwards it.
+        connectivity.onPush = { [weak self] event, payload in
+            self?.pushNativeEvent(event, payload: payload)
         }
         connectivity.activate()
         bluetooth.onState = { [weak self] state in
@@ -344,6 +347,10 @@ final class ReactWatchModel {
             requestNotificationPermission(id: id)
         case "sendToPhone":
             sendToPhone(id: id, payload: payload)
+        case "updateApplicationContext":
+            settleConnectivity(id: id, connectivity.updateApplicationContext(payload))
+        case "transferUserInfo":
+            settleConnectivity(id: id, connectivity.transferUserInfo(payload))
         case "scheduleNotification":
             scheduleNotification(id: id, payload: payload)
         case "aiAvailability":
@@ -571,6 +578,20 @@ final class ReactWatchModel {
                         id: id, resultJson: Self.jsonString(status))
                 }
             }
+        }
+    }
+
+    /// Settles a synchronous background-connectivity op: the two background
+    /// channels (updateApplicationContext / transferUserInfo) hand off or fail
+    /// immediately on the calling (main) thread — nil means handed to
+    /// WCSession, an error rejects with its invoke code.
+    private func settleConnectivity(id: Int, _ error: SendError?) {
+        if let error {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: error.code, message: error.message))
+        } else {
+            runtime?.resolveInvoke(id: id, resultJson: "")
         }
     }
 
