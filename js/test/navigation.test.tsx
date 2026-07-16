@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { afterEach, describe, expect, expectTypeOf, it } from "vitest";
 import {
   Button,
@@ -197,11 +197,11 @@ describe("useParams", () => {
     expect(findByText(host.lastCommit!.root!, "id=42")).toHaveLength(1);
   });
 
-  it("focuses only the best-scoring route when patterns overlap", () => {
+  it("focuses and mounts only the best-scoring route when patterns overlap", () => {
     // The native host renders only the highest-scoring match (RouteMatcher.best),
-    // so JS must focus only that one — else a losing overlapping route (here the
-    // optional catch-all) fires useFocusEffect + reports useIsFocused() on a
-    // screen the user never sees.
+    // so JS must mount and focus only that one — else a losing overlapping route
+    // (here the optional catch-all) would serialize, fire useFocusEffect, and
+    // report useIsFocused() for a screen the user never sees.
     function FocusProbe({ tag }: { tag: string }) {
       const focused = useIsFocused();
       return <Text>{`${tag}:${focused}`}</Text>;
@@ -220,7 +220,8 @@ describe("useParams", () => {
     );
     const root = host.lastCommit!.root!;
     expect(findByText(root, "concrete:true")).toHaveLength(1); // score 3 wins
-    expect(findByText(root, "catchall:false")).toHaveLength(1); // score 2 loses
+    // The loser isn't merely unfocused — it doesn't mount at all (ARCH-09).
+    expect(findByText(root, "catchall:false")).toHaveLength(0); // score 2 loses
   });
 });
 
@@ -247,13 +248,14 @@ describe("uncontrolled NavigationStack", () => {
       </NavigationStack>,
       host,
     );
-    // Before any native push the stack is at root; /list is neither focused nor
-    // carrying params.
-    expect(findByText(host.lastCommit!.root!, "list:none:false")).toHaveLength(
-      1,
-    );
+    // Before any native push the stack is at root; /list isn't mounted (lazy),
+    // so its probe can't render at all.
+    expect(findByText(host.lastCommit!.root!, "home")).toHaveLength(1);
+    expect(findByType(host.lastCommit!.root!, "Text")).toHaveLength(1);
 
-    // Native pushes /list/42 and reports it through pathChange.
+    // Native pushes /list/42 and reports it through pathChange; folding it
+    // into localPath mounts, focuses, and parameterizes the screen within the
+    // same dispatch.
     const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
     root.dispatchEvent({
       nodeId: stack.id,
@@ -286,43 +288,179 @@ describe("uncontrolled NavigationStack", () => {
   });
 });
 
-describe("NavigationRoute eager mounting", () => {
-  // Pins the contract that every route serializes its screen even while
-  // inactive. It is tempting to mount lazily (so a screen's launch effects
-  // wait for first open), but the native push is controlled and optimistic:
-  // RoutedNavigationStack pushes on `pendingPath` and runs its
-  // navigationDestination closure — reading the route's children out of the
-  // *current* tree — a bridge hop before JS commits the new active route. An
-  // inactive route therefore must already carry its subtree, or the push
-  // would render blank until the JS ack. If this test ever flips to lazy
-  // mounting, that's a native-visible behavior change and needs on-device
-  // validation, not a silent JS edit (see navigation.tsx NavigationRoute).
-  it("serializes inactive route children, not just the active route", () => {
+describe("NavigationRoute lazy mounting (ARCH-09)", () => {
+  // Pins the flipped contract: only the root and the active stack's winners
+  // serialize a subtree. This is safe — no blank push — because navigation is
+  // now a confirmed transaction, not an optimistic native push: the
+  // `pathChange` dispatch folds the path, the CX-010 forced flush commits the
+  // newly mounted destination synchronously, and native animates only after
+  // the returned `accepted` verdict. Flipping back to eager mounting would
+  // resurrect launch-time effects on every inactive screen.
+
+  /** A controlled stack whose handler FOLDS (accepts) every proposal. */
+  function FoldingStack({ children }: { children?: ReactNode }) {
+    const [path, setPath] = useState<string[]>([]);
+    return (
+      <NavigationStack path={path} onPathChange={setPath}>
+        {children}
+      </NavigationStack>
+    );
+  }
+
+  const routes = (
+    <>
+      <NavigationRoute path="/">
+        <VStack>
+          <Text>home</Text>
+        </VStack>
+      </NavigationRoute>
+      <NavigationRoute path="/details">
+        <Toggle label="detail-toggle" />
+      </NavigationRoute>
+    </>
+  );
+
+  it("serializes no inactive subtree at launch; a confirmed push mounts it in the same dispatch", () => {
     const host = new MemoryHost();
-    runApp(
-      <NavigationStack path={[]}>
-        <NavigationRoute path="/">
-          <VStack>
-            <Text>home</Text>
-          </VStack>
-        </NavigationRoute>
-        <NavigationRoute path="/details">
-          <Toggle label="detail-toggle" />
-        </NavigationRoute>
+    const root = runApp(<FoldingStack>{routes}</FoldingStack>, host);
+    const before = host.lastCommit!.root!;
+    // Root is active; its screen renders.
+    expect(findByText(before, "home")).toHaveLength(1);
+    // /details is inactive: its route node stays (path/title for the native
+    // resolver) but carries NO children — its effects can't run at launch.
+    expect(findByType(before, "NavigationRoute")).toHaveLength(2);
+    expect(findByType(before, "Toggle")).toHaveLength(0);
+
+    const result = root.dispatchEvent({
+      nodeId: findByType(before, "NavigationStack")[0].id,
+      event: "pathChange",
+      payload: { path: ["/details"] },
+      seq: 4,
+    });
+    expect(result).toEqual({ handled: true, accepted: true });
+    // The confirming commit — produced INSIDE the dispatch — already carries
+    // the pushed subtree and acks the seq, so native animates into content.
+    expect(findByType(host.lastCommit!.root!, "Toggle")).toHaveLength(1);
+    expect(host.lastCommit!.seq).toBe(4);
+  });
+
+  it("declines a proposal the controlled handler ignores and leaves the tree unchanged", () => {
+    const host = new MemoryHost();
+    const root = runApp(
+      <NavigationStack path={[]} onPathChange={() => {}}>
+        {routes}
       </NavigationStack>,
       host,
     );
-    const root = host.lastCommit!.root!;
-    // Root is active; its screen renders.
-    expect(findByText(root, "home")).toHaveLength(1);
-    // /details is inactive, yet its host node is present in the tree so the
-    // native push has a destination to render the instant the path changes.
-    expect(findByType(root, "Toggle")).toHaveLength(1);
+    const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
+    const result = root.dispatchEvent({
+      nodeId: stack.id,
+      event: "pathChange",
+      payload: { path: ["/details"] },
+      seq: 9,
+    });
+    expect(result).toEqual({
+      handled: true,
+      accepted: false,
+      reason: "declined",
+    });
+    // Nothing mounted…
+    expect(findByType(host.lastCommit!.root!, "Toggle")).toHaveLength(0);
+    // …but the seq is still acked (CX-010), so native rolls back, never hangs.
+    expect(host.lastCommit!.seq).toBe(9);
+  });
+
+  it("acks handlerless and unknown-node proposals so native can roll back (CX-010)", () => {
+    const host = new MemoryHost();
+    const root = runApp(<FoldingStack>{routes}</FoldingStack>, host);
+    // A node with no onPathChange handler (the home Text).
+    const text = findByText(host.lastCommit!.root!, "home")[0];
+    expect(
+      root.dispatchEvent({
+        nodeId: text.id,
+        event: "pathChange",
+        payload: { path: ["/details"] },
+        seq: 12,
+      }),
+    ).toEqual({ handled: false, accepted: false, reason: "declined" });
+    expect(host.lastCommit!.seq).toBe(12);
+
+    // An unknown/stale node id.
+    expect(
+      root.dispatchEvent({
+        nodeId: 9999,
+        event: "pathChange",
+        payload: { path: ["/details"] },
+        seq: 13,
+      }),
+    ).toEqual({ handled: false, accepted: false, reason: "declined" });
+    expect(host.lastCommit!.seq).toBe(13);
+  });
+
+  it("unmounts a popped screen's subtree", () => {
+    const host = new MemoryHost();
+    const root = runApp(<FoldingStack>{routes}</FoldingStack>, host);
+    const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
+    root.dispatchEvent({
+      nodeId: stack.id,
+      event: "pathChange",
+      payload: { path: ["/details"] },
+      seq: 1,
+    });
+    expect(findByType(host.lastCommit!.root!, "Toggle")).toHaveLength(1);
+
+    // Pop back to root: always accepted, and the subtree leaves the commit.
+    const result = root.dispatchEvent({
+      nodeId: stack.id,
+      event: "pathChange",
+      payload: { path: [] },
+      seq: 2,
+    });
+    expect(result).toEqual({ handled: true, accepted: true });
+    expect(findByType(host.lastCommit!.root!, "Toggle")).toHaveLength(0);
+    expect(findByText(host.lastCommit!.root!, "home")).toHaveLength(1);
+  });
+
+  it("keeps EVERY entry of a multi-screen stack serialized, not just the top", () => {
+    // Covered screens must keep their subtree: SwiftUI still holds their
+    // destination views, and popping back must land on content instantly.
+    const host = new MemoryHost();
+    const root = runApp(
+      <FoldingStack>
+        <NavigationRoute path="/">
+          <Text>home</Text>
+        </NavigationRoute>
+        <NavigationRoute path="/a">
+          <Text>screen-a</Text>
+        </NavigationRoute>
+        <NavigationRoute path="/b">
+          <Text>screen-b</Text>
+        </NavigationRoute>
+      </FoldingStack>,
+      host,
+    );
+    const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
+    root.dispatchEvent({
+      nodeId: stack.id,
+      event: "pathChange",
+      payload: { path: ["/a"] },
+      seq: 1,
+    });
+    root.dispatchEvent({
+      nodeId: stack.id,
+      event: "pathChange",
+      payload: { path: ["/a", "/b"] },
+      seq: 2,
+    });
+    const tree = host.lastCommit!.root!;
+    expect(findByText(tree, "screen-a")).toHaveLength(1); // covered, mounted
+    expect(findByText(tree, "screen-b")).toHaveLength(1); // top, focused
+    expect(findByText(tree, "home")).toHaveLength(1); // root always mounts
   });
 });
 
 describe("useFocusEffect", () => {
-  it("runs on focus and cleans up on blur and re-focus", () => {
+  it("runs on focus and cleans up while covered and on re-focus", () => {
     const log: string[] = [];
     function FxProbe() {
       useFocusEffect(
@@ -349,10 +487,14 @@ describe("useFocusEffect", () => {
     const root = runApp(tree(["/fx"]), host);
     // Mounted AND focused → the effect runs once.
     expect(log).toEqual(["focus"]);
-    // Navigate away: still mounted, now blurred → cleanup runs, effect doesn't.
-    root.render(tree(["/other"]));
+    // Push another screen ON TOP: the covered entry stays mounted (ARCH-09
+    // keeps every active-stack entry serialized) but loses focus → cleanup
+    // runs while a bare useEffect would keep going — the reason this hook
+    // still matters under lazy mounting.
+    root.render(tree(["/fx", "/other"]));
     expect(log).toEqual(["focus", "blur"]);
-    // Returning re-focuses and runs the effect again.
+    expect(findByText(host.lastCommit!.root!, "fx")).toHaveLength(1);
+    // Popping back re-focuses the same mounted screen.
     root.render(tree(["/fx"]));
     expect(log).toEqual(["focus", "blur", "focus"]);
   });

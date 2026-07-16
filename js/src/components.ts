@@ -270,7 +270,14 @@ export interface NavigationStackProps extends A11yProps {
    * routes are stable path strings such as ["/hydration"].
    */
   path?: string[];
-  /** Fired when native back/link gestures mutate the NavigationStack path. */
+  /**
+   * Fired when native back/link gestures propose a new stack path. In
+   * controlled mode, fold it into `path` SYNCHRONOUSLY — setState inside the
+   * handler is enough (the dispatch flushes it). Navigation is a confirmed
+   * transaction (ARCH-09): a proposal the handler doesn't fold reads as
+   * declined, and native won't navigate. Pops are notifications — native has
+   * already popped — but must be folded the same way.
+   */
   onPathChange?: (path: string[]) => void;
   children?: ReactNode;
 }

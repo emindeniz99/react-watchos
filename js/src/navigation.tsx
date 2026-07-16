@@ -196,10 +196,20 @@ const EMPTY_PARAMS: RouteParams = {};
 const ActiveRouteContext = createContext<string>("/");
 const RouteParamsContext = createContext<RouteParams>(EMPTY_PARAMS);
 const FocusContext = createContext<boolean>(false);
-/** The single winning `<NavigationRoute path>` for the active route (the same
- * one the native host renders), or null when none matches. Lets NavigationRoute
- * focus exclusively instead of every route whose pattern happens to match. */
-const WinningRouteContext = createContext<string | null>(null);
+
+/** The stack's winning `<NavigationRoute path>` patterns (ARCH-09). */
+interface StackWinners {
+  /** Patterns whose children must be mounted (and so serialized): the root's
+   * winner plus the winner for EVERY entry of the active path — a covered
+   * screen keeps its subtree, matching the native stack's held destinations. */
+  mounted: ReadonlySet<string>;
+  /** The single focused pattern — the winner for the TOP of the stack (the
+   * screen the native host actually shows), or null when nothing matches. */
+  focused: string | null;
+}
+
+/** null = no enclosing NavigationStack: render children, never focused. */
+const WinningRoutesContext = createContext<StackWinners | null>(null);
 
 /**
  * Param object inferred from a route template, matching parsePattern's bracket
@@ -278,10 +288,14 @@ export function useIsFocused(): boolean {
 /**
  * Runs `effect` when the enclosing screen gains focus and cleans up when it
  * blurs or unmounts — the watchOS analog of React Navigation's useFocusEffect.
- * Screens stay mounted across navigation (as in React Navigation), so a bare
- * useEffect with `[]` runs once at launch; route focus-scoped side effects
- * (BLE, sensor/listener subscriptions, polling) through this instead. Wrap
- * `effect` in useCallback so it only re-runs when focus actually changes.
+ * Routes mount lazily (ARCH-09): a screen enters the tree when its route joins
+ * the active stack, so a bare useEffect with `[]` now runs on first open, not
+ * at launch. Focus is still narrower than mount: every entry of a multi-screen
+ * stack stays mounted while covered (as in React Navigation), so a covered
+ * screen's useEffect keeps running where this hook cleans up on blur. Route
+ * focus-scoped side effects (BLE, sensor/listener subscriptions, polling)
+ * belong here. Wrap `effect` in useCallback so it only re-runs when focus
+ * actually changes.
  */
 export function useFocusEffect(effect: EffectCallback): void {
   const focused = useIsFocused();
@@ -295,40 +309,75 @@ const NavigationStackHost =
 const NavigationRouteHost =
   "NavigationRoute" as unknown as FC<NavigationRouteProps>;
 
-/** The single highest-scoring `<NavigationRoute path>` among `children` for the
- * active route — the JS mirror of Swift RouteMatcher.best / NodeView.routeNode,
- * which render only the best match. Ties go to the first declared (strict `>`).
- * Recurses fragments so it sees the same flattened child set the serializer
- * hands the native host. */
-function bestRoutePattern(children: ReactNode, active: string): string | null {
-  let bestPath: string | null = null;
-  let bestScore = Number.NEGATIVE_INFINITY;
+/** Every `<NavigationRoute path>` pattern among `children`, in declaration
+ * order. Recurses fragments so it sees the same flattened child set the
+ * serializer hands the native host. */
+function collectRoutePatterns(children: ReactNode): string[] {
+  const patterns: string[] = [];
   const visit = (nodes: ReactNode): void => {
     for (const child of Children.toArray(nodes)) {
       if (!isValidElement(child)) continue;
       if (child.type === NavigationRoute) {
-        const childPath = (child.props as NavigationRouteProps).path;
-        const m = matchRoute(childPath, active);
-        if (m && m.score > bestScore) {
-          bestScore = m.score;
-          bestPath = childPath;
-        }
+        patterns.push((child.props as NavigationRouteProps).path);
       } else if (child.type === Fragment) {
         visit((child.props as { children?: ReactNode }).children);
       }
     }
   };
   visit(children);
+  return patterns;
+}
+
+/** The single highest-scoring pattern for `route` — the JS mirror of Swift
+ * RouteMatcher.best / NodeView.routeNode, which render only the best match.
+ * Ties go to the first declared (strict `>`). */
+function bestOf(patterns: readonly string[], route: string): string | null {
+  let bestPath: string | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+  for (const pattern of patterns) {
+    const m = matchRoute(pattern, route);
+    if (m && m.score > bestScore) {
+      bestScore = m.score;
+      bestPath = pattern;
+    }
+  }
   return bestPath;
 }
 
 /**
+ * The winners for an active stack: the root's best pattern plus the best
+ * pattern for each pushed entry; `focused` is the top entry's (the root's for
+ * an empty path). Takes the "\n"-joined KEYS rather than the arrays so the
+ * caller's useMemo can depend on stable strings — route patterns and pushed
+ * paths are static literals that never contain a newline.
+ */
+function computeWinners(patternsKey: string, pathKey: string): StackWinners {
+  const patterns = patternsKey === "" ? [] : patternsKey.split("\n");
+  const entries = pathKey === "" ? [] : pathKey.split("\n");
+  const mounted = new Set<string>();
+  const rootWinner = bestOf(patterns, "/");
+  if (rootWinner !== null) mounted.add(rootWinner);
+  let focused = rootWinner;
+  for (const entry of entries) {
+    const winner = bestOf(patterns, normalizeRoute(entry));
+    if (winner !== null) mounted.add(winner);
+    focused = winner;
+  }
+  return { mounted, focused };
+}
+
+/**
  * Native push stack. Publishes the active route (top of the stack) so the
- * matching <NavigationRoute> can expose its params via useParams().
+ * matching <NavigationRoute> can expose its params via useParams(), and the
+ * per-entry winners so only the active stack's screens mount (ARCH-09).
  *
  * Two modes, mirroring the native RoutedNavigationStack (NodeView.swift):
  *  - **Controlled** — you pass `path`; JS is the source of truth and the host's
  *    `pathChange` events flow to your `onPathChange` for you to fold back in.
+ *    Fold SYNCHRONOUSLY (a plain setState in the handler is enough — the
+ *    dispatch flushes it): navigation is a confirmed transaction, and a
+ *    proposal your handler didn't fold reads as declined, so native won't
+ *    navigate.
  *  - **Uncontrolled** — you pass neither; the native stack drives itself
  *    (NavigationLink pushes, swipe-back) and reports each change via
  *    `pathChange`. We track that here so `active` follows the real stack instead
@@ -343,9 +392,16 @@ export function NavigationStack(props: NavigationStackProps) {
   const top =
     activePath.length > 0 ? activePath[activePath.length - 1] : undefined;
   const active = top ? normalizeRoute(top) : "/";
-  const winner = useMemo(
-    () => bestRoutePattern(props.children, active),
-    [props.children, active],
+  // Memoize on string KEYS, not the arrays: `props.children` is a fresh array
+  // every parent render, so an identity-keyed memo would mint a fresh winners
+  // object each time and re-render every NavigationRoute for nothing. With
+  // stable keys the context value keeps its identity until a pattern or the
+  // path actually changes.
+  const patternsKey = collectRoutePatterns(props.children).join("\n");
+  const pathKey = activePath.join("\n");
+  const winners = useMemo(
+    () => computeWinners(patternsKey, pathKey),
+    [patternsKey, pathKey],
   );
   const handlePathChange = useCallback(
     (next: string[]) => {
@@ -356,9 +412,9 @@ export function NavigationStack(props: NavigationStackProps) {
   );
   return (
     <ActiveRouteContext.Provider value={active}>
-      <WinningRouteContext.Provider value={winner}>
+      <WinningRoutesContext.Provider value={winners}>
         <NavigationStackHost {...props} onPathChange={handlePathChange} />
-      </WinningRouteContext.Provider>
+      </WinningRoutesContext.Provider>
     </ActiveRouteContext.Provider>
   );
 }
@@ -368,36 +424,41 @@ export function NavigationStack(props: NavigationStackProps) {
  * (`/list/[id]`, `/shop/[name]/[[...rest]]`); when this route is active its
  * params are available to descendants through useParams().
  *
- * The screen child mounts eagerly — every route in the stack is serialized at
- * all times, even when inactive — so a screen's effects (e.g. a BLE connect)
- * run at launch, not on first open. This is deliberate, not an oversight:
- * NavigationStack is a *controlled* native push (NodeView.swift), and a link
- * tap or swipe-back drives the push optimistically (RoutedNavigationStack's
- * `pendingPath`) before the `pathChange` event round-trips to JS. SwiftUI runs
- * its `navigationDestination` closure for the new route — reading this node's
- * children straight out of the current serialized tree — in that same frame,
- * one bridge hop *before* JS re-renders with the new active route. Gating the
- * children on `active` would therefore hand the destination an empty subtree at
- * push time, flashing a blank screen until the JS ack lands. Lazy mounting
- * needs a native change (defer the destination render until JS confirms the
- * path, or carry the pushed subtree across the bridge) and on-device
- * validation; it can't be done safely in JS alone.
+ * The screen child mounts LAZILY (ARCH-09): children render — and serialize
+ * across the bridge — only while this route is the root's winner or one of
+ * the active stack's, so an inactive screen's effects (e.g. a BLE connect)
+ * wait for first open instead of running at launch, and the committed tree
+ * carries only what's on the stack. This is safe because navigation is a
+ * confirmed transaction, not an optimistic push: native proposes a path via
+ * `pathChange`, this dispatch folds it and commits the newly mounted subtree
+ * synchronously (the CX-010 forced flush), and only the returned `accepted`
+ * verdict lets native animate — by which time the destination's children are
+ * already in the tree it holds one decode-hop later (NodeView.swift shows a
+ * neutral placeholder for exactly that beat). Every entry of a multi-screen
+ * stack stays mounted while covered — only the TOP is focused — but a popped
+ * screen unmounts and its state is dropped; persist what must survive
+ * (React Navigation behaves the same way).
  */
 export function NavigationRoute(props: NavigationRouteProps) {
   const { path } = props;
   const active = useContext(ActiveRouteContext);
-  const winner = useContext(WinningRouteContext);
+  const winners = useContext(WinningRoutesContext);
   const match = useMemo(() => matchRoute(path, active), [path, active]);
   // Focus (and expose params for) ONLY the single best-scoring route — the one
   // the native host actually renders — not every route whose pattern matches.
   // Otherwise an overlapping route (e.g. a catch-all beside a concrete path)
   // would fire useFocusEffect + report useIsFocused() on a screen never shown.
-  const focused = match !== null && path === winner;
+  const focused = match !== null && path === (winners?.focused ?? null);
   const params = focused ? (match?.params ?? EMPTY_PARAMS) : EMPTY_PARAMS;
+  // Outside any stack (winners === null) keep rendering children — there is
+  // no path to gate on and hiding them would just lose content.
+  const mounted = winners === null || winners.mounted.has(path);
   return (
     <FocusContext.Provider value={focused}>
       <RouteParamsContext.Provider value={params}>
-        <NavigationRouteHost {...props} />
+        <NavigationRouteHost {...props}>
+          {mounted ? props.children : null}
+        </NavigationRouteHost>
       </RouteParamsContext.Provider>
     </FocusContext.Provider>
   );
