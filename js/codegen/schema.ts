@@ -438,6 +438,20 @@ export const hostMethods: HostMethod[] = [
     via: "invoke",
   },
   {
+    name: "updateApplicationContext",
+    targets: ["watch"],
+    feature: "connectivity",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "transferUserInfo",
+    targets: ["watch"],
+    feature: "connectivity",
+    since: 1,
+    via: "invoke",
+  },
+  {
     name: "fetch",
     targets: ["watch"],
     feature: "network",
