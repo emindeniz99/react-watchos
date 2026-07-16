@@ -112,7 +112,9 @@ export function startHeartRate(
   return startSensor(
     "heartRate",
     handler,
-    options?.keepAliveInBackground ? { keepAliveInBackground: true } : undefined,
+    options?.keepAliveInBackground
+      ? { keepAliveInBackground: true }
+      : undefined,
   );
 }
 
