@@ -1606,3 +1606,103 @@ final class DiagnosticsTests: XCTestCase {
                 userAction: "none", details: "over budget"))
     }
 }
+
+/// ARCH-13 operating budgets: breaches WARN (recoverable `budget`
+/// diagnostics), never reject a commit, and hysteresis makes each crossing
+/// warn exactly once — a tree that STAYS big must not spam a diagnostic per
+/// commit at sensor-driven commit rates.
+final class BudgetPolicyTests: XCTestCase {
+    func testCrossingEmitsOnceUntilItReArms() {
+        var policy = BudgetPolicy(maxCommitJSONBytes: 100)
+        let first = policy.check(
+            commitJSONBytes: 150, sessionId: "s", target: .watch)
+        XCTAssertEqual(first.map(\.code), ["budget.maxCommitJSONBytes"])
+        XCTAssertEqual(first.first?.severity, .recoverable)
+        XCTAssertEqual(first.first?.subsystem, .budget)
+        // Still over: no new diagnostic (once per crossing).
+        XCTAssertTrue(
+            policy.check(commitJSONBytes: 200, sessionId: "s", target: .watch)
+                .isEmpty)
+        // Back under: re-arms silently.
+        XCTAssertTrue(
+            policy.check(commitJSONBytes: 50, sessionId: "s", target: .watch)
+                .isEmpty)
+        // Re-crossing warns again.
+        XCTAssertEqual(
+            policy.check(commitJSONBytes: 150, sessionId: "s", target: .watch)
+                .map(\.code),
+            ["budget.maxCommitJSONBytes"])
+    }
+
+    func testEachBudgetTracksItsOwnHysteresis() {
+        var policy = BudgetPolicy(maxNodes: 10, maxCommitJSONBytes: 100)
+        // Both cross in one check → two diagnostics.
+        XCTAssertEqual(
+            policy.check(
+                nodeCount: 20, commitJSONBytes: 150, sessionId: "s",
+                target: .watch
+            ).map(\.code),
+            ["budget.maxNodes", "budget.maxCommitJSONBytes"])
+        // Nodes recover, bytes stay over → nothing new; then only nodes
+        // re-cross.
+        XCTAssertTrue(
+            policy.check(
+                nodeCount: 5, commitJSONBytes: 150, sessionId: "s",
+                target: .watch
+            ).isEmpty)
+        XCTAssertEqual(
+            policy.check(
+                nodeCount: 20, commitJSONBytes: 150, sessionId: "s",
+                target: .watch
+            ).map(\.code),
+            ["budget.maxNodes"])
+    }
+
+    func testNilMeasurementLeavesHysteresisUntouched() {
+        var policy = BudgetPolicy(maxCommitJSONBytes: 100)
+        XCTAssertEqual(
+            policy.check(commitJSONBytes: 150, sessionId: "s", target: .watch)
+                .count,
+            1)
+        // A check that doesn't measure bytes (e.g. a widget render check)
+        // must not re-arm the bytes breach.
+        XCTAssertTrue(
+            policy.check(widgetRenderMs: 1, sessionId: "s", target: .watch)
+                .isEmpty)
+        XCTAssertTrue(
+            policy.check(commitJSONBytes: 150, sessionId: "s", target: .watch)
+                .isEmpty)
+    }
+
+    func testWidgetRenderBudgetStampsContext() throws {
+        var policy = BudgetPolicy(maxWidgetRenderMs: 500)
+        let crossed = policy.check(
+            widgetRenderMs: 750.5, sessionId: "widget-session",
+            releaseId: "abc", target: .widget)
+        let diagnostic = try XCTUnwrap(crossed.first)
+        XCTAssertEqual(diagnostic.code, "budget.maxWidgetRenderMs")
+        XCTAssertEqual(diagnostic.sessionId, "widget-session")
+        XCTAssertEqual(diagnostic.releaseId, "abc")
+        XCTAssertEqual(diagnostic.target, .widget)
+        XCTAssertTrue(
+            diagnostic.details?.contains("750.5 ms") == true,
+            diagnostic.details ?? "nil")
+    }
+
+    func testDefaultsMatchTheDocumentedNumbers() {
+        // docs/budgets-and-limits.md + js/src/budgets.ts mirror these.
+        let policy = BudgetPolicy()
+        XCTAssertEqual(policy.maxNodes, 1000)
+        XCTAssertEqual(policy.maxCommitJSONBytes, 262_144)
+        XCTAssertEqual(policy.maxWidgetRenderMs, 500)
+    }
+
+    func testExactLimitIsNotABreach() {
+        var policy = BudgetPolicy(maxNodes: 10, maxCommitJSONBytes: 100)
+        XCTAssertTrue(
+            policy.check(
+                nodeCount: 10, commitJSONBytes: 100, sessionId: "s",
+                target: .watch
+            ).isEmpty)
+    }
+}
