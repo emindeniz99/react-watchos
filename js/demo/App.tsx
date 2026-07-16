@@ -227,8 +227,9 @@ function schedulePublish() {
 }
 function HydrationScreen() {
   // Lazy initializer: the glasses getter is a bridge hop into a coordinated
-  // file read, and a non-lazy useState re-runs it on EVERY render (screens
-  // stay mounted across navigation) just to throw the value away.
+  // file read, and a non-lazy useState re-runs it on EVERY render (the screen
+  // keeps re-rendering while it's anywhere on the active stack) just to throw
+  // the value away.
   const [glasses, setGlasses] = useState(() => hydrationStore.glasses);
   // Atomic add (ARCH-05): the widget extension may increment the same counter,
   // so we add a delta rather than set an absolute value (which would lose the
@@ -444,8 +445,8 @@ function MapSearchScreen() {
 
   // A single fix on focus: enough to prompt for permission and bias the search.
   // Not a stream — the live dot + follow are native, so the watch moving costs
-  // nothing here. Focus (not mount) because screens stay mounted across
-  // navigation (see NavigationRoute in navigation.tsx).
+  // nothing here. Focus (not mount) because a covered screen stays mounted
+  // while deeper routes sit on top of it (see useFocusEffect in navigation.tsx).
   useFocusEffect(
     useCallback(() => {
       getCurrentLocation()
@@ -612,9 +613,9 @@ function MovieRemoteScreen() {
   const ble = (p: Promise<unknown>) =>
     p.catch((e: { code?: string }) => setState(`ble: ${e?.code ?? "error"}`));
   const sendCmd = (c: string, v: string) => ble(bleWrite(c, v));
-  // Focus-gated, not a bare useEffect: screens stay mounted across navigation,
-  // so connect only while this screen is open and disconnect on leave — never
-  // at app launch. See useFocusEffect in navigation.tsx.
+  // Focus-gated, not a bare useEffect: a covered screen stays mounted while
+  // deeper routes sit on top, so connect only while this screen is frontmost
+  // and disconnect on blur. See useFocusEffect in navigation.tsx.
   useFocusEffect(
     useCallback(() => {
       const offState = onBleState((p) => setState(String(p?.state ?? "")));
