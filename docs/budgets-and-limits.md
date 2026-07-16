@@ -29,10 +29,20 @@ raise it**. Two framings to read the table with:
 | 9 | **fetch body cap** | 5 MiB | [`FetchPlan.swift:68`](../js/swift/Sources/ReactWatchSupport/FetchPlan.swift#L68) `defaultMaxBodyBytes` | lib-internal (native-side default) | none — a **watch-network/memory guard** | raise for a specific large-download need; a huge body OOMs the app |
 | 10 | **fetch timeout** | 120 s | [`fetch.ts:145`](../js/src/fetch.ts#L145) `DEFAULT_FETCH_TIMEOUT_MS` | **consumer** — per-request `{ timeout }`, `timeout: Infinity` opts out | none | the default is only the last-resort watchdog; apps set their own |
 | 11 | **audio data cap** | 10 MB | [`CapabilityBridges.swift:197`](../js/swift/Sources/ReactWatchHost/CapabilityBridges.swift#L197) `maxAudioBytes` | lib-internal | none — a **memory guard** | raise for longer clips; trades against app RSS |
+| 12 | **commit tree node budget** | 1000 nodes | [`js/src/budgets.ts`](../js/src/budgets.ts) `BUDGETS.maxNodes` (JS-side check; mirrored in [`BudgetPolicy.swift`](../js/swift/Sources/ReactWatchSupport/BudgetPolicy.swift)) | lib-internal (ARCH-13 tripwire) | none — a serialize/decode/SwiftUI-diff **cost tripwire** | it's a WARN, not a ceiling: crossing emits one `budget` diagnostic per crossing (hysteresis) and the commit still renders. A watch screen showing >1000 nodes is a design smell long before it's a crash |
+| 13 | **commit JSON size budget** | 256 KB | `budgets.ts` `BUDGETS.maxCommitJSONBytes` (JS checks `json.length` post-stringify; native re-checks true UTF-8 bytes on the decode path via `BudgetPolicy`) | lib-internal (ARCH-13 tripwire) | none — bounds per-commit stringify/bridge/decode cost, ~10–20×/sec under sensors | WARN with hysteresis, commit still renders. Sits far under the OTA cap (#7); a payload here is per-commit, not per-install |
+| 14 | **widget render time budget** | 500 ms | `budgets.ts` `BUDGETS.maxWidgetRenderMs` (enforced natively in [`WidgetIntentRuntime.swift`](../js/swift/Sources/ReactWatchWidget/WidgetIntentRuntime.swift) via `BudgetPolicy`) | lib-internal (ARCH-13 tripwire) | the **WidgetKit provider watchdog** (unpublished, seconds-scale) is the real wall | WARN to the Logger sink per breach — the early signal before the watchdog kills the extension silently. Tune against on-device timings once measured |
 
 Only **#10 (fetch timeout)** is a real consumer knob today. Everything else is a
 lib-internal guardrail; a consumer who genuinely needs a different value forks or
 files an issue (and #8 is the obvious next candidate to promote to a knob).
+
+#12–14 are the **ARCH-13 operating budgets**: breaches WARN — a recoverable
+`budget`-subsystem diagnostic in the always-on ring (+ `console.warn` JS-side)
+with once-per-crossing hysteresis — and never reject the commit (rejecting
+would desync `ackedSeq`/optimistic state, CX-010). The numbers live in
+`js/src/budgets.ts` (JS) and `BudgetPolicy.swift` defaults (native); change
+them together, and update this table.
 
 ## JS bundle size — what it actually costs
 
