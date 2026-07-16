@@ -723,13 +723,37 @@ private struct RoutedNavigationStack: View {
             )
             .navigationTitle(rootTitle)
             .navigationDestination(for: String.self) { route in
-                if let destination = routeNode(route) {
-                    NavigationRouteDestination(node: destination)
-                } else {
-                    MissingNavigationRoute(route: route)
-                }
+                destination(for: route)
             }
         }
+    }
+
+    /// Resolves a pushed route to its screen. Routes mount lazily (ARCH-09):
+    /// JS serializes a destination's subtree only once the path is confirmed,
+    /// so during the one-hop window where the accepted path is held
+    /// optimistically but the confirming commit is still crossing the decode
+    /// queue, the subtree isn't in `root` yet — show a neutral placeholder for
+    /// that beat, not the red authoring-error view. Once the commit lands this
+    /// closure re-evaluates with the real children. MissingNavigationRoute is
+    /// reserved for a CONFIRMED route with no matching NavigationRoute — a
+    /// genuine authoring error.
+    @ViewBuilder private func destination(for route: String) -> some View {
+        if let destination = routeNode(route), !destination.children.isEmpty {
+            NavigationRouteDestination(node: destination)
+        } else if inFlight(route) {
+            ProgressView()
+        } else if let destination = routeNode(route) {
+            // Committed and confirmed but authored empty — render it as-is.
+            NavigationRouteDestination(node: destination)
+        } else {
+            MissingNavigationRoute(route: route)
+        }
+    }
+
+    /// Whether `route` is part of a path that is accepted but not yet
+    /// committed (held in the OptimisticStore until the seq-ack).
+    private func inFlight(_ route: String) -> Bool {
+        model.optimisticStringArray(node.id)?.contains(normalized(route)) == true
     }
 
     private var controlledPath: [String]? {
@@ -740,35 +764,54 @@ private struct RoutedNavigationStack: View {
     private var pathBinding: Binding<[String]> {
         Binding(
             get: {
-                // Controlled stacks hold the pushed path in the OptimisticStore
+                // An ACCEPTED in-flight path is held in the OptimisticStore
                 // until React acks the dispatch — the same release model every
-                // other controlled input uses. The old @State pendingPath was
-                // released only by a path-PROP change, so a handler that
-                // DECLINED the navigation (kept its state) left native showing
-                // the pushed screen forever, diverged from React.
+                // other controlled input uses. A declined push stores nothing,
+                // so this getter keeps returning the committed path and the
+                // stack never animates the refused route.
                 model.optimisticStringArray(node.id)
                     ?? controlledPath
                     ?? localPath
             },
             set: { newPath in
                 let path = normalized(newPath)
-                // Uncontrolled stacks own their state in localPath. Either way,
-                // report the change to JS so its NavigationStack tracks the
-                // active route (useParams / useIsFocused) — an uncontrolled
-                // stack would otherwise leave JS pinned at "/" on every push.
-                if controlledPath != nil {
-                    model.dispatchOptimistic(
-                        nodeId: node.id,
-                        value: .array(path.map(JSONValue.string)),
-                        payload: ["path": path],
-                        event: "pathChange"
-                    )
-                } else {
+                let current =
+                    model.optimisticStringArray(node.id)
+                    ?? controlledPath
+                    ?? localPath
+                // Pops are always-accepted notifications: SwiftUI's back
+                // gesture/button already completed natively, so refusing one
+                // would fight the framework — dispatch, ignore the verdict,
+                // apply (the guaranteed seq-ack still releases the hold).
+                if path.count < current.count {
+                    if controlledPath != nil {
+                        model.dispatchOptimistic(
+                            nodeId: node.id,
+                            value: .array(path.map(JSONValue.string)),
+                            payload: ["path": path],
+                            event: "pathChange"
+                        )
+                    } else {
+                        localPath = path
+                        model.dispatch(
+                            nodeId: node.id, event: "pathChange",
+                            payload: ["path": path]
+                        )
+                    }
+                    return
+                }
+                // Pushes/replaces are a request/confirm transaction (ARCH-09):
+                // JS synchronously accepts — its handler folded the path, and
+                // the commit carrying the now-mounted destination subtree is
+                // already in flight — or declines. dispatchNavigation stores
+                // the optimistic hold only on accept; either way JS tracks the
+                // proposal (useParams / useIsFocused follow an uncontrolled
+                // stack's pushes — JS would otherwise stay pinned at "/").
+                let result = model.dispatchNavigation(nodeId: node.id, path: path)
+                if controlledPath == nil, result.accepted {
+                    // Uncontrolled stacks own their state; a thrown handler
+                    // (no verdict -> rollback) must not move localPath either.
                     localPath = path
-                    model.dispatch(
-                        nodeId: node.id, event: "pathChange",
-                        payload: ["path": path]
-                    )
                 }
             }
         )

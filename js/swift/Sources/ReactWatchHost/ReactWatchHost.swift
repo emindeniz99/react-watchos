@@ -1193,6 +1193,33 @@ final class ReactWatchModel {
         optimistic.set(nodeId: nodeId, seq: seq, value: value)
     }
 
+    /// The ARCH-09 navigation transaction: proposes `path` to JS as a seq'd
+    /// `pathChange` and synchronously returns the structured verdict. On
+    /// accept, the path is held optimistically (same release model as
+    /// dispatchOptimistic: the guaranteed seq-ack — which can't land before
+    /// this returns, the commit crosses the decode queue first — drops it once
+    /// the confirming tree is in). On decline, or no verdict at all (missing
+    /// handler, thrown JS error, no runtime — parse maps those to rollback),
+    /// nothing is stored, so the stack binding keeps reading the committed
+    /// path and native never animates the refused push.
+    @discardableResult
+    func dispatchNavigation(nodeId: Int, path: [String]) -> DispatchResult {
+        let seq = nextSeq
+        nextSeq += 1
+        let payloadJson = (try? JSONEncoder().encode(["path": path]))
+            .flatMap { String(data: $0, encoding: .utf8) }
+        let result = DispatchResult.parse(
+            runtime?.dispatchEventReturning(
+                nodeId: nodeId, event: "pathChange",
+                payloadJson: payloadJson, seq: seq))
+        if result.accepted {
+            optimistic.set(
+                nodeId: nodeId, seq: seq,
+                value: .array(path.map(JSONValue.string)))
+        }
+        return result
+    }
+
     func optimisticBool(_ nodeId: Int) -> Bool? {
         optimistic.bool(nodeId)
     }
