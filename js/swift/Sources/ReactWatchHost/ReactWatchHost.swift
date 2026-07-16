@@ -90,6 +90,13 @@ final class ReactWatchModel {
     /// manufacture a "global … is not a function" js error — and no listener
     /// could have registered yet anyway.
     @ObservationIgnored private var jsReady = false
+    /// Operating budgets (ARCH-13): the native re-check of the commit payload
+    /// size, done where the JSON is already in hand (the decode path). WARN
+    /// only — a breach emits one recoverable `budget` diagnostic per crossing
+    /// (BudgetPolicy's hysteresis) and the commit still renders; rejecting
+    /// would desync ackedSeq/optimistic (CX-010). The node-count check lives
+    /// JS-side (js/src/budgets.ts), where the instance map already knows it.
+    @ObservationIgnored private var budgets = BudgetPolicy()
     /// markHealthy runs once per boot (see the commit handler) — after the
     /// first healthy commit it's a no-op that still cost a UserDefaults read
     /// per commit.
@@ -1010,11 +1017,23 @@ final class ReactWatchModel {
             // that was missing the guard every other one has.
             let gen = self.generation
             self.decodeQueue.async { [weak self] in
+                // Byte count off main (it's O(payload), like the decode
+                // it precedes); the budget verdict hops back with the tree.
+                let bytes = json.utf8.count
                 let decoded = try? self?.treeDecoder.decode(
                     RNTree.self, from: Data(json.utf8)
                 )
                 DispatchQueue.main.async { [weak self] in
                     guard let self, gen == self.generation else { return }
+                    // Budget tripwire BEFORE the decode/wire guards: an
+                    // oversized payload should leave evidence even when it
+                    // also fails to decode.
+                    for diagnostic in self.budgets.check(
+                        commitJSONBytes: bytes, sessionId: self.sessionId,
+                        releaseId: self.bootedReleaseId, target: .watch)
+                    {
+                        self.report(diagnostic)
+                    }
                     guard let tree = decoded else {
                         self.report(
                             code: "commit.decodeFailed", severity: .recoverable,

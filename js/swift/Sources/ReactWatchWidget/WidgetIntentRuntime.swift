@@ -57,6 +57,15 @@ public final class WidgetIntentRuntime {
 
     private let js: JSRuntime
     private let store: SharedWidgetStore
+    /// ARCH-13 diagnostics context for this short-lived runtime: a fresh
+    /// session per creation (each render/intent pass is its own boot), the
+    /// booted bundle's content hash when it is cheaply known, and the
+    /// render-time budget. The extension has no push channel to the app, so
+    /// breaches go to the default Logger sink.
+    private let sessionId = UUID().uuidString
+    private var bootedReleaseId: String?
+    private var budgets = BudgetPolicy()
+    private static let diagnosticsSink = LogDiagnosticsSink()
     /// Cross-process-atomic counters (ARCH-05): the `addGlass` control runs
     /// here, in the extension, while the app may be incrementing the same
     /// counter.
@@ -180,6 +189,7 @@ public final class WidgetIntentRuntime {
                 return
             }
             logBundleIdentity(record)
+            bootedReleaseId = ContentHash.of(record.js)
             do {
                 try js.evaluateBytecode(bytecode)
             } catch {
@@ -191,6 +201,7 @@ public final class WidgetIntentRuntime {
                 return
             }
             logBundleIdentity(record)
+            bootedReleaseId = ContentHash.of(record.js)
             try js.evaluate(record.js)
         }
     }
@@ -270,7 +281,22 @@ public final class WidgetIntentRuntime {
         else {
             throw JSRuntime.JSError.exception("bundle missing — run `npm run build`")
         }
+        bootedReleaseId = ContentHash.of(code)
         try js.evaluate(code)
+    }
+
+    /// ARCH-13 widget render-time budget: WARN via the Logger sink when one
+    /// timeline render pass overruns maxWidgetRenderMs — the early signal
+    /// before the WidgetKit watchdog (or the 30 MB Jetsam wall) makes the
+    /// overrun a silent extension kill. The shipped-bytecode path leaves
+    /// releaseId nil (hashing would mean reading bundle.js just for the id).
+    private func checkRenderBudget(elapsedMs: Double) {
+        for diagnostic in budgets.check(
+            widgetRenderMs: elapsedMs, sessionId: sessionId,
+            releaseId: bootedReleaseId, target: .widget)
+        {
+            Self.diagnosticsSink.emit(diagnostic)
+        }
     }
 
     // MARK: - Public API
@@ -316,7 +342,13 @@ public final class WidgetIntentRuntime {
             return nil
         }
         let ms = now.timeIntervalSince1970 * 1000
-        guard let json = runtime.js.callReturningString("__renderWidgets", ms),
+        let renderStart = DispatchTime.now()
+        let rendered = runtime.js.callReturningString("__renderWidgets", ms)
+        runtime.checkRenderBudget(
+            elapsedMs: Double(
+                DispatchTime.now().uptimeNanoseconds
+                    - renderStart.uptimeNanoseconds) / 1_000_000)
+        guard let json = rendered,
             let payload = try? JSONDecoder().decode(
                 PublishedWidgets.self, from: Data(json.utf8)
             )
