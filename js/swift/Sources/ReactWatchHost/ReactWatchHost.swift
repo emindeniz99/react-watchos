@@ -40,9 +40,16 @@ import FoundationModels
 @MainActor
 final class ReactWatchModel {
     var root: RNNode?
-    var startupError: String?
-    /// Non-fatal JS errors (event handlers, timers) surfaced as a banner.
-    var runtimeError: String?
+    /// Latest fatal diagnostic (boot failure, wire mismatch) — drives the
+    /// full-screen error path. Observable: the root view reads it.
+    var latestFatal: Diagnostic?
+    /// Latest recoverable diagnostic — drives the dismissible banner
+    /// (tap-dismiss sets it nil). Observable: the root view reads it.
+    var latestRecoverable: Diagnostic?
+    /// The startup-error concept, kept as a DERIVED accessor over the
+    /// structured diagnostics (ARCH-13): the latest fatal diagnostic's
+    /// message, shown full-screen when nothing has rendered.
+    var startupError: String? { latestFatal?.message }
     /// Set when the hard update gate refuses to boot stale JS (CR-17): the only
     /// available bundle is older than one already applied, so we show a native
     /// "update required" screen instead of running it against a newer-schema db.
@@ -65,6 +72,24 @@ final class ReactWatchModel {
     @ObservationIgnored private var nextSeq = 1
     /// Set once after reporting a renderer-vs-runtime wire mismatch.
     @ObservationIgnored private var warnedWireMismatch = false
+    /// The last 50 diagnostics, always on — release builds too — for
+    /// OTA-rollback forensics (ARCH-13). Ring only; the inspector exposure on
+    /// top stays DEV/opt-in. Survives reloads: `sessionId` tells boots apart.
+    @ObservationIgnored private let diagnostics = DiagnosticsBuffer()
+    /// Default sink: one os.Logger line per diagnostic.
+    @ObservationIgnored private let diagnosticsSink = LogDiagnosticsSink()
+    /// Fresh UUID per boot() — stamps every diagnostic of one JS generation.
+    @ObservationIgnored private var sessionId = UUID().uuidString
+    /// Content hash of the bundle this boot actually evaluated (the CX-025
+    /// releaseId injected as `__bundleReleaseId`); nil before load / for a
+    /// DEBUG dev-code boot.
+    @ObservationIgnored private var bootedReleaseId: String?
+    /// True once this generation's bundle finished evaluating. Gates the
+    /// `diagnostic` push to JS: before the bundle runs there is no
+    /// `__pushNativeEvent` global, so pushing a boot notice would only
+    /// manufacture a "global … is not a function" js error — and no listener
+    /// could have registered yet anyway.
+    @ObservationIgnored private var jsReady = false
     /// markHealthy runs once per boot (see the commit handler) — after the
     /// first healthy commit it's a no-op that still cost a UserDefaults read
     /// per commit.
@@ -269,12 +294,17 @@ final class ReactWatchModel {
         extendedRuntime.stop(silent: true)
         runtime = nil
         root = nil
-        runtimeError = nil
-        startupError = nil
+        latestFatal = nil
+        latestRecoverable = nil
         updateRequired = false
         ackedSeq = 0
         nextSeq = 1
         optimistic = OptimisticStore()
+        // A fresh diagnostics session per boot; the ring itself is kept so a
+        // reload can't erase the evidence that forced it.
+        sessionId = UUID().uuidString
+        bootedReleaseId = nil
+        jsReady = false
         // One warning per BOOT, not per model lifetime (NF-15): without the
         // reset, a second bad bundle after a dev hot-reload would be rejected
         // with no banner at all.
@@ -300,9 +330,57 @@ final class ReactWatchModel {
             } else {
                 try load(into: js)
             }
+            jsReady = true
         } catch {
-            startupError = "JS startup failed: \(error)"
+            report(
+                code: "boot.startupFailed", severity: .fatal, subsystem: .boot,
+                details: "JS startup failed: \(error)")
         }
+    }
+
+    /// The one write path for every host error/notice (ARCH-13): records the
+    /// structured diagnostic in the always-on ring, logs it through the sink,
+    /// publishes the latest fatal/recoverable for the two UI surfaces, and
+    /// forwards it to JS as a `diagnostic` native event — EXCEPT
+    /// `js`-subsystem ones, which originated in JS: pushing those back in
+    /// would let a listener that throws (or logs into a failing console) feed
+    /// the next onError, an echo loop.
+    private func report(
+        code: String, severity: Diagnostic.Severity,
+        subsystem: Diagnostic.Subsystem, details: String? = nil
+    ) {
+        report(
+            Diagnostic(
+                code: code, severity: severity, subsystem: subsystem,
+                sessionId: sessionId, releaseId: bootedReleaseId,
+                target: .watch, details: details))
+    }
+
+    private func report(_ diagnostic: Diagnostic) {
+        diagnostics.append(diagnostic)
+        diagnosticsSink.emit(diagnostic)
+        switch diagnostic.severity {
+        case .fatal: latestFatal = diagnostic
+        case .recoverable: latestRecoverable = diagnostic
+        case .info: break
+        }
+        guard diagnostic.subsystem != .js, jsReady else { return }
+        var payload: [String: Any] = [
+            "code": diagnostic.code,
+            "severity": diagnostic.severity.rawValue,
+            "subsystem": diagnostic.subsystem.rawValue,
+            "sessionId": diagnostic.sessionId,
+            "target": diagnostic.target.rawValue,
+            "timestamp": diagnostic.timestamp,
+        ]
+        if let releaseId = diagnostic.releaseId {
+            payload["releaseId"] = releaseId
+        }
+        if let userAction = diagnostic.userAction {
+            payload["userAction"] = userAction
+        }
+        if let details = diagnostic.details { payload["details"] = details }
+        pushNativeEvent("diagnostic", payload: payload)
     }
 
     /// Exposes this binary's capability set + bridge protocol to JS before the
@@ -512,7 +590,9 @@ final class ReactWatchModel {
             case .accepted:
                 self.runtime?.resolveInvoke(id: id, resultJson: #"{"accepted":true}"#)
             case .rejected(let reason):
-                self.runtimeError = reason
+                self.report(
+                    code: "ota.saveRejected", severity: .recoverable,
+                    subsystem: .ota, details: reason)
                 let result: [String: Any] = [
                     "accepted": false, "code": "rejected", "message": reason,
                 ]
@@ -667,26 +747,34 @@ final class ReactWatchModel {
     /// and reboot to apply. Used by `UpdateRequiredView`'s button.
     func checkForUpdateNatively() async {
         guard let urlString = updateManifestURL, let url = URL(string: urlString) else {
-            runtimeError = "no update URL configured"
+            report(
+                code: "ota.noManifestURL", severity: .recoverable,
+                subsystem: .ota, details: "no update URL configured")
             return
         }
         // Same transport policy as the JS update flow (review §6.11c): https
         // required, plain http only for loopback/private-LAN dev hosts.
         if let violation = UpdateURLPolicy.violation(of: urlString) {
-            runtimeError = violation
+            report(
+                code: "ota.insecureURL", severity: .recoverable,
+                subsystem: .ota, details: violation)
             return
         }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             let manifest = try JSONDecoder().decode(RemoteManifest.self, from: data)
             guard let bundleURL = URL(string: manifest.bundle, relativeTo: url) else {
-                runtimeError = "update manifest has no bundle URL"
+                report(
+                    code: "ota.badManifest", severity: .recoverable,
+                    subsystem: .ota, details: "update manifest has no bundle URL")
                 return
             }
             // The manifest's `bundle` may be absolute — check the RESOLVED
             // URL too, or a cleartext bundle rides in on an https manifest.
             if let violation = UpdateURLPolicy.violation(of: bundleURL.absoluteString) {
-                runtimeError = violation
+                report(
+                    code: "ota.insecureURL", severity: .recoverable,
+                    subsystem: .ota, details: violation)
                 return
             }
             let (jsData, _) = try await URLSession.shared.data(from: bundleURL)
@@ -694,13 +782,17 @@ final class ReactWatchModel {
             // checks it too, but only after this path has already doubled the
             // allocation for a hostile/erroneous manifest's bundle (NF-33).
             guard jsData.count <= Self.maxOTABundleBytes else {
-                runtimeError =
-                    "update bundle is \(jsData.count) bytes — over the "
-                    + "\(Self.maxOTABundleBytes)-byte limit"
+                report(
+                    code: "ota.bundleTooLarge", severity: .recoverable,
+                    subsystem: .ota,
+                    details: "update bundle is \(jsData.count) bytes — over "
+                        + "the \(Self.maxOTABundleBytes)-byte limit")
                 return
             }
             guard let js = String(data: jsData, encoding: .utf8) else {
-                runtimeError = "update bundle was not UTF-8 text"
+                report(
+                    code: "ota.bundleNotUTF8", severity: .recoverable,
+                    subsystem: .ota, details: "update bundle was not UTF-8 text")
                 return
             }
             var payload: [String: Any] = ["js": js, "version": manifest.version]
@@ -711,12 +803,16 @@ final class ReactWatchModel {
                 let payloadString = String(data: payloadData, encoding: .utf8)
             else { return }
             if case .rejected(let reason) = await stageUpdate(payloadString) {
-                runtimeError = reason
+                report(
+                    code: "ota.saveRejected", severity: .recoverable,
+                    subsystem: .ota, details: reason)
                 return
             }
             boot()  // re-load; the staged bundle (>= high-water) now runs
         } catch {
-            runtimeError = "update check failed: \(error.localizedDescription)"
+            report(
+                code: "ota.checkFailed", severity: .recoverable, subsystem: .ota,
+                details: "update check failed: \(error.localizedDescription)")
         }
     }
 
@@ -806,35 +902,55 @@ final class ReactWatchModel {
         do {
             outcome = try otaSequencer.boot(
                 evalSource: { source in
-                    Self.setBundleReleaseId(source, into: js)
+                    self.setBundleReleaseId(source, into: js)
                     try js.evaluate(source)
                 },
                 evalBytecode: { bytecode, source in
-                    Self.setBundleReleaseId(source, into: js)
+                    self.setBundleReleaseId(source, into: js)
                     try js.evaluateBytecode(bytecode)
                 },
                 evalShipped: { try self.loadShipped(into: js) }
             )
         } catch let failure as OTABootSequencer.BootFailure {
             // Shipped ALSO failed after an OTA detour: surface why the OTA
-            // isn't running (the notice) alongside the startup error the
-            // caller sets from the rethrow — matching pre-M5 behavior, where
-            // runtimeError was assigned at the catch site before trying
-            // shipped.
-            if let notice = failure.notice { runtimeError = notice }
+            // isn't running (the notice) alongside the fatal startup
+            // diagnostic the caller reports from the rethrow — matching
+            // pre-M5 behavior, where the notice was surfaced at the catch
+            // site before trying shipped.
+            if let notice = failure.notice {
+                report(
+                    code: "ota.bootNotice", severity: .recoverable,
+                    subsystem: .ota, details: notice)
+            }
             throw failure.underlying
         }
         switch outcome {
         case .ranOTA(let record, let notice):
             bootedOTARecord = record
-            if let notice { runtimeError = notice }
+            // Rollback / crash-loop notices ride in `notice` — recoverable so
+            // the banner shows them, and in the ring for rollback forensics.
+            if let notice {
+                report(
+                    code: "ota.bootNotice", severity: .recoverable,
+                    subsystem: .ota, details: notice)
+            }
         case .ranShipped(let notice):
-            if let notice { runtimeError = notice }
+            if let notice {
+                report(
+                    code: "ota.bootNotice", severity: .recoverable,
+                    subsystem: .ota, details: notice)
+            }
         case .blockForUpdate(let notice):
             // Hard gate: every available bundle is older than one already
             // applied — refuse to boot stale JS so it can't write to a
             // newer-schema db; show the native "update required" screen.
-            if let notice { runtimeError = notice }
+            // `updateRequired` itself stays a plain state flag (it is a state,
+            // not an error); the notice explains WHY in the ring + banner.
+            if let notice {
+                report(
+                    code: "ota.updateRequired", severity: .recoverable,
+                    subsystem: .ota, details: notice)
+            }
             updateRequired = true
         }
     }
@@ -843,9 +959,13 @@ final class ReactWatchModel {
     /// can compare it to the server manifest's `releaseId` and detect a
     /// non-breaking fix that kept the same `version`. The id is FNV-1a hex
     /// (matching the build's `contentHash`), set BEFORE the bundle runs.
-    private static func setBundleReleaseId(_ source: String, into js: JSRuntime) {
+    /// Also recorded as `bootedReleaseId` so diagnostics carry the identity
+    /// of the bundle that produced them (ARCH-13).
+    private func setBundleReleaseId(_ source: String, into js: JSRuntime) {
+        let releaseId = ContentHash.of(source)
+        bootedReleaseId = releaseId
         try? js.evaluate(
-            "globalThis.__bundleReleaseId='\(ContentHash.of(source))';",
+            "globalThis.__bundleReleaseId='\(releaseId)';",
             filename: "release-id.js")
     }
 
@@ -854,7 +974,7 @@ final class ReactWatchModel {
         // precompiled bytecode runs below — so JS always learns its content id.
         let source = Bundle.main.url(forResource: "bundle", withExtension: "js")
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
-        if let source { Self.setBundleReleaseId(source, into: js) }
+        if let source { setBundleReleaseId(source, into: js) }
 
         if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
             let data = try? Data(contentsOf: qbc)
@@ -863,7 +983,10 @@ final class ReactWatchModel {
                 try js.evaluateBytecode(data)
                 return
             } catch {
-                runtimeError = "bytecode load failed, using bundle.js: \(error)"
+                report(
+                    code: "boot.bytecodeFallback", severity: .info,
+                    subsystem: .boot,
+                    details: "bytecode load failed, using bundle.js: \(error)")
             }
         }
         guard let code = source else {
@@ -893,7 +1016,9 @@ final class ReactWatchModel {
                 DispatchQueue.main.async { [weak self] in
                     guard let self, gen == self.generation else { return }
                     guard let tree = decoded else {
-                        self.runtimeError = "tree decode failed"
+                        self.report(
+                            code: "commit.decodeFailed", severity: .recoverable,
+                            subsystem: .commit, details: "tree decode failed")
                         return
                     }
                     // The JS bundle and this native target version evolve
@@ -904,9 +1029,12 @@ final class ReactWatchModel {
                     if tree.v != RNWire.version {
                         if !self.warnedWireMismatch {
                             self.warnedWireMismatch = true
-                            self.runtimeError =
-                                "wire version mismatch: bundle v\(tree.v) vs "
-                                + "runtime v\(RNWire.version) — rebuild the bundle"
+                            self.report(
+                                code: "wire.versionMismatch", severity: .fatal,
+                                subsystem: .wire,
+                                details: "wire version mismatch: bundle "
+                                    + "v\(tree.v) vs runtime v\(RNWire.version) "
+                                    + "— rebuild the bundle")
                         }
                         return
                     }
@@ -975,10 +1103,14 @@ final class ReactWatchModel {
         // just bumped it): reading it when the error fires would see the new
         // generation after a swap and defeat the guard (CX-008 / NF-14).
         let gen = generation
-        js.onError = { [weak self] _, message in
+        js.onError = { [weak self] source, message in
             DispatchQueue.main.async { [weak self] in
                 guard let self, gen == self.generation else { return }
-                self.runtimeError = message
+                // subsystem .js is recorded + bannered but NOT pushed back
+                // into JS (echo-loop protection, see report()).
+                self.report(
+                    code: "js.\(source)", severity: .recoverable,
+                    subsystem: .js, details: message)
             }
         }
         js.bridge.playHaptic = { type in
@@ -1341,7 +1473,7 @@ private struct UpdateRequiredView: View {
                 Button("Check for update") {
                     Task { await model.checkForUpdateNatively() }
                 }
-                if let error = model.runtimeError {
+                if let error = model.latestRecoverable?.message {
                     Text(error).font(.caption2).foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                 }
@@ -1387,7 +1519,10 @@ public struct ReactWatchRootView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            if let error = model.runtimeError {
+            // Developer-facing banner: the latest RECOVERABLE diagnostic
+            // (ARCH-13). Fatal boot failures take the full-screen path above;
+            // info-severity diagnostics stay in the ring/log only.
+            if let error = model.latestRecoverable?.message {
                 ScrollView {
                     Text(error)
                         .font(.footnote.monospaced())
@@ -1397,7 +1532,7 @@ public struct ReactWatchRootView: View {
                 }
                 .frame(maxHeight: 120)
                 .background(.red.opacity(0.85), in: .rect(cornerRadius: 8))
-                .onTapGesture { model.runtimeError = nil }
+                .onTapGesture { model.latestRecoverable = nil }
             }
         }
         .environment(model)
