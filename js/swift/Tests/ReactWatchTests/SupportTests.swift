@@ -1537,3 +1537,72 @@ final class HostURLSchemeTests: XCTestCase {
         UserDefaults().removePersistentDomain(forName: suite)
     }
 }
+
+/// ARCH-13: the structured Diagnostic record and the bounded ring that
+/// replaces the host's last-write-wins error strings.
+final class DiagnosticsTests: XCTestCase {
+    private func make(
+        _ code: String, severity: Diagnostic.Severity = .recoverable
+    ) -> Diagnostic {
+        Diagnostic(
+            code: code, severity: severity, subsystem: .ota,
+            sessionId: "s-1", target: .watch)
+    }
+
+    func testDiagnosticRoundTripsThroughJSON() throws {
+        let diagnostic = Diagnostic(
+            code: "ota.saveRejected", severity: .recoverable, subsystem: .ota,
+            sessionId: "s-1", releaseId: "abc123", target: .watch,
+            timestamp: 1_700_000_000_000, details: "signature invalid")
+        let data = try JSONEncoder().encode(diagnostic)
+        let decoded = try JSONDecoder().decode(Diagnostic.self, from: data)
+        XCTAssertEqual(decoded, diagnostic)
+        // The enums serialize as their raw strings — the shape JS receives on
+        // the `diagnostic` native event.
+        let obj = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(obj["severity"] as? String, "recoverable")
+        XCTAssertEqual(obj["subsystem"] as? String, "ota")
+        XCTAssertEqual(obj["target"] as? String, "watch")
+    }
+
+    func testMessagePrefersDetailsOverCode() {
+        XCTAssertEqual(
+            Diagnostic(
+                code: "boot.startupFailed", severity: .fatal, subsystem: .boot,
+                sessionId: "s", target: .watch, details: "JS startup failed"
+            ).message,
+            "JS startup failed")
+        XCTAssertEqual(make("commit.decodeFailed").message, "commit.decodeFailed")
+    }
+
+    func testRingKeepsOnlyTheMostRecentEntries() {
+        let ring = DiagnosticsBuffer(capacity: 3)
+        for n in 1...5 { ring.append(make("code.\(n)")) }
+        XCTAssertEqual(ring.all.map(\.code), ["code.3", "code.4", "code.5"])
+    }
+
+    func testLatestFindsNewestOfEachSeverity() {
+        let ring = DiagnosticsBuffer()
+        XCTAssertNil(ring.latest(severity: .fatal))
+        ring.append(make("a", severity: .fatal))
+        ring.append(make("b", severity: .recoverable))
+        ring.append(make("c", severity: .fatal))
+        ring.append(make("d", severity: .info))
+        XCTAssertEqual(ring.latest(severity: .fatal)?.code, "c")
+        XCTAssertEqual(ring.latest(severity: .recoverable)?.code, "b")
+        XCTAssertEqual(ring.latest(severity: .info)?.code, "d")
+    }
+
+    func testSinkEmitDoesNotCrashOnAnyShape() {
+        // The default sink is fire-and-forget logging; just prove it accepts
+        // both a bare and a fully-populated record.
+        let sink = LogDiagnosticsSink()
+        sink.emit(make("bare.code"))
+        sink.emit(
+            Diagnostic(
+                code: "budget.maxNodes", severity: .info, subsystem: .budget,
+                sessionId: "s", releaseId: "r", target: .widget,
+                userAction: "none", details: "over budget"))
+    }
+}
