@@ -209,6 +209,33 @@ final class RouteMatcherTests: XCTestCase {
     }
 }
 
+// ARCH-09: the structured `__dispatchEvent` verdict. parse() must map a
+// missing/undecodable result — no bundle global, or a thrown JS handler —
+// to a rollback, never to an accepted navigation.
+final class DispatchResultTests: XCTestCase {
+    func testParsesTheBridgeVerdict() {
+        let accepted = DispatchResult.parse(#"{"handled":true,"accepted":true}"#)
+        XCTAssertTrue(accepted.handled)
+        XCTAssertTrue(accepted.accepted)
+        XCTAssertNil(accepted.reason)
+
+        let declined = DispatchResult.parse(
+            #"{"handled":true,"accepted":false,"reason":"declined"}"#)
+        XCTAssertTrue(declined.handled)
+        XCTAssertFalse(declined.accepted)
+        XCTAssertEqual(declined.reason, "declined")
+    }
+
+    func testNilAndGarbageParseToRollback() {
+        for json in [nil, "", "not json", "[1,2]"] as [String?] {
+            let result = DispatchResult.parse(json)
+            XCTAssertFalse(result.handled, "\(json ?? "nil")")
+            XCTAssertFalse(result.accepted, "\(json ?? "nil")")
+            XCTAssertEqual(result.reason, "no result", "\(json ?? "nil")")
+        }
+    }
+}
+
 // CR-10: the BLE bridge keyed characteristics by the raw string, so a write/
 // subscribe by the full 128-bit UUID missed one CoreBluetooth stored in short
 // form. canonical() collapses every form to one key.

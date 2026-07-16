@@ -159,6 +159,45 @@ final class RuntimeSmokeTests: XCTestCase {
         }
     }
 
+    // ARCH-09: the navigation transaction needs __dispatchEvent's structured
+    // JSON verdict back in Swift, synchronously, on both bridge paths.
+    func testDispatchEventReturningRoundTripsAcrossBridgePaths() throws {
+        for useJSCall in [true, false] {
+            let runtime = try JSRuntime()
+            runtime.useJSCallBridge = useJSCall
+            // Echo the args into the verdict so the assertion proves the
+            // payload/seq crossed AND the result string came back intact.
+            try runtime.evaluate(
+                #"""
+                globalThis.__dispatchEvent = (nodeId, event, payloadJson, seq) => {
+                  const payload = payloadJson ? JSON.parse(payloadJson) : {};
+                  return JSON.stringify({
+                    handled: true,
+                    accepted: nodeId === 7 && event === "pathChange"
+                      && payload.path[0] === "/a" && seq === 3,
+                  });
+                };
+                """#)
+            let path = useJSCall ? "JS_Call" : "eval"
+            let json = runtime.dispatchEventReturning(
+                nodeId: 7, event: "pathChange",
+                payloadJson: #"{"path":["/a"]}"#, seq: 3)
+            XCTAssertEqual(
+                json, #"{"handled":true,"accepted":true}"#, "\(path)")
+        }
+    }
+
+    func testDispatchEventReturningIsNilWithoutTheGlobal() throws {
+        let runtime = try JSRuntime()
+        var reported: String?
+        runtime.onError = { reported = $0 }
+        // No bundle defines __dispatchEvent -> nil (callers parse that to a
+        // rollback), and the miss is reported, not crashed on.
+        XCTAssertNil(
+            runtime.dispatchEventReturning(nodeId: 1, event: "pathChange"))
+        XCTAssertNotNil(reported)
+    }
+
     func testBridgeCallToMissingFunctionReportsError() throws {
         let runtime = try JSRuntime()
         var reported: String?

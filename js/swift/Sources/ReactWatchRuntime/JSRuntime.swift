@@ -255,6 +255,32 @@ public final class JSRuntime {
         bridgeCall("__dispatchEvent", args, filename: "dispatch.js")
     }
 
+    /// Dispatches an interaction and returns `__dispatchEvent`'s structured
+    /// JSON verdict (`{handled, accepted, reason?}`, ARCH-09) — the navigation
+    /// transaction's synchronous confirm. nil on a missing global or a thrown
+    /// JS handler (reported to onError), which callers map to a rollback via
+    /// `DispatchResult.parse`. Mirrors `callReturningString`, including the
+    /// legacy eval-string fallback when `useJSCallBridge` is off. The void
+    /// `dispatchEvent` above stays for non-navigation callers.
+    public func dispatchEventReturning(
+        nodeId: Int, event: String, payloadJson: String? = nil, seq: Int? = nil
+    ) -> String? {
+        var args: [JSArg] = [
+            .int(nodeId), .string(event), .jsonOrUndefined(payloadJson),
+        ]
+        if let seq { args.append(.int(seq)) }
+        guard useJSCallBridge else {
+            let rendered = args.map(renderArg).joined(separator: ", ")
+            return evaluateString("globalThis.__dispatchEvent(\(rendered))")
+        }
+        let converted: String?? = callGlobal("__dispatchEvent", args) {
+            guard let cString = JS_ToCString(context, $0) else { return nil }
+            defer { JS_FreeCString(context, cString) }
+            return String(cString: cString)
+        }
+        return converted ?? nil
+    }
+
     /// Settles a JS fetch Promise. Runs on the owning queue (M1); callers on
     /// it (URLSession completions hopped to main for the app runtime) stay
     /// inline, anything else hops.
