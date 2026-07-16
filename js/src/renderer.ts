@@ -6,6 +6,7 @@ import {
   DiscreteEventPriority,
   NoEventPriority,
 } from "react-reconciler/constants";
+import { createCommitBudgetCheck } from "./budgets";
 import { dispatchToInstance, pathChangeAccepted } from "./events";
 import type { HostBridge, SerializedTree, WatchEvent } from "./host";
 import { serializeTree, textContent } from "./serialize";
@@ -324,6 +325,10 @@ export class WatchRoot {
   private commitCount = 0;
   private lastCommitJson: string | null = null;
   private lastCommittedSeq = 0;
+  /** ARCH-13 operating budgets: warns (once per crossing — hysteresis) when
+   *  a commit's payload length or live node count outgrows its tripwire.
+   *  Per-root state, so parallel roots (tests) can't share a crossing. */
+  private checkCommitBudgets = createCommitBudgetCheck();
 
   constructor(host: HostBridge) {
     const container: Container = {
@@ -367,6 +372,10 @@ export class WatchRoot {
           return;
         }
         const json = JSON.stringify(tree);
+        // Budget tripwire (ARCH-13): checked on every serialized commit —
+        // including one the dedup below drops, since an unchanged huge tree
+        // is still a huge tree. WARN only; the commit proceeds regardless.
+        this.checkCommitBudgets(json.length, container.instances.size);
         container.dirty = false;
         this.lastCommittedSeq = container.lastSeq;
         // Bail on no-op commits: a re-render that produces a byte-identical
