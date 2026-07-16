@@ -65,12 +65,12 @@ struct NodeView: View {
     }
 
     /// Controls whose local edits React must accept before they take effect.
-    /// `static` so `body` doesn't rebuild this 8-element Set for every node on
+    /// `static` so `body` doesn't rebuild this 9-element Set for every node on
     /// every render — `isHandlerlessControl` is read via `.disabled(...)` in the
     /// top-level body, i.e. once per node per render pass.
     private static let handlerlessControls: Set<String> = [
         "Toggle", "Slider", "Stepper", "Picker", "DatePicker", "TextField",
-        "SecureField", "CrownRotation",
+        "SecureField", "CrownRotation", "TabView",
     ]
 
     /// A native input control whose change handler is absent. `.disabled(false)`
@@ -78,6 +78,10 @@ struct NodeView: View {
     private var isHandlerlessControl: Bool {
         Self.handlerlessControls.contains(node.type)
             && node.bool("onChange") != true
+            // TabView is only a controlled input when `selection` is present;
+            // an UNCONTROLLED TabView has no React state to drift from, so
+            // SwiftUI keeps owning the paging and swiping stays enabled.
+            && (node.type != "TabView" || node.double("selection") != nil)
     }
 
     @ViewBuilder private var rendered: some View {

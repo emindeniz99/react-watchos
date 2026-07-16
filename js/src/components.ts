@@ -345,7 +345,9 @@ export interface TabViewProps extends A11yProps {
    * Controlled selected page index (0-based). When set, the native TabView
    * binds to it optimistically (a swipe holds until React acks) — keep it in
    * state and update it from `onChange`, or the page snaps back. Omit both
-   * for the uncontrolled TabView.
+   * for the uncontrolled TabView. A controlled TabView without `onChange` is
+   * read-only — swiping is disabled, the same CX-010 rule as every other
+   * controlled input.
    */
   selection?: number;
   /** Fires with the new page index as the user swipes between pages. */
