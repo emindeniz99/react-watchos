@@ -23,9 +23,12 @@ describe("events", () => {
       </Button>,
     );
     const button = findByType(host.lastCommit!.root!, "Button")[0];
-    expect(root.dispatchEvent({ nodeId: button.id, event: "press" })).toBe(
-      true,
-    );
+    // ARCH-09: the dispatch verdict is structured; for non-navigation events
+    // `accepted` mirrors `handled`.
+    expect(root.dispatchEvent({ nodeId: button.id, event: "press" })).toEqual({
+      handled: true,
+      accepted: true,
+    });
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
@@ -60,14 +63,46 @@ describe("events", () => {
     );
     const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
 
+    // The handler ran but did NOT fold the proposed path into `path`, so the
+    // post-flush comparison reports the navigation as declined (ARCH-09).
     expect(
       root.dispatchEvent({
         nodeId: stack.id,
         event: "pathChange",
         payload: { path: ["/hydration"] },
       }),
-    ).toBe(true);
+    ).toEqual({ handled: true, accepted: false, reason: "declined" });
     expect(onPathChange).toHaveBeenCalledWith(["/hydration"]);
+  });
+
+  it("accepts a pathChange once the handler folds the path synchronously", () => {
+    // The ARCH-09 controlled-navigation contract: onPathChange must fold the
+    // proposed path with a synchronous setState — the dispatch flush commits
+    // it, and the post-flush comparison then reports accepted:true.
+    function Controlled() {
+      const [path, setPath] = useState<string[]>([]);
+      return (
+        <NavigationStack path={path} onPathChange={setPath}>
+          <Text>home</Text>
+        </NavigationStack>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<Controlled />);
+    const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
+    expect(
+      root.dispatchEvent({
+        nodeId: stack.id,
+        event: "pathChange",
+        payload: { path: ["/hydration"] },
+        seq: 3,
+      }),
+    ).toEqual({ handled: true, accepted: true });
+    // The fold landed inside the dispatch: the committed tree already carries
+    // the new path and acks the seq (CX-010).
+    expect(host.lastCommit!.root!.props.path).toEqual(["/hydration"]);
+    expect(host.lastCommit!.seq).toBe(3);
   });
 
   it("serializes the primaryAction (double-tap) flag", () => {
@@ -91,9 +126,9 @@ describe("events", () => {
     );
     const button = findByType(host.lastCommit!.root!, "Button")[0];
     expect(button.props).toMatchObject({ onPress: true, onLongPress: true });
-    expect(root.dispatchEvent({ nodeId: button.id, event: "longPress" })).toBe(
-      true,
-    );
+    expect(
+      root.dispatchEvent({ nodeId: button.id, event: "longPress" }),
+    ).toEqual({ handled: true, accepted: true });
     expect(onLongPress).toHaveBeenCalledTimes(1);
   });
 
@@ -158,7 +193,7 @@ describe("events", () => {
     );
     const button = findByType(host.lastCommit!.root!, "Button")[0];
     expect(
-      root.dispatchEvent({ nodeId: button.id, event: "swipeAction" }),
+      root.dispatchEvent({ nodeId: button.id, event: "swipeAction" }).handled,
     ).toBe(true);
     expect(onSwipeAction).toHaveBeenCalledTimes(1);
   });
@@ -188,7 +223,8 @@ describe("events", () => {
       onLeadingSwipeAction: true,
     });
     expect(
-      root.dispatchEvent({ nodeId: button.id, event: "leadingSwipeAction" }),
+      root.dispatchEvent({ nodeId: button.id, event: "leadingSwipeAction" })
+        .handled,
     ).toBe(true);
     expect(onLeadingSwipeAction).toHaveBeenCalledTimes(1);
   });
@@ -202,7 +238,10 @@ describe("events", () => {
       </VStack>,
     );
     const commitsBefore = host.commits.length;
-    expect(root.dispatchEvent({ nodeId: 9999, event: "press" })).toBe(false);
+    expect(root.dispatchEvent({ nodeId: 9999, event: "press" })).toEqual({
+      handled: false,
+      accepted: false,
+    });
     expect(host.commits.length).toBe(commitsBefore);
   });
 
@@ -231,15 +270,15 @@ describe("events", () => {
     }
     root.render(<Tree show={true} />);
     const button = findByType(host.lastCommit!.root!, "Button")[0];
-    expect(root.dispatchEvent({ nodeId: button.id, event: "press" })).toBe(
-      true,
-    );
+    expect(
+      root.dispatchEvent({ nodeId: button.id, event: "press" }).handled,
+    ).toBe(true);
     expect(onPress).toHaveBeenCalledTimes(1);
 
     root.render(<Tree show={false} />);
-    expect(root.dispatchEvent({ nodeId: button.id, event: "press" })).toBe(
-      false,
-    );
+    expect(
+      root.dispatchEvent({ nodeId: button.id, event: "press" }).handled,
+    ).toBe(false);
     expect(onPress).toHaveBeenCalledTimes(1);
   });
 
@@ -248,7 +287,10 @@ describe("events", () => {
     const root = new WatchRoot(host);
     root.render(<Text>static</Text>);
     const text = host.lastCommit!.root!;
-    expect(root.dispatchEvent({ nodeId: text.id, event: "press" })).toBe(false);
+    expect(root.dispatchEvent({ nodeId: text.id, event: "press" })).toEqual({
+      handled: false,
+      accepted: false,
+    });
   });
 
   // CX-010: a native control dispatches optimistically with a seq and holds its
@@ -263,7 +305,7 @@ describe("events", () => {
     const text = host.lastCommit!.root!;
     const before = host.commits.length;
     expect(
-      root.dispatchEvent({ nodeId: text.id, event: "press", seq: 5 }),
+      root.dispatchEvent({ nodeId: text.id, event: "press", seq: 5 }).handled,
     ).toBe(false);
     expect(host.commits.length).toBe(before + 1);
     expect(host.lastCommit!.seq).toBe(5);
@@ -274,9 +316,9 @@ describe("events", () => {
     const root = new WatchRoot(host);
     root.render(<Text>static</Text>);
     const before = host.commits.length;
-    expect(root.dispatchEvent({ nodeId: 9999, event: "press", seq: 8 })).toBe(
-      false,
-    );
+    expect(
+      root.dispatchEvent({ nodeId: 9999, event: "press", seq: 8 }).handled,
+    ).toBe(false);
     expect(host.commits.length).toBe(before + 1);
     expect(host.lastCommit!.seq).toBe(8);
   });

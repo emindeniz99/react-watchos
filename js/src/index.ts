@@ -238,7 +238,7 @@ export {
   requestNotificationPermission,
   scheduleNotification,
 } from "./notifications";
-export { WatchRoot } from "./renderer";
+export { type DispatchResult, WatchRoot } from "./renderer";
 export type {
   HeartRateOptions,
   LocationOptions,
@@ -315,17 +315,22 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
     };
   }
   const root = new WatchRoot(bridge);
+  // Returns the structured DispatchResult as a JSON string (ARCH-09) — the
+  // navigation transaction's synchronous verdict. A thrown handler propagates
+  // out instead of returning, which Swift's parse maps to a rollback.
   g.__dispatchEvent = (
     nodeId: number,
     event: string,
     payloadJson?: string,
     seq?: number,
-  ): boolean => {
+  ): string => {
     const payload = payloadJson ? JSON.parse(payloadJson) : undefined;
-    return root.dispatchEvent(
-      seq === undefined
-        ? { nodeId, event, payload }
-        : { nodeId, event, payload, seq },
+    return JSON.stringify(
+      root.dispatchEvent(
+        seq === undefined
+          ? { nodeId, event, payload }
+          : { nodeId, event, payload, seq },
+      ),
     );
   };
   // Native state pushes: run the listener at urgent priority + flush so it

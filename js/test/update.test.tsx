@@ -23,9 +23,9 @@ describe("updates", () => {
 
     const before = host.lastCommit!.root!;
     const button = findByType(before, "Button")[0];
-    expect(root.dispatchEvent({ nodeId: button.id, event: "press" })).toBe(
-      true,
-    );
+    expect(
+      root.dispatchEvent({ nodeId: button.id, event: "press" }).handled,
+    ).toBe(true);
 
     expect(host.commits.length).toBeGreaterThan(1);
     const after = host.lastCommit!.root!;

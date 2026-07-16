@@ -77,14 +77,15 @@ const initial = latestTree();
 const initialCount = textStartingWith(initial, "Count: ").props.text;
 const initialPublished = latestPublished();
 
-const pressHandled = globalThis.__dispatchEvent(
-  buttonWithLabel(initial, "+").id, "press", undefined, 11);
+// __dispatchEvent returns the structured verdict as a JSON string (ARCH-09).
+const pressResult = JSON.parse(globalThis.__dispatchEvent(
+  buttonWithLabel(initial, "+").id, "press", undefined, 11));
 const ackedSeq = JSON.parse(__commits[__commits.length - 1]).seq;
 const countAfterPress = textStartingWith(latestTree(), "Count: ").props.text;
 
 const toggle = findAll(latestTree(), "Toggle")[0];
-const changeHandled = globalThis.__dispatchEvent(
-  toggle.id, "change", JSON.stringify({ value: true }));
+const changeResult = JSON.parse(globalThis.__dispatchEvent(
+  toggle.id, "change", JSON.stringify({ value: true })));
 const toggleAfterChange = findAll(latestTree(), "Toggle")[0].props.value;
 
 const publishedBefore = __published.length;
@@ -105,13 +106,13 @@ print(JSON.stringify({
   logs: __logs,
   rootType: initial.type,
   initialCount,
-  pressHandled,
+  pressResult,
   ackedSeq,
   countAfterPress,
   pushExists,
   pushHandled,
   phaseText,
-  changeHandled,
+  changeResult,
   toggleAfterChange,
   initialGauge: initialPublished
     .widgets.hydration.accessoryCircular.entries[0].tree.props.value,
@@ -174,13 +175,13 @@ describe("quickjs smoke", () => {
     logs: string[];
     rootType: string;
     initialCount: string;
-    pressHandled: boolean;
+    pressResult: { handled: boolean; accepted: boolean };
     ackedSeq: number;
     countAfterPress: string;
     pushExists: boolean;
     pushHandled: boolean;
     phaseText: string;
-    changeHandled: boolean;
+    changeResult: { handled: boolean; accepted: boolean };
     toggleAfterChange: boolean;
     initialGauge: number;
     initialInline: string;
@@ -233,7 +234,7 @@ describe("quickjs smoke", () => {
   });
 
   it("handles a press event end-to-end and acks its seq", () => {
-    expect(result.pressHandled).toBe(true);
+    expect(result.pressResult).toEqual({ handled: true, accepted: true });
     expect(result.countAfterPress).toBe("Count: 1");
     expect(result.ackedSeq).toBe(11);
   });
@@ -246,7 +247,7 @@ describe("quickjs smoke", () => {
   });
 
   it("handles a change event with JSON payload end-to-end", () => {
-    expect(result.changeHandled).toBe(true);
+    expect(result.changeResult).toEqual({ handled: true, accepted: true });
     expect(result.toggleAfterChange).toBe(true);
   });
 

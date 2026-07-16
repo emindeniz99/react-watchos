@@ -6,9 +6,30 @@ import {
   DiscreteEventPriority,
   NoEventPriority,
 } from "react-reconciler/constants";
-import { dispatchToInstance } from "./events";
+import { dispatchToInstance, pathChangeAccepted } from "./events";
 import type { HostBridge, SerializedTree, WatchEvent } from "./host";
 import { serializeTree, textContent } from "./serialize";
+
+/**
+ * Structured result of a native event dispatch (ARCH-09), returned to Swift as
+ * a JSON string by `__dispatchEvent` so navigation can be a request/confirm
+ * transaction instead of a fire-and-forget.
+ *
+ *  - `handled` — a handler prop existed and ran (the old boolean).
+ *  - `accepted` — the *proposal* took effect. For `pathChange` this is a
+ *    post-flush comparison of the stack's committed path against the proposed
+ *    one; for every other event it mirrors `handled`.
+ *  - `reason` — why `accepted` is false, when it is.
+ *
+ * A thrown handler produces NO result (the exception propagates out of
+ * `__dispatchEvent`); Swift maps that, like a missing global, to a rollback.
+ */
+// TODO(codegen): fold into schema.ts when codegen is runnable.
+export interface DispatchResult {
+  handled: boolean;
+  accepted: boolean;
+  reason?: string;
+}
 
 export interface Instance {
   id: number;
@@ -408,14 +429,21 @@ export class WatchRoot {
   }
 
   /**
-   * Entry point for native interaction events. Returns false for unknown/stale
-   * nodes or events with no handler — but ALWAYS acks the seq (CX-010), so an
-   * optimistic native control is released/rolled back, never stranded. The
-   * cases that used to strand: no handler (early return before the ack), and a
-   * throwing handler (the ack path was skipped). Both now ack in a `finally`;
-   * a handler's exception still propagates afterwards.
+   * Entry point for native interaction events. `handled` is false for
+   * unknown/stale nodes or events with no handler — but the seq is ALWAYS
+   * acked (CX-010), so an optimistic native control is released/rolled back,
+   * never stranded. The cases that used to strand: no handler (early return
+   * before the ack), and a throwing handler (the ack path was skipped). Both
+   * now ack in a `finally`; a handler's exception still propagates afterwards.
+   *
+   * `accepted` (ARCH-09): for `pathChange` it's computed AFTER the flush by
+   * comparing the stack node's now-committed path against the proposal —
+   * which is why a controlled `onPathChange` must fold the path
+   * SYNCHRONOUSLY (setState in the handler is fine; this dispatch flushes it
+   * before comparing). An async fold reads as a decline and native snaps
+   * back. Other events: `accepted` mirrors `handled`.
    */
-  dispatchEvent(event: WatchEvent): boolean {
+  dispatchEvent(event: WatchEvent): DispatchResult {
     const instance = this.container.instances.get(event.nodeId);
     if (event.seq !== undefined && event.seq > this.container.lastSeq) {
       this.container.lastSeq = event.seq;
@@ -440,7 +468,15 @@ export class WatchRoot {
         }
       }
     }
-    return handled;
+    if (event.event === "pathChange") {
+      // Post-flush: instance.props now holds the committed values, so the
+      // comparison sees exactly what the handler folded (or didn't).
+      const accepted = pathChangeAccepted(instance, handled, event.payload);
+      return accepted
+        ? { handled, accepted }
+        : { handled, accepted, reason: "declined" };
+    }
+    return { handled, accepted: handled };
   }
 
   /**

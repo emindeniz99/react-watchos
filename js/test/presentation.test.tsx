@@ -68,7 +68,7 @@ describe("Alert / ConfirmationDialog / Sheet (wire + events)", () => {
 
     // The system button tap: press on the ACTION node…
     expect(
-      root.dispatchEvent({ nodeId: action.id, event: "press", seq: 1 }),
+      root.dispatchEvent({ nodeId: action.id, event: "press", seq: 1 }).handled,
     ).toBe(true);
     expect(onDelete).toHaveBeenCalledTimes(1);
     // …then the presentation's binding set(false), like Toggle's change.
