@@ -32,7 +32,14 @@ public final class JSRuntime {
     /// Non-fatal JS exceptions (event handlers, timers) — reported to the host,
     /// not called FROM JS, so it isn't part of the generated `__host` surface.
     /// Without this, runtime errors after startup would be silently swallowed.
-    public var onError: ((String) -> Void)?
+    ///
+    /// `source` names which entry path surfaced the error (ARCH-13, so the
+    /// host can stamp a structured diagnostic code without parsing the
+    /// message): `"eval"` (evaluate/evaluateBool/evaluateString), `"call"`
+    /// (a JS_Call bridge entry — missing global or thrown handler), `"job"`
+    /// (a throwing microtask in drainJobs), or `"promiseRejection"` (the
+    /// unhandled-rejection tracker). `message` is the "message\nstack" text.
+    public var onError: ((_ source: String, _ message: String) -> Void)?
 
     private let runtime: OpaquePointer
     private let context: OpaquePointer
@@ -331,7 +338,7 @@ public final class JSRuntime {
             }
             defer { JS_FreeValue(context, result) }
             if JS_IsException(result) {
-                onError?(takeExceptionMessage())
+                onError?("eval", takeExceptionMessage())
                 return false
             }
             return JS_ToBool(context, result) == 1
@@ -349,7 +356,7 @@ public final class JSRuntime {
             guard !JS_IsException(result),
                 let cString = JS_ToCString(context, result)
             else {
-                onError?(takeExceptionMessage())
+                onError?("eval", takeExceptionMessage())
                 return nil
             }
             defer { JS_FreeCString(context, cString) }
@@ -361,9 +368,9 @@ public final class JSRuntime {
         do {
             try evaluate(code, filename: filename)
         } catch let JSError.exception(message) {
-            onError?(message)
+            onError?("eval", message)
         } catch {
-            onError?(String(describing: error))
+            onError?("eval", String(describing: error))
         }
     }
 
@@ -436,7 +443,7 @@ public final class JSRuntime {
             let fn = cachedGlobalFunction(name)
             guard JS_IsFunction(context, fn) else {
                 values.forEach { JS_FreeValue(context, $0) }
-                onError?("global \(name) is not a function")
+                onError?("call", "global \(name) is not a function")
                 return nil
             }
             let global = JS_GetGlobalObject(context)
@@ -447,7 +454,7 @@ public final class JSRuntime {
             }
             values.forEach { JS_FreeValue(context, $0) }
             if JS_IsException(result) {
-                onError?(takeExceptionMessage())
+                onError?("call", takeExceptionMessage())
                 JS_FreeValue(context, result)
                 return nil
             }
@@ -649,7 +656,7 @@ public final class JSRuntime {
         while true {
             let status = JS_ExecutePendingJob(runtime, &ctx)
             if status == 0 { break }
-            if status < 0 { onError?(takeExceptionMessage()) }
+            if status < 0 { onError?("job", takeExceptionMessage()) }
         }
     }
 
@@ -687,7 +694,7 @@ public final class JSRuntime {
     /// quickjs-ng fires the tracker eagerly; a late .catch sends the matching
     /// is_handled callback we ignore in promiseRejectionTracker.
     fileprivate func reportUnhandledRejection(_ reason: JSValue) {
-        onError?("Possibly unhandled promise rejection: " + describe(reason))
+        onError?("promiseRejection", "Possibly unhandled promise rejection: " + describe(reason))
     }
 
     private func jsStringLiteral(_ value: String) -> String {

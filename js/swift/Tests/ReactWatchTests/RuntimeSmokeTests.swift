@@ -56,8 +56,8 @@ final class RuntimeSmokeTests: XCTestCase {
 
     func testThrowingMicrotaskReachesOnError() throws {
         let runtime = try JSRuntime()
-        var reported: String?
-        runtime.onError = { reported = $0 }
+        var reported: (source: String, message: String)?
+        runtime.onError = { reported = ($0, $1) }
 
         // The throw fires inside a microtask drained by drainJobs(), not at
         // top level (which already rethrew) — exactly the swallowed path.
@@ -65,22 +65,38 @@ final class RuntimeSmokeTests: XCTestCase {
             #"queueMicrotask(() => { throw new Error("microtask boom"); });"#
         )
 
-        let message = try XCTUnwrap(reported, "throwing microtask never surfaced")
-        XCTAssertTrue(message.contains("microtask boom"), "got: \(message)")
+        let report = try XCTUnwrap(reported, "throwing microtask never surfaced")
+        XCTAssertEqual(report.source, "job")
+        XCTAssertTrue(report.message.contains("microtask boom"), "got: \(report.message)")
     }
 
     func testUnhandledRejectionReachesOnError() throws {
         let runtime = try JSRuntime()
-        var reported: String?
-        runtime.onError = { reported = $0 }
+        var reported: (source: String, message: String)?
+        runtime.onError = { reported = ($0, $1) }
 
         // A rejected promise with no .catch — the shape of a rejected fetch or
         // generateText. Surfaced via the host promise-rejection tracker, since
         // a bare rejection never throws at the job level.
         try runtime.evaluate(#"Promise.reject(new Error("rejected boom"));"#)
 
-        let message = try XCTUnwrap(reported, "unhandled rejection never surfaced")
-        XCTAssertTrue(message.contains("rejected boom"), "got: \(message)")
+        let report = try XCTUnwrap(reported, "unhandled rejection never surfaced")
+        XCTAssertEqual(report.source, "promiseRejection")
+        XCTAssertTrue(report.message.contains("rejected boom"), "got: \(report.message)")
+    }
+
+    // ARCH-13: onError tags each report with its entry path so the host can
+    // stamp a structured diagnostic code (js.eval/js.call/js.job/
+    // js.promiseRejection) without parsing the message.
+    func testEvaluateStringExceptionReportsEvalSource() throws {
+        let runtime = try JSRuntime()
+        var reported: (source: String, message: String)?
+        runtime.onError = { reported = ($0, $1) }
+        XCTAssertNil(runtime.evaluateString("throw new Error('eval boom')"))
+        XCTAssertEqual(reported?.source, "eval")
+        XCTAssertTrue(
+            reported?.message.contains("eval boom") == true,
+            reported?.message ?? "nil")
     }
 
     // OP-5: a rejected/thrown non-Error value (e.g. `Promise.reject("x")`) has
@@ -88,7 +104,7 @@ final class RuntimeSmokeTests: XCTestCase {
     func testNonErrorRejectionHasNoUndefinedStack() throws {
         let runtime = try JSRuntime()
         var reported: String?
-        runtime.onError = { reported = $0 }
+        runtime.onError = { _, message in reported = message }
 
         try runtime.evaluate(#"Promise.reject("plain string reason");"#)
 
@@ -189,22 +205,23 @@ final class RuntimeSmokeTests: XCTestCase {
 
     func testDispatchEventReturningIsNilWithoutTheGlobal() throws {
         let runtime = try JSRuntime()
-        var reported: String?
-        runtime.onError = { reported = $0 }
+        var reported: (source: String, message: String)?
+        runtime.onError = { reported = ($0, $1) }
         // No bundle defines __dispatchEvent -> nil (callers parse that to a
         // rollback), and the miss is reported, not crashed on.
         XCTAssertNil(
             runtime.dispatchEventReturning(nodeId: 1, event: "pathChange"))
-        XCTAssertNotNil(reported)
+        XCTAssertEqual(reported?.source, "call")
     }
 
     func testBridgeCallToMissingFunctionReportsError() throws {
         let runtime = try JSRuntime()
-        var reported: String?
-        runtime.onError = { reported = $0 }
+        var reported: (source: String, message: String)?
+        runtime.onError = { reported = ($0, $1) }
         // __resolveFetch isn't defined (no bundle) -> JS_Call reports, not crash.
         runtime.resolveFetch(id: 1, responseJson: "{}")
-        XCTAssertEqual(reported, "global __resolveFetch is not a function")
+        XCTAssertEqual(reported?.source, "call")
+        XCTAssertEqual(reported?.message, "global __resolveFetch is not a function")
     }
 
     // CR-5: the widget intent path returns Bool/String, also via JS_Call,
@@ -250,7 +267,7 @@ final class RuntimeSmokeTests: XCTestCase {
     func testCaughtRejectionDoesNotReportError() throws {
         let runtime = try JSRuntime()
         var reported: String?
-        runtime.onError = { reported = $0 }
+        runtime.onError = { _, message in reported = message }
 
         // Handler attached while the promise is still pending (the common
         // fetch().catch() shape): the rejection is handled, so nothing must

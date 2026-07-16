@@ -975,7 +975,7 @@ final class ReactWatchModel {
         // just bumped it): reading it when the error fires would see the new
         // generation after a swap and defeat the guard (CX-008 / NF-14).
         let gen = generation
-        js.onError = { [weak self] message in
+        js.onError = { [weak self] _, message in
             DispatchQueue.main.async { [weak self] in
                 guard let self, gen == self.generation else { return }
                 self.runtimeError = message

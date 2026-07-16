@@ -5,6 +5,7 @@ import ReactWatchCore
 import ReactWatchRuntime
 import ReactWatchSupport
 import WidgetKit
+import os
 
 /// Trusted OTA signer keys for the widget extension (NF-35). Set ONCE at
 /// extension startup — from the widget bundle's `@main` init — with the SAME
@@ -49,6 +50,11 @@ public enum ReactWatchWidgetOTA {
 /// long before the OS jetsams us.
 /// NOTE: untested until built with Xcode on macOS (WidgetKit).
 public final class WidgetIntentRuntime {
+    /// JS-error sink for the extension (filter subsystem
+    /// `com.reactwatchos.widget`, category `js` in Console.app).
+    private static let jsErrorLog = Logger(
+        subsystem: "com.reactwatchos.widget", category: "js")
+
     private let js: JSRuntime
     private let store: SharedWidgetStore
     /// Cross-process-atomic counters (ARCH-05): the `addGlass` control runs
@@ -67,8 +73,17 @@ public final class WidgetIntentRuntime {
         }
         self.js = js
         // Non-fatal JS errors (a throwing intent handler, a bad timeline render)
-        // would otherwise vanish in the extension — surface them to the console.
-        js.onError = { print("[react-watch-widget]", $0) }
+        // would otherwise vanish in the extension — surface them through
+        // os.Logger (non-blocking, visible in Console.app/sysdiagnose in
+        // RELEASE too, unlike the old bare print). Persisting a last-N ring in
+        // the App Group was considered and skipped: SharedWidgetStore is a
+        // plain key-value wrapper, and an append would be a cross-process
+        // read-modify-write — the exact lost-update shape ARCH-05 exists for.
+        js.onError = { source, message in
+            Self.jsErrorLog.error(
+                "js error (\(source, privacy: .public)): \(message, privacy: .public)"
+            )
+        }
         // The intent entrypoint must not mount UI; ignore any commit.
         js.bridge.commit = { _ in }
         // Intent-mode JS has NO timers: since M1's owning-queue confinement a
