@@ -8,12 +8,17 @@
  * Logs are *also* visible in the Xcode console (console.log -> __host.log ->
  * Swift print); this adds a visual tree on top.
  */
+import { type Diagnostic, onDiagnostic } from "./diagnostics";
+
 const logs: string[] = [];
 const MAX_LOGS = 200;
 const errors: InspectorError[] = [];
 const MAX_ERRORS = 50;
+const diagnostics: Diagnostic[] = [];
+const MAX_DIAGNOSTICS = 50;
 let started = false;
 let teed = false;
+let diagnosticsTapped = false;
 let stopFn: (() => void) | null = null;
 
 /** String(x) that never throws (null-prototype / throwing toString). */
@@ -68,6 +73,7 @@ export function inspectorSnapshot(): {
   tree: unknown;
   logs: string[];
   errors: InspectorError[];
+  diagnostics: Diagnostic[];
 } {
   const inspect = (globalThis as { __inspect?: Inspect }).__inspect;
   const snap = inspect ? inspect() : { commits: 0, tree: null };
@@ -76,6 +82,7 @@ export function inspectorSnapshot(): {
     tree: snap.tree,
     logs: [...logs],
     errors: [...errors],
+    diagnostics: [...diagnostics],
   };
 }
 
@@ -89,6 +96,18 @@ export function startInspector(options: InspectorOptions): () => void {
   // Already running: hand back the existing stop so a caller can still stop it.
   if (started) return stopFn ?? (() => {});
   started = true;
+
+  // Buffer host diagnostics (ARCH-13) for the snapshot, once. Subscribed
+  // only when the inspector is actually started — the native ring is always
+  // on, but this JS-side exposure stays DEV/opt-in like the rest of the
+  // inspector.
+  if (!diagnosticsTapped) {
+    diagnosticsTapped = true;
+    onDiagnostic((diagnostic) => {
+      diagnostics.push(diagnostic);
+      if (diagnostics.length > MAX_DIAGNOSTICS) diagnostics.shift();
+    });
+  }
 
   // Tee console.log/console.error into the ring buffers once (a restart must
   // not re-wrap an already-wrapped console).

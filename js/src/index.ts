@@ -132,6 +132,12 @@ export {
 } from "./connectivity";
 export type { DeviceInfo } from "./device";
 export { enableWaterLock, getDeviceInfo } from "./device";
+export type {
+  Diagnostic,
+  DiagnosticSeverity,
+  DiagnosticSubsystem,
+} from "./diagnostics";
+export { DIAGNOSTIC_EVENT, onDiagnostic } from "./diagnostics";
 export { ErrorBoundary } from "./errorBoundary";
 export {
   onRuntimeSessionState,
