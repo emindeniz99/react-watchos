@@ -74,13 +74,24 @@ const latestTree = () => JSON.parse(__commits[__commits.length - 1]).root;
 const latestPublished = () => JSON.parse(__published[__published.length - 1]);
 
 const initial = latestTree();
-const initialCount = textStartingWith(initial, "Count: ").props.text;
 const initialPublished = latestPublished();
+
+// ARCH-09 lazy mounting: at launch only the root screen serializes — the
+// /counter, /hydration, and /stopwatch subtrees don't exist in the tree yet.
+const lazyAtLaunch = textStartingWith(initial, "Count: ") === undefined
+  && findAll(initial, "Toggle").length === 0;
+
+// Navigation is a confirmed transaction: the demo's controlled stack folds
+// the proposal synchronously, so the dispatch returns accepted:true and the
+// SAME commit already carries the newly mounted destination subtree.
+const navResult = JSON.parse(globalThis.__dispatchEvent(
+  initial.id, "pathChange", JSON.stringify({ path: ["/counter"] }), 11));
+const ackedSeq = JSON.parse(__commits[__commits.length - 1]).seq;
+const initialCount = textStartingWith(latestTree(), "Count: ").props.text;
 
 // __dispatchEvent returns the structured verdict as a JSON string (ARCH-09).
 const pressResult = JSON.parse(globalThis.__dispatchEvent(
-  buttonWithLabel(initial, "+").id, "press", undefined, 11));
-const ackedSeq = JSON.parse(__commits[__commits.length - 1]).seq;
+  buttonWithLabel(latestTree(), "+").id, "press", undefined, 12));
 const countAfterPress = textStartingWith(latestTree(), "Count: ").props.text;
 
 const toggle = findAll(latestTree(), "Toggle")[0];
@@ -88,13 +99,30 @@ const changeResult = JSON.parse(globalThis.__dispatchEvent(
   toggle.id, "change", JSON.stringify({ value: true })));
 const toggleAfterChange = findAll(latestTree(), "Toggle")[0].props.value;
 
+// Multi-entry stack: the covered /counter entry stays serialized under
+// /hydration (every active-stack entry keeps its subtree, only the top is
+// focused).
+const nav2Accepted = JSON.parse(globalThis.__dispatchEvent(
+  initial.id, "pathChange",
+  JSON.stringify({ path: ["/counter", "/hydration"] }), 13)).accepted;
+const counterStillMounted =
+  textStartingWith(latestTree(), "Count: ") !== undefined;
+
 const publishedBefore = __published.length;
 globalThis.__dispatchEvent(buttonWithLabel(latestTree(), "Add glass").id, "press");
 const hydrationPublished = latestPublished();
 
-// Native push entrypoint: the Stopwatch screen (eagerly mounted as a
-// NavigationRoute destination) registers a "scenePhase" listener, so a
-// native push routes through runSync and commits a new tree synchronously.
+// Replacing the stack pops /counter + /hydration: their subtrees leave the
+// committed tree, and /stopwatch mounts.
+const nav3Accepted = JSON.parse(globalThis.__dispatchEvent(
+  initial.id, "pathChange", JSON.stringify({ path: ["/stopwatch"] }), 14)).accepted;
+const counterUnmountedAfterPop =
+  textStartingWith(latestTree(), "Count: ") === undefined;
+
+// Native push entrypoint: the Stopwatch screen registers its "scenePhase"
+// listener on mount — under lazy mounting that's first open (the navigation
+// above), not launch — so a native push routes through runSync and commits a
+// new tree synchronously.
 const pushExists = typeof globalThis.__pushNativeEvent === "function";
 const pushHandled = globalThis.__pushNativeEvent("scenePhase",
   JSON.stringify({ phase: "background" }));
@@ -105,6 +133,12 @@ const phaseText = findAll(latestTree(), "Text")
 print(JSON.stringify({
   logs: __logs,
   rootType: initial.type,
+  lazyAtLaunch,
+  navResult,
+  nav2Accepted,
+  counterStillMounted,
+  nav3Accepted,
+  counterUnmountedAfterPop,
   initialCount,
   pressResult,
   ackedSeq,
@@ -174,6 +208,12 @@ describe("quickjs smoke", () => {
   let result: {
     logs: string[];
     rootType: string;
+    lazyAtLaunch: boolean;
+    navResult: { handled: boolean; accepted: boolean };
+    nav2Accepted: boolean;
+    counterStillMounted: boolean;
+    nav3Accepted: boolean;
+    counterUnmountedAfterPop: boolean;
     initialCount: string;
     pressResult: { handled: boolean; accepted: boolean };
     ackedSeq: number;
@@ -230,13 +270,27 @@ describe("quickjs smoke", () => {
 
   it("renders the initial navigation tree inside QuickJS", () => {
     expect(result.rootType).toBe("NavigationStack");
-    expect(result.initialCount).toBe("Count: 0");
   });
 
-  it("handles a press event end-to-end and acks its seq", () => {
+  it("mounts routes lazily and confirms navigation inside the dispatch (ARCH-09)", () => {
+    // Launch tree carries only the root screen…
+    expect(result.lazyAtLaunch).toBe(true);
+    // …and a proposed path folds + mounts within the confirming dispatch.
+    expect(result.navResult).toEqual({ handled: true, accepted: true });
+    expect(result.initialCount).toBe("Count: 0");
+    expect(result.ackedSeq).toBe(11);
+  });
+
+  it("keeps covered stack entries serialized and unmounts popped ones", () => {
+    expect(result.nav2Accepted).toBe(true);
+    expect(result.counterStillMounted).toBe(true);
+    expect(result.nav3Accepted).toBe(true);
+    expect(result.counterUnmountedAfterPop).toBe(true);
+  });
+
+  it("handles a press event end-to-end", () => {
     expect(result.pressResult).toEqual({ handled: true, accepted: true });
     expect(result.countAfterPress).toBe("Count: 1");
-    expect(result.ackedSeq).toBe(11);
   });
 
   it("routes a native push through runSync and commits synchronously", () => {

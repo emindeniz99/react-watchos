@@ -3,7 +3,9 @@
 // bench (test/treediff.bench.test.tsx) runs under V8/JIT and its numbers
 // must not be used for the tree-diff/patch-protocol decision; these must.
 //
-// Measures, on the real demo bundle's eager-mounted all-screens tree:
+// Measures, on the real demo bundle's active-stack tree (routes mount
+// lazily per ARCH-09, so the bench first confirms a push of /counter —
+// the tree it serializes per tap is root + the counter screen):
 //   perDispatchMs           full pipeline per tap: React render + full-tree
 //                           serialize + JSON.stringify + C hop
 //   perSerializeMs          serializeTree only (__inspect, no stringify)
@@ -24,7 +26,13 @@
     n.children.reduce((sum, c) => sum + countNodes(c), 1);
 
   const initial = JSON.parse(__commits[__commits.length - 1]);
-  const plus = findAll(initial.root, "Button").find((b) =>
+  // ARCH-09: /counter isn't mounted at launch — confirm the push first.
+  const nav = JSON.parse(globalThis.__dispatchEvent(initial.root.id,
+    "pathChange", JSON.stringify({ path: ["/counter"] }), 1));
+  if (nav.accepted !== true)
+    throw new Error("bench navigation not accepted: " + JSON.stringify(nav));
+  const mounted = JSON.parse(__commits[__commits.length - 1]);
+  const plus = findAll(mounted.root, "Button").find((b) =>
     findAll(b, "Text").some((t) => t.props.text === "+"));
 
   const WARMUP = 20;

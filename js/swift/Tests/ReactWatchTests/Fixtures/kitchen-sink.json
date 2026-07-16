@@ -2,7 +2,7 @@
   "v": 1,
   "seq": 0,
   "root": {
-    "id": 56,
+    "id": 55,
     "type": "VStack",
     "props": {
       "spacing": 4,
@@ -324,7 +324,7 @@
         "children": []
       },
       {
-        "id": 36,
+        "id": 35,
         "type": "NavigationStack",
         "props": {
           "onPathChange": true
@@ -349,26 +349,17 @@
             ]
           },
           {
-            "id": 35,
+            "id": 34,
             "type": "NavigationRoute",
             "props": {
               "path": "/detail/[id]"
             },
-            "children": [
-              {
-                "id": 34,
-                "type": "Text",
-                "props": {
-                  "text": "detail"
-                },
-                "children": []
-              }
-            ]
+            "children": []
           }
         ]
       },
       {
-        "id": 38,
+        "id": 37,
         "type": "Alert",
         "props": {
           "presented": false,
@@ -378,7 +369,7 @@
         },
         "children": [
           {
-            "id": 37,
+            "id": 36,
             "type": "AlertAction",
             "props": {
               "label": "OK",
@@ -390,7 +381,7 @@
         ]
       },
       {
-        "id": 40,
+        "id": 39,
         "type": "ConfirmationDialog",
         "props": {
           "presented": false,
@@ -399,7 +390,7 @@
         },
         "children": [
           {
-            "id": 39,
+            "id": 38,
             "type": "AlertAction",
             "props": {
               "label": "Do",
@@ -410,7 +401,7 @@
         ]
       },
       {
-        "id": 42,
+        "id": 41,
         "type": "Sheet",
         "props": {
           "presented": false,
@@ -418,7 +409,7 @@
         },
         "children": [
           {
-            "id": 41,
+            "id": 40,
             "type": "Text",
             "props": {
               "text": "sheet"
@@ -428,7 +419,7 @@
         ]
       },
       {
-        "id": 46,
+        "id": 45,
         "type": "Grid",
         "props": {
           "horizontalSpacing": 2,
@@ -436,12 +427,12 @@
         },
         "children": [
           {
-            "id": 45,
+            "id": 44,
             "type": "GridRow",
             "props": {},
             "children": [
               {
-                "id": 43,
+                "id": 42,
                 "type": "Text",
                 "props": {
                   "text": "c1"
@@ -449,7 +440,7 @@
                 "children": []
               },
               {
-                "id": 44,
+                "id": 43,
                 "type": "Text",
                 "props": {
                   "text": "c2"
@@ -461,7 +452,7 @@
         ]
       },
       {
-        "id": 47,
+        "id": 46,
         "type": "ShareLink",
         "props": {
           "item": "https://example.test"
@@ -469,7 +460,7 @@
         "children": []
       },
       {
-        "id": 48,
+        "id": 47,
         "type": "Chart",
         "props": {
           "type": "bar",
@@ -488,7 +479,7 @@
         "children": []
       },
       {
-        "id": 49,
+        "id": 48,
         "type": "Map",
         "props": {
           "latitude": 41,
@@ -505,7 +496,7 @@
         "children": []
       },
       {
-        "id": 50,
+        "id": 49,
         "type": "ProgressView",
         "props": {
           "value": 0.4,
@@ -515,7 +506,7 @@
         "children": []
       },
       {
-        "id": 51,
+        "id": 50,
         "type": "ContentUnavailable",
         "props": {
           "title": "empty",
@@ -525,26 +516,26 @@
         "children": []
       },
       {
-        "id": 55,
+        "id": 54,
         "type": "Toolbar",
         "props": {},
         "children": [
           {
-            "id": 54,
+            "id": 53,
             "type": "ToolbarItem",
             "props": {
               "placement": "topBarTrailing"
             },
             "children": [
               {
-                "id": 53,
+                "id": 52,
                 "type": "Button",
                 "props": {
                   "onPress": true
                 },
                 "children": [
                   {
-                    "id": 52,
+                    "id": 51,
                     "type": "Text",
                     "props": {
                       "text": "t"
