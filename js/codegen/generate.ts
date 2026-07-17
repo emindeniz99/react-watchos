@@ -32,19 +32,29 @@ const root = join(here, "..");
 // separately). Needs the toolchain's `swift format` (bundled with Xcode 16+ /
 // Swift 6) — the same tool that formats the hand-written sources.
 const swiftFormatConfig = join(root, "..", ".swift-format");
+// A formatter can "succeed" with empty stdout on an incompatible CLI — and
+// silently emptied @generated files would then land on disk. Fail loud:
+// formatting never shrinks real code to under half its size.
+const implausiblySmall = (formatted: string, source: string) =>
+  formatted.trim().length < source.trim().length / 2;
 function formatSwift(source: string) {
   try {
-    // `-` reads the source from stdin (implicit stdin is deprecated).
-    const formatted = execFileSync(
+    // `-` reads the source from stdin (implicit stdin is deprecated) — but
+    // swift-format 6.0 on Linux writes NOTHING for `-` (exit 0, empty stdout)
+    // while implicit stdin works, so fall back to it before failing.
+    let formatted = execFileSync(
       "swift",
       ["format", "--configuration", swiftFormatConfig, "-"],
       { input: source, encoding: "utf8" },
     );
-    // A formatter can "succeed" with empty stdout on an incompatible CLI
-    // (seen with a Linux toolchain whose `swift format -` wrote nothing) —
-    // and silently emptied @generated files would then land on disk. Fail
-    // loud: formatting never shrinks real code to under half its size.
-    if (formatted.trim().length < source.trim().length / 2) {
+    if (implausiblySmall(formatted, source)) {
+      formatted = execFileSync(
+        "swift",
+        ["format", "--configuration", swiftFormatConfig],
+        { input: source, encoding: "utf8" },
+      );
+    }
+    if (implausiblySmall(formatted, source)) {
       throw new Error(
         "swift format produced implausibly small output " +
           `(${formatted.length} bytes from ${source.length})`,
