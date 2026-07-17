@@ -189,4 +189,51 @@ final class HostBridgeTests: XCTestCase {
                 "watch-only __host.\(name) must NOT be installed on the widget")
         }
     }
+
+    // MARK: - ARCH-07 host-policy install filtering
+
+    func testAllowedFeaturesFiltersNonCoreInstalls() throws {
+        // A restricted runtime installs only the allowed features' functions;
+        // JS feature detection (typeof) must reflect the policy, not the binary.
+        let r = try JSRuntime(allowedFeatures: ["core", "storage"])
+        for name in ["getItem", "setItem", "counterGet", "counterAdd"] {
+            XCTAssertTrue(
+                r.evaluateBool("typeof __host.\(name) === 'function'"),
+                "allowed __host.\(name) should be installed")
+        }
+        for name in ["fetch", "abortFetch", "ble", "sensor", "generate", "publishWidgets"] {
+            XCTAssertTrue(
+                r.evaluateBool("typeof __host.\(name) === 'undefined'"),
+                "policy-blocked __host.\(name) must NOT be installed")
+        }
+        // "core" is installed even without appearing in the allowlist…
+        let coreOnly = try JSRuntime(allowedFeatures: [])
+        for name in ["commit", "log", "setTimer", "clearTimer", "invoke"] {
+            XCTAssertTrue(
+                coreOnly.evaluateBool("typeof __host.\(name) === 'function'"),
+                "core __host.\(name) must survive any policy")
+        }
+        // …and everything else is gone under the empty allowlist.
+        XCTAssertTrue(coreOnly.evaluateBool("typeof __host.getItem === 'undefined'"))
+    }
+
+    func testNilAllowedFeaturesInstallsEverythingForTheTarget() throws {
+        // nil = unrestricted (the default): identical to the pre-policy bridge.
+        let r = try JSRuntime(allowedFeatures: nil)
+        for name in ["commit", "getItem", "publishWidgets", "fetch", "generate"] {
+            XCTAssertTrue(
+                r.evaluateBool("typeof __host.\(name) === 'function'"),
+                "unrestricted __host.\(name) should be installed")
+        }
+    }
+
+    func testWidgetTargetAppliesAllowedFeaturesOnTopOfItsSubset() throws {
+        // Policy composes with target filtering: the widget's watch-only
+        // omissions still hold, and the allowlist gates the rest.
+        let widget = try JSRuntime(target: .widget, allowedFeatures: ["widgets"])
+        XCTAssertTrue(widget.evaluateBool("typeof __host.publishWidgets === 'function'"))
+        XCTAssertTrue(widget.evaluateBool("typeof __host.commit === 'function'"))
+        XCTAssertTrue(widget.evaluateBool("typeof __host.getItem === 'undefined'"))
+        XCTAssertTrue(widget.evaluateBool("typeof __host.fetch === 'undefined'"))
+    }
 }
