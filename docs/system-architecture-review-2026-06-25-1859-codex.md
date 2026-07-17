@@ -315,7 +315,12 @@ remains eventually consistent, but inconsistency is observable and recoverable.
 - [ ] Add reconciliation on app launch and after intent completion.
 - [ ] Test crash between mutation and publication.
 
-### [ ] ARCH-07 — Enforce host policy, not only host availability
+### [x] ARCH-07 — Enforce host policy, not only host availability
+
+> *(2026-07-17: shipped — `HostPolicy` in ReactWatchSupport, per-feature generated
+> install guards, typed `POLICY_DENIED` invoke rejections, the policy check at OTA
+> staging + in the validator runtime, and the widget's fast typed invoke rejection.
+> Evidence: the merged backlog's build-progress log entry.)*
 
 **Priority:** P0 for signed OTA.
 
@@ -333,10 +338,10 @@ must require an explicit consumer configuration change/native release.
 
 **Acceptance**
 
-- [ ] Generate target-specific installation from `HostPolicy`.
-- [ ] Keep compatibility and authorization as separate decisions.
-- [ ] Add policy-denied typed errors.
-- [ ] Test that widget and OTA runtimes cannot call undeclared app capabilities.
+- [x] Generate target-specific installation from `HostPolicy`.
+- [x] Keep compatibility and authorization as separate decisions.
+- [x] Add policy-denied typed errors.
+- [x] Test that widget and OTA runtimes cannot call undeclared app capabilities.
 
 ### [ ] ARCH-08 — Introduce a runtime session with deterministic teardown
 
