@@ -14,6 +14,7 @@
   "cleanOutputDir": true,
   "tsconfig": "tsconfig.json",
   "gitRevision": "main",
+  "sourceLinkTemplate": "https://github.com/emindeniz99/playground/blob/main/{path}#L{line}",
   "skipErrorChecking": false,
   "treatWarningsAsErrors": false
 }
