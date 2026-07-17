@@ -46,6 +46,12 @@ public final class JSRuntime {
     /// Which embedding this runtime is — selects which host functions get
     /// installed on `__host` (the widget extension omits the watch-only ones).
     private let target: HostTarget
+    /// The host-policy ceiling (ARCH-07): only these features' host functions
+    /// are installed on `__host` (nil = unrestricted; "core" is always
+    /// installed). The embedding host passes its policy's EFFECTIVE set so JS
+    /// feature detection (`typeof __host.fetch`) reflects what the consumer
+    /// authorized, not just what the binary could back.
+    private let allowedFeatures: Set<String>?
     /// QuickJS is single-threaded, so every touch of the JS context is confined
     /// to ONE serial queue captured at init (M1): the app runtime lives on
     /// main; a widget runtime gets its own queue (it's created and driven from
@@ -83,9 +89,12 @@ public final class JSRuntime {
     ///     it), a fresh private queue for `.widget` (provider/intent threads
     ///     hop onto it). Pass an explicit queue for off-main one-shot work
     ///     (e.g. the OTA validator) so entries don't hop to main.
+    ///   - allowedFeatures: the HostPolicy ceiling (ARCH-07) — only these
+    ///     features' host functions are installed ("core" always is). nil =
+    ///     unrestricted, the right default for tests/throwaway runtimes.
     public init(
         memoryLimitBytes: Int? = nil, target: HostTarget = .watch,
-        queue: DispatchQueue? = nil
+        queue: DispatchQueue? = nil, allowedFeatures: Set<String>? = nil
     ) throws {
         guard let rt = JS_NewRuntime(), let ctx = JS_NewContext(rt) else {
             throw JSError.initialization
@@ -93,6 +102,7 @@ public final class JSRuntime {
         runtime = rt
         context = ctx
         self.target = target
+        self.allowedFeatures = allowedFeatures
         owningQueue =
             queue
             ?? (target == .widget
@@ -532,8 +542,11 @@ public final class JSRuntime {
 
         let host = JS_NewObject(context)
         // Every direct host function for this target is installed from the schema
-        // (CX-023); the widget omits the watch-only ones it can't back.
-        installHostBridge(into: host, context: context, target: target)
+        // (CX-023); the widget omits the watch-only ones it can't back, and the
+        // host-policy ceiling filters non-"core" features (ARCH-07).
+        installHostBridge(
+            into: host, context: context, target: target,
+            allowedFeatures: allowedFeatures)
         // JS_SetPropertyStr takes ownership of `host`.
         JS_SetPropertyStr(context, global, "__host", host)
     }

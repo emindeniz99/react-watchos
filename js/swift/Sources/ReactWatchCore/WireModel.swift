@@ -140,3 +140,41 @@ public enum HostFeatures {
     ]
     public static let widget: Set<String> = ["core", "storage", "widgets"]
 }
+
+/// Feature id for each invoke-routed host method (ARCH-07). The host checks
+/// it BEFORE dispatching an invoke, so a feature the consumer's HostPolicy
+/// didn't authorize rejects typed (POLICY_DENIED) instead of reaching a
+/// handler.
+public enum HostInvokeFeatures {
+    public static let byMethod: [String: String] = [
+        "aiAvailability": "ai",
+        "bleConnect": "bluetooth",
+        "bleSubscribe": "bluetooth",
+        "bleWrite": "bluetooth",
+        "currentEntitlements": "iap",
+        "enableWaterLock": "device",
+        "getCurrentLocation": "location",
+        "getDeviceInfo": "device",
+        "getProducts": "iap",
+        "getUpdateState": "ota",
+        "keychainDelete": "keychain",
+        "keychainGet": "keychain",
+        "keychainSet": "keychain",
+        "playAudio": "audio",
+        "purchase": "iap",
+        "requestNotificationPermission": "notifications",
+        "restorePurchases": "iap",
+        "saveUpdate": "ota",
+        "scheduleBackgroundRefresh": "background",
+        "scheduleNotification": "notifications",
+        "searchPOI": "location",
+        "sendToPhone": "connectivity",
+        "speak": "speech",
+        "startExtendedRuntimeSession": "runtime",
+        "stopAudio": "audio",
+        "stopExtendedRuntimeSession": "runtime",
+        "stopSpeaking": "speech",
+        "transferUserInfo": "connectivity",
+        "updateApplicationContext": "connectivity",
+    ]
+}

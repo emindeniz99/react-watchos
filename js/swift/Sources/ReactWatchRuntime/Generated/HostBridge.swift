@@ -41,9 +41,17 @@ extension JSRuntime {
     /// Installs the generated host functions onto `__host` for `target`.
     /// Watch-only functions are absent in the widget so JS feature detection
     /// is correct there and a stray call fails loudly, not silently hangs.
+    /// `allowedFeatures` is the HostPolicy ceiling (ARCH-07): nil installs
+    /// everything the target backs; otherwise only allowed features' methods
+    /// are installed — except "core" (commit/log/timers/invoke), which is
+    /// always installed because the runtime can't operate without it.
     func installHostBridge(
-        into host: JSValue, context: OpaquePointer, target: HostTarget
+        into host: JSValue, context: OpaquePointer, target: HostTarget,
+        allowedFeatures: Set<String>?
     ) {
+        func allows(_ feature: String) -> Bool {
+            allowedFeatures?.contains(feature) ?? true
+        }
         JS_SetPropertyStr(
             context, host, "commit",
             JS_NewCFunction(context, hostCommit, "commit", 1))
@@ -59,43 +67,59 @@ extension JSRuntime {
         JS_SetPropertyStr(
             context, host, "invoke",
             JS_NewCFunction(context, hostInvoke, "invoke", 3))
-        JS_SetPropertyStr(
-            context, host, "publishWidgets",
-            JS_NewCFunction(context, hostPublishWidgets, "publishWidgets", 1))
-        JS_SetPropertyStr(
-            context, host, "getItem",
-            JS_NewCFunction(context, hostGetItem, "getItem", 1))
-        JS_SetPropertyStr(
-            context, host, "setItem",
-            JS_NewCFunction(context, hostSetItem, "setItem", 2))
-        JS_SetPropertyStr(
-            context, host, "counterGet",
-            JS_NewCFunction(context, hostCounterGet, "counterGet", 1))
-        JS_SetPropertyStr(
-            context, host, "counterAdd",
-            JS_NewCFunction(context, hostCounterAdd, "counterAdd", 4))
+        if allows("widgets") {
+            JS_SetPropertyStr(
+                context, host, "publishWidgets",
+                JS_NewCFunction(context, hostPublishWidgets, "publishWidgets", 1))
+        }
+        if allows("storage") {
+            JS_SetPropertyStr(
+                context, host, "getItem",
+                JS_NewCFunction(context, hostGetItem, "getItem", 1))
+            JS_SetPropertyStr(
+                context, host, "setItem",
+                JS_NewCFunction(context, hostSetItem, "setItem", 2))
+            JS_SetPropertyStr(
+                context, host, "counterGet",
+                JS_NewCFunction(context, hostCounterGet, "counterGet", 1))
+            JS_SetPropertyStr(
+                context, host, "counterAdd",
+                JS_NewCFunction(context, hostCounterAdd, "counterAdd", 4))
+        }
         if target == .watch {
-            JS_SetPropertyStr(
-                context, host, "playHaptic",
-                JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
-            JS_SetPropertyStr(
-                context, host, "cancelNotification",
-                JS_NewCFunction(context, hostCancelNotification, "cancelNotification", 1))
-            JS_SetPropertyStr(
-                context, host, "fetch",
-                JS_NewCFunction(context, hostFetch, "fetch", 2))
-            JS_SetPropertyStr(
-                context, host, "abortFetch",
-                JS_NewCFunction(context, hostAbortFetch, "abortFetch", 1))
-            JS_SetPropertyStr(
-                context, host, "ble",
-                JS_NewCFunction(context, hostBle, "ble", 1))
-            JS_SetPropertyStr(
-                context, host, "sensor",
-                JS_NewCFunction(context, hostSensor, "sensor", 1))
-            JS_SetPropertyStr(
-                context, host, "generate",
-                JS_NewCFunction(context, hostGenerate, "generate", 2))
+            if allows("haptics") {
+                JS_SetPropertyStr(
+                    context, host, "playHaptic",
+                    JS_NewCFunction(context, hostPlayHaptic, "playHaptic", 1))
+            }
+            if allows("notifications") {
+                JS_SetPropertyStr(
+                    context, host, "cancelNotification",
+                    JS_NewCFunction(context, hostCancelNotification, "cancelNotification", 1))
+            }
+            if allows("network") {
+                JS_SetPropertyStr(
+                    context, host, "fetch",
+                    JS_NewCFunction(context, hostFetch, "fetch", 2))
+                JS_SetPropertyStr(
+                    context, host, "abortFetch",
+                    JS_NewCFunction(context, hostAbortFetch, "abortFetch", 1))
+            }
+            if allows("bluetooth") {
+                JS_SetPropertyStr(
+                    context, host, "ble",
+                    JS_NewCFunction(context, hostBle, "ble", 1))
+            }
+            if allows("sensors") {
+                JS_SetPropertyStr(
+                    context, host, "sensor",
+                    JS_NewCFunction(context, hostSensor, "sensor", 1))
+            }
+            if allows("ai") {
+                JS_SetPropertyStr(
+                    context, host, "generate",
+                    JS_NewCFunction(context, hostGenerate, "generate", 2))
+            }
         }
     }
 }

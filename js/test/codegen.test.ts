@@ -51,6 +51,57 @@ describe("codegen", () => {
     expect([...installed].sort()).toEqual([...expected].sort());
   });
 
+  it("wraps every non-core feature's installs in a policy guard", () => {
+    // ARCH-07: the generated install table gates each non-"core" feature's
+    // host functions behind `allows("<feature>")` so a HostPolicy allowlist
+    // actually controls what lands on `__host`. "core" (commit/log/timers/
+    // invoke) must stay unconditional — a policy can't brick the runtime.
+    const src = readFileSync(
+      join(swiftRoot, "Sources/ReactWatchRuntime/Generated/HostBridge.swift"),
+      "utf8",
+    );
+    const nonCoreFeatures = new Set(
+      hostMethods
+        .filter((m) => m.via !== "invoke" && m.feature !== "core")
+        .map((m) => m.feature),
+    );
+    for (const feature of nonCoreFeatures) {
+      expect(src).toContain(`if allows("${feature}") {`);
+    }
+    expect(src).not.toContain('allows("core")');
+    // Every direct core method installs outside any guard: its install line
+    // must appear before the first `allows(` guard opens.
+    const firstGuard = src.indexOf("if allows(");
+    for (const m of hostMethods.filter(
+      (m) => m.via !== "invoke" && m.feature === "core",
+    )) {
+      const install = src.indexOf(`host, "${m.name}"`);
+      expect(install).toBeGreaterThan(-1);
+      expect(install).toBeLessThan(firstGuard);
+    }
+  });
+
+  it("the generated invoke feature map matches the schema's invoke methods", () => {
+    // ARCH-07: via:"invoke" methods aren't installed as host functions, so the
+    // install guards can't gate them — the host's invoke dispatcher checks
+    // HostInvokeFeatures.byMethod instead. It must list exactly the schema's
+    // invoke methods with their features.
+    const src = readFileSync(
+      join(swiftRoot, "Sources/ReactWatchCore/WireModel.swift"),
+      "utf8",
+    );
+    const block = src.slice(src.indexOf("public enum HostInvokeFeatures"));
+    const mapped = new Map<string, string>();
+    for (const m of block.matchAll(/"(\w+)":\s*"(\w+)"/g)) {
+      mapped.set(m[1] as string, m[2] as string);
+    }
+    const invokeMethods = hostMethods.filter((m) => m.via === "invoke");
+    expect(mapped.size).toBe(invokeMethods.length);
+    for (const m of invokeMethods) {
+      expect(mapped.get(m.name)).toBe(m.feature);
+    }
+  });
+
   it("the host routes exactly the schema's invoke methods", () => {
     // Each `via:"invoke"` method must have a routing case in ReactWatchHost's
     // onInvoke dispatcher, so the schema and the native router can't drift.

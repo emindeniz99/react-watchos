@@ -205,20 +205,46 @@ function hostBridgeSwift() {
   );
   const installLine = (m: HostMethod) =>
     `        JS_SetPropertyStr(\n            context, host, "${m.name}",\n            JS_NewCFunction(context, ${trampoline(m)}, "${m.name}", ${argsOf(m).length}))`;
+  // One target group's install lines, grouped by feature in schema
+  // (first-appearance) order — deterministic, and each feature's methods are
+  // contiguous in the schema today, so the method order is unchanged. "core"
+  // installs stay unconditional (a policy must not be able to brick
+  // commit/log/timers/invoke); every other feature's block is wrapped in an
+  // `allows(...)` guard (ARCH-07). Order across features doesn't matter
+  // semantically: each line is an independent property-set on `host`.
+  const guardedInstalls = (methods: HostMethod[]): string[] => {
+    const groups = new Map<string, HostMethod[]>();
+    for (const m of methods) {
+      const group = groups.get(m.feature);
+      if (group) group.push(m);
+      else groups.set(m.feature, [m]);
+    }
+    const lines: string[] = [];
+    for (const [feature, group] of groups) {
+      if (feature === "core") {
+        lines.push(...group.map(installLine));
+      } else {
+        lines.push(`        if allows("${feature}") {`);
+        lines.push(...group.map((m) => `    ${installLine(m)}`));
+        lines.push("        }");
+      }
+    }
+    return lines;
+  };
   // Group the installs by target: shared functions go on every embedding;
   // watch-only ones are omitted in the widget extension so JS feature detection
   // (typeof __host.fetch) is correct there and a stray call fails loudly instead
   // of hanging on a nil-backed no-op trampoline (the widget never sets those).
   const inTarget = (m: HostMethod, t: WireTarget) => m.targets.includes(t);
-  const sharedInstalls = directMethods
-    .filter((m) => inTarget(m, "watch") && inTarget(m, "widget"))
-    .map(installLine);
-  const watchOnlyInstalls = directMethods
-    .filter((m) => inTarget(m, "watch") && !inTarget(m, "widget"))
-    .map(installLine);
-  const widgetOnlyInstalls = directMethods
-    .filter((m) => !inTarget(m, "watch") && inTarget(m, "widget"))
-    .map(installLine);
+  const sharedInstalls = guardedInstalls(
+    directMethods.filter((m) => inTarget(m, "watch") && inTarget(m, "widget")),
+  );
+  const watchOnlyInstalls = guardedInstalls(
+    directMethods.filter((m) => inTarget(m, "watch") && !inTarget(m, "widget")),
+  );
+  const widgetOnlyInstalls = guardedInstalls(
+    directMethods.filter((m) => !inTarget(m, "watch") && inTarget(m, "widget")),
+  );
   const targetedBlock = (installs: string[], target: string) =>
     installs.length === 0
       ? []
@@ -253,9 +279,17 @@ function hostBridgeSwift() {
     "    /// Installs the generated host functions onto `__host` for `target`.",
     "    /// Watch-only functions are absent in the widget so JS feature detection",
     "    /// is correct there and a stray call fails loudly, not silently hangs.",
+    "    /// `allowedFeatures` is the HostPolicy ceiling (ARCH-07): nil installs",
+    '    /// everything the target backs; otherwise only allowed features\' methods',
+    '    /// are installed — except "core" (commit/log/timers/invoke), which is',
+    "    /// always installed because the runtime can't operate without it.",
     "    func installHostBridge(",
-    "        into host: JSValue, context: OpaquePointer, target: HostTarget",
+    "        into host: JSValue, context: OpaquePointer, target: HostTarget,",
+    "        allowedFeatures: Set<String>?",
     "    ) {",
+    "        func allows(_ feature: String) -> Bool {",
+    "            allowedFeatures?.contains(feature) ?? true",
+    "        }",
     ...sharedInstalls,
     ...targetedBlock(watchOnlyInstalls, "watch"),
     ...targetedBlock(widgetOnlyInstalls, "widget"),
@@ -412,6 +446,24 @@ function swiftModel() {
     "public enum HostFeatures {",
     `    public static let watch: Set<String> = ${swiftSet("watch")}`,
     `    public static let widget: Set<String> = ${swiftSet("widget")}`,
+    "}",
+  );
+  // via:"invoke" methods aren't installed as host functions, so the ARCH-07
+  // install guards can't gate them — the invoke dispatcher checks this map
+  // before routing instead.
+  const invokeMethods = hostMethods
+    .filter((m) => m.via === "invoke")
+    .sort((a, b) => (a.name < b.name ? -1 : 1));
+  parts.push(
+    "",
+    "/// Feature id for each invoke-routed host method (ARCH-07). The host checks",
+    "/// it BEFORE dispatching an invoke, so a feature the consumer's HostPolicy",
+    "/// didn't authorize rejects typed (POLICY_DENIED) instead of reaching a",
+    "/// handler.",
+    "public enum HostInvokeFeatures {",
+    "    public static let byMethod: [String: String] = [",
+    ...invokeMethods.map((m) => `        "${m.name}": "${m.feature}",`),
+    "    ]",
     "}",
   );
   return `${parts.join("\n")}\n`;
