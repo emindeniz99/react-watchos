@@ -39,6 +39,7 @@ interface ReactWatchOptions {
   appGroup?: string;
   widget?: boolean;
   healthKit?: boolean;
+  push?: boolean;
   deploymentTarget?: string;
   appleTeamId?: string;
   scheme?: string;
@@ -78,6 +79,10 @@ function resolveOptions(
     // capability and draws App Review scrutiny for an unused grant. The demo
     // opts in (it exercises heart rate); the example consumer opts out.
     healthKit: o.healthKit ?? false,
+    // Same least-privilege reasoning as healthKit: the aps-environment
+    // entitlement breaks provisioning on App IDs without the Push
+    // Notifications capability, so remote push is an explicit opt-in.
+    push: o.push ?? false,
     deploymentTarget: o.deploymentTarget ?? "10.0",
     appleTeamId: o.appleTeamId ?? config.ios?.appleTeamId,
     // Deep-link scheme, defaulted to the consumer's own bundle id (like the App
@@ -209,6 +214,7 @@ function withEasAppExtensions(
     entitlements: {
       "com.apple.security.application-groups": [opts.appGroup],
       ...(opts.healthKit ? { "com.apple.developer.healthkit": true } : {}),
+      ...(opts.push ? { "aps-environment": "development" } : {}),
     },
   });
   if (opts.widget) {

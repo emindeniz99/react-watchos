@@ -45,6 +45,8 @@ export function installMockHost() {
         g.__resolveInvoke?.(id, JSON.stringify({ accepted: true }));
       } else if (method === "requestNotificationPermission") {
         g.__resolveInvoke?.(id, JSON.stringify("granted"));
+      } else if (method === "registerForRemoteNotifications") {
+        g.__resolveInvoke?.(id, JSON.stringify("a1b2c3d4e5f6"));
       } else if (method === "sendToPhone") {
         g.__resolveInvoke?.(id, JSON.stringify({ ok: true }));
       } else if (method === "scheduleNotification") {

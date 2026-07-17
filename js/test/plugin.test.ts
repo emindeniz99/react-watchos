@@ -290,6 +290,15 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(c.infoPlist.NSHealthUpdateUsageDescription).toBeUndefined();
   });
 
+  it("push adds the aps-environment entitlement; off omits it", () => {
+    // Xcode rewrites "development" to "production" from the provisioning
+    // profile at archive time, so the plugin only ever writes the dev value.
+    const on = watchTargetConfig({ ...demoOpts, push: true });
+    expect(on.entitlements["aps-environment"]).toBe("development");
+    const off = watchTargetConfig(demoOpts);
+    expect(off.entitlements["aps-environment"]).toBeUndefined();
+  });
+
   it("derives the deep-link CFBundleURLName from a custom bundle id + scheme", () => {
     const c = watchTargetConfig({
       ...demoOpts,
@@ -356,12 +365,23 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
     // a default-true grant broke provisioning on App IDs without the
     // capability and invited App Review scrutiny for an unused entitlement.
     expect(o.healthKit).toBe(false);
+    // Same least-privilege rule: aps-environment breaks provisioning on App
+    // IDs without the Push Notifications capability, so it's opt-in too.
+    expect(o.push).toBe(false);
     expect(o.independent).toBe(true); // standalone-first default
   });
 
   it("healthKit is an explicit opt-in", () => {
     const o = resolveOptions(config, { healthKit: true });
     expect(o.healthKit).toBe(true);
+  });
+
+  it("push is an explicit opt-in", () => {
+    const o = resolveOptions(config, { push: true });
+    expect(o.push).toBe(true);
+    expect(watchTargetConfig(o).entitlements["aps-environment"]).toBe(
+      "development",
+    );
   });
 
   it("scheme is overridable for a shorter custom scheme", () => {
@@ -420,11 +440,11 @@ describe("withEasAppExtensions (EAS extra-target signing)", () => {
     (cfg as EasExtra).extra?.eas?.build?.experimental?.ios?.appExtensions;
 
   it("declares the watch app + widget with bundle ids and entitlements", () => {
-    // healthKit: true is the explicit opt-in (M13 flipped the default to
-    // false); this test covers the entitlement PROPAGATION into EAS.
+    // healthKit/push: true are the explicit opt-ins (M13 flipped the default
+    // to false); this test covers the entitlement PROPAGATION into EAS.
     const cfg = withEasAppExtensions(
       { ...config },
-      resolveOptions(config, { healthKit: true }),
+      resolveOptions(config, { healthKit: true, push: true }),
     );
     expect(extensionsOf(cfg)).toEqual([
       {
@@ -435,6 +455,7 @@ describe("withEasAppExtensions (EAS extra-target signing)", () => {
             "group.com.emindeniz99.reactwatch",
           ],
           "com.apple.developer.healthkit": true,
+          "aps-environment": "development",
         },
       },
       {
@@ -476,6 +497,7 @@ describe("withEasAppExtensions (EAS extra-target signing)", () => {
     expect(
       list[0].entitlements["com.apple.developer.healthkit"],
     ).toBeUndefined();
+    expect(list[0].entitlements["aps-environment"]).toBeUndefined();
   });
 
   it("is idempotent — upserts by targetName instead of duplicating", () => {

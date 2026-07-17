@@ -21,6 +21,7 @@ export interface ResolvedOptions {
   appGroup: string;
   widget: boolean;
   healthKit: boolean;
+  push: boolean;
   deploymentTarget: string;
   appleTeamId: string | undefined;
   scheme: string;
@@ -41,6 +42,12 @@ function watchTargetConfig(opts: ResolvedOptions) {
   if (opts.healthKit) {
     // Live heart rate via a HealthKit workout (SensorBridge).
     entitlements["com.apple.developer.healthkit"] = true;
+  }
+  if (opts.push) {
+    // Remote push (APNs). "development" is the value for local/debug builds;
+    // distribution signing rewrites it to "production" from the provisioning
+    // profile at archive/export time, so it isn't parameterized here.
+    entitlements["aps-environment"] = "development";
   }
 
   // Standalone watch app + the reactwatch:// deep-link scheme + local-network

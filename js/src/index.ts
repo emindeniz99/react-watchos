@@ -244,6 +244,19 @@ export {
   requestNotificationPermission,
   scheduleNotification,
 } from "./notifications";
+export type {
+  RemotePushAps,
+  RemotePushNotification,
+} from "./remotePush";
+export {
+  onRemotePush,
+  onRemotePushRegistrationError,
+  onRemotePushToken,
+  REMOTE_PUSH_EVENT,
+  REMOTE_PUSH_REGISTRATION_ERROR_EVENT,
+  REMOTE_PUSH_TOKEN_EVENT,
+  registerForRemoteNotifications,
+} from "./remotePush";
 export { type DispatchResult, WatchRoot } from "./renderer";
 export type {
   HeartRateOptions,
