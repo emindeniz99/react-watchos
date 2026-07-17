@@ -187,28 +187,49 @@ final class SpeechBridge: NSObject, AVSpeechSynthesizerDelegate {
 
 // MARK: - Audio playback (AVAudioPlayer)
 
-/// Downloads an https audio URL and plays it through an AVAudioSession
-/// `.playback` (routes to Bluetooth audio, else the watch speaker). Completion
-/// (natural end, not stop) is reported via onFinished.
+/// Downloads an https audio URL to a single slot file in Caches and plays it
+/// through an AVAudioSession `.playback` (routes to Bluetooth audio, else the
+/// watch speaker). Completion (natural end, not stop) is reported via
+/// onFinished.
 final class AudioBridge: NSObject, AVAudioPlayerDelegate {
     var onFinished: (() -> Void)?
     private var player: AVAudioPlayer?
-    private var task: URLSessionDataTask?
+    private var task: URLSessionDownloadTask?
+    /// The slot file backing `player`. Deleted on stop and natural finish; a
+    /// play whose source extension renamed the slot deletes the old one.
+    private var audioFileURL: URL?
 
-    /// Ceiling for a downloaded audio file. The whole file is buffered in
-    /// memory before AVAudioPlayer decodes it, so an unbounded URL (a podcast
-    /// episode) would jetsam the memory-tight watch app — the same reason the
-    /// fetch pipeline caps bodies at 5 MiB. Audio legitimately runs larger
-    /// than a fetch body (short music clips, prompts), so 10 MiB.
+    /// Ceiling for a downloaded audio file. The download streams to disk and
+    /// AVAudioPlayer decodes from the file, so this no longer bounds a RAM
+    /// buffer (a whole-file buffer could jetsam the memory-tight watch app —
+    /// the same reason the fetch pipeline caps bodies at 5 MiB); it bounds the
+    /// Caches slot's footprint and the file the decoder is handed. Audio
+    /// legitimately runs larger than a fetch body (short music clips,
+    /// prompts), so 10 MiB.
     private static let maxAudioBytes = 10 * 1024 * 1024
 
+    /// The single slot the downloaded file is moved to (Caches: purgeable by
+    /// the OS, never backed up). One player exists at a time, so one slot,
+    /// overwritten per play; the source URL's extension is preserved as a
+    /// format hint for AVAudioPlayer.
+    private static func slotURL(preservingExtensionOf remote: URL) -> URL {
+        let base =
+            FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let slot = base.appendingPathComponent("react-watch-audio-current")
+        let ext = remote.pathExtension
+        return ext.isEmpty ? slot : slot.appendingPathExtension(ext)
+    }
+
     /// (id-less) start playback; `settle` is called with nil on success or an
-    /// error message. Download + decode happen off-main; playback starts on
-    /// main. URLSession's completion handler is `@Sendable`, so `self` and the
-    /// `settle` closure (both non-Sendable — the bridge holds mutable state, and
-    /// settle re-enters the @MainActor model) are laundered with
-    /// nonisolated(unsafe); everything they touch is confined to the main queue,
-    /// the same discipline SpeechBridge.finish/audioPlayerDidFinishPlaying use.
+    /// error message. Download, size check, and the move into the slot happen
+    /// off-main (the temp file is deleted once the completion handler
+    /// returns); playback starts on main. URLSession's completion handler is
+    /// `@Sendable`, so `self` and the `settle` closure (both non-Sendable —
+    /// the bridge holds mutable state, and settle re-enters the @MainActor
+    /// model) are laundered with nonisolated(unsafe); everything they touch is
+    /// confined to the main queue, the same discipline
+    /// SpeechBridge.finish/audioPlayerDidFinishPlaying use.
     func play(
         url: URL, volume: Double?, loop: Bool,
         settle: @escaping (String?) -> Void
@@ -216,44 +237,69 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
         task?.cancel()
         var request = URLRequest(url: url)
         request.timeoutInterval = 30
+        let slot = Self.slotURL(preservingExtensionOf: url)
         nonisolated(unsafe) let settle = settle
         nonisolated(unsafe) let this = self
-        task = URLSession.shared.dataTask(with: request) { data, _, error in
+        task = URLSession.shared.downloadTask(with: request) { location, _, error in
             if let error {
                 DispatchQueue.main.async { settle(error.localizedDescription) }
                 return
             }
-            guard let data else {
+            guard let location else {
                 DispatchQueue.main.async { settle("no audio data") }
                 return
             }
-            // Fail loud instead of decoding an unbounded buffer (see cap note).
-            guard data.count <= Self.maxAudioBytes else {
+            // Fail loud instead of keeping an unbounded file (see cap note).
+            // The size comes from disk — nothing is buffered; an unreadable
+            // size reads as 0 and the move below reports the real failure.
+            let attributes = try? FileManager.default.attributesOfItem(atPath: location.path)
+            let bytes = (attributes?[.size] as? Int) ?? 0
+            guard bytes <= Self.maxAudioBytes else {
                 DispatchQueue.main.async {
                     settle(
-                        "audio file too large: \(data.count) bytes exceeds the "
+                        "audio file too large: \(bytes) bytes exceeds the "
                             + "\(Self.maxAudioBytes)-byte limit")
                 }
                 return
             }
+            do {
+                // Move before this handler returns — URLSession deletes the
+                // temp file after it. Remove-then-move replaces the previous
+                // same-name slot file.
+                try? FileManager.default.removeItem(at: slot)
+                try FileManager.default.moveItem(at: location, to: slot)
+            } catch {
+                DispatchQueue.main.async { settle(error.localizedDescription) }
+                return
+            }
             DispatchQueue.main.async {
+                // A previous play with a different source extension used a
+                // different slot name; drop that file (safe even if the
+                // outgoing player still reads it — an open file survives its
+                // unlink).
+                if let previous = this.audioFileURL, previous != slot {
+                    try? FileManager.default.removeItem(at: previous)
+                }
                 do {
                     let session = AVAudioSession.sharedInstance()
                     try session.setCategory(.playback)
                     try session.setActive(true)
-                    let player = try AVAudioPlayer(data: data)
+                    let player = try AVAudioPlayer(contentsOf: slot)
                     player.delegate = this
                     if let volume { player.volume = Float(volume) }
                     player.numberOfLoops = loop ? -1 : 0
                     player.play()
                     this.player = player
+                    this.audioFileURL = slot
                     settle(nil)
                 } catch {
                     // setActive(true) may have already powered the audio route
-                    // before AVAudioPlayer(data:) threw; without this the session
-                    // stays active with no player until the next reload. Mirrors
-                    // stop()/didFinishPlaying, which both deactivate.
+                    // before AVAudioPlayer(contentsOf:) threw; without this the
+                    // session stays active with no player until the next reload.
+                    // Mirrors stop()/didFinishPlaying, which both deactivate.
                     try? AVAudioSession.sharedInstance().setActive(false)
+                    // The slot file exists only to back a live player.
+                    try? FileManager.default.removeItem(at: slot)
                     settle(error.localizedDescription)
                 }
             }
@@ -266,6 +312,7 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
         task = nil
         player?.stop()
         player = nil
+        discardSlotFile()
         try? AVAudioSession.sharedInstance().setActive(false)
     }
 
@@ -273,9 +320,18 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
         _: AVAudioPlayer, successfully _: Bool
     ) {
         player = nil
+        discardSlotFile()
         try? AVAudioSession.sharedInstance().setActive(false)
         nonisolated(unsafe) let handler = onFinished
         DispatchQueue.main.async { handler?() }
+    }
+
+    /// Delete the slot file once no player needs it (stop / natural finish).
+    private func discardSlotFile() {
+        if let audioFileURL {
+            try? FileManager.default.removeItem(at: audioFileURL)
+        }
+        audioFileURL = nil
     }
 }
 
