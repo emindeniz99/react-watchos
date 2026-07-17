@@ -88,6 +88,16 @@ through the same invoke channel:
 | Audio | `playAudio(url, opts?)`, `stopAudio()`, `onAudioFinished(cb)` (AVAudioPlayer; downloads the URL, routes to Bluetooth/speaker) | `audio` |
 | In-app purchase | `getProducts`, `purchase`, `currentEntitlements`, `restorePurchases` (StoreKit 2) | `iap` |
 
+**Host policy (ARCH-07):** the consumer app decides which of these features a
+bundle may actually use — `ReactWatchRootView(policy: .allow([...]))` (and
+`ReactWatchWidgetOTA.configure(policy:)` for the extension). A blocked
+feature's `__host` functions aren't installed, its invoke-routed methods
+reject with the typed `POLICY_DENIED` code, and OTA staging refuses bundles
+that require it. `__hostFeatures` is the *effective* (policy-filtered) set,
+so `checkForUpdate`'s `appUpdateRequired`/`missingCapabilities` can also mean
+"restricted by the app's HostPolicy" — the fix is an app configuration change
+shipped as a native release, not an OTA.
+
 Two honest caveats:
 
 - **Background refresh** is fully wired: `scheduleBackgroundRefresh`

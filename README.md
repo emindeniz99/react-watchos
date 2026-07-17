@@ -386,6 +386,33 @@ hand-written target config (the plugin composes apple-targets internally and
    assets; ship OTA updates by signing the manifest with `signManifest` from
    `react-watchos/manifest`.
 
+**Host policy (least privilege for OTA bundles).** A signed OTA bundle runs
+with every native capability the host installs, so the app — not the bundle —
+decides which features are authorized:
+
+```swift
+ReactWatchRootView(
+  appGroupId: "group.example.watch",
+  ota: OTAConfig(signerPublicKeys: ["k1": publicKey]),
+  policy: .allow(["network", "storage", "widgets"])
+)
+// Widget extension (@main init), alongside the signer keys:
+ReactWatchWidgetOTA.configure(
+  signerPublicKeys: ["k1": publicKey],
+  policy: .allow(["network", "storage", "widgets"])
+)
+```
+
+`.allow` is an allowlist intersected with what the binary provides (the
+default `.allowAll` changes nothing); the `core` infrastructure
+(commit/log/timers/invoke) is always on, so a policy can't brick the runtime.
+A blocked feature disappears from `__host` and `__hostFeatures` (the JS
+update gate then reports it under `missingCapabilities` before downloading),
+calls to it reject with the typed `POLICY_DENIED` error, and OTA staging
+refuses bundles that require it — "requires an app configuration change",
+i.e. enabling a sensitive feature (health, BLE, network, notifications, AI)
+always takes a native release, never just a new bundle.
+
 Two worked examples (each its own workspace member, both verified on Linux):
 
 - [`examples/minimal-watch-app`](./examples/minimal-watch-app) — the smallest

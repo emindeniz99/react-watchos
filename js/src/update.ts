@@ -32,6 +32,12 @@ import { Storage } from "./storage";
  * never new native APIs (those still need a native release + review). The
  * host surface (`__host.*`) is fixed in the native binary, so an OTA bundle
  * can only use capabilities the shipped app already exposes.
+ *
+ * Host policy (ARCH-07): `__hostFeatures` is the EFFECTIVE set — the binary's
+ * features filtered by the app's `HostPolicy` — so `appUpdateRequired` /
+ * `missingCapabilities` can also mean "restricted by the app's HostPolicy":
+ * the binary may back the feature, but its configuration doesn't authorize
+ * it. Either way the fix ships as a new native release, never over the air.
  */
 /** The outcome of an applyUpdate (CX-005). `accepted` is the only field set on
  *  success; a rejection carries a machine code + human message (e.g. a bad
@@ -219,9 +225,10 @@ export function parseManifest(raw: unknown): UpdateManifest {
 /**
  * Capability features the running native binary provides + its bridge protocol,
  * injected at boot by the host (`globalThis.__hostFeatures` / `__bridgeProtocol`,
- * from the generated `HostFeatures`). `null` when the native side hasn't exposed
- * them (an older binary, or under a test/dev host) — then the capability gate is
- * skipped rather than blocking everything.
+ * from the generated `HostFeatures` filtered by the app's `HostPolicy`,
+ * ARCH-07). `null` when the native side hasn't exposed them (an older binary,
+ * or under a test/dev host) — then the capability gate is skipped rather than
+ * blocking everything.
  */
 function hostCapabilities(): {
   features: string[];
