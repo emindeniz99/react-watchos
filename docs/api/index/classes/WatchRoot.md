@@ -6,7 +6,7 @@
 
 # Class: WatchRoot
 
-Defined in: [js/src/renderer.ts:299](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L299)
+Defined in: [js/src/renderer.ts:312](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L312)
 
 ## Constructors
 
@@ -14,7 +14,7 @@ Defined in: [js/src/renderer.ts:299](https://github.com/emindeniz99/playground/b
 
 > **new WatchRoot**(`host`): `WatchRoot`
 
-Defined in: [js/src/renderer.ts:307](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L307)
+Defined in: [js/src/renderer.ts:324](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L324)
 
 #### Parameters
 
@@ -30,16 +30,23 @@ Defined in: [js/src/renderer.ts:307](https://github.com/emindeniz99/playground/b
 
 ### dispatchEvent()
 
-> **dispatchEvent**(`event`): `boolean`
+> **dispatchEvent**(`event`): [`DispatchResult`](../interfaces/DispatchResult.md)
 
-Defined in: [js/src/renderer.ts:418](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L418)
+Defined in: [js/src/renderer.ts:435](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L435)
 
-Entry point for native interaction events. Returns false for unknown/stale
-nodes or events with no handler — but ALWAYS acks the seq (CX-010), so an
-optimistic native control is released/rolled back, never stranded. The
-cases that used to strand: no handler (early return before the ack), and a
-throwing handler (the ack path was skipped). Both now ack in a `finally`;
-a handler's exception still propagates afterwards.
+Entry point for native interaction events. `handled` is false for
+unknown/stale nodes or events with no handler — but the seq is ALWAYS
+acked (CX-010), so an optimistic native control is released/rolled back,
+never stranded. The cases that used to strand: no handler (early return
+before the ack), and a throwing handler (the ack path was skipped). Both
+now ack in a `finally`; a handler's exception still propagates afterwards.
+
+`accepted` (ARCH-09): for `pathChange` it's computed AFTER the flush by
+comparing the stack node's now-committed path against the proposal —
+which is why a controlled `onPathChange` must fold the path
+SYNCHRONOUSLY (setState in the handler is fine; this dispatch flushes it
+before comparing). An async fold reads as a decline and native snaps
+back. Other events: `accepted` mirrors `handled`.
 
 #### Parameters
 
@@ -49,7 +56,7 @@ a handler's exception still propagates afterwards.
 
 #### Returns
 
-`boolean`
+[`DispatchResult`](../interfaces/DispatchResult.md)
 
 ***
 
@@ -57,7 +64,7 @@ a handler's exception still propagates afterwards.
 
 > **inspect**(): `object`
 
-Defined in: [js/src/renderer.ts:406](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L406)
+Defined in: [js/src/renderer.ts:416](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L416)
 
 Debug inspector: the current serialized tree + commit count.
 
@@ -79,7 +86,7 @@ Debug inspector: the current serialized tree + commit count.
 
 > **render**(`element`): `void`
 
-Defined in: [js/src/renderer.ts:395](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L395)
+Defined in: [js/src/renderer.ts:405](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L405)
 
 #### Parameters
 
@@ -97,7 +104,7 @@ Defined in: [js/src/renderer.ts:395](https://github.com/emindeniz99/playground/b
 
 > **runSync**\<`T`\>(`fn`): `T`
 
-Defined in: [js/src/renderer.ts:453](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L453)
+Defined in: [js/src/renderer.ts:478](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L478)
 
 Runs `fn` at urgent (discrete) priority and flushes synchronously, so
 any state it changes commits before returning — the same path a tap
@@ -127,7 +134,7 @@ scheduler's next default-priority turn.
 
 > **unmount**(): `void`
 
-Defined in: [js/src/renderer.ts:400](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L400)
+Defined in: [js/src/renderer.ts:410](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/renderer.ts#L410)
 
 #### Returns
 

@@ -8,7 +8,7 @@
 
 > **captureError**(`error`, `info?`): `void`
 
-Defined in: [js/src/inspector.ts:49](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L49)
+Defined in: [js/src/inspector.ts:54](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L54)
 
 Record an error into the inspector's ring so the viewer can show WHERE the
 app broke, not just that a log happened. Signature matches ErrorBoundary's

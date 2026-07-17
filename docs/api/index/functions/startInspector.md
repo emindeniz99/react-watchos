@@ -8,7 +8,7 @@
 
 > **startInspector**(`options`): () => `void`
 
-Defined in: [js/src/inspector.ts:88](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L88)
+Defined in: [js/src/inspector.ts:95](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L95)
 
 ## Parameters
 

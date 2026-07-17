@@ -6,7 +6,7 @@
 
 # Interface: TabViewProps
 
-Defined in: [js/src/components.ts:334](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L334)
+Defined in: [js/src/components.ts:341](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L341)
 
 ## Extends
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:336](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L336)
+Defined in: [js/src/components.ts:343](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L343)
 
 Each child is one page.
 
@@ -52,7 +52,7 @@ Each child is one page.
 
 > `optional` **onChange?**: (`index`) => `void`
 
-Defined in: [js/src/components.ts:345](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L345)
+Defined in: [js/src/components.ts:354](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L354)
 
 Fires with the new page index as the user swipes between pages.
 
@@ -72,9 +72,11 @@ Fires with the new page index as the user swipes between pages.
 
 > `optional` **selection?**: `number`
 
-Defined in: [js/src/components.ts:343](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L343)
+Defined in: [js/src/components.ts:352](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L352)
 
 Controlled selected page index (0-based). When set, the native TabView
 binds to it optimistically (a swipe holds until React acks) — keep it in
 state and update it from `onChange`, or the page snaps back. Omit both
-for the uncontrolled TabView.
+for the uncontrolled TabView. A controlled TabView without `onChange` is
+read-only — swiping is disabled, the same CX-010 rule as every other
+controlled input.

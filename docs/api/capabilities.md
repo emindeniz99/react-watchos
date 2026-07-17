@@ -57,7 +57,7 @@ surfaces don't exist in WidgetKit).
 | `Toolbar` | degraded |
 | `ToolbarItem` | degraded |
 
-## Host methods (44) by capability feature
+## Host methods (47) by capability feature
 
 An OTA bundle's `requiredFeatures` must be a subset of the binary's
 feature set (ARCH-01); `since` is the bridge-protocol version the method
@@ -80,7 +80,10 @@ appeared in. "invoke" methods route through the generic invoke channel
 | `notifications` | `requestNotificationPermission` | watch | invoke | 1 |
 |  | `scheduleNotification` | watch | invoke | 1 |
 |  | `cancelNotification` | watch | direct | 1 |
+| `push` | `registerForRemoteNotifications` | watch | invoke | 1 |
 | `connectivity` | `sendToPhone` | watch | invoke | 1 |
+|  | `updateApplicationContext` | watch | invoke | 1 |
+|  | `transferUserInfo` | watch | invoke | 1 |
 | `network` | `fetch` | watch | direct | 1 |
 |  | `abortFetch` | watch | direct | 1 |
 | `bluetooth` | `ble` | watch | direct | 1 |

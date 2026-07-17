@@ -8,7 +8,7 @@
 
 > **NavigationProvider**(`__namedParameters`): `Element`
 
-Defined in: [js/src/navigation.tsx:393](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L393)
+Defined in: [js/src/navigation.tsx:467](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L467)
 
 ## Parameters
 

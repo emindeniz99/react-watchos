@@ -8,7 +8,7 @@
 
 > **MessageContract** = `Record`\<`string`, `unknown`\>
 
-Defined in: [js/src/connectivity.ts:40](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L40)
+Defined in: [js/src/connectivity.ts:92](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L92)
 
 A phone<->watch message contract (DX-6): each key is a message name, its value
 the payload type. Declare it once and share the same `T` on both sides (this

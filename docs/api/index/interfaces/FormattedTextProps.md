@@ -6,7 +6,7 @@
 
 # Interface: FormattedTextProps
 
-Defined in: [js/src/components.ts:484](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L484)
+Defined in: [js/src/components.ts:493](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L493)
 
 Locale-aware formatted date/number text, rendered natively (i18n step 2).
 QuickJS ships no `Intl` — instead of embedding ICU in the bundle, declare
@@ -88,7 +88,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **bold?**: `boolean`
 
-Defined in: [js/src/components.ts:502](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L502)
+Defined in: [js/src/components.ts:511](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L511)
 
 ***
 
@@ -96,7 +96,7 @@ Defined in: [js/src/components.ts:502](https://github.com/emindeniz99/playground
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:504](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L504)
+Defined in: [js/src/components.ts:513](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L513)
 
 ***
 
@@ -118,7 +118,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **currency?**: `string`
 
-Defined in: [js/src/components.ts:499](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L499)
+Defined in: [js/src/components.ts:508](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L508)
 
 ISO 4217 code for `format: "currency"`; absent = the locale's own.
 
@@ -128,7 +128,7 @@ ISO 4217 code for `format: "currency"`; absent = the locale's own.
 
 > `optional` **date?**: `number`
 
-Defined in: [js/src/components.ts:486](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L486)
+Defined in: [js/src/components.ts:495](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L495)
 
 Epoch milliseconds to render as a localized date/time.
 
@@ -138,7 +138,7 @@ Epoch milliseconds to render as a localized date/time.
 
 > `optional` **dateStyle?**: `"full"` \| `"none"` \| `"short"` \| `"medium"` \| `"long"`
 
-Defined in: [js/src/components.ts:491](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L491)
+Defined in: [js/src/components.ts:500](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L500)
 
 Date part style. Default: "medium" for a bare `date`; "none" once
 `timeStyle` is set (so a time-only render has no surprise date prefix).
@@ -149,7 +149,7 @@ Date part style. Default: "medium" for a bare `date`; "none" once
 
 > `optional` **format?**: `"currency"` \| `"decimal"` \| `"percent"`
 
-Defined in: [js/src/components.ts:497](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L497)
+Defined in: [js/src/components.ts:506](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L506)
 
 Number shape: "percent" renders 0.5 as "50%" (the Intl convention).
 
@@ -205,7 +205,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **maxFractionDigits?**: `number`
 
-Defined in: [js/src/components.ts:501](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L501)
+Defined in: [js/src/components.ts:510](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L510)
 
 ***
 
@@ -213,7 +213,7 @@ Defined in: [js/src/components.ts:501](https://github.com/emindeniz99/playground
 
 > `optional` **minFractionDigits?**: `number`
 
-Defined in: [js/src/components.ts:500](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L500)
+Defined in: [js/src/components.ts:509](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L509)
 
 ***
 
@@ -249,7 +249,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **size?**: `number`
 
-Defined in: [js/src/components.ts:503](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L503)
+Defined in: [js/src/components.ts:512](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L512)
 
 ***
 
@@ -257,7 +257,7 @@ Defined in: [js/src/components.ts:503](https://github.com/emindeniz99/playground
 
 > `optional` **timeStyle?**: `"full"` \| `"none"` \| `"short"` \| `"medium"` \| `"long"`
 
-Defined in: [js/src/components.ts:493](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L493)
+Defined in: [js/src/components.ts:502](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L502)
 
 Time part style (default "none").
 
@@ -281,6 +281,6 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `number`
 
-Defined in: [js/src/components.ts:495](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L495)
+Defined in: [js/src/components.ts:504](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L504)
 
 Number to render with the device locale's separators.

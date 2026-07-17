@@ -8,7 +8,7 @@
 
 > **bleSubscribe**(`characteristicUUID`): `Promise`\<`void`\>
 
-Defined in: [js/src/bluetooth.ts:95](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L95)
+Defined in: [js/src/bluetooth.ts:128](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L128)
 
 Subscribe to notifications from a characteristic (position, title, …).
 Resolves when the peripheral acknowledges the notification-state change;

@@ -6,7 +6,7 @@
 
 # Interface: LabeledContentProps
 
-Defined in: [js/src/components.ts:611](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L611)
+Defined in: [js/src/components.ts:620](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L620)
 
 A label:value row (SwiftUI `LabeledContent`); children are the value
  view, or pass the simple `value` string.
@@ -84,7 +84,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:614](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L614)
+Defined in: [js/src/components.ts:623](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L623)
 
 ***
 
@@ -152,7 +152,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > **label**: `string`
 
-Defined in: [js/src/components.ts:612](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L612)
+Defined in: [js/src/components.ts:621](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L621)
 
 ***
 
@@ -202,4 +202,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `string`
 
-Defined in: [js/src/components.ts:613](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L613)
+Defined in: [js/src/components.ts:622](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L622)

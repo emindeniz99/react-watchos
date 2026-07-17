@@ -6,9 +6,9 @@
 
 # Function: startGyroscope()
 
-> **startGyroscope**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
+> **startGyroscope**(`handler`, `options?`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/sensors.ts:97](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L97)
+Defined in: [js/src/sensors.ts:165](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L165)
 
 Gyroscope rotation rate: handler gets `{ x, y, z }` (rad/s).
 
@@ -17,6 +17,10 @@ Gyroscope rotation rate: handler gets `{ x, y, z }` (rad/s).
 ### handler
 
 [`NativeEventHandler`](../type-aliases/NativeEventHandler.md)
+
+### options?
+
+[`MotionOptions`](../interfaces/MotionOptions.md)
 
 ## Returns
 

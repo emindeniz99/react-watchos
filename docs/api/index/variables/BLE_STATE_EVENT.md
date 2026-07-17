@@ -8,7 +8,7 @@
 
 > `const` **BLE\_STATE\_EVENT**: `"ble.state"` = `"ble.state"`
 
-Defined in: [js/src/bluetooth.ts:29](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L29)
+Defined in: [js/src/bluetooth.ts:32](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L32)
 
 BLE central over CoreBluetooth, for talking to a peripheral like a laptop
 running a "movie remote" GATT service. watchOS supports the central role
@@ -24,7 +24,10 @@ base64, per your service).
 
 The bridge auto-reconnects: an unexpected drop (range/power) re-scans and,
 once reconnected, re-subscribes to the same characteristics — you'll see
-`disconnected` -> `scanning` -> `connected` on `onBleState`. The original
-`bleConnect` promise resolves only on the FIRST connect, not on auto-reconnects.
-Calling `bleDisconnect()` stays disconnected (no auto-reconnect) and rejects
-any in-flight connect/write/subscribe.
+`disconnected` -> `scanning` -> `connected` on `onBleState`. Reconnection is
+BOUNDED (default 5 attempts × 60s, tunable via `bleConnect` options): if the
+peripheral never returns, the bridge stops scanning and stays `disconnected`
+rather than draining the radio forever. The original `bleConnect` promise
+resolves only on the FIRST connect, not on auto-reconnects. Calling
+`bleDisconnect()` stays disconnected (no auto-reconnect) and rejects any
+in-flight connect/write/subscribe.

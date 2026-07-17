@@ -6,7 +6,7 @@
 
 # Interface: ConfirmationDialogProps
 
-Defined in: [js/src/components.ts:538](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L538)
+Defined in: [js/src/components.ts:547](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L547)
 
 Action-sheet-style dialog (SwiftUI `.confirmationDialog`); same controlled
  contract as <Alert>, children are <AlertAction> elements.
@@ -17,7 +17,7 @@ Action-sheet-style dialog (SwiftUI `.confirmationDialog`); same controlled
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:542](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L542)
+Defined in: [js/src/components.ts:551](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L551)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [js/src/components.ts:542](https://github.com/emindeniz99/playground
 
 > `optional` **onChange?**: (`presented`) => `void`
 
-Defined in: [js/src/components.ts:541](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L541)
+Defined in: [js/src/components.ts:550](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L550)
 
 #### Parameters
 
@@ -43,7 +43,7 @@ Defined in: [js/src/components.ts:541](https://github.com/emindeniz99/playground
 
 > `optional` **presented?**: `boolean`
 
-Defined in: [js/src/components.ts:539](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L539)
+Defined in: [js/src/components.ts:548](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L548)
 
 ***
 
@@ -51,4 +51,4 @@ Defined in: [js/src/components.ts:539](https://github.com/emindeniz99/playground
 
 > **title**: `string`
 
-Defined in: [js/src/components.ts:540](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L540)
+Defined in: [js/src/components.ts:549](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L549)

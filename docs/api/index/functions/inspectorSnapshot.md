@@ -8,7 +8,7 @@
 
 > **inspectorSnapshot**(): `object`
 
-Defined in: [js/src/inspector.ts:66](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L66)
+Defined in: [js/src/inspector.ts:71](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L71)
 
 Snapshot the inspector sends to the viewer.
 
@@ -19,6 +19,10 @@ Snapshot the inspector sends to the viewer.
 ### commits
 
 > **commits**: `number`
+
+### diagnostics
+
+> **diagnostics**: [`Diagnostic`](../interfaces/Diagnostic.md)[]
 
 ### errors
 

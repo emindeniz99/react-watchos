@@ -6,7 +6,7 @@
 
 # Interface: MapProps
 
-Defined in: [js/src/components.ts:377](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L377)
+Defined in: [js/src/components.ts:386](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L386)
 
 A MapKit map (watchOS 26): a region with markers and an optional route.
 
@@ -69,7 +69,7 @@ only — widgets are static snapshots and ignore it.
 
 > `optional` **annotations?**: [`MapAnnotation`](MapAnnotation.md)[]
 
-Defined in: [js/src/components.ts:382](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L382)
+Defined in: [js/src/components.ts:391](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L391)
 
 ***
 
@@ -91,7 +91,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **cameraTrigger?**: `number`
 
-Defined in: [js/src/components.ts:417](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L417)
+Defined in: [js/src/components.ts:426](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L426)
 
 A monotonically increasing nudge that re-applies the camera's target
 (follow or region). Increment it from a "recenter" button so tapping it
@@ -118,7 +118,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **followsUserLocation?**: `boolean`
 
-Defined in: [js/src/components.ts:410](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L410)
+Defined in: [js/src/components.ts:419](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L419)
 
 Make the camera smoothly track the live location natively
 (`MapCameraPosition.userLocation`), instead of you feeding it coordinates.
@@ -162,7 +162,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **fullScreen?**: `boolean`
 
-Defined in: [js/src/components.ts:395](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L395)
+Defined in: [js/src/components.ts:404](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L404)
 
 Fill the whole screen edge-to-edge (ignores the safe area, so the map runs
 under the navigation bar and the back chevron floats over it). Use for a
@@ -174,7 +174,7 @@ realistic full-screen map; overlay any controls on top with a ZStack.
 
 > `optional` **height?**: `number`
 
-Defined in: [js/src/components.ts:389](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L389)
+Defined in: [js/src/components.ts:398](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L398)
 
 Fixed map height in points. Ignored when `fullScreen` is set. Defaults to
 120 — a small inline map card.
@@ -201,7 +201,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **latitude?**: `number`
 
-Defined in: [js/src/components.ts:379](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L379)
+Defined in: [js/src/components.ts:388](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L388)
 
 Region center + span (degrees). Defaults to fit the annotations.
 
@@ -211,7 +211,7 @@ Region center + span (degrees). Defaults to fit the annotations.
 
 > `optional` **longitude?**: `number`
 
-Defined in: [js/src/components.ts:380](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L380)
+Defined in: [js/src/components.ts:389](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L389)
 
 ***
 
@@ -219,7 +219,7 @@ Defined in: [js/src/components.ts:380](https://github.com/emindeniz99/playground
 
 > `optional` **onPress?**: () => `void`
 
-Defined in: [js/src/components.ts:423](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L423)
+Defined in: [js/src/components.ts:432](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L432)
 
 Fired on a single tap on the map (a pan/zoom does NOT fire it). Use it to
 toggle overlay chrome for an immersive full-screen map, the way native maps
@@ -263,7 +263,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **route?**: `object`[]
 
-Defined in: [js/src/components.ts:384](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L384)
+Defined in: [js/src/components.ts:393](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L393)
 
 Polyline route as lat/lon points.
 
@@ -281,7 +281,7 @@ Polyline route as lat/lon points.
 
 > `optional` **showsUserLocation?**: `boolean`
 
-Defined in: [js/src/components.ts:402](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L402)
+Defined in: [js/src/components.ts:411](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L411)
 
 Show the device's live location as MapKit's native blue dot (accuracy ring
 + heading), via a `UserAnnotation`. This is the platform's own rendering —
@@ -294,7 +294,7 @@ location permission (e.g. request it once with `getCurrentLocation()`).
 
 > `optional` **span?**: `number`
 
-Defined in: [js/src/components.ts:381](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L381)
+Defined in: [js/src/components.ts:390](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L390)
 
 ***
 

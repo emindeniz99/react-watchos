@@ -8,9 +8,20 @@
 
 > `const` **PHONE\_MESSAGE\_EVENT**: `"watchConnectivity"` = `"watchConnectivity"`
 
-Defined in: [js/src/connectivity.ts:14](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L14)
+Defined in: [js/src/connectivity.ts:25](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L25)
 
 Phone <-> watch messaging over WatchConnectivity, surfaced through the
-native-event channel. Incoming phone messages arrive as a native push
-under PHONE_MESSAGE_EVENT (so they commit instantly via runSync);
-sendToPhone goes out through the host bridge to WCSession.
+native-event channel and SPLIT by delivery semantics (ARCH-12) — the three
+channels carry different guarantees and a merged stream forced JS to guess
+which one fired:
+
+| channel                | direction guarantees                                  |
+|------------------------|-------------------------------------------------------|
+| `sendToPhone` /        | interactive: needs the phone REACHABLE now; resolves  |
+| [onPhoneMessage](../functions/onPhoneMessage.md) | the phone's reply                                      |
+| [updateApplicationContext](../functions/updateApplicationContext.md) / [onApplicationContext](../functions/onApplicationContext.md) | latest-wins state: the counterpart gets the MOST RECENT context when it next wakes |
+| [transferUserInfo](../functions/transferUserInfo.md) / [onUserInfo](../functions/onUserInfo.md) | FIFO queue: every item delivered in order, queue survives suspension |
+
+Rule of thumb: request/reply → sendToPhone; "current state" sync (settings,
+dashboard data) → updateApplicationContext; must-not-drop event streams
+(logged workouts, purchases) → transferUserInfo.

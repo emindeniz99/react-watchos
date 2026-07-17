@@ -8,14 +8,18 @@
 
 > **useFocusEffect**(`effect`): `void`
 
-Defined in: [js/src/navigation.tsx:273](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L273)
+Defined in: [js/src/navigation.tsx:300](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L300)
 
 Runs `effect` when the enclosing screen gains focus and cleans up when it
 blurs or unmounts — the watchOS analog of React Navigation's useFocusEffect.
-Screens stay mounted across navigation (as in React Navigation), so a bare
-useEffect with `[]` runs once at launch; route focus-scoped side effects
-(BLE, sensor/listener subscriptions, polling) through this instead. Wrap
-`effect` in useCallback so it only re-runs when focus actually changes.
+Routes mount lazily (ARCH-09): a screen enters the tree when its route joins
+the active stack, so a bare useEffect with `[]` now runs on first open, not
+at launch. Focus is still narrower than mount: every entry of a multi-screen
+stack stays mounted while covered (as in React Navigation), so a covered
+screen's useEffect keeps running where this hook cleans up on blur. Route
+focus-scoped side effects (BLE, sensor/listener subscriptions, polling)
+belong here. Wrap `effect` in useCallback so it only re-runs when focus
+actually changes.
 
 ## Parameters
 

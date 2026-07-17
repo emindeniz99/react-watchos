@@ -8,7 +8,7 @@
 
 > **SecureFieldProps** = [`TextFieldProps`](../interfaces/TextFieldProps.md)
 
-Defined in: [js/src/components.ts:324](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L324)
+Defined in: [js/src/components.ts:331](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L331)
 
 Masked text entry (passwords, PINs). Identical surface to [TextFieldProps](../interfaces/TextFieldProps.md)
 — `value`/`placeholder`/`onChange`/`autoFocus` behave the same — but the

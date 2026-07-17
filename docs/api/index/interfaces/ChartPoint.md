@@ -6,7 +6,7 @@
 
 # Interface: ChartPoint
 
-Defined in: [js/src/components.ts:595](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L595)
+Defined in: [js/src/components.ts:604](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L604)
 
 One <Chart> data point: `y` is required; `x` is a numeric position or a
  category label (strings chart as discrete categories). Omit `x` to plot
@@ -18,7 +18,7 @@ One <Chart> data point: `y` is required; `x` is a numeric position or a
 
 > `optional` **x?**: `string` \| `number`
 
-Defined in: [js/src/components.ts:596](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L596)
+Defined in: [js/src/components.ts:605](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L605)
 
 ***
 
@@ -26,4 +26,4 @@ Defined in: [js/src/components.ts:596](https://github.com/emindeniz99/playground
 
 > **y**: `number`
 
-Defined in: [js/src/components.ts:597](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L597)
+Defined in: [js/src/components.ts:606](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L606)

@@ -6,7 +6,7 @@
 
 # Interface: TextFieldProps
 
-Defined in: [js/src/components.ts:304](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L304)
+Defined in: [js/src/components.ts:311](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L311)
 
 ## Extends
 
@@ -67,7 +67,7 @@ only — widgets are static snapshots and ignore it.
 
 > `optional` **autoFocus?**: `boolean`
 
-Defined in: [js/src/components.ts:315](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L315)
+Defined in: [js/src/components.ts:322](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L322)
 
 Request focus as soon as the field appears (e.g. a search field revealed by
 a button). On iOS this opens the keyboard; on **watchOS the system still
@@ -154,7 +154,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:308](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L308)
+Defined in: [js/src/components.ts:315](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L315)
 
 Fired on input commit (watchOS input is modal: dictation/scribble/QWERTY).
 
@@ -202,7 +202,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **placeholder?**: `string`
 
-Defined in: [js/src/components.ts:306](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L306)
+Defined in: [js/src/components.ts:313](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L313)
 
 ***
 
@@ -224,4 +224,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `string`
 
-Defined in: [js/src/components.ts:305](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L305)
+Defined in: [js/src/components.ts:312](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L312)

@@ -6,7 +6,7 @@
 
 # Interface: UpdateState
 
-Defined in: [js/src/update.ts:50](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L50)
+Defined in: [js/src/update.ts:56](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L56)
 
 What the watch is actually running — the OTA observability surface
  (fleet telemetry): report these fields to your backend to know each
@@ -19,7 +19,7 @@ What the watch is actually running — the OTA observability surface
 
 > `optional` **expiresAt?**: `number`
 
-Defined in: [js/src/update.ts:59](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L59)
+Defined in: [js/src/update.ts:65](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L65)
 
 The running record's signed expiry (epoch seconds; absent/0 = never).
 
@@ -29,7 +29,7 @@ The running record's signed expiry (epoch seconds; absent/0 = never).
 
 > **highWater**: `number`
 
-Defined in: [js/src/update.ts:61](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L61)
+Defined in: [js/src/update.ts:67](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L67)
 
 The device's anti-rollback high-water mark.
 
@@ -39,7 +39,7 @@ The device's anti-rollback high-water mark.
 
 > `optional` **keyId?**: `string`
 
-Defined in: [js/src/update.ts:57](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L57)
+Defined in: [js/src/update.ts:63](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L63)
 
 The signing key that shipped the running OTA bundle.
 
@@ -49,7 +49,7 @@ The signing key that shipped the running OTA bundle.
 
 > `optional` **releaseId?**: `string`
 
-Defined in: [js/src/update.ts:65](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L65)
+Defined in: [js/src/update.ts:71](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L71)
 
 Content id of the RUNNING bundle (same value as the manifest
  `releaseId` for identical bytes) — merged in from the host-injected
@@ -61,7 +61,7 @@ Content id of the RUNNING bundle (same value as the manifest
 
 > **source**: `"ota"` \| `"shipped"`
 
-Defined in: [js/src/update.ts:52](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L52)
+Defined in: [js/src/update.ts:58](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L58)
 
 Which bundle booted this launch.
 
@@ -71,7 +71,7 @@ Which bundle booted this launch.
 
 > `optional` **version?**: `number`
 
-Defined in: [js/src/update.ts:55](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L55)
+Defined in: [js/src/update.ts:61](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L61)
 
 The running OTA record's compatibility version (absent when shipped or
  running an unsigned dev bundle).

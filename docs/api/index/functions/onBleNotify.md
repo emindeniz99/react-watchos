@@ -8,7 +8,7 @@
 
 > **onBleNotify**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/bluetooth.ts:111](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L111)
+Defined in: [js/src/bluetooth.ts:144](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L144)
 
 Characteristic notifications: handler gets `{ characteristic, value }`,
 plus `binary: true` when the peripheral's payload was not valid UTF-8 —

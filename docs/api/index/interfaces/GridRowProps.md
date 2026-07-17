@@ -6,7 +6,7 @@
 
 # Interface: GridRowProps
 
-Defined in: [js/src/components.ts:580](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L580)
+Defined in: [js/src/components.ts:589](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L589)
 
 One row of a <Grid>; each child is a cell.
 
@@ -44,4 +44,4 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:581](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L581)
+Defined in: [js/src/components.ts:590](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L590)

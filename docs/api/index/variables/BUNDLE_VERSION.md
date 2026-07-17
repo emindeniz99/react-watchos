@@ -8,7 +8,7 @@
 
 > `const` **BUNDLE\_VERSION**: `number`
 
-Defined in: [js/src/update.ts:129](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L129)
+Defined in: [js/src/update.ts:135](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L135)
 
 This bundle's OTA compatibility version (CR-17), injected at build from
- scripts/config.mjs. Compared against the server manifest's `version`.
+ scripts/config.ts. Compared against the server manifest's `version`.

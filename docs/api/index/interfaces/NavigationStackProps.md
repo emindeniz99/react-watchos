@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:275](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L275)
+Defined in: [js/src/components.ts:282](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L282)
 
 ***
 
@@ -50,9 +50,14 @@ Defined in: [js/src/components.ts:275](https://github.com/emindeniz99/playground
 
 > `optional` **onPathChange?**: (`path`) => `void`
 
-Defined in: [js/src/components.ts:274](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L274)
+Defined in: [js/src/components.ts:281](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L281)
 
-Fired when native back/link gestures mutate the NavigationStack path.
+Fired when native back/link gestures propose a new stack path. In
+controlled mode, fold it into `path` SYNCHRONOUSLY — setState inside the
+handler is enough (the dispatch flushes it). Navigation is a confirmed
+transaction (ARCH-09): a proposal the handler doesn't fold reads as
+declined, and native won't navigate. Pops are notifications — native has
+already popped — but must be folded the same way.
 
 #### Parameters
 

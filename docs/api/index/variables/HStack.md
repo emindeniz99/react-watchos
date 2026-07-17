@@ -8,4 +8,4 @@
 
 > `const` **HStack**: `FC`\<[`HStackProps`](../interfaces/HStackProps.md)\>
 
-Defined in: [js/src/components.ts:638](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L638)
+Defined in: [js/src/components.ts:647](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L647)
