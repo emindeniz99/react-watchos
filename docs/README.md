@@ -118,6 +118,10 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   CPU/memory/render/energy: the `tools/embed-smoke` engine harness (runs on CI),
   `os_signpost`, Instruments on a physical watch, and why MetricKit is
   phone-only. Read before making any perf/battery claim.
+- [reconciler-version-matrix.md](./reconciler-version-matrix.md) — ARCH-14:
+  the tested react/react-reconciler/@types matrix, the 0.32-types vs
+  0.33-runtime drift the adapter's single cast bridges, and the upgrade
+  procedure. Read before bumping React or the reconciler.
 - [announcement-draft.md](./announcement-draft.md) — launch copy (short post,
   blog outline, prewritten FAQ) written against the checklist's claims lists;
   bracketed gates must clear before publishing.
