@@ -156,7 +156,11 @@ final class ReactWatchModel {
     ) {
         store = SharedWidgetStore(appGroupId: appGroupId)
         counters = CoordinatedCounterStore(appGroupId: appGroupId)
-        effectiveFeatures = policy.effectiveFeatures(native: HostFeatures.watch)
+        // Local binding: the validate closure below captures it (capturing
+        // self.effectiveFeatures from an escaping closure inside init isn't
+        // allowed before self is fully initialized).
+        let effectiveFeatures = policy.effectiveFeatures(native: HostFeatures.watch)
+        self.effectiveFeatures = effectiveFeatures
         let keys = ota.signerPublicKeys.compactMapValues {
             Data(base64Encoded: $0)
                 .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
@@ -208,9 +212,15 @@ final class ReactWatchModel {
             // before any of the persist/rollback protections exist. Each gets
             // a private owning queue (M1) so staging stays off main (M5).
             validate: { source in
+                // Mirror the live runtime's policy surface (ARCH-07) so a
+                // bundle whose module init probes a policy-blocked feature
+                // (typeof __host.fetch) fails HERE, at staging, instead of on
+                // the next boot. The compile closure stays unrestricted: it
+                // never RUNS the bundle (compile-only), so installs are moot.
                 let validator = try JSRuntime(
                     memoryLimitBytes: 64 * 1024 * 1024,
-                    queue: DispatchQueue(label: "react.watch.ota-validate"))
+                    queue: DispatchQueue(label: "react.watch.ota-validate"),
+                    allowedFeatures: effectiveFeatures)
                 try validator.evaluate(source)
             },
             compile: { source in
