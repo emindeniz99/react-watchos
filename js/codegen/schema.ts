@@ -430,6 +430,17 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     args: [{ name: "id", type: "string" }],
   },
+  // Remote push (APNs) is its OWN feature, not "notifications": HostPolicy
+  // treats each feature as an authorization unit (ARCH-07), and a consumer
+  // allowing local notifications must not implicitly allow remote push —
+  // registration talks to Apple's servers and hands out a routable token.
+  {
+    name: "registerForRemoteNotifications",
+    targets: ["watch"],
+    feature: "push",
+    since: 1,
+    via: "invoke",
+  },
   {
     name: "sendToPhone",
     targets: ["watch"],

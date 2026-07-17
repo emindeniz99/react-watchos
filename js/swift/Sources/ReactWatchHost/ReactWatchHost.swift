@@ -469,6 +469,8 @@ final class ReactWatchModel {
             handleGetUpdateState(id: id)
         case "requestNotificationPermission":
             requestNotificationPermission(id: id)
+        case "registerForRemoteNotifications":
+            handleRegisterForRemoteNotifications(id: id)
         case "sendToPhone":
             sendToPhone(id: id, payload: payload)
         case "updateApplicationContext":
@@ -705,6 +707,25 @@ final class ReactWatchModel {
                 }
             }
         }
+    }
+
+    /// Invoke ids awaiting the APNs registration outcome, each stamped with
+    /// the generation it was requested in. WatchKit has no completion handler
+    /// for registerForRemoteNotifications — only the two WKApplicationDelegate
+    /// callbacks — so the correlation lives here: ONE delegate callback
+    /// settles every pending register call, and a callback landing after a
+    /// dev-reload drops stale ids instead of settling the fresh runtime's
+    /// reused id space (CX-008).
+    @ObservationIgnored private var pendingRemotePushRegistrations: [(id: Int, generation: Int)] =
+        []
+
+    /// Registers this launch with APNs and parks the invoke until the
+    /// delegate reports the token (`remotePushDidRegister`) or the failure
+    /// (`remotePushDidFail`). Tokens are per-launch (never cached), so JS
+    /// calls this every launch; concurrent calls all settle on one callback.
+    private func handleRegisterForRemoteNotifications(id: Int) {
+        pendingRemotePushRegistrations.append((id: id, generation: generation))
+        WKApplication.shared().registerForRemoteNotifications()
     }
 
     /// Settles a synchronous background-connectivity op: the two background
@@ -1622,11 +1643,13 @@ public struct ReactWatchRootView: View {
 }
 
 /// The package's WKApplicationDelegate: forwards a fired background-refresh
-/// task to JS (`onBackgroundRefresh`). Wire it in your @main App with
+/// task to JS (`onBackgroundRefresh`) and the remote-push (APNs) callbacks to
+/// `ReactWatchRemotePush`. Wire it in your @main App with
 /// `@WKApplicationDelegateAdaptor(ReactWatchAppDelegate.self)` — the
 /// `react-watchos scaffold` command writes this for you. Without it,
 /// `scheduleBackgroundRefresh` still schedules the wake, but the fire event
-/// never reaches JS (a scenePhase `active` wake does).
+/// never reaches JS (a scenePhase `active` wake does), and
+/// `registerForRemoteNotifications` never settles.
 public final class ReactWatchAppDelegate: NSObject, WKApplicationDelegate {
     public override init() { super.init() }
 
@@ -1646,6 +1669,29 @@ public final class ReactWatchAppDelegate: NSObject, WKApplicationDelegate {
         }
     }
 
+    public func didRegisterForRemoteNotifications(withDeviceToken deviceToken: Data) {
+        MainActor.assumeIsolated {
+            ReactWatchRemotePush.didRegister(deviceToken: deviceToken)
+        }
+    }
+
+    public func didFailToRegisterForRemoteNotificationsWithError(_ error: any Error) {
+        MainActor.assumeIsolated {
+            ReactWatchRemotePush.didFail(error: error)
+        }
+    }
+
+    public func didReceiveRemoteNotification(
+        _ userInfo: [AnyHashable: Any],
+        fetchCompletionHandler completionHandler: @escaping (WKBackgroundFetchResult) -> Void
+    ) {
+        // Delivered on the main thread like the other WatchKit callbacks; the
+        // JS delivery is synchronous, so complete immediately with its verdict.
+        MainActor.assumeIsolated {
+            completionHandler(ReactWatchRemotePush.didReceive(userInfo))
+        }
+    }
+
     /// The userInfo we scheduled with is carried as a JSON NSString (see
     /// handleScheduleBackgroundRefresh); decode it back to a dictionary.
     private static func decodeUserInfo(_ raw: NSSecureCoding?) -> [String: Any]? {
@@ -1654,6 +1700,34 @@ public final class ReactWatchAppDelegate: NSObject, WKApplicationDelegate {
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }
         return obj
+    }
+}
+
+/// Remote-push (APNs) forwarding for an app with its OWN WKApplicationDelegate
+/// (scaffolded apps already wire `ReactWatchAppDelegate`, which calls these):
+/// forward the three delegate callbacks here and the package settles JS's
+/// `registerForRemoteNotifications()` and feeds `onRemotePush` /
+/// `onRemotePushToken` / `onRemotePushRegistrationError`. Nil-safe before the
+/// model exists: token/failure are dropped (nothing is listening yet) and
+/// `didReceive` reports `.noData`.
+@MainActor
+public enum ReactWatchRemotePush {
+    /// Forward from `didRegisterForRemoteNotifications(withDeviceToken:)`.
+    public static func didRegister(deviceToken: Data) {
+        ReactWatchModel.shared?.remotePushDidRegister(deviceToken: deviceToken)
+    }
+
+    /// Forward from `didFailToRegisterForRemoteNotificationsWithError(_:)`.
+    public static func didFail(error: any Error) {
+        ReactWatchModel.shared?.remotePushDidFail(error: error)
+    }
+
+    /// Forward from `didReceiveRemoteNotification(_:fetchCompletionHandler:)`
+    /// and pass the returned value to the completion handler.
+    public static func didReceive(
+        _ userInfo: [AnyHashable: Any]
+    ) -> WKBackgroundFetchResult {
+        ReactWatchModel.shared?.remotePushDidReceive(userInfo) ?? .noData
     }
 }
 
@@ -1702,6 +1776,57 @@ extension ReactWatchModel {
     /// scheduled by `scheduleBackgroundRefresh` (wire the adaptor in @main App).
     func deliverBackgroundRefresh(userInfo: [String: Any]?) {
         pushNativeEvent("backgroundRefresh", payload: ["userInfo": userInfo ?? [:]])
+    }
+
+    /// APNs registration succeeded: resolve every pending register invoke of
+    /// the current generation with the lowercase-hex token (stale generations
+    /// drop, CX-008) and publish `remotePush.token` for passive listeners —
+    /// the callback can also arrive with nothing pending (a consumer's own
+    /// native register call). The event push is jsReady-gated like the
+    /// diagnostic push: pre-boot there is no `__pushNativeEvent` global and
+    /// no listener could exist yet.
+    func remotePushDidRegister(deviceToken: Data) {
+        let hex = RemotePushWire.hexToken(deviceToken)
+        let pending = pendingRemotePushRegistrations
+        pendingRemotePushRegistrations = []
+        for entry in pending where entry.generation == generation {
+            runtime?.resolveInvoke(id: entry.id, resultJson: Self.jsonString(hex))
+        }
+        if jsReady {
+            pushNativeEvent("remotePush.token", payload: ["token": hex])
+        }
+    }
+
+    /// APNs registration failed (missing aps-environment entitlement, no
+    /// network, sandbox mismatch): reject the pending register invokes —
+    /// UNAVAILABLE, because the fix is configuration/environment, not the
+    /// user — and publish `remotePush.registrationError` for listeners.
+    func remotePushDidFail(error: any Error) {
+        let message = error.localizedDescription
+        let pending = pendingRemotePushRegistrations
+        pendingRemotePushRegistrations = []
+        for entry in pending where entry.generation == generation {
+            runtime?.rejectInvoke(
+                id: entry.id,
+                errorJson: Self.errorJSON(code: "UNAVAILABLE", message: message))
+        }
+        if jsReady {
+            pushNativeEvent("remotePush.registrationError", payload: ["message": message])
+        }
+    }
+
+    /// Delivers a remote notification's userInfo to JS as `remotePush` and
+    /// maps the outcome to the WKBackgroundFetchResult the delegate must
+    /// report: a listener consumed it -> .newData, otherwise .noData — no
+    /// runtime, JS not booted yet (a cold-launch background push arrives
+    /// before the bundle evaluates; v1 drops it), or no listener registered.
+    /// Synchronous (the push commits like a tap), so the delegate completes
+    /// far inside the system's 30 s wall-clock budget.
+    func remotePushDidReceive(_ userInfo: [AnyHashable: Any]) -> WKBackgroundFetchResult {
+        guard let runtime, jsReady else { return .noData }
+        return runtime.pushNativeEventReturning(
+            "remotePush", payload: RemotePushWire.sanitize(userInfo))
+            ? .newData : .noData
     }
 
     func handleStartExtendedRuntimeSession(id: Int) {
