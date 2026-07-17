@@ -22,6 +22,14 @@ public enum RemotePushWire {
     /// Dropping beats stringifying: an APNs payload is JSON by origin, so an
     /// unencodable value is host-side noise — `String(describing:)` junk like
     /// "<CFData 0x…>" must not leak into app logic as a real value.
+    /// Containers are never dropped, only reduced: a dict/array whose members
+    /// all drop stays as an empty `{}`/`[]` in any position (including as an
+    /// array element), keeping sibling array indices stable — the same shape
+    /// `JSON.stringify` gives an object whose properties are all
+    /// unserializable. If two keys stringify to the same name (`AnyHashable(7)`
+    /// vs `"7"`), which value survives is unspecified — impossible for
+    /// JSON-origin payloads (all-String keys), so it only affects hand-built
+    /// dictionaries passed to `didReceive`.
     public static func sanitize(_ userInfo: [AnyHashable: Any]) -> [String: Any] {
         var result: [String: Any] = [:]
         for (key, value) in userInfo {

@@ -62,7 +62,12 @@ export function onRemotePush(
   handler: (notification: RemotePushNotification) => void,
 ): Unsubscribe {
   return registerNativeListener(REMOTE_PUSH_EVENT, (payload) => {
-    handler((payload ?? {}) as RemotePushNotification);
+    // No cast: the sanitized userInfo structurally satisfies
+    // RemotePushNotification (optional `aps`, unknown-valued index
+    // signature). `aps` field types follow Apple's published APNs schema but
+    // are NOT runtime-validated — a nonconforming server's `badge: "3"`
+    // arrives as a string.
+    handler(payload ?? {});
   });
 }
 
