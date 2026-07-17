@@ -685,6 +685,61 @@ final class CapabilityGateTests: XCTestCase {
     }
 }
 
+// ARCH-07: HostPolicy is the consumer's AUTHORIZATION decision — may a bundle
+// use a feature the binary CAN back — kept separate from CapabilityGate
+// (compatibility). effectiveFeatures is what actually gets installed/advertised.
+final class HostPolicyTests: XCTestCase {
+    func testAllowAllPassesTheNativeSetThrough() {
+        XCTAssertEqual(
+            HostPolicy.allowAll.effectiveFeatures(native: HostFeatures.watch),
+            HostFeatures.watch
+        )
+    }
+
+    func testAllowlistIntersectsWithNative() {
+        // Not-native ("teleport") and not-allowed ("network") both drop out.
+        XCTAssertEqual(
+            HostPolicy.allow(["storage", "teleport"]).effectiveFeatures(
+                native: ["core", "storage", "network"]),
+            ["core", "storage"]
+        )
+    }
+
+    func testCoreIsForceKeptEvenWhenNotAllowed() {
+        // A policy must not be able to brick commit/log/timers/invoke.
+        XCTAssertEqual(
+            HostPolicy.allow(["storage"]).effectiveFeatures(
+                native: ["core", "storage"]),
+            ["core", "storage"]
+        )
+    }
+
+    func testCoreIsNotInventedWhenNativeLacksIt() {
+        XCTAssertEqual(
+            HostPolicy.allow(["core", "storage"]).effectiveFeatures(
+                native: ["storage"]),
+            ["storage"]
+        )
+    }
+
+    func testAuthorizeAcceptsBundleFeaturesWithinTheEffectiveSet() {
+        XCTAssertEqual(
+            HostPolicy.allow(["storage", "network"]).authorize(
+                bundleFeatures: ["storage", "core"], native: HostFeatures.watch),
+            .authorized
+        )
+    }
+
+    func testAuthorizeDeniesWithTheMissingFeaturesSorted() {
+        XCTAssertEqual(
+            HostPolicy.allow(["storage"]).authorize(
+                bundleFeatures: ["sensors", "network", "storage"],
+                native: HostFeatures.watch),
+            .denied(byPolicy: ["network", "sensors"])
+        )
+    }
+}
+
 /// SD-2 / CX-018: the styling logic shared by both interpreters lives here so it
 /// can't drift. These pin the behaviors the widget had lost (hex colors) and the
 /// formatting both sides must agree on.
