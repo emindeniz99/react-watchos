@@ -291,6 +291,11 @@ came back clean — no downgrade, no infinite recovery, no brick).
   errors could remain until the macOS `react-native-watchos swift build`
   workflow actually compiles `ReactWatchHost`. That build is the outstanding
   gate for every "② pending" row in `status.md`.
+  *(2026-07-16 note: since resolved — the package + watch app compiled and
+  tested green locally on macOS/the watch sim on 2026-07-04/06
+  (full-project-review-2026-07-04.md §0), and since 2026-07-09 the SwiftPM
+  package also compiles + `swift test`s on Linux (perf-battery-audit §
+  fourth pass). Actions stay disabled; the gates run locally.)*
 - No device/simulator execution: animation shadowing, the range-trap crashes, and
   the audio/session teardown are reasoned, not observed firing.
 - The verifier default-refutes, which biases toward false negatives (a real

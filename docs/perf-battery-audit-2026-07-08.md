@@ -275,7 +275,7 @@ re-litigated:
 
 ---
 
-## Implementation status (updated 2026-07-09, second pass)
+## Implementation status (updated 2026-07-09; the third/fourth/fifth-pass paragraphs below extend this second-pass table)
 
 Landed on `claude/watchos-perf-battery-review-ledrjq`. **No Swift toolchain was
 available in the authoring environment**, so every Swift change is un-compiled

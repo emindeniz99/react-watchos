@@ -26,6 +26,9 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
    **ARCH-01 + ARCH-03 + ARCH-04 together** (feature model + per-target
    app/widget artifacts + transactional OTA). Building the older scalar
    `hostApiVersion` design first would be thrown away.
+   *(2026-07-16: that foundation trio — and ARCH-05/09/12/13 — shipped long
+   since; see the backlog's build-progress log. Pick up from its unticked
+   rows.)*
 3. Then work Phases 0–5.
 4. **When two reviews disagree, the later one wins** and the merged backlog says
    so (e.g. Codex's feature-set supersedes the scalar gate; the design notes
@@ -66,8 +69,10 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   code) **done + CI-guarded**; flags the side-effect soundness hole that the
   declared-contract/marker design (criteria #1–3, 5) must handle.
 - [design-ble-result-reporting.md](./design-ble-result-reporting.md) —
-  CX-022 BLE connect/write result reporting. Spec ready; **device-gated** (no
-  simulator Bluetooth radio), so deliberately not shipped blind.
+  CX-022 BLE connect/write result reporting. **Implemented in code** per the
+  spec (`bleConnect`/`bleWrite`/`bleSubscribe` settle as promises over invoke;
+  `BleSession` correlation Linux-tested); the remaining slice is **device
+  verification** (no simulator Bluetooth radio).
 - [design-cx-025-release-freshness.md](./design-cx-025-release-freshness.md) —
   CX-025 OTA `releaseId` (so non-breaking fixes can ship). Core primitive proven
   (JS FNV-1a == Swift `ContentHash`); spec ready for a focused load-flow pass.
@@ -89,8 +94,16 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   **the production-readiness review** (all 8 dimensions, adversarially
   verified): 4 blockers (dark CI pipeline, npm name taken, widget-runtime
   deadlock, Swift-6 compile breakers), 19 confirmed majors, per-dimension
-  scorecard, ordered action plan, and roadmap. Newest review; supersedes
-  earlier ones where they disagree.
+  scorecard, ordered action plan, and roadmap. Newest *full-scope* review;
+  supersedes earlier ones where they disagree. Its §0 reconciliation table
+  tracks resolution (updated through 2026-07-16).
+- [perf-battery-audit-2026-07-08.md](./perf-battery-audit-2026-07-08.md) —
+  full app+widget **performance/battery audit** (3 P0s, 12 P1s, a P2 batch) and
+  the authoritative record of the fix passes that followed: bounded BLE
+  reconnect, background HR teardown, timer leeway, widget staleness gate +
+  reload debounce, `@Observable` migration, formatter/image caches, os.Logger
+  console, the quickjs stack-guard fix — plus the package's **first-ever Swift
+  compile + `swift test`, on Linux**.
 
 ## Reference / background
 

@@ -73,7 +73,9 @@ are static-analysis reads.
    corrected; nothing to do until the SDK ships.
 3. **First publish never rehearsed.** Name is decided (`react-watchos`) but zero
    release tags exist; the `release-please` publish dry-run + a real tag are still
-   pending.
+   pending. *(Partly superseded by the 2026-07-06 addendum below: a private
+   end-to-end Verdaccio publish + fresh-project install passed. The real
+   registry publish/tag is what remains.)*
 4. **M6 Phase B** (collapse the two SwiftUI interpreters into one) — deferred
    quality/maintenance work, not shipping-blocking.
 
@@ -91,6 +93,23 @@ applied in **both** interpreters (`NodeView.RoutedNavigationStack` and
 `react-watchos@0.1.0-alpha.0` (`--tag next`) to a local Verdaccio registry and
 `npm install react-watchos@next` pulled it into a fresh project cleanly. Secret
 scan (`gitleaks`, config committed) is clean — no first-party secrets.
+
+### 2026-07-16 addendum — the §7 "near term" capability rows shipped
+
+The §7 near-term list is now in code (see the merged backlog's build-progress
+log for evidence): **WatchConnectivity background channels** (ARCH-12 —
+`updateApplicationContext`/`transferUserInfo` outbound over invoke, inbound
+split into `onApplicationContext`/`onUserInfo`); the **BLE reliability pair**
+(`withResponse` acked writes + bounded auto-reconnect; `bleConnect`/`bleWrite`/
+`bleSubscribe` settle as promises — CX-022 complete in code, real-peripheral
+verification still owed); **controlled TabView `selection`/`onChange`** with the
+CX-010 read-only rule; and the **range-prop unification on `min`/`max`**
+(breaking, pre-release). The same burst landed ARCH-09 lazy confirmed navigation
+(launch tree 152→48 nodes, ~0.52 ms/dispatch on the vendored-engine bench),
+ARCH-13 structured diagnostics + operating budgets, and the 2026-07-08
+perf/battery audit's fix set — and the SwiftPM package now compiles and
+`swift test`s on **Linux** (227 green). GitHub Actions remains disabled by the
+B1 decision; all of this is locally verified.
 
 **Bottom line:** the 4 blockers and 18 majors from this review are closed
 (M6 partial by design); what remains is a **real-hardware pass** plus the

@@ -81,13 +81,20 @@ JSON summary. A real run on this repo's CI box (x86-64 Linux) right now:
  "perSerializeStringifyMs":1.085,"dispatches":220}
 ```
 
+*(2026-07-16 update: that sample predates ARCH-09 lazy navigation. The current
+run on the same class of box: launch tree **48 nodes / 4.1 KB**, `perDispatchMs`
+**~0.52**, quickjs heap **2.1 MB**, boot **39.9 ms** from source / **~13 ms**
+from `.qbc` bytecode — and `run.sh` now gates both the source and the `.qbc`
+production boot path. The old eager all-screens figures above (~138–152 nodes,
+~1.3–1.5 ms) remain the right worst-case reference for a deep covered stack.)*
+
 What each field means:
 
 | Field | Meaning | Why you care |
 |-------|---------|--------------|
 | `quickjs heap` | live JS heap after boot + a burst of commits (`JS_ComputeMemoryUsage`) | The runtime's steady-state footprint. watchOS jetsams greedy extensions; keep this well under the app's memory limit. |
 | `process peak rss` | peak resident set of the whole host process | Upper bound incl. the engine binary + C host. Not the app's real RSS, but a sanity ceiling. |
-| `demoTreeNodes` | node count of the eager-mounted all-screens demo tree | Scales cost 1 & 3. The demo mounts *every* screen at once (worst case). |
+| `demoTreeNodes` | node count of the demo tree the bench drives | Scales cost 1 & 3. (Until 2026-07-16 the demo eager-mounted *every* screen at once — the worst case; ARCH-09 lazy navigation now serializes only the active stack, so the launch tree is ~48 nodes.) |
 | `fullTreeKB` | serialized size of one full commit | Scales cost #2 (bytes over the bridge). |
 | `perDispatchMs` | **full pipeline** per tap: React render + full-tree serialize + `JSON.stringify` + C hop | The headline "cost of one interaction" on the engine side. |
 | `perSerializeMs` | `serializeTree` only (no stringify) | Isolates the walk from the encode. |
@@ -178,7 +185,9 @@ Method that actually produces a defensible battery figure:
 
 For the "worst case", drive the scenario against the demo's **eager-mounted
 all-screens tree** (§3, `demoTreeNodes`) — that is the heaviest tree the
-framework produces.
+framework produces. *(2026-07-16: ARCH-09 lazy navigation ended eager mounting —
+the launch tree is now ~48 nodes. To reproduce a worst case, push a deep
+multi-entry stack so every covered screen stays mounted and serialized.)*
 
 ---
 
@@ -227,14 +236,26 @@ drain a watch battery, in priority order:
 
 ## 7. What we can and can't claim today
 
-Honest status, so nobody over-claims in marketing:
+Honest status, so nobody over-claims in marketing (updated 2026-07-16):
 
 - ✅ **Engine cost & heap**: measured, reproducibly, via `tools/embed-smoke`
-  (§3). We can say "a full interaction commit is ~1–1.5 ms of engine work on an
-  x86 dev box over a 138-node tree; the QuickJS heap sits around 6 MB" — with the
-  x86-caveat stated.
+  (§3), and now **gated** — `run.sh` fails on heap > 6 MB or boot > 250 ms on
+  the source path, and separately gates the `.qbc` production boot path on
+  loading + handling the interaction. We can say "a full
+  interaction commit is ~0.5 ms of engine work on an x86 dev box over the demo's
+  48-node lazy launch tree (~1.3 ms over the old eager 152-node tree — the
+  worst-case reference); the QuickJS heap sits around 2 MB; cold boot is ~40 ms
+  from source and ~13 ms from bytecode" — with the x86-caveat stated.
 - ✅ **Structural energy wins**: native timer ticking and the no-op-commit
-  bailout are real, tested behaviors (design facts, §1).
+  bailout are real, tested behaviors (design facts, §1) — joined since the
+  2026-07-08 audit by timer leeway (wake coalescing), the widget staleness gate
+  + reload debounce, background HR/sensor teardown, bounded BLE reconnect, and
+  ARCH-09 lazy navigation (the 152→48-node launch tree above). Still design
+  facts + engine numbers, not device measurements.
+- ✅ **Swift-side logic on Linux**: since 2026-07-09 the SwiftPM package
+  compiles and `swift test`s on Linux (227 green as of 2026-07-16) — the engine
+  embedding runs against the real vendored quickjs-ng. That is *logic* coverage;
+  it says nothing about SwiftUI rendering or watch hardware.
 - ❌ **On-watch CPU %, frame rate, and battery drain**: **not yet measured** —
   these need §5 on a physical Apple Watch, which is the open gate. Do not print a
   battery-life number until that run exists.

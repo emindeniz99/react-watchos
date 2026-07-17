@@ -1,5 +1,14 @@
 # BLE connect/write result reporting (design — device-gated)
 
+> **Status (2026-07-16): implemented in code, exactly this shape.**
+> `bleConnect`/`bleWrite`/`bleSubscribe` settle as promises over invoke; the
+> correlation bookkeeping lives in the pure `BleSession` (Linux-tested — incl.
+> the `.withResponse` FIFO acked by the added `didWriteValueFor` delegate);
+> `.withoutResponse` resolves optimistically with the documented caveat; the
+> 2026-07-08 audit's bounded auto-reconnect landed alongside. **Only the
+> on-device acceptance box below is still open** — connect/drop/reconnect/
+> write-ack/subscribe against a real peripheral.
+
 The last fallible op still off the SD-1 invoke channel (CX-022): `bleConnect` /
 `bleWrite` / `bleSubscribe` are fire-and-forget (`__host.ble(json)`), so a
 failed connect or write is invisible to JS — only `onBleState` / `onBleNotify`
@@ -61,7 +70,7 @@ silently regressing the demo, with nothing to catch it. So:
 
 ## Acceptance
 
-- [ ] `BleSession` gains tested correlation bookkeeping (Linux).
-- [ ] Bridge adds `didWriteValueFor` + settles connect/write/subscribe invokes.
-- [ ] JS BLE ops return results; `.withoutResponse` caveat documented.
+- [x] `BleSession` gains tested correlation bookkeeping (Linux).
+- [x] Bridge adds `didWriteValueFor` + settles connect/write/subscribe invokes.
+- [x] JS BLE ops return results; `.withoutResponse` caveat documented.
 - [ ] On-device: connect/fail/reconnect/write-ack/subscribe all verified.
