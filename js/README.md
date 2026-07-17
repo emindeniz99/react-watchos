@@ -140,6 +140,62 @@ Configurable widgets (a picker on the watch face) write their own
 `AppIntentTimelineProvider` on the package's `reactTimeline`/`reactSnapshotEntry`
 helpers — see the demo (`app/targets/widget`).
 
+### Remote push (APNs)
+
+The watch registers for its OWN device token — send pushes to it directly,
+even with the iPhone away. Ask for notification permission first if you want
+alerts to be visible (without it, pushes are delivered silently), then
+register every launch (tokens are variable length and can rotate — never
+cache one across launches):
+
+```tsx
+import {
+  onRemotePush,
+  registerForRemoteNotifications,
+  requestNotificationPermission,
+} from "react-watchos";
+
+await requestNotificationPermission(); // visible alerts need this
+const token = await registerForRemoteNotifications(); // lowercase hex
+await fetch("https://api.example.com/devices", {
+  method: "POST",
+  body: JSON.stringify({ watchToken: token }),
+});
+
+onRemotePush(({ aps, ...custom }) => {
+  // Fires for delivered pushes, including background
+  // (`content-available: 1`) ones. A registered listener is what makes
+  // the delegate report "new data" to watchOS.
+});
+```
+
+Notes:
+
+- **Delegate wiring**: scaffolded apps already wire `ReactWatchAppDelegate`,
+  which forwards the token/failure/receive callbacks. An app with its own
+  `WKApplicationDelegate` forwards the three calls to `ReactWatchRemotePush`
+  (`didRegister(deviceToken:)`, `didFail(error:)`, `didReceive(_:)` — pass the
+  last one's return value to the completion handler).
+- **Entitlement**: APNs registration needs the `aps-environment` entitlement —
+  set `push: true` in the plugin options (adds `"aps-environment":
+  "development"`; release signing rewrites it to `"production"` from the
+  provisioning profile), or turn on the Push Notifications capability in Xcode.
+  Without it, `registerForRemoteNotifications()` rejects `UNAVAILABLE`.
+- **Send to both tokens**: for a standalone-capable app, Apple's guidance is to
+  send each push to BOTH the watch token and the paired-iPhone token — the
+  system delivers it to the right place and dedupes.
+- **Background pushes** (`content-available: 1`) wake the app briefly and are
+  low-priority + system-budgeted. v1 limitation: a background push arriving
+  before the JS bundle has booted (cold launch) is reported as "no data" and
+  dropped — design your server to tolerate that (state sync over one-shot
+  payloads).
+- **Registration failures** reject the promise and also fire
+  `onRemotePushRegistrationError`; unsolicited token rotations fire
+  `onRemotePushToken`.
+- **HostPolicy**: remote push is its own `"push"` feature — a consumer's
+  `HostPolicy` allowlist that omits it makes `registerForRemoteNotifications()`
+  reject `POLICY_DENIED` (local `notifications` does not imply remote push).
+
 ### Subpath exports
 
 - `react-watchos/build` — `watchBuildOptions({ entry, outfile })`, the

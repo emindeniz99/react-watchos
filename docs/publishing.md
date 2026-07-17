@@ -130,6 +130,7 @@ type Options = {
   appGroup: string;             // App Group id (defaults to bundleId-derived)
   widget?: boolean;             // create the widget extension (default true)
   healthKit?: boolean;          // HealthKit entitlement + usage strings (default false — opt-in)
+  push?: boolean;               // remote push: aps-environment entitlement (default false — opt-in)
   families?: WidgetFamily[];    // complication families
   deploymentTarget?: string;    // default "10.0"
   entry?: string;               // watch JS entry (default "watch/index")
