@@ -1,14 +1,16 @@
 import { createContext, type ReactNode } from "react";
-import Reconciler from "react-reconciler";
-import {
-  ConcurrentRoot,
-  DefaultEventPriority,
-  DiscreteEventPriority,
-  NoEventPriority,
-} from "react-reconciler/constants";
 import { createCommitBudgetCheck } from "./budgets";
 import { dispatchToInstance, pathChangeAccepted } from "./events";
 import type { HostBridge, SerializedTree, WatchEvent } from "./host";
+import {
+  createReconciler,
+  DefaultEventPriority,
+  DiscreteEventPriority,
+  type EventPriority,
+  NoEventPriority,
+  type OpaqueRoot,
+  type WatchHostConfig,
+} from "./reconcilerAdapter";
 import { serializeTree, textContent } from "./serialize";
 
 /**
@@ -106,11 +108,20 @@ function wirePropsEqual(
   return true;
 }
 
-let currentUpdatePriority: number = NoEventPriority;
+let currentUpdatePriority: EventPriority = NoEventPriority;
 
 const emptyContext = {};
 
-const hostConfig = {
+// The annotation is load-bearing: WatchHostConfig is the typed record of
+// what react-reconciler@0.33 actually calls (ARCH-14), so tsc proves this
+// object implements that contract completely — no extra members, none
+// missing, no drifted signature.
+const hostConfig: WatchHostConfig<
+  string,
+  Record<string, unknown>,
+  Container,
+  Instance
+> = {
   supportsMutation: true,
   supportsPersistence: false,
   supportsHydration: false,
@@ -129,7 +140,7 @@ const hostConfig = {
   // React's context stack rejects null when crossing a Suspense boundary
   // ("Expected host context to exist").
   getRootHostContext: () => emptyContext,
-  getChildHostContext: (parentContext: unknown) => parentContext,
+  getChildHostContext: (parentContext: object) => parentContext,
   getPublicInstance: (instance: Instance) => instance,
   prepareForCommit: () => null,
   resetAfterCommit(container: Container) {
@@ -254,7 +265,7 @@ const hostConfig = {
   hideTextInstance() {},
   unhideTextInstance() {},
 
-  setCurrentUpdatePriority(priority: number) {
+  setCurrentUpdatePriority(priority: EventPriority) {
     currentUpdatePriority = priority;
   },
   getCurrentUpdatePriority: () => currentUpdatePriority,
@@ -277,50 +288,30 @@ const hostConfig = {
   NotPendingTransition: null,
   HostTransitionContext: createContext(null),
   resetFormInstance() {},
-  bindToConsole: (method: string, args: unknown[]) => () => {
-    const fn = (console as unknown as Record<string, unknown>)[method];
+  bindToConsole: (method: keyof Console, args: unknown[]) => () => {
+    const fn: unknown = console[method];
     if (typeof fn === "function") fn.apply(console, args);
   },
 };
 
-// The 0.32 typings predate this host-config revision; the shape above is
-// derived from what react-reconciler@0.33 actually reads.
-const reconciler = Reconciler(hostConfig as never) as unknown as {
-  createContainer(...args: unknown[]): unknown;
-  updateContainerSync(
-    element: ReactNode | null,
-    root: unknown,
-    parentComponent?: unknown,
-    callback?: (() => void) | null,
-  ): void;
-  flushSyncWork(): void;
-  flushPassiveEffects(): boolean;
-  defaultOnUncaughtError(error: unknown): void;
-  defaultOnCaughtError(error: unknown): void;
-  defaultOnRecoverableError(error: unknown): void;
-  injectIntoDevTools(config: unknown): boolean;
-};
+// One reconciler instance for every root in the runtime — the adapter is
+// the only module that touches react-reconciler itself (ARCH-14).
+const reconciler = createReconciler(hostConfig);
 
 // Register with React DevTools if a backend hook is present (e.g.
 // react-devtools-core connected over the dev server). Inert otherwise.
-// QuickJS has no `process`; the build preset defines process.env.NODE_ENV, but
-// guard so a consumer who bundles without it still works (defaults production).
-const __devBuild =
-  typeof process !== "undefined" && process.env.NODE_ENV !== "production";
+// 0.33 takes no arguments: the registration identity comes from the host
+// config (rendererVersion/rendererPackageName), and bundleType from which
+// react-reconciler build (dev/prod) the bundle carries.
 try {
-  reconciler.injectIntoDevTools({
-    bundleType: __devBuild ? 1 : 0,
-    version: "19.2.0",
-    rendererPackageName: "react-watchos",
-    findFiberByHostInstance: () => null,
-  });
+  reconciler.injectIntoDevTools();
 } catch {
   // No DevTools hook — fine.
 }
 
 export class WatchRoot {
   private container: Container;
-  private root: unknown;
+  private root: OpaqueRoot;
   private uncaughtError: unknown = null;
   private commitCount = 0;
   private lastCommitJson: string | null = null;
@@ -392,43 +383,32 @@ export class WatchRoot {
       },
     };
     this.container = container;
-    this.root = reconciler.createContainer(
-      container,
-      ConcurrentRoot,
-      null,
-      false,
-      null,
-      "",
-      (error: unknown) => {
-        this.uncaughtError = error;
-        // A commit driven by the scheduler (an effect-scheduled render on a
-        // host-timer turn) never passes through flush(), so without a
-        // fallback the stored error would sit until the *next* native
-        // event — delayed and misattributed, or silent forever. If a
-        // synchronous flush doesn't consume it first, rethrow from a
-        // microtask: QuickJS's job drain surfaces it to the host onError,
-        // vitest fails the test. A sync flush clears the field, making
-        // this a no-op.
-        queueMicrotask(() => {
-          if (this.uncaughtError === error) {
-            this.uncaughtError = null;
-            throw error;
-          }
-        });
-      },
-      reconciler.defaultOnCaughtError,
-      reconciler.defaultOnRecoverableError,
-      null,
-    );
+    this.root = reconciler.createContainer(container, (error: unknown) => {
+      this.uncaughtError = error;
+      // A commit driven by the scheduler (an effect-scheduled render on a
+      // host-timer turn) never passes through flush(), so without a
+      // fallback the stored error would sit until the *next* native
+      // event — delayed and misattributed, or silent forever. If a
+      // synchronous flush doesn't consume it first, rethrow from a
+      // microtask: QuickJS's job drain surfaces it to the host onError,
+      // vitest fails the test. A sync flush clears the field, making
+      // this a no-op.
+      queueMicrotask(() => {
+        if (this.uncaughtError === error) {
+          this.uncaughtError = null;
+          throw error;
+        }
+      });
+    });
   }
 
   render(element: ReactNode): void {
-    reconciler.updateContainerSync(element, this.root, null, null);
+    reconciler.updateContainerSync(element, this.root);
     this.flush();
   }
 
   unmount(): void {
-    reconciler.updateContainerSync(null, this.root, null, null);
+    reconciler.updateContainerSync(null, this.root);
     this.flush();
   }
 
