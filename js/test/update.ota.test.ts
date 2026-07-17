@@ -438,6 +438,53 @@ describe("OTA capability gate", () => {
     expect(await fetchAndApplyUpdate("https://x.test/manifest.json")).toBe(6);
     expect(host.invoke).toHaveBeenCalled();
   });
+
+  // ARCH-07: the host publishes the EFFECTIVE feature set — HostFeatures
+  // filtered by the app's HostPolicy — as __hostFeatures, so the same
+  // pre-download gate also refuses policy-restricted bundles with no JS
+  // changes. From here "missing" can mean policy-restricted, not only
+  // binary-too-old (see checkForUpdate's appUpdateRequired doc).
+  it("checkForUpdate reports the gap when the HostPolicy shrank the set", async () => {
+    // A watch-class binary whose policy allows storage/widgets but not
+    // network: the native set has "network"; the published effective set
+    // doesn't.
+    g.__hostFeatures = ["core", "haptics", "storage", "widgets"];
+    g.__bridgeProtocol = 1;
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: 7,
+        bundle: "bundle.js",
+        requiredFeatures: ["network", "storage"],
+      }),
+    }));
+    expect(await checkForUpdate("https://x.test/manifest.json")).toEqual({
+      current: BUNDLE_VERSION,
+      latest: 7,
+      updateAvailable: false,
+      appUpdateRequired: true,
+      missingCapabilities: ["network"],
+    });
+  });
+
+  it("fetchAndApplyUpdate skips the download under a policy-shrunk set", async () => {
+    const host = installMockHost();
+    g.__hostFeatures = ["core", "haptics", "storage", "widgets"];
+    g.__bridgeProtocol = 1;
+    g.fetch = vi.fn(async () => ({
+      json: async () => ({
+        version: 7,
+        bundle: "bundle.js",
+        requiredFeatures: ["network"],
+      }),
+    }));
+    expect(
+      await fetchAndApplyUpdate("https://x.test/manifest.json"),
+    ).toBeNull();
+    // Only the manifest was fetched; the bundle download never started and
+    // nothing was staged.
+    expect((g.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+    expect(host.invoke).not.toHaveBeenCalled();
+  });
 });
 
 describe("manifest shape validation (NF-32)", () => {

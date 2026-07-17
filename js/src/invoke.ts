@@ -10,10 +10,15 @@ import { getHost } from "./host";
  * `fetch` (abort/large body) and `generate` keep their dedicated paths.
  */
 
-/** Closed set of error codes the native side may reject an invoke with. */
+/** Closed set of error codes the native side may reject an invoke with.
+ *  `POLICY_DENIED` (ARCH-07): the binary backs the method's feature but the
+ *  app's HostPolicy doesn't authorize it — fixable only by an app
+ *  configuration change (a native release), unlike `PERMISSION_DENIED`
+ *  (the user) or `UNAVAILABLE` (the binary/runtime). */
 export type InvokeErrorCode =
   | "UNKNOWN_METHOD"
   | "PERMISSION_DENIED"
+  | "POLICY_DENIED"
   | "UNAVAILABLE"
   | "INVALID_REQUEST"
   | "INTERNAL";

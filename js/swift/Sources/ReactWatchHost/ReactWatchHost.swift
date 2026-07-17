@@ -142,10 +142,21 @@ final class ReactWatchModel {
     private let otaSequencer: OTABootSequencer
     /// CR-5 A/B selector for the Swift→JS bridge, applied to each runtime.
     private let useJSCallBridge: Bool
+    /// The ARCH-07 effective feature set: `HostFeatures.watch` filtered by the
+    /// consumer's `HostPolicy` ("core" always kept). Computed ONCE at init;
+    /// every JS-facing or staging-facing read of the native feature set uses
+    /// THIS — the runtime install allowlist, the published `__hostFeatures`
+    /// (so the JS pre-download OTA gate respects the policy with zero JS
+    /// changes), the invoke dispatcher's gate, and OTA staging.
+    private let effectiveFeatures: Set<String>
 
-    init(appGroupId: String?, ota: OTAConfig = .init(), useJSCallBridge: Bool = true) {
+    init(
+        appGroupId: String?, ota: OTAConfig = .init(),
+        useJSCallBridge: Bool = true, policy: HostPolicy = .allowAll
+    ) {
         store = SharedWidgetStore(appGroupId: appGroupId)
         counters = CoordinatedCounterStore(appGroupId: appGroupId)
+        effectiveFeatures = policy.effectiveFeatures(native: HostFeatures.watch)
         let keys = ota.signerPublicKeys.compactMapValues {
             Data(base64Encoded: $0)
                 .flatMap { try? Curve25519.Signing.PublicKey(rawRepresentation: $0) }
@@ -173,7 +184,10 @@ final class ReactWatchModel {
             config: .init(
                 keyState: keyState, gate: ota.gate, shippedVersion: ota.shippedVersion,
                 nativeBridgeProtocol: RNWire.bridgeProtocol,
+                // Capability (what the binary CAN back) stays the full native
+                // set; the policy ceiling is the separate ARCH-07 decision.
                 nativeFeatures: HostFeatures.watch,
+                policyAllowedFeatures: effectiveFeatures,
                 maxBundleBytes: Self.maxOTABundleBytes,
                 maxBootAttempts: Self.maxOTABootAttempts),
             active: FileOTASlotStore(
@@ -393,8 +407,10 @@ final class ReactWatchModel {
     /// Exposes this binary's capability set + bridge protocol to JS before the
     /// bundle runs (ARCH-01), so the JS OTA gate (update.ts) can refuse — before
     /// downloading — a bundle needing a feature this app doesn't provide.
+    /// Publishes the EFFECTIVE set (ARCH-07), not the raw native one, so the
+    /// same JS gate also refuses bundles the consumer's policy doesn't allow.
     private func installHostCapabilities(_ js: JSRuntime) {
-        let features = Array(HostFeatures.watch).sorted()
+        let features = effectiveFeatures.sorted()
         let json =
             (try? JSONSerialization.data(withJSONObject: features))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
@@ -421,8 +437,21 @@ final class ReactWatchModel {
     private static let maxOTABundleBytes = 3 * 1024 * 1024
 
     /// Routes a generic invoke (SD-1) to its handler; an unknown method rejects
-    /// (never hangs the JS Promise).
+    /// (never hangs the JS Promise). A method whose feature the consumer's
+    /// HostPolicy didn't authorize rejects POLICY_DENIED before any handler
+    /// runs (ARCH-07).
     private func handleInvoke(id: Int, method: String, payload: String) {
+        if let feature = HostInvokeFeatures.byMethod[method],
+            !effectiveFeatures.contains(feature)
+        {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(
+                    code: "POLICY_DENIED",
+                    message: "method '\(method)' is blocked by this app's host "
+                        + "policy — requires an app configuration change"))
+            return
+        }
         switch method {
         case "saveUpdate":
             handleSaveUpdate(id: id, payload: payload)
@@ -1006,7 +1035,11 @@ final class ReactWatchModel {
         // Cap the app's QuickJS heap so a runaway/oversized bundle fails loudly
         // inside the engine instead of getting the whole app OOM-jetsammed
         // (OP-3). Generous vs the widget's 16MB — the app has the full UI tree.
-        let js = try JSRuntime(memoryLimitBytes: 64 * 1024 * 1024)
+        // allowedFeatures (ARCH-07): only policy-authorized features' host
+        // functions are installed, so JS typeof detection matches the policy.
+        let js = try JSRuntime(
+            memoryLimitBytes: 64 * 1024 * 1024,
+            allowedFeatures: effectiveFeatures)
         js.useJSCallBridge = useJSCallBridge  // CR-5 A/B selector
         js.bridge.commit = { [weak self] json in
             guard let self else { return }
@@ -1508,17 +1541,22 @@ private struct UpdateRequiredView: View {
 /// `useJSCallBridge` selects the Swift→JS bridge (CR-5): the default `JS_Call`
 /// path or, set to `false`, the legacy eval path — set it per launch (e.g. a
 /// random bucket) to A/B them on-device before the eval path is retired.
+/// `policy` is the ARCH-07 host policy: which features a bundle MAY use out of
+/// what this binary CAN back (`.allowAll` = everything; "core" is always on).
+/// Blocked features vanish from `__host`/`__hostFeatures`, invoke calls to
+/// them reject POLICY_DENIED, and OTA staging refuses bundles requiring them.
 public struct ReactWatchRootView: View {
     @State private var model: ReactWatchModel
     @Environment(\.scenePhase) private var scenePhase
 
     public init(
         appGroupId: String? = nil, ota: OTAConfig = .init(),
-        useJSCallBridge: Bool = true
+        useJSCallBridge: Bool = true, policy: HostPolicy = .allowAll
     ) {
         _model = State(
             initialValue: ReactWatchModel(
-                appGroupId: appGroupId, ota: ota, useJSCallBridge: useJSCallBridge
+                appGroupId: appGroupId, ota: ota,
+                useJSCallBridge: useJSCallBridge, policy: policy
             ))
     }
 

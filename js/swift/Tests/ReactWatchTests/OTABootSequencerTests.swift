@@ -72,6 +72,8 @@ final class OTABootSequencerTests: XCTestCase {
         keyState: OTAKeyState = .enforced,
         gate: OTAGate = .soft,
         shippedVersion: Int = 1,
+        // Defaults to the native set = no policy restriction (ARCH-07).
+        policyAllowedFeatures: Set<String> = ["network"],
         maxBundleBytes: Int = 4096,
         maxBootAttempts: Int = 3,
         validate: @escaping @Sendable (String) throws -> Void = { _ in },
@@ -81,6 +83,7 @@ final class OTABootSequencerTests: XCTestCase {
             config: .init(
                 keyState: keyState, gate: gate, shippedVersion: shippedVersion,
                 nativeBridgeProtocol: 1, nativeFeatures: ["network"],
+                policyAllowedFeatures: policyAllowedFeatures,
                 maxBundleBytes: maxBundleBytes, maxBootAttempts: maxBootAttempts),
             active: active,
             knownGood: knownGood,
@@ -143,6 +146,39 @@ final class OTABootSequencerTests: XCTestCase {
         }
         XCTAssertTrue(reason.contains("needs capabilities"))
         XCTAssertTrue(reason.contains("ble"))
+    }
+
+    func testStagePolicyDenialIsDistinctFromCapabilityRejection() {
+        // ARCH-07: the binary CAN back "network" (it's native), but the
+        // consumer's policy doesn't authorize it — the rejection must use the
+        // policy wording (an app configuration change), never "update the app".
+        let seq = makeSequencer(policyAllowedFeatures: ["core"])
+        let payload =
+            #"{"js":"app()","keyId":"k1","version":2,"signature":"Z29vZA==","#
+            + #""requiredFeatures":["network"],"minBridgeProtocol":1}"#
+        guard case .rejected(let reason) = seq.stage(payload) else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertTrue(reason.contains("host policy"))
+        XCTAssertTrue(reason.contains("network"))
+        XCTAssertTrue(reason.contains("requires an app configuration change"))
+        XCTAssertFalse(reason.contains("update the app"))
+        XCTAssertNil(active.record)
+    }
+
+    func testStageCapabilityWordingWinsWhenBothGatesFail() {
+        // "ble" is missing natively AND outside the policy: the capability
+        // gate runs first, so the user is told to update the app — the only
+        // fix that can add the native feature (policy can't).
+        let seq = makeSequencer(policyAllowedFeatures: ["core"])
+        let payload =
+            #"{"js":"app()","keyId":"k1","version":2,"signature":"Z29vZA==","#
+            + #""requiredFeatures":["ble"],"minBridgeProtocol":1}"#
+        guard case .rejected(let reason) = seq.stage(payload) else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertTrue(reason.contains("update the app"))
+        XCTAssertFalse(reason.contains("host policy"))
     }
 
     func testStageUnconfiguredRefusesLoudly() {

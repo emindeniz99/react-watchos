@@ -115,12 +115,18 @@ public struct OTABootSequencer: Sendable {
         /// Native side of the ARCH-01 capability gate.
         public let nativeBridgeProtocol: Int
         public let nativeFeatures: Set<String>
+        /// The consumer's HostPolicy ceiling (ARCH-07): the EFFECTIVE feature
+        /// set the app authorizes a bundle to use. Staging refuses a bundle
+        /// requiring anything outside it. Pass the native set when no policy
+        /// applies (unrestricted — preserves pre-policy behavior).
+        public let policyAllowedFeatures: Set<String>
         public let maxBundleBytes: Int
         public let maxBootAttempts: Int
 
         public init(
             keyState: OTAKeyState, gate: OTAGate, shippedVersion: Int,
             nativeBridgeProtocol: Int, nativeFeatures: Set<String>,
+            policyAllowedFeatures: Set<String>,
             maxBundleBytes: Int, maxBootAttempts: Int
         ) {
             self.keyState = keyState
@@ -128,6 +134,7 @@ public struct OTABootSequencer: Sendable {
             self.shippedVersion = shippedVersion
             self.nativeBridgeProtocol = nativeBridgeProtocol
             self.nativeFeatures = nativeFeatures
+            self.policyAllowedFeatures = policyAllowedFeatures
             self.maxBundleBytes = maxBundleBytes
             self.maxBootAttempts = maxBootAttempts
         }
@@ -210,6 +217,19 @@ public struct OTABootSequencer: Sendable {
             return .rejected(
                 "OTA update rejected: needs capabilities this app "
                     + "lacks (\(missing.joined(separator: ", "))) — update the app")
+        }
+        // Host policy (ARCH-07), checked AFTER the capability gate so when a
+        // bundle fails both, the capability wording wins — a binary that can't
+        // back a feature needs an App Store update regardless of policy. A
+        // pure policy denial is deliberately worded differently: the app CAN
+        // back the feature, its configuration just doesn't authorize it.
+        let policyDenied = Set(plan.requiredFeatures)
+            .subtracting(config.policyAllowedFeatures)
+        if !policyDenied.isEmpty {
+            return .rejected(
+                "OTA update rejected: blocked by this app's host policy "
+                    + "(\(policyDenied.sorted().joined(separator: ", "))) — "
+                    + "requires an app configuration change")
         }
         switch config.keyState {
         case .unconfigured:

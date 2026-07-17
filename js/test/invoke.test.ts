@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { invoke } from "../src/invoke";
+import { type InvokeErrorCode, invoke } from "../src/invoke";
 import { installMockHost } from "./helpers";
 
 const g = globalThis as Record<string, unknown>;
@@ -40,6 +40,29 @@ describe("invoke channel (SD-1)", () => {
       code: "INVALID_REQUEST",
     });
     expect(host.invoke).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a native POLICY_DENIED rejection as its typed code", async () => {
+    // ARCH-07: the host rejects an invoke whose feature the app's HostPolicy
+    // didn't authorize. The code is part of the closed InvokeErrorCode set —
+    // the annotation below fails to COMPILE if it's dropped from the union.
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number) => {
+      (g.__rejectInvoke as (i: number, j: string) => void)(
+        id,
+        JSON.stringify({
+          code: "POLICY_DENIED",
+          message:
+            "method 'bleConnect' is blocked by this app's host policy — " +
+            "requires an app configuration change",
+        }),
+      );
+    });
+    const denied: InvokeErrorCode = "POLICY_DENIED";
+    await expect(invoke("bleConnect")).rejects.toMatchObject({
+      code: denied,
+      message: expect.stringContaining("app configuration change"),
+    });
   });
 
   it("settles exactly once — a duplicate native reply is ignored", async () => {
