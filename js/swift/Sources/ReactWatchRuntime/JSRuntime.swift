@@ -339,6 +339,28 @@ public final class JSRuntime {
             filename: "push.js")
     }
 
+    /// `pushNativeEvent`, but returns JS's Bool verdict: `__pushNativeEvent`
+    /// reports whether any listener consumed the event (js/src/index.ts),
+    /// which delivery-sensitive callers need back in Swift — the remote-push
+    /// delegate maps it to WKBackgroundFetchResult .newData/.noData. false on
+    /// a missing global or thrown handler (reported to onError, like the void
+    /// variant). Mirrors `dispatchEventReturning`, including the legacy
+    /// eval-string fallback when `useJSCallBridge` is off (CR-5).
+    public func pushNativeEventReturning(
+        _ name: String, payload: [String: Any]? = nil
+    ) -> Bool {
+        let args: [JSArg] = [
+            .string(name), .jsonOrUndefined(jsonString(payload)),
+        ]
+        guard useJSCallBridge else {
+            let rendered = args.map(renderArg).joined(separator: ", ")
+            return evaluateBool("globalThis.__pushNativeEvent(\(rendered))")
+        }
+        return callGlobal("__pushNativeEvent", args) {
+            JS_ToBool(context, $0) == 1
+        } ?? false
+    }
+
     /// Evaluates `code` and returns its result as a Bool (false on exception).
     /// Used by the widget extension's intent path (__handleIntent).
     public func evaluateBool(_ code: String) -> Bool {

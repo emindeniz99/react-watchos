@@ -125,6 +125,76 @@ final class NotificationPlanTests: XCTestCase {
     }
 }
 
+final class RemotePushWireTests: XCTestCase {
+    func testHexTokenEncodesKnownBytesLowercase() {
+        XCTAssertEqual(
+            RemotePushWire.hexToken(Data([0xA1, 0xB2, 0x0C, 0x00, 0xFF])),
+            "a1b20c00ff")
+    }
+
+    func testHexTokenEmptyData() {
+        XCTAssertEqual(RemotePushWire.hexToken(Data()), "")
+    }
+
+    func testHexTokenLongTokenKeepsEveryByte() {
+        // Tokens are variable length — a 32-byte one must render all 64 nibbles.
+        let token = Data((0..<32).map { UInt8($0 * 7 % 256) })
+        let hex = RemotePushWire.hexToken(token)
+        XCTAssertEqual(hex.count, 64)
+        XCTAssertEqual(hex.prefix(6), "00070e")
+        XCTAssertEqual(hex, hex.lowercased())
+    }
+
+    func testSanitizeStringifiesNonStringKeys() {
+        let sanitized = RemotePushWire.sanitize([
+            AnyHashable("aps"): ["badge": 3],
+            AnyHashable(7): "seven",
+        ])
+        XCTAssertEqual(sanitized["7"] as? String, "seven")
+        XCTAssertEqual((sanitized["aps"] as? [String: Any])?["badge"] as? Int, 3)
+    }
+
+    func testSanitizePreservesNestedContainers() throws {
+        let sanitized = RemotePushWire.sanitize([
+            "aps": [
+                "alert": ["title": "Hi", "body": "There"],
+                "content-available": 1,
+            ],
+            "tags": ["a", "b"],
+            "ok": true,
+            "none": NSNull(),
+        ])
+        let aps = try XCTUnwrap(sanitized["aps"] as? [String: Any])
+        let alert = try XCTUnwrap(aps["alert"] as? [String: Any])
+        XCTAssertEqual(alert["title"] as? String, "Hi")
+        XCTAssertEqual(aps["content-available"] as? Int, 1)
+        XCTAssertEqual(sanitized["tags"] as? [String], ["a", "b"])
+        XCTAssertEqual(sanitized["ok"] as? Bool, true)
+        XCTAssertTrue(sanitized["none"] is NSNull)
+        // The whole point: the result must be encodable as-is.
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(sanitized))
+    }
+
+    func testSanitizeDropsNonJSONValuesIncludingNested() {
+        let sanitized = RemotePushWire.sanitize([
+            "blob": Data([1, 2, 3]),
+            "when": Date(),
+            "keep": "yes",
+            "nested": ["inner": Data([9]), "n": 2],
+            "list": [Date(), "x"] as [Any],
+        ])
+        // Dropped, not stringified — "<CFData …>" junk must not become a value.
+        XCTAssertNil(sanitized["blob"])
+        XCTAssertNil(sanitized["when"])
+        XCTAssertEqual(sanitized["keep"] as? String, "yes")
+        let nested = sanitized["nested"] as? [String: Any]
+        XCTAssertNil(nested?["inner"])
+        XCTAssertEqual(nested?["n"] as? Int, 2)
+        XCTAssertEqual(sanitized["list"] as? [String], ["x"])
+        XCTAssertTrue(JSONSerialization.isValidJSONObject(sanitized))
+    }
+}
+
 final class RouteMatcherTests: XCTestCase {
     func testLiteralRouteMatchesExactly() {
         XCTAssertEqual(RouteMatcher.match(pattern: "/lists", route: "/lists")?.params, [:])

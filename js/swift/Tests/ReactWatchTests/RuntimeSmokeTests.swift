@@ -214,6 +214,47 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertEqual(reported?.source, "call")
     }
 
+    // Remote push: the host needs __pushNativeEvent's Bool (did any listener
+    // consume the event?) back in Swift to map a background push to
+    // WKBackgroundFetchResult .newData/.noData — on both bridge paths.
+    func testPushNativeEventReturningRoundTripsAcrossBridgePaths() throws {
+        for useJSCall in [true, false] {
+            let runtime = try JSRuntime()
+            runtime.useJSCallBridge = useJSCall
+            // Echo the args into the verdict so the assertion proves the name
+            // + JSON payload crossed AND the Bool came back intact.
+            try runtime.evaluate(
+                #"""
+                globalThis.__pushNativeEvent = (name, payloadJson) => {
+                  const payload = payloadJson ? JSON.parse(payloadJson) : {};
+                  return name === "remotePush"
+                    && payload.aps["content-available"] === 1;
+                };
+                """#)
+            let path = useJSCall ? "JS_Call" : "eval"
+            XCTAssertTrue(
+                runtime.pushNativeEventReturning(
+                    "remotePush", payload: ["aps": ["content-available": 1]]),
+                "\(path)")
+            XCTAssertFalse(
+                runtime.pushNativeEventReturning("somethingElse"), "\(path)")
+        }
+    }
+
+    func testPushNativeEventReturningIsFalseWithoutTheGlobal() throws {
+        for useJSCall in [true, false] {
+            let runtime = try JSRuntime()
+            runtime.useJSCallBridge = useJSCall
+            var reported: (source: String, message: String)?
+            runtime.onError = { reported = ($0, $1) }
+            // No bundle defines __pushNativeEvent -> false (the remote-push
+            // delegate reports .noData), and the miss is reported like the
+            // void variant, not crashed on.
+            XCTAssertFalse(runtime.pushNativeEventReturning("remotePush"))
+            XCTAssertEqual(reported?.source, useJSCall ? "call" : "eval")
+        }
+    }
+
     func testBridgeCallToMissingFunctionReportsError() throws {
         let runtime = try JSRuntime()
         var reported: (source: String, message: String)?
