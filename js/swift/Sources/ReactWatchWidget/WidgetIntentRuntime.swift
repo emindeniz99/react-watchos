@@ -20,13 +20,21 @@ import os
 public enum ReactWatchWidgetOTA {
     nonisolated(unsafe) static var signerPublicKeys: [String: String] = [:]
     nonisolated(unsafe) static var allowUnsignedUpdates = false
+    /// The consumer's HostPolicy for the extension (ARCH-07) — same write-once
+    /// pattern as the signer keys, and normally the SAME policy the watch app
+    /// passes to `ReactWatchRootView(policy:)`. Applied against
+    /// `HostFeatures.widget`, so it can only narrow the widget's already-small
+    /// surface ("core" always stays).
+    nonisolated(unsafe) static var policy: HostPolicy = .allowAll
 
     public static func configure(
         signerPublicKeys: [String: String] = [:],
-        allowUnsignedUpdates: Bool = false
+        allowUnsignedUpdates: Bool = false,
+        policy: HostPolicy = .allowAll
     ) {
         self.signerPublicKeys = signerPublicKeys
         self.allowUnsignedUpdates = allowUnsignedUpdates
+        self.policy = policy
     }
 }
 
@@ -70,13 +78,22 @@ public final class WidgetIntentRuntime {
     /// here, in the extension, while the app may be incrementing the same
     /// counter.
     private let counters: CoordinatedCounterStore
+    /// The ARCH-07 effective feature set for this extension:
+    /// `HostFeatures.widget` filtered by `ReactWatchWidgetOTA.policy` ("core"
+    /// always kept). Drives the install allowlist, the published
+    /// `__hostFeatures`, and the invoke rejection below.
+    private let effectiveFeatures: Set<String>
 
     public init?(appGroupId: String) {
         store = SharedWidgetStore(appGroupId: appGroupId)
         counters = CoordinatedCounterStore(appGroupId: appGroupId)
+        let effectiveFeatures = ReactWatchWidgetOTA.policy.effectiveFeatures(
+            native: HostFeatures.widget)
+        self.effectiveFeatures = effectiveFeatures
         guard
             let js = try? JSRuntime(
-                memoryLimitBytes: 16 * 1024 * 1024, target: .widget)
+                memoryLimitBytes: 16 * 1024 * 1024, target: .widget,
+                allowedFeatures: effectiveFeatures)
         else {
             return nil
         }
@@ -117,6 +134,46 @@ public final class WidgetIntentRuntime {
         js.bridge.counterAdd = { [counters] key, delta, min, max in
             counters.add(delta, toKey: key, min: min, max: max)
         }
+        // The widget backs NO invoke-routed method, and it used to leave
+        // bridge.invoke unset — so any invoke call from widget-mode JS hung
+        // until the 30s JS watchdog. Reject FAST and TYPED instead (ARCH-07
+        // acceptance: widget/OTA runtimes cannot call undeclared app
+        // capabilities): unknown method → UNKNOWN_METHOD; feature the widget
+        // target doesn't provide → UNAVAILABLE; provided but policy-blocked →
+        // POLICY_DENIED; provided and allowed → still UNAVAILABLE (nothing
+        // backs invoke in this extension today — that branch is unreachable
+        // until a schema invoke method targets the widget). `[weak js]`
+        // because bridge.invoke lives on js itself (no retain cycle); the
+        // synchronous re-entrant settle is the same M2-safe pattern the app's
+        // UNKNOWN_METHOD rejection uses.
+        js.bridge.invoke = { [weak js] id, method, _ in
+            guard let js else { return }
+            let code: String
+            let message: String
+            if let feature = HostInvokeFeatures.byMethod[method] {
+                if !HostFeatures.widget.contains(feature) {
+                    code = "UNAVAILABLE"
+                    message =
+                        "method '\(method)' is not available in the widget runtime"
+                } else if !effectiveFeatures.contains(feature) {
+                    code = "POLICY_DENIED"
+                    message =
+                        "method '\(method)' is blocked by this app's host policy "
+                        + "— requires an app configuration change"
+                } else {
+                    code = "UNAVAILABLE"
+                    message =
+                        "method '\(method)' has no native backing in the widget "
+                        + "runtime"
+                }
+            } else {
+                code = "UNKNOWN_METHOD"
+                message = "no invoke handler for \(method)"
+            }
+            js.rejectInvoke(
+                id: id,
+                errorJson: InvokeErrorJSON.make(code: code, message: message))
+        }
         do {
             try js.evaluate(
                 "globalThis.__entrypoint = \"intent\"", filename: "entry.js"
@@ -130,10 +187,11 @@ public final class WidgetIntentRuntime {
 
     /// Exposes the widget target's capability set + bridge protocol to JS before
     /// the bundle runs (ARCH-01), mirroring the app's installHostCapabilities so
-    /// the same JS gate logic sees a consistent host. HostFeatures.widget is the
-    /// shared source of truth (the widget can't back fetch/ble/sensor/etc.).
+    /// the same JS gate logic sees a consistent host. Publishes the EFFECTIVE
+    /// set (ARCH-07): HostFeatures.widget — the shared source of truth for what
+    /// the widget can back (no fetch/ble/sensor/etc.) — filtered by the policy.
     private func installCapabilities() {
-        let features = HostFeatures.widget.sorted()
+        let features = effectiveFeatures.sorted()
         let json =
             (try? JSONSerialization.data(withJSONObject: features))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
