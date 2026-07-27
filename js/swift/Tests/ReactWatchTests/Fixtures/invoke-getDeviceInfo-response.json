@@ -1,0 +1,19 @@
+{
+  "batteryLevel": 0.62,
+  "batteryState": "unplugged",
+  "wristLocation": "left",
+  "crownOrientation": "right",
+  "screenWidth": 184,
+  "screenHeight": 224,
+  "screenScale": 2,
+  "layoutDirection": "leftToRight",
+  "model": "Apple Watch",
+  "systemVersion": "11.2",
+  "name": "Ada's Watch",
+  "reduceMotion": false,
+  "voiceOverRunning": false,
+  "preferredContentSizeCategory": "UICTContentSizeCategoryL",
+  "locale": "de_DE",
+  "language": "de",
+  "is24Hour": true
+}

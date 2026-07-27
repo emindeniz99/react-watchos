@@ -67,6 +67,151 @@ export interface WatchEvent {
   seq?: number;
 }
 
+/** js/src/notifications.ts scheduleNotification -> NotificationPlan. */
+export interface ScheduleNotificationRequest {
+  id: string;
+  title: string;
+  body: string;
+  at?: number; // absolute, ms since epoch; wins over afterMs
+  afterMs?: number;
+  sound: boolean;
+}
+
+export interface BleConnectRequest {
+  service: string;
+  maxReconnectAttempts?: number;
+  reconnectWindowMs?: number;
+}
+
+export interface BleWriteRequest {
+  characteristic: string;
+  value: string;
+  confirm?: boolean;
+}
+
+export interface BleSubscribeRequest {
+  characteristic: string;
+}
+
+/** js/src/update.ts applyUpdate -> UpdatePlan (decoded inside OTASequencer.stage, off-main). */
+export interface SaveUpdateRequest {
+  js: string;
+  version?: number;
+  signature?: string;
+  keyId?: string;
+  requiredFeatures?: string[];
+  minBridgeProtocol?: number;
+  expiresAt?: number;
+}
+
+export interface ScheduleBackgroundRefreshRequest {
+  afterMs: number; // REQUIRED: a missing value used to default to 0 = wake me now
+  userInfo?: Record<string, unknown>; // echoed back verbatim on the fire event; the app's own JSON
+}
+
+export interface KeychainSetRequest {
+  key: string;
+  value: string;
+}
+
+/** Shared by keychainGet and keychainDelete. */
+export interface KeychainKeyRequest {
+  key: string;
+}
+
+export interface SpeakRequest {
+  text: string;
+  rate?: number;
+  pitch?: number;
+  language?: string;
+  volume?: number;
+}
+
+export interface PlayAudioRequest {
+  url: string;
+  volume?: number;
+  loop?: boolean;
+}
+
+export interface GetProductsRequest {
+  productIds: string[];
+}
+
+export interface PurchaseRequest {
+  productId: string;
+}
+
+export interface SearchPOIRequest {
+  query: string;
+  latitude?: number;
+  longitude?: number;
+  span?: number;
+}
+
+export interface DeviceInfo {
+  batteryLevel: number;
+  batteryState: "unknown" | "unplugged" | "charging" | "full";
+  wristLocation: "left" | "right";
+  crownOrientation: "left" | "right";
+  screenWidth: number;
+  screenHeight: number;
+  screenScale: number;
+  layoutDirection: "leftToRight" | "rightToLeft";
+  model: string;
+  systemVersion: string;
+  name: string;
+  reduceMotion: boolean;
+  voiceOverRunning: boolean;
+  preferredContentSizeCategory: string;
+  locale: string;
+  language: string;
+  is24Hour: boolean;
+}
+
+export interface UpdateState {
+  source: "ota" | "shipped";
+  version?: number;
+  keyId?: string;
+  expiresAt?: number;
+  highWater: number;
+  releaseId?: string;
+  healthSignal: "commit" | "explicit";
+  bootAttempts: number;
+}
+
+export interface SaveUpdateResult {
+  accepted: boolean;
+  code?: string;
+  message?: string;
+}
+
+export interface IAPProduct {
+  id: string;
+  displayName: string;
+  description: string;
+  displayPrice: string;
+  price: number;
+  type: "consumable" | "nonConsumable" | "autoRenewable" | "nonRenewable";
+}
+
+export interface PurchaseResult {
+  status: "success" | "pending" | "userCancelled";
+  productId?: string;
+  transactionId?: string;
+}
+
+export interface POIResult {
+  lat: number;
+  lon: number;
+  title: string;
+  subtitle?: string;
+}
+
+export interface Coordinate {
+  lat: number;
+  lon: number;
+}
+
 /** Native bridge methods: which runtime installs each, the capability
  *  `feature` an OTA bundle gates on, and the bridgeProtocol it shipped in. */
 export const HOST_METHODS = [{"name":"commit","targets":["watch","widget"],"feature":"core","since":1},{"name":"log","targets":["watch","widget"],"feature":"core","since":1},{"name":"setTimer","targets":["watch","widget"],"feature":"core","since":1},{"name":"clearTimer","targets":["watch","widget"],"feature":"core","since":1},{"name":"invoke","targets":["watch","widget"],"feature":"core","since":1},{"name":"publishWidgets","targets":["watch","widget"],"feature":"widgets","since":1},{"name":"getItem","targets":["watch","widget"],"feature":"storage","since":1},{"name":"setItem","targets":["watch","widget"],"feature":"storage","since":1},{"name":"counterGet","targets":["watch","widget"],"feature":"storage","since":1},{"name":"counterAdd","targets":["watch","widget"],"feature":"storage","since":1},{"name":"stateRevision","targets":["watch","widget"],"feature":"core","since":1},{"name":"playHaptic","targets":["watch"],"feature":"haptics","since":1},{"name":"requestNotificationPermission","targets":["watch"],"feature":"notifications","since":1,"via":"invoke"},{"name":"scheduleNotification","targets":["watch"],"feature":"notifications","since":1,"via":"invoke"},{"name":"cancelNotification","targets":["watch"],"feature":"notifications","since":1},{"name":"registerForRemoteNotifications","targets":["watch"],"feature":"push","since":1,"via":"invoke"},{"name":"sendToPhone","targets":["watch"],"feature":"connectivity","since":1,"via":"invoke"},{"name":"updateApplicationContext","targets":["watch"],"feature":"connectivity","since":1,"via":"invoke"},{"name":"transferUserInfo","targets":["watch"],"feature":"connectivity","since":1,"via":"invoke"},{"name":"fetch","targets":["watch"],"feature":"network","since":1},{"name":"abortFetch","targets":["watch"],"feature":"network","since":1},{"name":"ble","targets":["watch"],"feature":"bluetooth","since":1},{"name":"bleConnect","targets":["watch"],"feature":"bluetooth","since":1,"via":"invoke"},{"name":"bleWrite","targets":["watch"],"feature":"bluetooth","since":1,"via":"invoke"},{"name":"bleSubscribe","targets":["watch"],"feature":"bluetooth","since":1,"via":"invoke"},{"name":"sensor","targets":["watch"],"feature":"sensors","since":1},{"name":"saveUpdate","targets":["watch"],"feature":"ota","since":1,"via":"invoke"},{"name":"getUpdateState","targets":["watch"],"feature":"ota","since":1,"via":"invoke"},{"name":"markUpdateHealthy","targets":["watch"],"feature":"ota","since":1,"via":"invoke"},{"name":"generate","targets":["watch"],"feature":"ai","since":1},{"name":"aiAvailability","targets":["watch"],"feature":"ai","since":1,"via":"invoke"},{"name":"getDeviceInfo","targets":["watch"],"feature":"device","since":1,"via":"invoke"},{"name":"enableWaterLock","targets":["watch"],"feature":"device","since":1,"via":"invoke"},{"name":"scheduleBackgroundRefresh","targets":["watch"],"feature":"background","since":1,"via":"invoke"},{"name":"startExtendedRuntimeSession","targets":["watch"],"feature":"runtime","since":1,"via":"invoke"},{"name":"stopExtendedRuntimeSession","targets":["watch"],"feature":"runtime","since":1,"via":"invoke"},{"name":"keychainSet","targets":["watch"],"feature":"keychain","since":1,"via":"invoke"},{"name":"keychainGet","targets":["watch"],"feature":"keychain","since":1,"via":"invoke"},{"name":"keychainDelete","targets":["watch"],"feature":"keychain","since":1,"via":"invoke"},{"name":"speak","targets":["watch"],"feature":"speech","since":1,"via":"invoke"},{"name":"stopSpeaking","targets":["watch"],"feature":"speech","since":1,"via":"invoke"},{"name":"playAudio","targets":["watch"],"feature":"audio","since":1,"via":"invoke"},{"name":"stopAudio","targets":["watch"],"feature":"audio","since":1,"via":"invoke"},{"name":"getProducts","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"purchase","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"currentEntitlements","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"restorePurchases","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"searchPOI","targets":["watch"],"feature":"location","since":1,"via":"invoke"},{"name":"getCurrentLocation","targets":["watch"],"feature":"location","since":1,"via":"invoke"}] as const;
@@ -84,6 +229,13 @@ export const HOST_FEATURES = {"watch":["ai","audio","background","bluetooth","co
  *  how the widget interpreter supports it (full | degraded). Both Swift
  *  interpreters are drift-tested against this. */
 export const COMPONENTS = [{"name":"VStack","widget":"full"},{"name":"HStack","widget":"full"},{"name":"ZStack","widget":"full"},{"name":"ScrollView","widget":"degraded"},{"name":"List","widget":"degraded"},{"name":"TabView","widget":"degraded"},{"name":"Spacer","widget":"full"},{"name":"Divider","widget":"full"},{"name":"Text","widget":"full"},{"name":"TimerText","widget":"degraded"},{"name":"FormattedText","widget":"full"},{"name":"Image","widget":"full"},{"name":"Map","widget":"degraded"},{"name":"Gauge","widget":"full"},{"name":"ProgressView","widget":"full"},{"name":"Button","widget":"degraded"},{"name":"Toggle","widget":"degraded"},{"name":"Slider","widget":"degraded"},{"name":"Stepper","widget":"degraded"},{"name":"Picker","widget":"degraded"},{"name":"DatePicker","widget":"degraded"},{"name":"TextField","widget":"degraded"},{"name":"SecureField","widget":"degraded"},{"name":"CrownRotation","widget":"degraded"},{"name":"NavigationStack","widget":"degraded"},{"name":"NavigationLink","widget":"degraded"},{"name":"NavigationRoute","widget":"degraded"},{"name":"Alert","widget":"degraded"},{"name":"AlertAction","widget":"degraded"},{"name":"ConfirmationDialog","widget":"degraded"},{"name":"Sheet","widget":"degraded"},{"name":"Section","widget":"degraded"},{"name":"Label","widget":"full"},{"name":"Grid","widget":"full"},{"name":"GridRow","widget":"full"},{"name":"ShareLink","widget":"degraded"},{"name":"Chart","widget":"full"},{"name":"LabeledContent","widget":"full"},{"name":"ContentUnavailable","widget":"full"},{"name":"Toolbar","widget":"degraded"},{"name":"ToolbarItem","widget":"degraded"}] as const;
+
+/** ARCH-11: the declared request/result shape of each `via:"invoke"`
+ *  method that carries one. A value of `"opaque"` means the payload is the
+ *  consuming app's own JSON by contract (the connectivity channels), not an
+ *  undeclared shape. Methods absent from this table send no payload and
+ *  return void/null, a bare string, `string[]`, or a boolean. */
+export const INVOKE_SHAPES = {"scheduleNotification":{"request":"ScheduleNotificationRequest"},"sendToPhone":{"request":"opaque"},"updateApplicationContext":{"request":"opaque"},"transferUserInfo":{"request":"opaque"},"bleConnect":{"request":"BleConnectRequest"},"bleWrite":{"request":"BleWriteRequest"},"bleSubscribe":{"request":"BleSubscribeRequest"},"saveUpdate":{"request":"SaveUpdateRequest","response":"SaveUpdateResult"},"getUpdateState":{"response":"UpdateState"},"getDeviceInfo":{"response":"DeviceInfo"},"scheduleBackgroundRefresh":{"request":"ScheduleBackgroundRefreshRequest"},"keychainSet":{"request":"KeychainSetRequest"},"keychainGet":{"request":"KeychainKeyRequest"},"keychainDelete":{"request":"KeychainKeyRequest"},"speak":{"request":"SpeakRequest"},"playAudio":{"request":"PlayAudioRequest"},"getProducts":{"request":"GetProductsRequest","response":"IAPProduct[]"},"purchase":{"request":"PurchaseRequest","response":"PurchaseResult"},"searchPOI":{"request":"SearchPOIRequest","response":"POIResult[]"},"getCurrentLocation":{"response":"Coordinate"}} as const;
 
 /** Raw globals installed by the host before the bundle is evaluated
  *  (generated from the schema's direct methods). Strings/numbers cross the C

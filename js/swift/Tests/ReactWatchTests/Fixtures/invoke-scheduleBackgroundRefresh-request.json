@@ -1,0 +1,6 @@
+{
+  "afterMs": 900000,
+  "userInfo": {
+    "reason": "hourly-refresh"
+  }
+}

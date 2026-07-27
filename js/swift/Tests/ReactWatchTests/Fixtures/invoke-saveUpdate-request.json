@@ -1,0 +1,12 @@
+{
+  "js": "globalThis.__bundle = 1;",
+  "version": 7,
+  "signature": "c2lnbmF0dXJl",
+  "keyId": "k1",
+  "requiredFeatures": [
+    "storage",
+    "widgets"
+  ],
+  "minBridgeProtocol": 1,
+  "expiresAt": 1800000000
+}

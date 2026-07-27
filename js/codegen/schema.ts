@@ -52,6 +52,20 @@ export interface HostArg {
   type: ArgType;
 }
 
+/**
+ * How an invoke method's payload / result is shaped on the wire (ARCH-11).
+ * Either the `ts` name of an {@link invokeShapes} entry, that name with a `[]`
+ * suffix for an array of it, or the `"opaque"` sentinel.
+ *
+ * `"opaque"` is not a hole in the contract — it IS the contract for the three
+ * connectivity methods, whose payload is the consuming app's own arbitrary JSON
+ * (`defineMessages` layers `{type, payload}` on top) and which Swift hands
+ * straight to WCSession as `[String: Any]` without reading a field. Declaring
+ * it explicitly is what keeps "undescribable by design" distinguishable from
+ * "nobody got around to declaring it".
+ */
+export type InvokeShapeRef = string;
+
 /** A `__host` bridge method (see the doc on `hostMethods`). */
 export interface HostMethod {
   name: string;
@@ -65,6 +79,13 @@ export interface HostMethod {
   tsRequired?: boolean;
   args?: HostArg[];
   returns?: ReturnType;
+  /** ARCH-11: the `payloadJson` shape, for `via:"invoke"` methods that send
+   *  one. Absent = no payload (14 of the 31 send none). */
+  request?: InvokeShapeRef;
+  /** ARCH-11: the `resultJson` shape, for `via:"invoke"` methods that return a
+   *  structured one. Absent = void/null, a bare string, `string[]`, or a
+   *  boolean — scalars a struct can't describe and drift can't hide in. */
+  response?: InvokeShapeRef;
 }
 
 // The committed-tree wire version (SerializedTree.v / RNTree.v). Bump on ANY
@@ -281,6 +302,274 @@ export const structs: StructDef[] = [
   },
 ];
 
+/**
+ * The request/result shapes of the SD-1 invoke channel (ARCH-11), referenced by
+ * `HostMethod.request` / `.response`.
+ *
+ * These are a CONTRACT, not a runtime dependency: the generator renders them to
+ * TS interfaces (`src/generated/wire.ts`) and to Codable structs in the TEST
+ * target only (`swift/Tests/ReactWatchTests/Generated/InvokeShapes.swift`), so
+ * the 31 hand-written handlers keep their own decoders and neither shipping
+ * binary carries a struct it never instantiates. The gate is
+ * `test/invoke-contract.test.ts` -> `Fixtures/invoke-*.json` ->
+ * `InvokeContractTests.swift`: the REAL JS wrapper's payload has to decode as
+ * the declared shape in Swift, and the declared result shape has to be
+ * type-identical to the public TS interface callers already use.
+ *
+ * Why not generated Codable request structs in the handlers themselves (the
+ * review's option (i)): that is a 31-signature migration which supersedes two
+ * already-unit-tested hand-written decoders (`NotificationPlan`,
+ * `BluetoothBridge.InvokePayload`) and still needs a stringly escape hatch for
+ * the three opaque connectivity payloads — for a measured structural drift of
+ * zero. Revisit with evidence if a fixture ever actually catches a shape break.
+ */
+export const invokeShapes: StructDef[] = [
+  // --- requests ---
+  {
+    swift: "ScheduleNotificationRequest",
+    ts: "ScheduleNotificationRequest",
+    doc: "js/src/notifications.ts scheduleNotification -> NotificationPlan.",
+    fields: [
+      { name: "id", swift: "String", ts: "string" },
+      { name: "title", swift: "String", ts: "string" },
+      { name: "body", swift: "String", ts: "string" },
+      {
+        name: "at",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+        doc: "absolute, ms since epoch; wins over afterMs",
+      },
+      { name: "afterMs", swift: "Double?", ts: "number", optional: true },
+      { name: "sound", swift: "Bool", ts: "boolean" },
+    ],
+  },
+  {
+    swift: "BleConnectRequest",
+    ts: "BleConnectRequest",
+    fields: [
+      { name: "service", swift: "String", ts: "string" },
+      {
+        name: "maxReconnectAttempts",
+        swift: "Int?",
+        ts: "number",
+        optional: true,
+      },
+      { name: "reconnectWindowMs", swift: "Double?", ts: "number", optional: true },
+    ],
+  },
+  {
+    swift: "BleWriteRequest",
+    ts: "BleWriteRequest",
+    fields: [
+      { name: "characteristic", swift: "String", ts: "string" },
+      { name: "value", swift: "String", ts: "string" },
+      { name: "confirm", swift: "Bool?", ts: "boolean", optional: true },
+    ],
+  },
+  {
+    swift: "BleSubscribeRequest",
+    ts: "BleSubscribeRequest",
+    fields: [{ name: "characteristic", swift: "String", ts: "string" }],
+  },
+  {
+    swift: "SaveUpdateRequest",
+    ts: "SaveUpdateRequest",
+    doc: "js/src/update.ts applyUpdate -> UpdatePlan (decoded inside OTASequencer.stage, off-main).",
+    fields: [
+      { name: "js", swift: "String", ts: "string" },
+      { name: "version", swift: "Int?", ts: "number", optional: true },
+      { name: "signature", swift: "String?", ts: "string", optional: true },
+      { name: "keyId", swift: "String?", ts: "string", optional: true },
+      {
+        name: "requiredFeatures",
+        swift: "[String]?",
+        ts: "string[]",
+        optional: true,
+      },
+      { name: "minBridgeProtocol", swift: "Int?", ts: "number", optional: true },
+      { name: "expiresAt", swift: "Int?", ts: "number", optional: true },
+    ],
+  },
+  {
+    swift: "ScheduleBackgroundRefreshRequest",
+    ts: "ScheduleBackgroundRefreshRequest",
+    fields: [
+      {
+        name: "afterMs",
+        swift: "Double",
+        ts: "number",
+        doc: "REQUIRED: a missing value used to default to 0 = wake me now",
+      },
+      {
+        name: "userInfo",
+        swift: "[String: JSONValue]?",
+        ts: "Record<string, unknown>",
+        optional: true,
+        doc: "echoed back verbatim on the fire event; the app's own JSON",
+      },
+    ],
+  },
+  {
+    swift: "KeychainSetRequest",
+    ts: "KeychainSetRequest",
+    fields: [
+      { name: "key", swift: "String", ts: "string" },
+      { name: "value", swift: "String", ts: "string" },
+    ],
+  },
+  {
+    swift: "KeychainKeyRequest",
+    ts: "KeychainKeyRequest",
+    doc: "Shared by keychainGet and keychainDelete.",
+    fields: [{ name: "key", swift: "String", ts: "string" }],
+  },
+  {
+    swift: "SpeakRequest",
+    ts: "SpeakRequest",
+    fields: [
+      { name: "text", swift: "String", ts: "string" },
+      { name: "rate", swift: "Double?", ts: "number", optional: true },
+      { name: "pitch", swift: "Double?", ts: "number", optional: true },
+      { name: "language", swift: "String?", ts: "string", optional: true },
+      { name: "volume", swift: "Double?", ts: "number", optional: true },
+    ],
+  },
+  {
+    swift: "PlayAudioRequest",
+    ts: "PlayAudioRequest",
+    fields: [
+      { name: "url", swift: "String", ts: "string" },
+      { name: "volume", swift: "Double?", ts: "number", optional: true },
+      { name: "loop", swift: "Bool?", ts: "boolean", optional: true },
+    ],
+  },
+  {
+    swift: "GetProductsRequest",
+    ts: "GetProductsRequest",
+    fields: [{ name: "productIds", swift: "[String]", ts: "string[]" }],
+  },
+  {
+    swift: "PurchaseRequest",
+    ts: "PurchaseRequest",
+    fields: [{ name: "productId", swift: "String", ts: "string" }],
+  },
+  {
+    swift: "SearchPOIRequest",
+    ts: "SearchPOIRequest",
+    fields: [
+      { name: "query", swift: "String", ts: "string" },
+      { name: "latitude", swift: "Double?", ts: "number", optional: true },
+      { name: "longitude", swift: "Double?", ts: "number", optional: true },
+      { name: "span", swift: "Double?", ts: "number", optional: true },
+    ],
+  },
+  // --- results. Type-identical to the public interfaces in js/src (device.ts,
+  //     update.ts, iap.ts, maps.ts); `invoke-contract.test.ts` asserts that
+  //     identity at COMPILE time in both directions, so the two can't drift.
+  {
+    swift: "DeviceInfo",
+    ts: "DeviceInfo",
+    fields: [
+      { name: "batteryLevel", swift: "Double", ts: "number" },
+      {
+        name: "batteryState",
+        swift: "String",
+        ts: '"unknown" | "unplugged" | "charging" | "full"',
+      },
+      { name: "wristLocation", swift: "String", ts: '"left" | "right"' },
+      { name: "crownOrientation", swift: "String", ts: '"left" | "right"' },
+      { name: "screenWidth", swift: "Double", ts: "number" },
+      { name: "screenHeight", swift: "Double", ts: "number" },
+      { name: "screenScale", swift: "Double", ts: "number" },
+      {
+        name: "layoutDirection",
+        swift: "String",
+        ts: '"leftToRight" | "rightToLeft"',
+      },
+      { name: "model", swift: "String", ts: "string" },
+      { name: "systemVersion", swift: "String", ts: "string" },
+      { name: "name", swift: "String", ts: "string" },
+      { name: "reduceMotion", swift: "Bool", ts: "boolean" },
+      { name: "voiceOverRunning", swift: "Bool", ts: "boolean" },
+      { name: "preferredContentSizeCategory", swift: "String", ts: "string" },
+      { name: "locale", swift: "String", ts: "string" },
+      { name: "language", swift: "String", ts: "string" },
+      { name: "is24Hour", swift: "Bool", ts: "boolean" },
+    ],
+  },
+  {
+    swift: "UpdateState",
+    ts: "UpdateState",
+    fields: [
+      { name: "source", swift: "String", ts: '"ota" | "shipped"' },
+      { name: "version", swift: "Int?", ts: "number", optional: true },
+      { name: "keyId", swift: "String?", ts: "string", optional: true },
+      { name: "expiresAt", swift: "Int?", ts: "number", optional: true },
+      { name: "highWater", swift: "Int", ts: "number" },
+      { name: "releaseId", swift: "String?", ts: "string", optional: true },
+      { name: "healthSignal", swift: "String", ts: '"commit" | "explicit"' },
+      { name: "bootAttempts", swift: "Int", ts: "number" },
+    ],
+  },
+  {
+    swift: "SaveUpdateResult",
+    ts: "SaveUpdateResult",
+    fields: [
+      { name: "accepted", swift: "Bool", ts: "boolean" },
+      { name: "code", swift: "String?", ts: "string", optional: true },
+      { name: "message", swift: "String?", ts: "string", optional: true },
+    ],
+  },
+  {
+    swift: "IAPProduct",
+    ts: "IAPProduct",
+    fields: [
+      { name: "id", swift: "String", ts: "string" },
+      { name: "displayName", swift: "String", ts: "string" },
+      { name: "description", swift: "String", ts: "string" },
+      { name: "displayPrice", swift: "String", ts: "string" },
+      { name: "price", swift: "Double", ts: "number" },
+      {
+        name: "type",
+        swift: "String",
+        ts: '"consumable" | "nonConsumable" | "autoRenewable" | "nonRenewable"',
+      },
+    ],
+  },
+  {
+    swift: "PurchaseResult",
+    ts: "PurchaseResult",
+    fields: [
+      {
+        name: "status",
+        swift: "String",
+        ts: '"success" | "pending" | "userCancelled"',
+      },
+      { name: "productId", swift: "String?", ts: "string", optional: true },
+      { name: "transactionId", swift: "String?", ts: "string", optional: true },
+    ],
+  },
+  {
+    swift: "POIResult",
+    ts: "POIResult",
+    fields: [
+      { name: "lat", swift: "Double", ts: "number" },
+      { name: "lon", swift: "Double", ts: "number" },
+      { name: "title", swift: "String", ts: "string" },
+      { name: "subtitle", swift: "String?", ts: "string", optional: true },
+    ],
+  },
+  {
+    swift: "Coordinate",
+    ts: "Coordinate",
+    fields: [
+      { name: "lat", swift: "Double", ts: "number" },
+      { name: "lon", swift: "Double", ts: "number" },
+    ],
+  },
+];
+
 /** TS-only wire type (Swift sends events as JS calls, never decodes them). */
 export const tsOnly: TsOnlyDef[] = [
   {
@@ -461,6 +750,7 @@ export const hostMethods: HostMethod[] = [
     feature: "notifications",
     since: 1,
     via: "invoke",
+    request: "ScheduleNotificationRequest",
   },
   {
     name: "cancelNotification",
@@ -486,6 +776,7 @@ export const hostMethods: HostMethod[] = [
     feature: "connectivity",
     since: 1,
     via: "invoke",
+    request: "opaque",
   },
   {
     name: "updateApplicationContext",
@@ -493,6 +784,7 @@ export const hostMethods: HostMethod[] = [
     feature: "connectivity",
     since: 1,
     via: "invoke",
+    request: "opaque",
   },
   {
     name: "transferUserInfo",
@@ -500,6 +792,7 @@ export const hostMethods: HostMethod[] = [
     feature: "connectivity",
     since: 1,
     via: "invoke",
+    request: "opaque",
   },
   {
     name: "fetch",
@@ -536,6 +829,7 @@ export const hostMethods: HostMethod[] = [
     feature: "bluetooth",
     since: 1,
     via: "invoke",
+    request: "BleConnectRequest",
   },
   {
     name: "bleWrite",
@@ -543,6 +837,7 @@ export const hostMethods: HostMethod[] = [
     feature: "bluetooth",
     since: 1,
     via: "invoke",
+    request: "BleWriteRequest",
   },
   {
     name: "bleSubscribe",
@@ -550,6 +845,7 @@ export const hostMethods: HostMethod[] = [
     feature: "bluetooth",
     since: 1,
     via: "invoke",
+    request: "BleSubscribeRequest",
   },
   {
     name: "sensor",
@@ -564,6 +860,8 @@ export const hostMethods: HostMethod[] = [
     feature: "ota",
     since: 1,
     via: "invoke",
+    request: "SaveUpdateRequest",
+    response: "SaveUpdateResult",
   },
   // OTA observability (review §6.11b): which bundle is actually running —
   // source/version/keyId/expiresAt + the device's anti-rollback high-water —
@@ -575,6 +873,7 @@ export const hostMethods: HostMethod[] = [
     feature: "ota",
     since: 1,
     via: "invoke",
+    response: "UpdateState",
   },
   // ARCH-04's explicit `bundleReady`: the bundle confirming, after its own
   // smoke checks, that this launch is healthy. Inert unless the app configured
@@ -617,6 +916,7 @@ export const hostMethods: HostMethod[] = [
     feature: "device",
     since: 1,
     via: "invoke",
+    response: "DeviceInfo",
   },
   {
     name: "enableWaterLock",
@@ -633,6 +933,7 @@ export const hostMethods: HostMethod[] = [
     feature: "background",
     since: 1,
     via: "invoke",
+    request: "ScheduleBackgroundRefreshRequest",
   },
   // --- Extended runtime session (WKExtendedRuntimeSession): keep running
   //     briefly after backgrounding; state on `runtimeSession.*` push events. ---
@@ -658,6 +959,7 @@ export const hostMethods: HostMethod[] = [
     feature: "keychain",
     since: 1,
     via: "invoke",
+    request: "KeychainSetRequest",
   },
   {
     name: "keychainGet",
@@ -665,6 +967,7 @@ export const hostMethods: HostMethod[] = [
     feature: "keychain",
     since: 1,
     via: "invoke",
+    request: "KeychainKeyRequest",
   },
   {
     name: "keychainDelete",
@@ -672,6 +975,7 @@ export const hostMethods: HostMethod[] = [
     feature: "keychain",
     since: 1,
     via: "invoke",
+    request: "KeychainKeyRequest",
   },
   // --- Speech synthesis (AVSpeechSynthesizer): speak/stop; completion on the
   //     push channel as `speech.finished`. ---
@@ -681,6 +985,7 @@ export const hostMethods: HostMethod[] = [
     feature: "speech",
     since: 1,
     via: "invoke",
+    request: "SpeakRequest",
   },
   {
     name: "stopSpeaking",
@@ -697,6 +1002,7 @@ export const hostMethods: HostMethod[] = [
     feature: "audio",
     since: 1,
     via: "invoke",
+    request: "PlayAudioRequest",
   },
   {
     name: "stopAudio",
@@ -712,6 +1018,8 @@ export const hostMethods: HostMethod[] = [
     feature: "iap",
     since: 1,
     via: "invoke",
+    request: "GetProductsRequest",
+    response: "IAPProduct[]",
   },
   {
     name: "purchase",
@@ -719,6 +1027,8 @@ export const hostMethods: HostMethod[] = [
     feature: "iap",
     since: 1,
     via: "invoke",
+    request: "PurchaseRequest",
+    response: "PurchaseResult",
   },
   {
     name: "currentEntitlements",
@@ -743,6 +1053,8 @@ export const hostMethods: HostMethod[] = [
     feature: "location",
     since: 1,
     via: "invoke",
+    request: "SearchPOIRequest",
+    response: "POIResult[]",
   },
   // One-shot current location (CLLocationManager.requestLocation): a single
   // {lat, lon} fix, for centering a map / biasing a POI search. Prompts for
@@ -753,5 +1065,6 @@ export const hostMethods: HostMethod[] = [
     feature: "location",
     since: 1,
     via: "invoke",
+    response: "Coordinate",
   },
 ];

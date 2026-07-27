@@ -1,0 +1,9 @@
+{
+  "source": "ota",
+  "version": 7,
+  "keyId": "k1",
+  "expiresAt": 1800000000,
+  "highWater": 7,
+  "healthSignal": "explicit",
+  "bootAttempts": 1
+}

@@ -1,0 +1,7 @@
+{
+  "id": "fixture-notification",
+  "title": "Stand up",
+  "body": "You have been sitting for an hour",
+  "afterMs": 60000,
+  "sound": true
+}

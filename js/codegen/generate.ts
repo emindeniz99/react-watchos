@@ -13,6 +13,7 @@ import {
   type HostArg,
   type HostMethod,
   hostMethods,
+  invokeShapes,
   node,
   type ReturnType,
   type StructDef,
@@ -470,6 +471,116 @@ function swiftModel() {
   return `${parts.join("\n")}\n`;
 }
 
+// --- Invoke channel shapes (ARCH-11) ---------------------------------------
+// The `via:"invoke"` methods' request/result shapes are a CONTRACT, not a
+// runtime dependency: TS interfaces land in the wire module (so a caller and a
+// fixture can be typed by them), and the Swift side is emitted into the TEST
+// target only. The 31 handlers keep their own decoders — see the doc on
+// `invokeShapes` for why the generated-Codable-handler variant was rejected —
+// so emitting these structs into ReactWatchCore would put ~20 types nobody
+// instantiates into both shipping binaries, including the widget extension.
+
+const invokeMethods = hostMethods.filter((m) => m.via === "invoke");
+const shapeByTs = new Map(invokeShapes.map((s) => [s.ts, s]));
+
+/** Splits a `HostMethod.request`/`.response` ref into its shape + arrayness.
+ *  `"opaque"` returns null — the payload is the app's own JSON by contract. */
+function resolveShape(
+  ref: string | undefined,
+): { def: StructDef; array: boolean } | null {
+  if (!ref || ref === "opaque") return null;
+  const array = ref.endsWith("[]");
+  const name = array ? ref.slice(0, -2) : ref;
+  const def = shapeByTs.get(name);
+  if (!def) throw new Error(`unknown invoke shape "${name}"`);
+  return { def, array };
+}
+
+/** `{ method: { request?, response? } }` — the shape refs as DATA, so the JS
+ *  contract test can assert it covers every payload-carrying method without
+ *  re-listing them. `"opaque"` is carried through verbatim. */
+function invokeShapesTS() {
+  const table: Record<string, { request?: string; response?: string }> = {};
+  for (const m of invokeMethods) {
+    if (!m.request && !m.response) continue;
+    table[m.name] = {
+      ...(m.request ? { request: m.request } : {}),
+      ...(m.response ? { response: m.response } : {}),
+    };
+  }
+  return [
+    "/** ARCH-11: the declared request/result shape of each `via:\"invoke\"`",
+    " *  method that carries one. A value of `\"opaque\"` means the payload is the",
+    " *  consuming app's own JSON by contract (the connectivity channels), not an",
+    " *  undeclared shape. Methods absent from this table send no payload and",
+    " *  return void/null, a bare string, `string[]`, or a boolean. */",
+    `export const INVOKE_SHAPES = ${JSON.stringify(table)} as const;`,
+  ].join("\n");
+}
+
+/** The Swift half — Codable mirrors of `invokeShapes` plus per-method decode
+ *  tables, emitted into the test target. Internal (not `public`): nothing
+ *  outside `swift test` may depend on these. */
+function invokeShapesSwift() {
+  const struct = (def: StructDef) => {
+    const lines = [];
+    if (def.doc) lines.push(`/// ${def.doc}`);
+    lines.push(`struct ${def.swift}: Codable, Equatable {`);
+    for (const f of def.fields) {
+      if (f.doc) lines.push(`    /// ${f.doc}`);
+      lines.push(`    let ${f.name}: ${f.swift}`);
+    }
+    lines.push("}");
+    return lines.join("\n");
+  };
+  const entry = (m: HostMethod, ref: string | undefined) => {
+    const shape = resolveShape(ref);
+    if (!shape) return null;
+    const type = shape.array ? `[${shape.def.swift}]` : shape.def.swift;
+    return `        "${m.name}": { _ = try JSONDecoder().decode(${type}.self, from: $0) },`;
+  };
+  const requests = invokeMethods
+    .map((m) => entry(m, m.request))
+    .filter((line) => line !== null);
+  const responses = invokeMethods
+    .map((m) => entry(m, m.response))
+    .filter((line) => line !== null);
+  const opaque = invokeMethods
+    .filter((m) => m.request === "opaque")
+    .map((m) => `"${m.name}"`);
+  return `${[
+    banner(),
+    "import Foundation",
+    "import ReactWatchCore",
+    "",
+    "// The SD-1 invoke channel's schema-declared shapes (ARCH-11), rendered for",
+    "// the TEST target only: InvokeContractTests decodes the JS-produced",
+    "// Fixtures/invoke-*.json with these, so a wrapper that changes its payload",
+    "// (or a native result that changes its keys) fails `swift test` instead of",
+    "// on a watch. The 31 handlers keep their own decoders by design.",
+    "",
+    ...invokeShapes.map(struct).flatMap((s) => [s, ""]),
+    "enum InvokeShapes {",
+    "    /// method -> decode this fixture as the declared REQUEST shape.",
+    "    static let requestDecoders: [String: @Sendable (Data) throws -> Void] = [",
+    ...requests,
+    "    ]",
+    "",
+    "    /// method -> decode this fixture as the declared RESULT shape.",
+    "    static let responseDecoders: [String: @Sendable (Data) throws -> Void] = [",
+    ...responses,
+    "    ]",
+    "",
+    "    /// Payloads that are the consuming app's own JSON by contract — Swift",
+    "    /// hands them to WCSession as [String: Any] without reading a field, so",
+    "    /// no schema can (or should) describe them.",
+    `    static let opaqueRequests: Set<String> = [${opaque.join(", ")}]`,
+    "}",
+  ]
+    .join("\n")
+    .trimEnd()}\n`;
+}
+
 // --- TypeScript ------------------------------------------------------------
 
 function tsInterface(def: StructDef | TsOnlyDef) {
@@ -500,7 +611,8 @@ function tsModel() {
     `  children: ${node.ts}[];`,
     "}",
   ];
-  for (const def of [...structs, ...tsOnly]) parts.push("", tsInterface(def));
+  for (const def of [...structs, ...tsOnly, ...invokeShapes])
+    parts.push("", tsInterface(def));
   const manifest = JSON.stringify(
     hostMethods.map((m) => ({
       name: m.name,
@@ -533,6 +645,8 @@ function tsModel() {
     " *  interpreters are drift-tested against this. */",
     `export const COMPONENTS = ${JSON.stringify(components)} as const;`,
     "",
+    invokeShapesTS(),
+    "",
     quickJSHostGlobalTS(),
   );
   return `${parts.join("\n")}\n`;
@@ -545,6 +659,10 @@ const outputs = [
   [
     "swift/Sources/ReactWatchRuntime/Generated/HostBridge.swift",
     hostBridgeSwift(),
+  ],
+  [
+    "swift/Tests/ReactWatchTests/Generated/InvokeShapes.swift",
+    invokeShapesSwift(),
   ],
   ["src/generated/wire.ts", tsModel()],
 ];

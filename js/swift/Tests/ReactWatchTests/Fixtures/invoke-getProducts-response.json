@@ -1,0 +1,10 @@
+[
+  {
+    "id": "com.example.pro",
+    "displayName": "Pro",
+    "description": "Everything unlocked",
+    "displayPrice": "$1.99",
+    "price": 1.99,
+    "type": "nonConsumable"
+  }
+]

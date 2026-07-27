@@ -1,0 +1,5 @@
+{
+  "service": "0000FFE0-0000-1000-8000-00805F9B34FB",
+  "maxReconnectAttempts": 3,
+  "reconnectWindowMs": 30000
+}
