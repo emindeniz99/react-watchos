@@ -18,10 +18,13 @@ final class OneShotLocation: NSObject, CLLocationManagerDelegate {
     /// UNAVAILABLE. Collapsing both into one code (the old
     /// `LOCATION_UNAVAILABLE`) told the caller nothing actionable.
     enum Failure: Error, Equatable {
-        /// `.denied` / `.restricted` — the user (or a profile) said no.
+        /// `.denied` / `.restricted` — the user (or a profile) said no. Also
+        /// `CLError.denied`, which is how Location Services being switched OFF
+        /// device-wide arrives: the app's own authorization is untouched, so
+        /// the refusal comes back as an error rather than a status change.
         case denied
-        /// No fix available: a CLError, or an authorization state this build
-        /// doesn't know (@unknown default).
+        /// No fix available: any other CLError, or an authorization state this
+        /// build doesn't know (@unknown default).
         case unavailable
     }
 
@@ -63,7 +66,19 @@ final class OneShotLocation: NSObject, CLLocationManagerDelegate {
         finish(.success(coordinate))
     }
 
+    /// `CLError.denied` lands HERE, not on the authorization path: with the app
+    /// granted When-In-Use and Location Services switched off device-wide,
+    /// `authorizationStatus` is still `.authorizedWhenInUse`, so `start()` calls
+    /// `requestLocation()` and CoreLocation refuses with that code. Passing it
+    /// through raw made the host report UNAVAILABLE ("retry / no fix") for a
+    /// state only a Settings change can fix, which is precisely the
+    /// non-actionable answer this Failure split exists to avoid. Every other
+    /// CLError really is "no fix obtainable" and stays unavailable.
     func locationManager(_: CLLocationManager, didFailWithError error: Error) {
+        if (error as? CLError)?.code == .denied {
+            finish(.failure(Failure.denied))
+            return
+        }
         finish(.failure(error))
     }
 
