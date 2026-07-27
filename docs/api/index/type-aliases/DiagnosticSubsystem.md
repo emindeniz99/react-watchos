@@ -6,6 +6,6 @@
 
 # Type Alias: DiagnosticSubsystem
 
-> **DiagnosticSubsystem** = `"boot"` \| `"ota"` \| `"wire"` \| `"commit"` \| `"js"` \| `"capability"` \| `"budget"` \| `"connectivity"`
+> **DiagnosticSubsystem** = `"boot"` \| `"ota"` \| `"wire"` \| `"commit"` \| `"js"` \| `"capability"` \| `"budget"` \| `"connectivity"` \| `"widgets"`
 
 Defined in: [js/src/diagnostics.ts:17](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L17)

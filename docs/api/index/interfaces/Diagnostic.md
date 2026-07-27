@@ -6,7 +6,7 @@
 
 # Interface: Diagnostic
 
-Defined in: [js/src/diagnostics.ts:27](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L27)
+Defined in: [js/src/diagnostics.ts:28](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L28)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/diagnostics.ts:27](https://github.com/emindeniz99/playground
 
 > **code**: `string`
 
-Defined in: [js/src/diagnostics.ts:29](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L29)
+Defined in: [js/src/diagnostics.ts:30](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L30)
 
 Stable machine code, dot-namespaced by subsystem (e.g. "ota.saveRejected").
 
@@ -24,7 +24,7 @@ Stable machine code, dot-namespaced by subsystem (e.g. "ota.saveRejected").
 
 > `optional` **details?**: `string`
 
-Defined in: [js/src/diagnostics.ts:42](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L42)
+Defined in: [js/src/diagnostics.ts:43](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L43)
 
 Human-readable message.
 
@@ -34,7 +34,7 @@ Human-readable message.
 
 > `optional` **releaseId?**: `string`
 
-Defined in: [js/src/diagnostics.ts:35](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L35)
+Defined in: [js/src/diagnostics.ts:36](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L36)
 
 Content hash of the booted bundle (CX-025); absent before load.
 
@@ -44,7 +44,7 @@ Content hash of the booted bundle (CX-025); absent before load.
 
 > **sessionId**: `string`
 
-Defined in: [js/src/diagnostics.ts:33](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L33)
+Defined in: [js/src/diagnostics.ts:34](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L34)
 
 Fresh UUID per native boot — correlates one JS generation's records.
 
@@ -54,7 +54,7 @@ Fresh UUID per native boot — correlates one JS generation's records.
 
 > **severity**: [`DiagnosticSeverity`](../type-aliases/DiagnosticSeverity.md)
 
-Defined in: [js/src/diagnostics.ts:30](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L30)
+Defined in: [js/src/diagnostics.ts:31](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L31)
 
 ***
 
@@ -62,7 +62,7 @@ Defined in: [js/src/diagnostics.ts:30](https://github.com/emindeniz99/playground
 
 > **subsystem**: [`DiagnosticSubsystem`](../type-aliases/DiagnosticSubsystem.md)
 
-Defined in: [js/src/diagnostics.ts:31](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L31)
+Defined in: [js/src/diagnostics.ts:32](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L32)
 
 ***
 
@@ -70,7 +70,7 @@ Defined in: [js/src/diagnostics.ts:31](https://github.com/emindeniz99/playground
 
 > **target**: `"watch"` \| `"widget"`
 
-Defined in: [js/src/diagnostics.ts:36](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L36)
+Defined in: [js/src/diagnostics.ts:37](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L37)
 
 ***
 
@@ -78,7 +78,7 @@ Defined in: [js/src/diagnostics.ts:36](https://github.com/emindeniz99/playground
 
 > **timestamp**: `number`
 
-Defined in: [js/src/diagnostics.ts:38](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L38)
+Defined in: [js/src/diagnostics.ts:39](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L39)
 
 Epoch milliseconds.
 
@@ -88,6 +88,6 @@ Epoch milliseconds.
 
 > `optional` **userAction?**: `string`
 
-Defined in: [js/src/diagnostics.ts:40](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L40)
+Defined in: [js/src/diagnostics.ts:41](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L41)
 
 What the user can do about it. Reserved — absent in v1.

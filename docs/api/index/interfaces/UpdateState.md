@@ -19,13 +19,16 @@ What the watch is actually running — the OTA observability surface
 
 > **bootAttempts**: `number`
 
-Defined in: [js/src/update.ts:83](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L83)
+Defined in: [js/src/update.ts:86](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L86)
 
 Launches of the running OTA bundle that have not yet reached a healthy
- confirmation. Resets to 0 when the bundle is blessed; at
- `maxOTABootAttempts` (3) the next launch rolls back. `2` on an
- `"explicit"` device is a bundle one launch away from rollback — the
- signal worth alerting on.
+ confirmation. The counter is incremented BEFORE the bundle runs, so a
+ launch reports 1…`maxOTABootAttempts` (3); the rollback happens at the
+ START of the next launch, once the stored value has reached 3. Resets to
+ 0 when the bundle is blessed. `3` on an `"explicit"` device is therefore
+ the bundle whose next launch rolls back — the signal worth alerting on.
+ Not scoped to the running bundle: a `source: "shipped"` boot can still
+ report a non-zero count left by a dropped OTA until a blessing clears it.
 
 ***
 

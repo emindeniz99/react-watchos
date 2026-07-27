@@ -8,7 +8,7 @@
 
 > **onDiagnostic**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/diagnostics.ts:52](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L52)
+Defined in: [js/src/diagnostics.ts:53](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L53)
 
 Subscribes `handler` to host diagnostics — e.g. to forward OTA rollback or
 budget-breach records to an app's own telemetry. Returns an unsubscribe
