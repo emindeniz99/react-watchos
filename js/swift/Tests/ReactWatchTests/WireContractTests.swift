@@ -148,6 +148,14 @@ final class WireContractTests: XCTestCase {
             PublishedWidgets.self, from: fixture("widgets")
         )
         XCTAssertEqual(payload.v, 1)
+        // ARCH-06: the JS producer stamps the state revision it sampled at
+        // render start on EVERY payload — a required field, so a bundle that
+        // stopped stamping it fails this decode instead of silently publishing
+        // timelines no consumer can date. (No host bridge in the fixture run,
+        // hence 0; `releaseId` is absent because that render had no
+        // `__bundleReleaseId` — the documented "producer unknown".)
+        XCTAssertEqual(payload.stateRevision, 0)
+        XCTAssertNil(payload.releaseId)
 
         let stopwatch = try XCTUnwrap(payload.widgets["stopwatch"])
         XCTAssertEqual(stopwatch.keys.sorted(), ["accessoryCircular", "accessoryInline"])

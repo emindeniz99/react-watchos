@@ -121,6 +121,8 @@ public struct PublishedFamilyTimeline: Codable, Equatable, Sendable {
 public struct PublishedWidgets: Codable, Equatable, Sendable {
     public let v: Int
     public let publishedAt: Double
+    public let stateRevision: Int
+    public let releaseId: String?
     public let widgets: [String: [String: PublishedFamilyTimeline]]
     public let controls: [String: PublishedControl]?
 }

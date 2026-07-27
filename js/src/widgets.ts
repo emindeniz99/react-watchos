@@ -160,17 +160,42 @@ function flooredReloadAfter(value: number | Date, now: number): number {
 
 let renderingWidgets = false;
 
+/**
+ * The App-Group state revision this render derives from (ARCH-06). Sampled at
+ * RENDER START — before any `render()` callback reads Storage — so a write that
+ * lands mid-render leaves the payload stamped with the OLDER revision and a
+ * consumer detects it as stale. Sampling at the END would stamp "current" over
+ * data read before the write: the exact bug ARCH-06 closes. 0 where the host
+ * has no storage bridge (tests, Node, a policy that denied `storage`).
+ */
+function sampleStateRevision(): number {
+  return getHost()?.stateRevision?.() ?? 0;
+}
+
+/** The content id of the bundle producing this payload (CX-025's
+ *  `__bundleReleaseId`). undefined when the runtime booted precompiled
+ *  bytecode with no source to hash — "producer unknown", which never makes a
+ *  consumer reject the payload. */
+function bundleReleaseId(): string | undefined {
+  const id = (globalThis as { __bundleReleaseId?: unknown }).__bundleReleaseId;
+  return typeof id === "string" && id.length > 0 ? id : undefined;
+}
+
 /** Renders every registered widget for every family it supports. */
 export function renderWidgets(now: number = Date.now()): PublishedWidgets {
   renderingWidgets = true;
+  const stateRevision = sampleStateRevision();
   try {
-    return renderWidgetsInner(now);
+    return renderWidgetsInner(now, stateRevision);
   } finally {
     renderingWidgets = false;
   }
 }
 
-function renderWidgetsInner(now: number): PublishedWidgets {
+function renderWidgetsInner(
+  now: number,
+  stateRevision: number,
+): PublishedWidgets {
   const widgets: PublishedWidgets["widgets"] = {};
   for (const definition of registry.values()) {
     // Isolate each kind: one widget's instances()/render() throwing must not
@@ -233,7 +258,27 @@ function renderWidgetsInner(now: number): PublishedWidgets {
   for (const { kind, ...metadata } of controlRegistry.values()) {
     controls[kind] = metadata;
   }
-  return { v: 1, publishedAt: now, widgets, controls };
+  return stamped(now, stateRevision, widgets, controls);
+}
+
+/** Assembles a payload with its ARCH-06 provenance stamps. Every payload the
+ *  library emits goes through here, so the empty recursion-guard payload and a
+ *  real render can't drift into different wire shapes. */
+function stamped(
+  now: number,
+  stateRevision: number,
+  widgets: PublishedWidgets["widgets"],
+  controls: PublishedWidgets["controls"],
+): PublishedWidgets {
+  const releaseId = bundleReleaseId();
+  return {
+    v: 1,
+    publishedAt: now,
+    stateRevision,
+    ...(releaseId !== undefined ? { releaseId } : {}),
+    widgets,
+    controls,
+  };
 }
 
 /**
@@ -250,7 +295,7 @@ export function publishWidgets(now: number = Date.now()): PublishedWidgets {
     getHost()?.log?.(
       "publishWidgets called inside a widget render; ignored to avoid a reload loop",
     );
-    return { v: 1, publishedAt: now, widgets: {}, controls: {} };
+    return stamped(now, sampleStateRevision(), {}, {});
   }
   const payload = renderWidgets(now);
   getHost()?.publishWidgets?.(JSON.stringify(payload));
@@ -263,3 +308,14 @@ export function publishWidgets(now: number = Date.now()): PublishedWidgets {
 (globalThis as Record<string, unknown>).__renderWidgets = (
   now?: number,
 ): string => JSON.stringify(renderWidgets(now ?? Date.now()));
+
+// ARCH-06 reconciliation entry point: the host calls this when the published
+// payload's `stateRevision` no longer matches the App Group's — a mutation
+// committed without a publication reaching the store (the app was killed
+// between the two, or an extension write raced the app's). JS owns the render,
+// so native asks rather than fabricating a payload. Separate from
+// __renderWidgets because reconciliation must PUBLISH (persist + reload
+// WidgetKit), not just return timelines.
+(globalThis as Record<string, unknown>).__republishWidgets = (): void => {
+  publishWidgets();
+};

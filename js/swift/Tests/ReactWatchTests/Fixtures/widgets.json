@@ -1,6 +1,7 @@
 {
   "v": 1,
   "publishedAt": 1000,
+  "stateRevision": 0,
   "widgets": {
     "stopwatch": {
       "accessoryCircular": {

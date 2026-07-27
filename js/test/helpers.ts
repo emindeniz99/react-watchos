@@ -12,17 +12,34 @@ export function installMockHost() {
   // Atomic counters (ARCH-05) are backed by a real Map so counterAdd actually
   // clamps + accumulates, mirroring CoordinatedCounterStore.
   const counters = new Map<string, number>();
+  // ARCH-06: the monotonic App-Group state revision, mirroring the native
+  // wiring so JS tests see real stamping — the FIRST write since the last
+  // publish bumps it (StateRevisionTracker's batching), and the bump happens
+  // BEFORE the write lands (fail-stale ordering).
+  let revision = 0;
+  let bumpedSincePublish = false;
+  const noteWrite = () => {
+    if (bumpedSincePublish) return;
+    bumpedSincePublish = true;
+    revision += 1;
+  };
   const host = {
     commit: vi.fn(),
     log: vi.fn(),
     setTimer: vi.fn(),
     clearTimer: vi.fn(),
-    publishWidgets: vi.fn(),
+    publishWidgets: vi.fn((_payloadJson: string) => {
+      bumpedSincePublish = false;
+    }),
     getItem: vi.fn((_key: string): string | null => null),
-    setItem: vi.fn(),
+    setItem: vi.fn((_key: string, _value: string) => {
+      noteWrite();
+    }),
+    stateRevision: vi.fn((): number => revision),
     counterGet: vi.fn((key: string): number => counters.get(key) ?? 0),
     counterAdd: vi.fn(
       (key: string, delta: number, min: number, max: number): number => {
+        noteWrite();
         const next = Math.max(
           min,
           Math.min(max, (counters.get(key) ?? 0) + delta),

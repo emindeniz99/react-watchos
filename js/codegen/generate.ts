@@ -140,10 +140,11 @@ function swiftTrampoline(m: HostMethod) {
       : ret === "int"
         ? "JS_NewInt32(ctx, 0)"
         : "qjs_undefined()";
+  // A zero-arg method reads neither argv nor argc, so binding them would only
+  // produce an unused-value warning (and an always-true `argc >= 0`).
   const guard = [
     "let runtime = JSRuntime.from(context: ctx)",
-    "let argv",
-    `argc >= ${args.length}`,
+    ...(args.length > 0 ? ["let argv", `argc >= ${args.length}`] : []),
     ...args
       .map((a, i) => [a, i] as const)
       .filter(([a]) => a.type === "string")

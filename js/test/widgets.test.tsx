@@ -6,6 +6,7 @@ import {
   registerWidget,
   renderToTree,
   renderWidgets,
+  Storage,
   Text,
   unregisterAllWidgets,
   VStack,
@@ -15,6 +16,8 @@ import { installMockHost } from "./helpers";
 afterEach(() => {
   unregisterAllWidgets();
   delete (globalThis as Record<string, unknown>).__host;
+  delete (globalThis as Record<string, unknown>).__bundleReleaseId;
+  Storage.clearMemoryFallback();
 });
 
 describe("renderToTree", () => {
@@ -279,5 +282,115 @@ describe("widget timelines", () => {
     });
     unregisterAllWidgets();
     expect(renderWidgets(NOW).controls).toEqual({});
+  });
+});
+
+// ARCH-06: a payload must carry proof of WHICH state and WHICH bundle produced
+// it, so a consumer can tell "old but still valid" from "describes state that
+// has since moved". Timestamps alone can't: a mutation can land inside the
+// freshness window and the payload still looks recent.
+describe("payload provenance stamps (ARCH-06)", () => {
+  const NOW = 1_750_000_000_000;
+
+  function registerCounterWidget(onRender?: () => void) {
+    registerWidget({
+      kind: "hydration",
+      families: ["accessoryInline"],
+      render: ({ now }) => {
+        onRender?.();
+        return { entries: [{ date: now, view: <Text>x</Text> }] };
+      },
+    });
+  }
+
+  it("stamps the live state revision and the producing release id", () => {
+    const host = installMockHost();
+    (globalThis as Record<string, unknown>).__bundleReleaseId = "rel-abc";
+    registerCounterWidget();
+
+    Storage.set("glasses", 1); // first write of the batch -> revision 1
+
+    const payload = renderWidgets(NOW);
+    expect(payload.stateRevision).toBe(host.stateRevision());
+    expect(payload.stateRevision).toBe(1);
+    expect(payload.releaseId).toBe("rel-abc");
+  });
+
+  it("omits releaseId when the producing release is unknown", () => {
+    installMockHost();
+    registerCounterWidget();
+    // No __bundleReleaseId: a runtime that booted precompiled bytecode with no
+    // source to hash. "Unknown" must be absent, not a fabricated id — a
+    // consumer treats nil as "can't judge the release", never as a mismatch.
+    expect(renderWidgets(NOW).releaseId).toBeUndefined();
+  });
+
+  it("samples the revision ONCE, at render start, not after render()", () => {
+    const host = installMockHost();
+    // A render() callback that writes Storage is the whole reason the sampling
+    // point matters: the tree it produced was computed from the PRE-write
+    // state. Sampling after the render would stamp the post-write revision and
+    // certify data the payload doesn't actually contain. Stamping the
+    // pre-render revision makes the payload read STALE and forces a recompute.
+    registerCounterWidget(() => Storage.set("glasses", 2));
+
+    const payload = renderWidgets(NOW);
+
+    // One sample per render, taken before the first render() ran.
+    expect(host.stateRevision.mock.calls.length).toBe(1);
+    expect(payload.stateRevision).toBe(0);
+    expect(host.stateRevision()).toBe(1);
+  });
+
+  it("stamps every family of every widget from the same sample", () => {
+    installMockHost();
+    let writes = 0;
+    registerWidget({
+      kind: "multi",
+      families: ["accessoryCircular", "accessoryInline"],
+      render: ({ now }) => {
+        writes += 1;
+        Storage.set("k", writes);
+        return { entries: [{ date: now, view: <Text>x</Text> }] };
+      },
+    });
+    // One payload = one revision, so a mid-render write can't leave half the
+    // families certified against a different state than the other half.
+    expect(renderWidgets(NOW).stateRevision).toBe(0);
+  });
+
+  it("__republishWidgets publishes a payload stamped with the live revision", () => {
+    const host = installMockHost();
+    registerCounterWidget();
+    Storage.set("glasses", 3);
+
+    (globalThis as { __republishWidgets?: () => void }).__republishWidgets?.();
+
+    expect(host.publishWidgets).toHaveBeenCalledTimes(1);
+    const sent = JSON.parse(host.publishWidgets.mock.calls[0][0]);
+    expect(sent.stateRevision).toBe(host.stateRevision());
+  });
+
+  it("a crash between mutation and publication leaves a detectable mismatch", () => {
+    const host = installMockHost();
+    registerCounterWidget();
+    // Steady state: the store holds a payload derived from the live revision.
+    const stored = publishWidgets(NOW);
+    expect(stored.stateRevision).toBe(host.stateRevision());
+
+    // The mutation commits; the publication that should have followed dies
+    // with the process (ARCH-06's "test crash between mutation and
+    // publication"). Because the revision is bumped BEFORE the write, the
+    // survivor is a revision AHEAD of the stored payload — fail-stale.
+    Storage.set("glasses", 4);
+    host.publishWidgets.mockImplementationOnce(() => {
+      throw new Error("process killed before the payload reached the store");
+    });
+    expect(() => publishWidgets(NOW + 1)).toThrow();
+
+    expect(stored.stateRevision).toBeLessThan(host.stateRevision());
+    // ...and reconciliation is exactly "republish": the next successful
+    // publication re-stamps the payload at the live revision.
+    expect(publishWidgets(NOW + 2).stateRevision).toBe(host.stateRevision());
   });
 });

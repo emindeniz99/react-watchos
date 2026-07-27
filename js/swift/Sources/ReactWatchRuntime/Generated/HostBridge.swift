@@ -26,6 +26,7 @@ public struct HostBridge {
     public var setItem: ((String, String) -> Void)?
     public var counterGet: ((String) -> Int)?
     public var counterAdd: ((String, Int, Int, Int) -> Int)?
+    public var stateRevision: (() -> Int)?
     public var playHaptic: ((String) -> Void)?
     public var cancelNotification: ((String) -> Void)?
     public var fetch: ((Int, String) -> Void)?
@@ -85,6 +86,9 @@ extension JSRuntime {
             JS_SetPropertyStr(
                 context, host, "counterAdd",
                 JS_NewCFunction(context, hostCounterAdd, "counterAdd", 4))
+            JS_SetPropertyStr(
+                context, host, "stateRevision",
+                JS_NewCFunction(context, hostStateRevision, "stateRevision", 0))
         }
         if target == .watch {
             if allows("haptics") {
@@ -266,6 +270,16 @@ private func hostCounterAdd(
     var arg3: Int32 = 0
     JS_ToInt32(ctx, &arg3, argv[3])
     let result = runtime.bridge.counterAdd?(arg0, Int(arg1), Int(arg2), Int(arg3)) ?? 0
+    return JS_NewInt32(ctx, Int32(result))
+}
+
+private func hostStateRevision(
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    guard let runtime = JSRuntime.from(context: ctx)
+    else { return JS_NewInt32(ctx, 0) }
+    let result = runtime.bridge.stateRevision?() ?? 0
     return JS_NewInt32(ctx, Int32(result))
 }
 

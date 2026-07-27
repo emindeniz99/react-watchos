@@ -244,6 +244,27 @@ export const structs: StructDef[] = [
       { name: "v", swift: "Int", ts: "1" },
       { name: "publishedAt", swift: "Double", ts: "number" },
       {
+        // ARCH-06: the App-Group state revision this payload was derived from,
+        // sampled at RENDER START. A consumer compares it to the live revision
+        // to prove the timelines still describe current state — timestamps
+        // alone cannot (a mutation can land inside the freshness window).
+        name: "stateRevision",
+        swift: "Int",
+        ts: "number",
+      },
+      {
+        // ARCH-06: content hash of the JS bundle that produced this payload
+        // (the CX-025 `__bundleReleaseId`). Optional because "unknown" is a
+        // real state, not legacy tolerance: a runtime that booted precompiled
+        // bytecode with no source in hand has no id to stamp. nil NEVER
+        // triggers rejection — an unknown producer degrades to the revision
+        // and time rules.
+        name: "releaseId",
+        swift: "String?",
+        ts: "string",
+        optional: true,
+      },
+      {
         name: "widgets",
         swift: "[String: [String: PublishedFamilyTimeline]]",
         ts: "Record<string, Record<string, PublishedFamilyTimeline>>",
@@ -400,6 +421,14 @@ export const hostMethods: HostMethod[] = [
       { name: "min", type: "int" },
       { name: "max", type: "int" },
     ],
+    returns: "int",
+  },
+  {
+    name: "stateRevision",
+    targets: ["watch", "widget"],
+    feature: "storage",
+    since: 1,
+    doc: "Monotonic App-Group state revision (ARCH-06): sampled at widget render start and stamped into the payload so a consumer can prove the timelines derive from current state.",
     returns: "int",
   },
   {

@@ -1113,7 +1113,7 @@ final class SharedWidgetStoreTests: XCTestCase {
 
         // The exact JSON shape the JS side publishes (js/src/widgets.ts).
         let json = """
-            {"v":1,"publishedAt":1000,
+            {"v":1,"publishedAt":1000,"stateRevision":7,"releaseId":"abc123",
              "widgets":{"hydration":{"accessoryCircular":{
                "entries":[{"date":2000,"tree":null,"url":null,"relevance":null}],
                "reloadAfter":null,"relevantContexts":null}}},
@@ -1124,6 +1124,12 @@ final class SharedWidgetStoreTests: XCTestCase {
 
         let loaded = store.loadPublishedWidgets()
         XCTAssertEqual(loaded?.v, 1)
+        // ARCH-06: the revision + producing release ride INSIDE the one JSON
+        // string under the one UserDefaults key, so a payload and its stamps
+        // can never be torn apart by a crash — that half of "persist state
+        // revision and payload atomically" is free.
+        XCTAssertEqual(loaded?.stateRevision, 7)
+        XCTAssertEqual(loaded?.releaseId, "abc123")
         XCTAssertEqual(
             loaded?.widgets["hydration"]?["accessoryCircular"]?.entries.count, 1)
         XCTAssertEqual(
