@@ -8,7 +8,7 @@
 
 > **fetchAndApplyUpdate**(`manifestUrl`): `Promise`\<`number` \| `null`\>
 
-Defined in: [js/src/update.ts:414](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L414)
+Defined in: [js/src/update.ts:469](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L469)
 
 Fetches the manifest and, if it's a fresher release than this bundle
 (`releaseId`/version, CX-025), downloads the bundle and stages it

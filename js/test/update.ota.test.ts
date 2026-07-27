@@ -5,6 +5,7 @@ import {
   checkForUpdate,
   fetchAndApplyUpdate,
   getUpdateState,
+  markUpdateHealthy,
   Storage,
 } from "../src/index";
 import { installMockHost } from "./helpers";
@@ -35,22 +36,66 @@ describe("OTA observability (getUpdateState)", () => {
             version: 4,
             keyId: "k1",
             highWater: 4,
+            healthSignal: "explicit",
+            bootAttempts: 2,
           }),
         );
       }
     });
     g.__bundleReleaseId = "abc123";
+    // healthSignal + bootAttempts are the ARCH-04 telemetry pair: which policy
+    // the BINARY enforces (the bundle can't tell — the anchor is native) and
+    // how close this device is to a crash-loop rollback. Reporting them is
+    // the only way a fleet dashboard can see "on explicit, one launch left".
     expect(await getUpdateState()).toEqual({
       source: "ota",
       version: 4,
       keyId: "k1",
       highWater: 4,
+      healthSignal: "explicit",
+      bootAttempts: 2,
       releaseId: "abc123",
     });
   });
 
   it("degrades to shipped/0 with no invoke-capable host, never rejects", async () => {
-    expect(await getUpdateState()).toEqual({ source: "shipped", highWater: 0 });
+    expect(await getUpdateState()).toEqual({
+      source: "shipped",
+      highWater: 0,
+      healthSignal: "commit",
+      bootAttempts: 0,
+    });
+  });
+});
+
+describe("explicit health signal (markUpdateHealthy)", () => {
+  it("confirms the launch through the ota invoke channel", async () => {
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number, method: string) => {
+      const resolve = (
+        globalThis as {
+          __resolveInvoke?: (id: number, resultJson: string) => void;
+        }
+      ).__resolveInvoke;
+      if (method === "markUpdateHealthy") resolve?.(id, "null");
+    });
+    await expect(markUpdateHealthy()).resolves.toBeUndefined();
+    // The bundle must reach the NATIVE counter — a JS-local "we're fine" flag
+    // would confirm nothing, since the crash-loop counter it clears lives in
+    // App Group storage and survives the process this bundle runs in.
+    expect(host.invoke).toHaveBeenCalledWith(
+      expect.any(Number),
+      "markUpdateHealthy",
+      "{}",
+    );
+  });
+
+  it("resolves silently with no invoke-capable host, never rejects", async () => {
+    // A bundle calls this unconditionally after its smoke checks; under a
+    // test/Node host (or a binary on the .firstCommit policy) there is nothing
+    // counting boots, so throwing here would make apps guard a call that is
+    // meant to be fire-and-forget.
+    await expect(markUpdateHealthy()).resolves.toBeUndefined();
   });
 });
 

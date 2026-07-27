@@ -6,7 +6,7 @@
 
 # Interface: UpdateManifest
 
-Defined in: [js/src/update.ts:138](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L138)
+Defined in: [js/src/update.ts:193](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L193)
 
 The update manifest served by your update endpoint (dist/manifest.json).
 
@@ -16,7 +16,7 @@ The update manifest served by your update endpoint (dist/manifest.json).
 
 > **bundle**: `string`
 
-Defined in: [js/src/update.ts:148](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L148)
+Defined in: [js/src/update.ts:203](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L203)
 
 Bundle URL — absolute (https), or relative to the manifest URL.
 
@@ -26,7 +26,7 @@ Bundle URL — absolute (https), or relative to the manifest URL.
 
 > `optional` **expiresAt?**: `number`
 
-Defined in: [js/src/update.ts:158](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L158)
+Defined in: [js/src/update.ts:213](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L213)
 
 Epoch seconds after which the signature stops verifying on the watch
  (bound into the signed bytes — the revocation lever). 0/omitted = never
@@ -38,7 +38,7 @@ Epoch seconds after which the signature stops verifying on the watch
 
 > `optional` **keyId?**: `string`
 
-Defined in: [js/src/update.ts:154](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L154)
+Defined in: [js/src/update.ts:209](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L209)
 
 Opaque id of the signing key (CX-007). Selects the watch's trusted public
  key and is bound into the signed bytes; an unknown id fails closed.
@@ -49,7 +49,7 @@ Opaque id of the signing key (CX-007). Selects the watch's trusted public
 
 > `optional` **minBridgeProtocol?**: `number`
 
-Defined in: [js/src/update.ts:167](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L167)
+Defined in: [js/src/update.ts:222](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L222)
 
 Minimum host bridge-protocol version the bundle needs (ARCH-01).
 
@@ -59,7 +59,7 @@ Minimum host bridge-protocol version the bundle needs (ARCH-01).
 
 > `optional` **releaseId?**: `string`
 
-Defined in: [js/src/update.ts:146](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L146)
+Defined in: [js/src/update.ts:201](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L201)
 
 Content id of the bundle (CX-025): the FRESHNESS signal, distinct from
  `version`. Lets a non-breaking fix (same version, new content) be detected
@@ -72,7 +72,7 @@ Content id of the bundle (CX-025): the FRESHNESS signal, distinct from
 
 > `optional` **requiredFeatures?**: `string`[]
 
-Defined in: [js/src/update.ts:165](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L165)
+Defined in: [js/src/update.ts:220](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L220)
 
 Capability features the bundle requires (ARCH-01), e.g. ["network",
 "bluetooth"]. The watch refuses to apply a bundle whose features its binary
@@ -85,7 +85,7 @@ the app. Omitted = no capability requirement declared.
 
 > `optional` **signature?**: `string`
 
-Defined in: [js/src/update.ts:151](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L151)
+Defined in: [js/src/update.ts:206](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L206)
 
 base64 Ed25519 signature over
  "v2:<keyId>:<version>:<expiresAt>:<bundle-js>".
@@ -96,7 +96,7 @@ base64 Ed25519 signature over
 
 > **version**: `number`
 
-Defined in: [js/src/update.ts:141](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L141)
+Defined in: [js/src/update.ts:196](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L196)
 
 Monotonic compatibility version — the anti-rollback GATE (bumped only on a
  breaking change), not the freshness signal.

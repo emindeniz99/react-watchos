@@ -289,6 +289,7 @@ export {
   checkForUpdate,
   fetchAndApplyUpdate,
   getUpdateState,
+  markUpdateHealthy,
   type UpdateManifest,
   type UpdateState,
 } from "./update";

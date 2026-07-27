@@ -69,24 +69,79 @@ export interface UpdateState {
    *  `releaseId` for identical bytes) — merged in from the host-injected
    *  `__bundleReleaseId`, so it's present even for the shipped bundle. */
   releaseId?: string;
+  /** Which ARCH-04 health policy the NATIVE BINARY is configured for.
+   *  `"commit"` = the first rendered tree blesses the bundle; `"explicit"` =
+   *  only `markUpdateHealthy()` does. A bundle can't infer this — the policy
+   *  is a native-side trust anchor — so report it to know which half of your
+   *  fleet actually enforces the confirmation. */
+  healthSignal: "commit" | "explicit";
+  /** Launches of the running OTA bundle that have not yet reached a healthy
+   *  confirmation. Resets to 0 when the bundle is blessed; at
+   *  `maxOTABootAttempts` (3) the next launch rolls back. `2` on an
+   *  `"explicit"` device is a bundle one launch away from rollback — the
+   *  signal worth alerting on. */
+  bootAttempts: number;
 }
 
 /**
  * Reports which bundle this launch actually booted + the device's OTA state
  * (review §6.11b — observability). Never rejects: with no invoke-capable host
- * (tests/Node) it resolves a bare `{ source: "shipped", highWater: 0 }` so
- * telemetry code can run unconditionally.
+ * (tests/Node) it resolves a bare shipped/zeroed state so telemetry code can
+ * run unconditionally.
  */
 export async function getUpdateState(): Promise<UpdateState> {
   let state: UpdateState;
   try {
     state = await invoke<UpdateState>("getUpdateState", {});
   } catch {
-    state = { source: "shipped", highWater: 0 };
+    state = {
+      source: "shipped",
+      highWater: 0,
+      healthSignal: "commit",
+      bootAttempts: 0,
+    };
   }
   const releaseId = currentReleaseId();
   if (releaseId !== null) state.releaseId = releaseId;
   return state;
+}
+
+/**
+ * Confirms that this launch of this bundle is healthy — ARCH-04's explicit
+ * `bundleReady` signal. Calling it clears the device's crash-loop boot counter
+ * and promotes the running OTA bundle to the known-good rollback target.
+ *
+ * It is a NO-OP unless the app's native side opted in with
+ * `OTAConfig(healthSignal: .explicit)`. Under the default `.firstCommit`
+ * policy the first rendered tree already did this, so calling it costs one
+ * bridge round-trip and changes nothing — which is the point: a bundle ships
+ * the call unconditionally and each binary decides whether it matters.
+ *
+ * ⚠️ Under `.explicit` there is no timer and no grace period. A bundle that
+ * never calls this is rolled back after 3 launches — to the previous
+ * known-good bundle, or to the one shipped in the app binary. That is the
+ * contract, not a failure mode: the counter is the only enforcement.
+ *
+ * Call it **after your own smoke checks** — the first real screen rendered,
+ * the session restored, whatever "this bundle works" means for your app — and
+ * never at module top level, where it would confirm nothing more than "the
+ * file parsed" and give up the whole guarantee.
+ *
+ * ```ts
+ * useEffect(() => {
+ *   if (dashboardLoaded && !loadError) markUpdateHealthy();
+ * }, [dashboardLoaded, loadError]);
+ * ```
+ *
+ * Never rejects (mirrors getUpdateState): with no invoke-capable host
+ * (tests/Node) there is nothing to confirm, so it resolves silently.
+ */
+export async function markUpdateHealthy(): Promise<void> {
+  try {
+    await invoke<null>("markUpdateHealthy", {});
+  } catch {
+    // No host: nothing is counting boots, so there is nothing to confirm.
+  }
 }
 
 /**

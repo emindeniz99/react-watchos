@@ -15,6 +15,20 @@ What the watch is actually running — the OTA observability surface
 
 ## Properties
 
+### bootAttempts
+
+> **bootAttempts**: `number`
+
+Defined in: [js/src/update.ts:83](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L83)
+
+Launches of the running OTA bundle that have not yet reached a healthy
+ confirmation. Resets to 0 when the bundle is blessed; at
+ `maxOTABootAttempts` (3) the next launch rolls back. `2` on an
+ `"explicit"` device is a bundle one launch away from rollback — the
+ signal worth alerting on.
+
+***
+
 ### expiresAt?
 
 > `optional` **expiresAt?**: `number`
@@ -22,6 +36,20 @@ What the watch is actually running — the OTA observability surface
 Defined in: [js/src/update.ts:65](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L65)
 
 The running record's signed expiry (epoch seconds; absent/0 = never).
+
+***
+
+### healthSignal
+
+> **healthSignal**: `"commit"` \| `"explicit"`
+
+Defined in: [js/src/update.ts:77](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L77)
+
+Which ARCH-04 health policy the NATIVE BINARY is configured for.
+ `"commit"` = the first rendered tree blesses the bundle; `"explicit"` =
+ only `markUpdateHealthy()` does. A bundle can't infer this — the policy
+ is a native-side trust anchor — so report it to know which half of your
+ fleet actually enforces the confirmation.
 
 ***
 

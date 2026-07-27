@@ -226,6 +226,7 @@
 - [href](functions/href.md)
 - [inspectorSnapshot](functions/inspectorSnapshot.md)
 - [isOnDeviceAIAvailable](functions/isOnDeviceAIAvailable.md)
+- [markUpdateHealthy](functions/markUpdateHealthy.md)
 - [matchRoute](functions/matchRoute.md)
 - [NavigationProvider](functions/NavigationProvider.md)
 - [NavigationRoute](functions/NavigationRoute.md)
