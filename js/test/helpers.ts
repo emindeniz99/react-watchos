@@ -79,7 +79,16 @@ export function installMockHost() {
       } else if (method === "getUpdateState") {
         g.__resolveInvoke?.(
           id,
-          JSON.stringify({ source: "shipped", highWater: 0 }),
+          // Every field UpdateState declares required, mirroring the native
+          // handler's shipped/zeroed defaults: the value crosses as JSON and is
+          // cast by invoke<UpdateState>, so a short fixture type-checks while
+          // handing every caller `undefined` for the ARCH-04 health fields.
+          JSON.stringify({
+            source: "shipped",
+            highWater: 0,
+            healthSignal: "commit",
+            bootAttempts: 0,
+          }),
         );
       } else if (
         method === "bleConnect" ||
