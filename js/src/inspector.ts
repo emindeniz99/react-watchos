@@ -31,8 +31,10 @@ let teed = false;
  *  subscription, and `unregisterAllNativeListeners()` removes it WITHOUT
  *  telling the inspector. Once that happened, every later `startInspector()`
  *  saw the latch, skipped re-subscribing, and reported zero diagnostics for
- *  the rest of the context's life. Holding the unsubscribe and clearing it in
- *  `stop()` makes a restart re-subscribe unconditionally. */
+ *  the rest of the context's life. Revocation is undetectable from here — the
+ *  held unsubscribe stays non-null after the table is cleared — so every
+ *  `startInspector()` drops this and re-subscribes, which converges whether or
+ *  not a `stop()` intervened and stays at one handler either way. */
 let diagnosticsUnsubscribe: Unsubscribe | null = null;
 let stopFn: (() => void) | null = null;
 
@@ -108,20 +110,25 @@ export interface InspectorOptions {
 }
 
 export function startInspector(options: InspectorOptions): () => void {
+  // Buffer host diagnostics (ARCH-13) for the snapshot. Subscribed only when
+  // the inspector is actually started — the native ring is always on, but this
+  // JS-side exposure stays DEV/opt-in like the rest of the inspector.
+  //
+  // Re-armed on EVERY start, including one that finds the inspector already
+  // running (§3.D): `unregisterAllNativeListeners()` revokes the tap without
+  // telling us, and a caller who notices the silence and calls
+  // `startInspector()` again would otherwise hit the early-return below and
+  // never re-tap. Dropping the held unsubscribe first keeps it at one handler;
+  // it is a no-op when the listener was already cleared.
+  diagnosticsUnsubscribe?.();
+  diagnosticsUnsubscribe = onDiagnostic((diagnostic) => {
+    diagnostics.push(diagnostic);
+    if (diagnostics.length > MAX_DIAGNOSTICS) diagnostics.shift();
+  });
+
   // Already running: hand back the existing stop so a caller can still stop it.
   if (started) return stopFn ?? (() => {});
   started = true;
-
-  // Buffer host diagnostics (ARCH-13) for the snapshot, once. Subscribed
-  // only when the inspector is actually started — the native ring is always
-  // on, but this JS-side exposure stays DEV/opt-in like the rest of the
-  // inspector.
-  if (!diagnosticsUnsubscribe) {
-    diagnosticsUnsubscribe = onDiagnostic((diagnostic) => {
-      diagnostics.push(diagnostic);
-      if (diagnostics.length > MAX_DIAGNOSTICS) diagnostics.shift();
-    });
-  }
 
   // Tee console.log/console.error into the ring buffers once (a restart must
   // not re-wrap an already-wrapped console).

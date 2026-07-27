@@ -195,4 +195,46 @@ describe("inspector polling (CX-019)", () => {
       unregisterAllNativeListeners();
     }
   });
+
+  // The same §3.D silence, reached WITHOUT a stop() in between: a caller who
+  // notices the diagnostics ring has gone quiet and just calls startInspector()
+  // again hits the "already running" early return. Re-arming only on a restart
+  // left that path permanently silent — the failure §3.D claims to have closed,
+  // still verbatim true on the more likely recovery attempt.
+  it("re-subscribes the diagnostics tap on a start that finds it already running", async () => {
+    vi.stubGlobal("setInterval", () => 1);
+    vi.stubGlobal("clearInterval", () => {});
+    vi.stubGlobal("fetch", () => Promise.resolve());
+    const diagnostic: Diagnostic = {
+      code: "ota.saveRejected",
+      severity: "recoverable",
+      subsystem: "ota",
+      sessionId: "s2",
+      target: "watch",
+      timestamp: 2,
+    };
+    try {
+      startInspector({ url: "http://a/snapshot" });
+      unregisterAllNativeListeners();
+
+      // No stop() — the inspector never left the "started" state.
+      const stop = startInspector({ url: "http://a/snapshot" });
+      expect(
+        dispatchNativeEvent(
+          DIAGNOSTIC_EVENT,
+          diagnostic as unknown as Record<string, unknown>,
+        ),
+      ).toBe(true);
+      // Exactly one entry: dropping the held (dead) unsubscribe before
+      // re-subscribing is what keeps a repeated start from stacking handlers.
+      expect(
+        inspectorSnapshot().diagnostics.filter((d) => d.sessionId === "s2")
+          .length,
+      ).toBe(1);
+      stop();
+    } finally {
+      vi.unstubAllGlobals();
+      unregisterAllNativeListeners();
+    }
+  });
 });
