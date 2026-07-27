@@ -80,6 +80,29 @@ public struct SharedWidgetStore: Sendable {
         defaults?.set(count, forKey: Self.otaBootAttemptsKey)
     }
 
+    /// The JS bundle content id the widget extension last booted (ARCH-06).
+    ///
+    /// A TimelineProvider callback has to decide whether a stored payload was
+    /// produced by a FOREIGN release, and it must decide without booting an
+    /// engine (the boot is the cost the decision exists to avoid). Its own
+    /// release id is only known inside `WidgetIntentRuntime`, after bundle
+    /// selection — so the runtime records it here on every boot and the
+    /// provider reads it back for the price of a UserDefaults lookup.
+    ///
+    /// Same app→widget publish/read shape as `urlScheme`, one process over. nil
+    /// before this extension has ever booted a bundle, which reads as "reader
+    /// release unknown" and — like an unknown producer — never rejects.
+    public static let widgetReleaseIdKey = "react.widget.releaseId"
+
+    public func saveWidgetReleaseId(_ releaseId: String?) {
+        guard let releaseId, !releaseId.isEmpty else { return }
+        defaults?.set(releaseId, forKey: Self.widgetReleaseIdKey)
+    }
+
+    public func widgetReleaseId() -> String? {
+        defaults?.string(forKey: Self.widgetReleaseIdKey)
+    }
+
     /// App → widget: the app's custom URL scheme (see `HostURLScheme`). Only the
     /// app process can read `CFBundleURLSchemes` from its Info.plist; it
     /// publishes the value here so the widget extension — whose own Bundle.main

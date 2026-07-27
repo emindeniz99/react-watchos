@@ -71,7 +71,7 @@ public func reactTimeline(
     let fresh =
         storedIsCurrent
         ? nil : WidgetIntentRuntime.renderFreshTimelines(appGroupId: appGroupId)
-    let payload = newestPayload(stored, fresh)
+    let payload = WidgetSnapshot.newestPayload(stored, fresh)
     guard let timeline = payload?.widgets[kind]?[familyKey(family)],
         !timeline.entries.isEmpty
     else {
@@ -190,14 +190,6 @@ func reactEntry(from published: PublishedEntry) -> ReactEntry {
             )
         }
     )
-}
-
-func newestPayload(
-    _ first: PublishedWidgets?, _ second: PublishedWidgets?
-) -> PublishedWidgets? {
-    guard let first else { return second }
-    guard let second else { return first }
-    return second.publishedAt >= first.publishedAt ? second : first
 }
 
 func familyKey(_ family: WidgetFamily) -> String {

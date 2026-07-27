@@ -1002,6 +1002,220 @@ final class WidgetSnapshotTests: XCTestCase {
     }
 }
 
+// ARCH-06: "is this payload displayable" is no longer a clock question. The
+// composite classifier sits ABOVE the (unchanged) time rule; these cases pin
+// the precedence, because getting it wrong is silent — a widget that keeps
+// showing a number the user already changed looks perfectly healthy.
+final class PayloadFreshnessTests: XCTestCase {
+    private func date(_ seconds: TimeInterval) -> Date {
+        Date(timeIntervalSince1970: seconds)
+    }
+
+    /// A payload that the OLD time-only rule calls current: a live horizon, so
+    /// every failure below is caused purely by the provenance stamps.
+    private func freshness(
+        payloadRevision: Int = 5, currentRevision: Int = 5,
+        payloadReleaseId: String? = "rel-a", runningReleaseId: String? = "rel-a",
+        entryDates: [Date]? = nil, reloadAfter: Date? = nil,
+        publishedAt: Date? = nil, now: Date? = nil
+    ) -> PayloadFreshness {
+        WidgetSnapshot.freshness(
+            entryDates: entryDates ?? [date(0)],
+            reloadAfter: reloadAfter ?? date(10_000),
+            publishedAt: publishedAt ?? date(0), now: now ?? date(100),
+            payloadRevision: payloadRevision, currentRevision: currentRevision,
+            payloadReleaseId: payloadReleaseId,
+            runningReleaseId: runningReleaseId)
+    }
+
+    func testMatchingStampsInsideTheHorizonAreCurrent() {
+        XCTAssertEqual(freshness(), .current)
+    }
+
+    // The acceptance's "test crash between mutation and publication": the write
+    // bumped the revision and the publication never reached the store. The
+    // payload still sits well inside its author-declared horizon, so the
+    // time-only rule would happily display it.
+    func testAMutationWithoutAPublicationReadsStale() {
+        XCTAssertEqual(
+            freshness(payloadRevision: 5, currentRevision: 6), .staleRevision)
+    }
+
+    func testStaleRevisionBeatsALiveReloadAfter() {
+        // Explicitly: reloadAfter is 100x further out than `now`. Time says
+        // current, state says otherwise, state wins.
+        XCTAssertEqual(
+            freshness(
+                payloadRevision: 1, currentRevision: 2,
+                reloadAfter: date(1_000_000), now: date(10)),
+            .staleRevision)
+    }
+
+    func testARevisionFromTheFutureIsAlsoUnprovable() {
+        // Can only happen if the counter was lost (container wiped) or the
+        // payload came from another App Group — equally unprovable, same
+        // remedy. Equality, not `<`, is what the check must be.
+        XCTAssertEqual(
+            freshness(payloadRevision: 9, currentRevision: 2), .staleRevision)
+    }
+
+    func testAForeignProducingReleaseIsRejectedEvenWhenFresh() {
+        XCTAssertEqual(
+            freshness(payloadReleaseId: "rel-b", runningReleaseId: "rel-a"),
+            .foreignRelease)
+    }
+
+    func testRevisionOutranksRelease() {
+        // Both wrong: report the state problem, which is the one a republish
+        // fixes for every reader (a release mismatch only resolves for THIS
+        // process's own re-render).
+        XCTAssertEqual(
+            freshness(
+                payloadRevision: 1, currentRevision: 2,
+                payloadReleaseId: "rel-b", runningReleaseId: "rel-a"),
+            .staleRevision)
+    }
+
+    func testAnUnknownReleaseOnEitherSideNeverRejects() {
+        // The widget extension can boot precompiled bytecode with no source to
+        // hash. If nil meant "mismatch", such a fleet would re-render on every
+        // timeline request forever — a full QuickJS boot each time.
+        XCTAssertEqual(freshness(payloadReleaseId: nil), .current)
+        XCTAssertEqual(freshness(runningReleaseId: nil), .current)
+        XCTAssertEqual(
+            freshness(payloadReleaseId: nil, runningReleaseId: nil), .current)
+    }
+
+    func testMatchingStampsStillExpireOnTheTimeRule() {
+        // freshness LAYERS on isCurrent; it doesn't replace it. Horizon passed.
+        XCTAssertEqual(
+            freshness(reloadAfter: date(50), now: date(100)), .expired)
+        // And an empty timeline is never displayable, stamps notwithstanding.
+        XCTAssertEqual(
+            freshness(entryDates: [], reloadAfter: nil), .expired)
+    }
+}
+
+// ARCH-06: which of two payloads describes the more recent STATE. Ordering by
+// publication time answered a different question and could prefer an older
+// state (a re-render that started before a write can land after it).
+final class NewestPayloadTests: XCTestCase {
+    private func payload(
+        revision: Int, publishedAt: Double
+    ) -> PublishedWidgets {
+        // Decoded from the wire rather than constructed, so these tests also
+        // fail if the stamps stop being decodable.
+        let json = """
+            {"v":1,"publishedAt":\(publishedAt),"stateRevision":\(revision),
+             "widgets":{},"controls":{}}
+            """
+        // swift-format-ignore: NeverForceUnwrap
+        return try! JSONDecoder().decode(
+            PublishedWidgets.self, from: Data(json.utf8))
+    }
+
+    func testNilOperandsFallThrough() {
+        let only = payload(revision: 1, publishedAt: 1)
+        XCTAssertEqual(WidgetSnapshot.newestPayload(nil, only), only)
+        XCTAssertEqual(WidgetSnapshot.newestPayload(only, nil), only)
+        XCTAssertNil(WidgetSnapshot.newestPayload(nil, nil))
+    }
+
+    func testHigherRevisionWinsRegardlessOfPublicationTime() {
+        let older = payload(revision: 9, publishedAt: 100)  // written first
+        let newer = payload(revision: 4, publishedAt: 999)  // written later
+        // The later WRITE describes older state — an in-extension render that
+        // started before an intent's write and finished after it.
+        XCTAssertEqual(WidgetSnapshot.newestPayload(older, newer), older)
+        XCTAssertEqual(WidgetSnapshot.newestPayload(newer, older), older)
+    }
+
+    func testPublicationTimeBreaksTiesWithinOneRevision() {
+        let first = payload(revision: 3, publishedAt: 100)
+        let second = payload(revision: 3, publishedAt: 200)
+        XCTAssertEqual(WidgetSnapshot.newestPayload(first, second), second)
+        XCTAssertEqual(WidgetSnapshot.newestPayload(second, first), second)
+    }
+}
+
+// ARCH-06: the batching rule that keeps "every mutation moves the revision"
+// from costing one cross-process file claim per Storage.set.
+final class StateRevisionTrackerTests: XCTestCase {
+    func testOnlyTheFirstWriteOfABatchBumps() {
+        var tracker = StateRevisionTracker()
+        XCTAssertTrue(tracker.needsBump(), "first write opens the batch")
+        XCTAssertFalse(tracker.needsBump())
+        XCTAssertFalse(tracker.needsBump())
+    }
+
+    func testPublicationRearmsTheNextBatch() {
+        var tracker = StateRevisionTracker()
+        XCTAssertTrue(tracker.needsBump())
+        tracker.notePublished()
+        // A write AFTER a publication must move the revision past the one that
+        // publication stamped — otherwise the stored payload would still claim
+        // to describe the mutated state.
+        XCTAssertTrue(tracker.needsBump())
+        XCTAssertFalse(tracker.needsBump())
+    }
+
+    func testPublicationWithoutWritesLeavesTheBatchArmed() {
+        var tracker = StateRevisionTracker()
+        tracker.notePublished()
+        tracker.notePublished()
+        XCTAssertTrue(tracker.needsBump())
+    }
+
+    // The counter this gates must not be reachable from JS: keys become file
+    // names, so a bundle calling Storage.counterAdd("state", …) would write the
+    // revision itself if both lived in `counters/`.
+    func testTheRevisionCounterHasItsOwnNamespace() {
+        XCTAssertNotEqual(StateRevisionTracker.subdirectory, "counters")
+    }
+}
+
+// ARCH-06: the revision counter is a CoordinatedCounterStore pointed at its own
+// subdirectory. Same monotonic/atomic guarantees as the ARCH-05 counters, and —
+// the point of the separate directory — the same key in the two namespaces is
+// two independent counters.
+final class StateRevisionCounterTests: XCTestCase {
+    func testSameKeyInSeparateSubdirectoriesIsIsolated() {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("revision-tests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let counters = CoordinatedCounterStore(
+            directory: root.appendingPathComponent("counters"))
+        let revision = CoordinatedCounterStore(
+            directory: root.appendingPathComponent(
+                StateRevisionTracker.subdirectory))
+
+        // A bundle doing Storage.counterAdd("state", …) — the exact collision.
+        counters.add(41, toKey: StateRevisionTracker.key, min: 0, max: .max)
+        revision.add(1, toKey: StateRevisionTracker.key, min: 0, max: .max)
+
+        XCTAssertEqual(revision.value(forKey: StateRevisionTracker.key), 1)
+        XCTAssertEqual(counters.value(forKey: StateRevisionTracker.key), 41)
+    }
+
+    func testRevisionOnlyEverMovesForward() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("revision-tests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let store = CoordinatedCounterStore(directory: dir)
+        var last = 0
+        for _ in 0..<5 {
+            let next = store.add(
+                1, toKey: StateRevisionTracker.key, min: 0, max: .max)
+            XCTAssertGreaterThan(next, last)
+            last = next
+        }
+        // Survives the process boundary the app and the extension sit across.
+        XCTAssertEqual(
+            CoordinatedCounterStore(directory: dir)
+                .value(forKey: StateRevisionTracker.key), 5)
+    }
+}
+
 // OP-1: the source<->bytecode pairing hash must be deterministic across launches
 // (so a stale .qbc is detected) and differ for different sources.
 final class ContentHashTests: XCTestCase {
@@ -1141,6 +1355,22 @@ final class SharedWidgetStoreTests: XCTestCase {
     func testLoadIgnoresGarbage() {
         store.save("not json")
         XCTAssertNil(store.loadPublishedWidgets(), "undecodable payload is nil")
+    }
+
+    // ARCH-06: a TimelineProvider must be able to name its OWN release without
+    // booting an engine — the boot is exactly what the freshness check exists
+    // to avoid — so the widget runtime records it here on each boot.
+    func testWidgetReleaseIdRoundTripsAndIgnoresEmpty() {
+        XCTAssertNil(
+            store.widgetReleaseId(),
+            "before the extension has booted, the reader's release is unknown")
+        store.saveWidgetReleaseId("rel-a")
+        XCTAssertEqual(store.widgetReleaseId(), "rel-a")
+        // A nil/empty id means "unknown" — it must not overwrite a known one
+        // with a value that would read as a mismatch-free blank.
+        store.saveWidgetReleaseId(nil)
+        store.saveWidgetReleaseId("")
+        XCTAssertEqual(store.widgetReleaseId(), "rel-a")
     }
 }
 

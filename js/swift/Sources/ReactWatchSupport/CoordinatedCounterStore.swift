@@ -29,8 +29,11 @@ public struct CoordinatedCounterStore: Sendable {
 
     /// Production: resolve the App Group container (nil disables sharing, like
     /// `SharedWidgetStore`). Counters live in a `counters/` subdirectory so they
-    /// never collide with other App Group files.
-    public init(appGroupId: String?) {
+    /// never collide with other App Group files. `subdirectory` carves out a
+    /// separate namespace for a counter that must not be reachable from JS
+    /// (ARCH-06's state revision): keys become file names, so a bundle writing
+    /// the same key through `Storage.counterAdd` would otherwise share the file.
+    public init(appGroupId: String?, subdirectory: String = "counters") {
         // App Group containers are Darwin-only (no `containerURL` in
         // corelibs-foundation); on Linux — where only the pure logic is under
         // test via init(directory:) — sharing is simply disabled.
@@ -38,7 +41,7 @@ public struct CoordinatedCounterStore: Sendable {
         directory = appGroupId.flatMap {
             FileManager.default
                 .containerURL(forSecurityApplicationGroupIdentifier: $0)?
-                .appendingPathComponent("counters", isDirectory: true)
+                .appendingPathComponent(subdirectory, isDirectory: true)
         }
         #else
         directory = nil
