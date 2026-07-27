@@ -145,7 +145,10 @@ the application explicitly marks them mandatory.
 - [ ] Add activation tests for target, entitlement/configuration, OS, optional
       feature, and permission cases.
 
-### [ ] ARCH-02 — Replace import-derived `minHostApi` with an explicit release contract
+### [x] ARCH-02 — Replace import-derived `minHostApi` with an explicit release contract
+
+> *(2026-07-05: shipped — declared `requiredFeatures` in build config, validated `⊆ provided` and stamped into the manifest (the sound half; `declared ⊇ used` deliberately unchecked — ARCH-02 note in the merged backlog). Verification: the merged backlog's build-progress
+> log entry; item-level acceptance is tracked there.)*
 
 **Priority:** P0.
 
@@ -175,7 +178,10 @@ security or compatibility policy.
 - [ ] Reject direct access to raw `__host` from public application code.
 - [ ] Sign the final declared feature sets with the release.
 
-### [ ] ARCH-03 — Build separate app and widget artifacts
+### [x] ARCH-03 — Build separate app and widget artifacts
+
+> *(2026-07-05: shipped — split `app.entry` / `widget.entry`, two emitted bundles, widget bundle carries no `runApp`. Verification: the merged backlog's build-progress
+> log entry; item-level acceptance is tracked there.)*
 
 **Priority:** P0.
 
@@ -208,6 +214,11 @@ sizes, feature requirements, engine constraints, and memory budgets.
       last app-published static timelines and disable JS mutation.
 
 ### [ ] ARCH-04 — Make OTA activation transactional and health-aware
+
+> *(2026-07-05→07: five slices + `keyId` rotation shipped — bytecode hash-binding,
+> read-only validation, crash-loop rollback, atomic `OTARecord` apply,
+> previous-known-good restore (see the merged backlog build log). Open sliver:
+> the explicit `bundleReady` health signal.)*
 
 **Priority:** P0.
 
@@ -248,7 +259,10 @@ dataSchemaRange, signature
 - [ ] Add signing `keyId`, trusted-key set, and a documented rotation path.
 - [ ] Fault-inject every staging/activation boundary.
 
-### [ ] ARCH-05 — Treat persisted UserDefaults JSON as a data schema now
+### [x] ARCH-05 — Treat persisted UserDefaults JSON as a data schema now
+
+> *(2026-07-05: shipped — atomic cross-process counter (`CoordinatedCounterStore` + `Storage.counterAdd`) fixing the app↔widget lost-update. Verification: the merged backlog's build-progress
+> log entry; item-level acceptance is tracked there.)*
 
 **Priority:** P0 if OTA remains enabled; otherwise P1.
 
@@ -381,7 +395,10 @@ isolated sessions without deleting globals manually.
 - [ ] Teardown cancels timers, fetches, sensors, BLE work, and pending promises.
 - [ ] Tests can create sequential sessions without leaked listeners/registries.
 
-### [ ] ARCH-09 — Make navigation JS-confirmed and serialize only active stack screens
+### [x] ARCH-09 — Make navigation JS-confirmed and serialize only active stack screens
+
+> *(2026-07-16: shipped — nav transaction: structured `DispatchResult`, Swift confirm-then-animate, lazy `StackWinners` mounting; measured 152→48 nodes / 1.32→0.52 ms per dispatch. Verification: the merged backlog's build-progress
+> log entry; item-level acceptance is tracked there.)*
 
 **Priority:** P1; breaking UI/lifecycle change.
 
@@ -471,7 +488,10 @@ where their delivery semantics require acknowledgement.
 - [ ] Define backpressure/maximum in-flight requests.
 - [ ] Preserve dedicated streaming channels for sensors/BLE/connectivity events.
 
-### [ ] ARCH-12 — Split WatchConnectivity delivery semantics
+### [x] ARCH-12 — Split WatchConnectivity delivery semantics
+
+> *(2026-07-16: shipped — `updateApplicationContext`/`transferUserInfo` + split inbound channels over one `onPush` wiring. Verification: the merged backlog's build-progress
+> log entry; item-level acceptance is tracked there.)*
 
 **Priority:** P2.
 
@@ -497,7 +517,10 @@ Expose separate APIs:
 - [ ] Return delivery/queue errors through the typed command channel.
 - [ ] Add message IDs and idempotency guidance.
 
-### [ ] ARCH-13 — Add structured diagnostics and operating budgets
+### [x] ARCH-13 — Add structured diagnostics and operating budgets
+
+> *(2026-07-16: shipped — structured `Diagnostic` ring + `BudgetPolicy` warn-only budgets + `onDiagnostic` JS event. Verification: the merged backlog's build-progress
+> log entry; item-level acceptance is tracked there.)*
 
 **Priority:** P1.
 
@@ -528,7 +551,10 @@ decode, commit latency, command latency, widget render time, and rollback count.
 - [ ] Enforce configurable node/JSON/commit/widget-render budgets.
 - [ ] Add diagnostics to inspector snapshots.
 
-### [ ] ARCH-14 — Isolate the unsupported reconciler surface
+### [x] ARCH-14 — Isolate the unsupported reconciler surface
+
+> *(2026-07-17: shipped — `reconcilerAdapter.ts` sole importer, one documented cast, version-matrix doc + upgrade-fixture tests. Verification: the merged backlog's build-progress
+> log entry; item-level acceptance is tracked there.)*
 
 **Priority:** P2.
 
