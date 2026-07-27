@@ -98,6 +98,80 @@ bundle can never run against a newer-schema db. With the **hard** gate, stale JS
 won't boot at all (it shows a native "update required" screen, recoverable via
 `OTAConfig.manifestURL`).
 
+## 4. Health signal — when a bundle is trusted enough to keep (ARCH-04)
+
+A signature proves a bundle is *authentic*. It does not prove it *works*. So
+the watch counts launches: `otaBootAttempts` increments before the OTA bundle
+is evaluated and is cleared only when the bundle is declared **healthy**; at 3
+un-cleared launches the crash-loop guard rolls back to the previous known-good
+bundle, or to the one shipped in the app binary. Being declared healthy is also
+what *promotes* a bundle to that known-good slot. `OTAConfig.healthSignal`
+picks what counts as the declaration:
+
+| Policy | Healthy when | Cost | Catches |
+|---|---|---|---|
+| `.firstCommit` (default) | the first tree renders | nothing — the bundle needs no code | a bundle that can't boot at all |
+| `.explicit` | the bundle calls `markUpdateHealthy()` | you must ship the call | that **plus** a bundle that renders wrongly, or renders and then dies |
+
+```swift
+ReactWatchRootView(ota: OTAConfig(
+    signerPublicKeys: ["k1": "<public>"],
+    healthSignal: .explicit))
+```
+
+```ts
+import { markUpdateHealthy } from "react-watchos";
+
+// AFTER your own smoke checks — never at module top level, where it would
+// confirm nothing more than "the file parsed".
+useEffect(() => {
+  if (dashboardLoaded && !loadError) markUpdateHealthy();
+}, [dashboardLoaded, loadError]);
+```
+
+**There is no timer and no grace period — the counter is the whole
+enforcement.** Under `.explicit`, a bundle that never calls
+`markUpdateHealthy()` is rolled back after 3 launches. That is the contract,
+not a bug: flip the flag and ship the calling bundle in the same release.
+
+Calling `markUpdateHealthy()` on a `.firstCommit` binary is a harmless no-op
+(the commit already blessed the bundle), so a bundle can ship the call
+unconditionally. The policy lives in the **binary**, never in the bundle — for
+the same reason `signerPublicKeys` does: a bundle that could relax its own
+health bar would simply declare itself trustworthy. `getUpdateState()` reports
+which policy the running binary enforces (`healthSignal`) and how many
+un-blessed launches this device has accumulated (`bootAttempts`), so a fleet
+dashboard can see "on explicit, one launch from rollback".
+
+Two boots bless themselves under `.explicit`, because the bar is only
+meaningful for an OTA bundle that has not yet proved itself:
+
+- the **shipped** bundle — it lives inside this code-signed binary and has
+  nothing to confirm. Without this, a counter left non-zero by a dropped OTA
+  would survive into the next staged bundle and roll it back early.
+- an OTA bundle that is **already the known-good snapshot** — so turning the
+  flag on cannot retroactively condemn a bundle that predates the API. Without
+  it, that bundle crash-loops, finds `knownGood == active`, and drops all the
+  way to shipped: a silent downgrade caused purely by a config flip.
+
+The **widget is exempt by design**: it renders the *known-good* record only and
+never touches the boot counter
+([`WidgetBundleChoice.swift`](../js/swift/Sources/ReactWatchSupport/WidgetBundleChoice.swift)),
+so it inherits whatever the app decided and has nothing of its own to confirm.
+`markUpdateHealthy` is `targets: ["watch"]` for that reason.
+
+**Known limit under `.firstCommit`** (the default, accepted): because the first
+commit clears the counter, a bundle that renders and *then* reliably dies —
+QuickJS OOM on the second screen, a trap in a host callback, a runaway effect —
+never accumulates attempts, so the rollback threshold is unreachable for it.
+The obvious fix, "healthy after the first commit **and** T seconds", is wrong
+on watchOS: glance-length sessions are the norm, so a user who opens the app
+for three seconds three times would roll back a perfectly good bundle. Apps
+that care about this case opt into `.explicit`, which closes it as a side
+effect (the confirmation lands after the app's own checks). See
+[prior-art.md](./prior-art.md#prior-art-beyond-the-renderer-confirming-a-boot-is-healthy-arch-04)
+for the precedents this shape follows.
+
 ## Interop is tested
 
 `OTASigningInteropTests` (Swift) verifies a Node-produced signature with

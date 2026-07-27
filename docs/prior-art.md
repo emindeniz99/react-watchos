@@ -72,6 +72,39 @@ graduates out of the playground: React DevTools (`injectIntoDevTools`, as
 r3f/Ink wire up), Suspense for async watch data, and a codemod for wire
 `v:` bumps (Raycast's migration tooling).
 
+## Prior art beyond the renderer: confirming a boot is healthy (ARCH-04)
+
+Not a renderer question, but the same survey-first rule applies (project rule
+3) and this is where the verdicts live. Our OTA layer has to decide when a
+freshly installed bundle has earned the right to stay. Four production systems
+solved it, and all four converged on the *same* shape:
+
+| System | Counter | Blessing |
+|---|---|---|
+| [react-native-code-push](https://github.com/microsoft/react-native-code-push) | install is "pending" until confirmed | `codePush.notifyAppReady()` — an unconfirmed install rolls back on the next launch |
+| [`systemd-bless-boot`](https://www.freedesktop.org/software/systemd/man/systemd-bless-boot.html) | boot counter in the loader entry filename (`+3-0`) | `systemd-bless-boot good` after the boot-complete target |
+| Android A/B `update_engine` | per-slot retry count | `markBootSuccessful()` after the framework comes up |
+| ChromeOS | kernel `tries` field | `chromeos-setgoodkernel` |
+
+The invariant they share: **increment before running the new artifact, clear
+only on an explicit success signal, fall back to the previous slot after N
+failures.** We adopt it wholesale — `otaBootAttempts` is the counter,
+`markHealthy` the bless, the known-good slot the previous artifact.
+
+What we *deliberately* differ on: CodePush's `notifyAppReady` is mandatory
+(rollback is the default and the app must opt out per-install), whereas ours is
+opt-in per binary (`OTAConfig.healthSignal`, default `.firstCommit` = the first
+rendered tree blesses). Reason: CodePush is a library a developer installs
+deliberately, while this renderer's OTA path is on by default for every
+consumer, and a mandatory confirmation would roll back working bundles for
+everyone who never read this page. The trade is documented in
+[ota-signing.md](./ota-signing.md#4-health-signal--when-a-bundle-is-trusted-enough-to-keep-arch-04).
+
+We also skip systemd's *timer*-based grace period. It suits a server that
+stays up; watchOS sessions are glance-length, so "healthy after T seconds of
+uptime" would roll back good bundles for anyone who checks the time and drops
+their wrist.
+
 ## Sources
 
 - React Native render pipeline (Render/Commit/Mount, shadow-tree diff):

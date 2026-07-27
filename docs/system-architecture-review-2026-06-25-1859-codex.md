@@ -213,12 +213,22 @@ sizes, feature requirements, engine constraints, and memory budgets.
 - [ ] If the widget artifact is absent or incompatible, keep displaying the
       last app-published static timelines and disable JS mutation.
 
-### [ ] ARCH-04 — Make OTA activation transactional and health-aware
+### [x] ARCH-04 — Make OTA activation transactional and health-aware
 
-> *(2026-07-05→07: five slices + `keyId` rotation shipped — bytecode hash-binding,
-> read-only validation, crash-loop rollback, atomic `OTARecord` apply,
-> previous-known-good restore (see the merged backlog build log). Open sliver:
-> the explicit `bundleReady` health signal.)*
+> *(2026-07-05→27: CLOSED — six slices + `keyId` rotation shipped: bytecode
+> hash-binding, read-only validation, crash-loop rollback, atomic `OTARecord`
+> apply, previous-known-good restore, and the explicit `bundleReady` health
+> signal (`OTAConfig.healthSignal: .explicit` + `markUpdateHealthy()`). See the
+> merged backlog build log. Accepted limit, owner-signed: under the DEFAULT
+> `.firstCommit` policy the first committed tree clears the boot counter, so a
+> bundle that renders and then reliably dies never reaches the rollback
+> threshold. The "bounded stabilization interval" in the Decision below is
+> deliberately NOT shipped as an unconditional default — watchOS sessions are
+> glance-length, so a bare timer would roll back healthy bundles for anyone who
+> checks the time and drops their wrist. `.explicit` closes the gap for apps
+> that care; if a middle ground is ever wanted it slots in as a third
+> `OTAHealthSignal` case ("first commit AND (T elapsed OR the scene backgrounded
+> cleanly)"), not as a bare timer.)*
 
 **Priority:** P0.
 
@@ -251,13 +261,23 @@ dataSchemaRange, signature
 
 **Acceptance**
 
-- [ ] Verify signature before staging and source hash on every boot.
-- [ ] Key bytecode by source hash and engine ABI.
-- [ ] Validate with a non-mutating host and explicit `bundleReady`.
-- [ ] Keep current and previous known-good release directories.
-- [ ] Track boot attempts/lease and roll back after a defined threshold.
-- [ ] Add signing `keyId`, trusted-key set, and a documented rotation path.
-- [ ] Fault-inject every staging/activation boundary.
+- [x] Verify signature before staging and source hash on every boot.
+      (`OTABootSequencer.stage` verifies before `persist`; `verifyStored` re-verifies
+      at every boot under enforced keys — NF-35.)
+- [x] Key bytecode by source hash and engine ABI. (OP-1: the record pins
+      `bytecodeHash`; a stale blob falls back to the source.)
+- [x] Validate with a non-mutating host and explicit `bundleReady`.
+      (Read-only validation eval at staging; `bundleReady` ships as
+      `OTAConfig.healthSignal: .explicit` + `markUpdateHealthy()`.)
+- [x] Keep current and previous known-good release directories. (`active` /
+      `knownGood` slot stores, promoted on the health signal.)
+- [x] Track boot attempts/lease and roll back after a defined threshold.
+      (`otaBootAttempts`, `maxOTABootAttempts: 3`, `VersionPolicy.crashLoopRecovery`.)
+- [x] Add signing `keyId`, trusted-key set, and a documented rotation path.
+      (CX-007; rotation in [ota-signing.md](./ota-signing.md).)
+- [x] Fault-inject every staging/activation boundary. (`OTABootSequencerTests`:
+      record-write failure, eval throw, bad signature, lapsed expiry, crash-loop,
+      rollback-also-fails, unconfirmed-under-`.explicit`.)
 
 ### [x] ARCH-05 — Treat persisted UserDefaults JSON as a data schema now
 
