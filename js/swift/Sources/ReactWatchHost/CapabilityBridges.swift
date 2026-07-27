@@ -342,9 +342,16 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
 /// without it the system invalidates the session immediately, which surfaces
 /// on the `runtimeSession.state` push event as `invalidated` with a reason.
 final class ExtendedRuntimeBridge: NSObject, WKExtendedRuntimeSessionDelegate {
-    var onState: ((_ state: String, _ reason: String?) -> Void)?
+    var onState: ((_ state: String, _ reason: String?, _ epoch: Int) -> Void)?
     var onWillExpire: (() -> Void)?
     private var session: WKExtendedRuntimeSession?
+
+    /// Monotonic id of the session made by the last successful `start()`;
+    /// 0 = none. A terminal callback carries the epoch of the session it
+    /// belongs to, so the host can settle only the starts parked for THAT
+    /// session — a stale session's callback can no longer settle a start
+    /// parked for the live one.
+    private(set) var epoch = 0
 
     /// Starts a session, or reports `false` when one is already live. The
     /// caller needs that distinction: `start()` is ASYNCHRONOUS (the outcome
@@ -364,22 +371,29 @@ final class ExtendedRuntimeBridge: NSObject, WKExtendedRuntimeSessionDelegate {
         session.delegate = self
         session.start()
         self.session = session
+        epoch += 1
         return true
     }
 
+    /// Invalidates the live session and reports ITS epoch (0 when there was
+    /// none), so a JS-driven stop can settle exactly what was parked for the
+    /// session it just ended instead of leaving those ids to hang.
+    ///
     /// `silent` (used by boot() teardown) detaches the delegate before
     /// invalidating so the didInvalidate callback can't push a stale
     /// `invalidated` state into a freshly booted runtime; a JS-driven stop keeps
     /// emitting the terminal state. start() always makes a new session with its
     /// own delegate, so clearing this one's is safe.
-    func stop(silent: Bool = false) {
-        if silent { session?.delegate = nil }
-        session?.invalidate()
+    @discardableResult func stop(silent: Bool = false) -> Int {
+        guard let live = session else { return 0 }
+        if silent { live.delegate = nil }
+        live.invalidate()
         session = nil
+        return epoch
     }
 
-    func extendedRuntimeSessionDidStart(_: WKExtendedRuntimeSession) {
-        emitState("running", nil)
+    func extendedRuntimeSessionDidStart(_ session: WKExtendedRuntimeSession) {
+        emitState("running", nil, self.epoch(of: session))
     }
 
     func extendedRuntimeSessionWillExpire(_: WKExtendedRuntimeSession) {
@@ -388,20 +402,33 @@ final class ExtendedRuntimeBridge: NSObject, WKExtendedRuntimeSessionDelegate {
     }
 
     func extendedRuntimeSession(
-        _: WKExtendedRuntimeSession,
+        _ session: WKExtendedRuntimeSession,
         didInvalidateWith reason: WKExtendedRuntimeSessionInvalidationReason,
         error: Error?
     ) {
+        let epoch = self.epoch(of: session)
+        // Only clear the reference if THIS is still the live session: a late
+        // callback for a session already replaced by a newer one would
+        // otherwise drop the bridge's handle on the running session, and the
+        // next start() would create a second one with nothing left to
+        // invalidate the first — the orphaning hazard start() guards against.
+        if session === self.session { self.session = nil }
         emitState(
-            "invalidated", error?.localizedDescription ?? "\(reason.rawValue)")
-        session = nil
+            "invalidated", error?.localizedDescription ?? "\(reason.rawValue)",
+            epoch)
+    }
+
+    /// The epoch a delegate callback belongs to. A session that is no longer
+    /// the current one reports 0, which can never match a parked start.
+    private func epoch(of session: WKExtendedRuntimeSession) -> Int {
+        session === self.session ? epoch : 0
     }
 
     /// onState calls into the @MainActor model; hop to main (Swift 6 strict
     /// concurrency), matching SensorBridge's nonisolated(unsafe) convention.
-    private func emitState(_ state: String, _ reason: String?) {
+    private func emitState(_ state: String, _ reason: String?, _ epoch: Int) {
         nonisolated(unsafe) let handler = onState
-        DispatchQueue.main.async { handler?(state, reason) }
+        DispatchQueue.main.async { handler?(state, reason, epoch) }
     }
 }
 

@@ -329,11 +329,12 @@ final class ReactWatchModel {
         audioBridge.onFinished = { [weak self] in
             self?.pushNativeEvent("audio.finished")
         }
-        extendedRuntime.onState = { [weak self] state, reason in
+        extendedRuntime.onState = { [weak self] state, reason, epoch in
             // Settle the parked start invokes from the REAL lifecycle before
             // publishing the state, so `await startExtendedRuntimeSession()`
             // means "running" rather than "the request was submitted".
-            self?.settleRuntimeSessionStarts(state: state, reason: reason)
+            self?.settleRuntimeSessionStarts(
+                state: state, reason: reason, epoch: epoch)
             var payload: [String: Any] = ["state": state]
             if let reason { payload["reason"] = reason }
             self?.pushNativeEvent("runtimeSession.state", payload: payload)
@@ -843,15 +844,18 @@ final class ReactWatchModel {
         []
 
     /// Invoke ids awaiting the extended-runtime session's start outcome, each
-    /// stamped with the generation it was requested in. `WKExtendedRuntimeSession
-    /// .start()` is asynchronous and has no completion handler — only the
-    /// `extendedRuntimeSessionDidStart` / `didInvalidateWith` delegate callbacks
-    /// — so the correlation lives here, exactly like the APNs parking above:
-    /// ONE delegate callback settles every pending start, and a callback landing
-    /// after a dev-reload drops stale ids instead of settling the fresh
-    /// runtime's reused id space (CX-008).
-    @ObservationIgnored private var pendingRuntimeSessionStarts: [(id: Int, generation: Int)] =
-        []
+    /// stamped with the generation it was requested in AND the session epoch it
+    /// belongs to. `WKExtendedRuntimeSession.start()` is asynchronous and has no
+    /// completion handler — only the `extendedRuntimeSessionDidStart` /
+    /// `didInvalidateWith` delegate callbacks — so the correlation lives here,
+    /// like the APNs parking above. Unlike APNs, the identity is per-SESSION,
+    /// not just per-generation: a terminal callback settles only the starts
+    /// parked for the session it came from, so the previous session's late
+    /// `invalidated` cannot reject a start parked for a new, still-healthy one.
+    /// A callback landing after a dev-reload still drops stale ids instead of
+    /// settling the fresh runtime's reused id space (CX-008).
+    @ObservationIgnored
+    private var pendingRuntimeSessionStarts: [(id: Int, generation: Int, epoch: Int)] = []
 
     /// Registers this launch with APNs and parks the invoke until the
     /// delegate reports the token (`remotePushDidRegister`) or the failure
@@ -2177,23 +2181,40 @@ extension ReactWatchModel {
                     message: "an extended runtime session is already active"))
             return
         }
-        pendingRuntimeSessionStarts.append((id: id, generation: generation))
+        pendingRuntimeSessionStarts.append(
+            (id: id, generation: generation, epoch: extendedRuntime.epoch))
     }
 
-    /// Settles every parked `startExtendedRuntimeSession` of the current
-    /// generation from the session's terminal-ish states: `running` resolves,
-    /// `invalidated` rejects UNAVAILABLE with the system's reason — which is
-    /// what a consumer who forgot the Info.plist runtime-session reason
-    /// actually hits, and what used to look like a successful start.
+    /// Settles the parked `startExtendedRuntimeSession`s that belong to the
+    /// session this callback came from (`epoch`), in the current generation,
+    /// from its terminal-ish states: `running` resolves, `invalidated` rejects
+    /// UNAVAILABLE with the system's reason — which is what a consumer who
+    /// forgot the Info.plist runtime-session reason actually hits, and what
+    /// used to look like a successful start.
     /// A `stopExtendedRuntimeSession` before the session started invalidates
     /// it, so the pending start rejects rather than hanging to its watchdog.
+    ///
+    /// Keying on the session, not just the generation, is what stops a stop-
+    /// then-restart from rejecting a HEALTHY session: `stop()` clears the
+    /// bridge's reference synchronously and resolves the stop invoke on the
+    /// same main-thread work item, so JS restarting on that resolve parks its
+    /// id before the old session's queued `invalidated` block ever runs. With
+    /// only a generation to compare, that block rejected the new session's
+    /// start ("the extended runtime session was invalidated: …") while the
+    /// session was running, and the later `running` callback found nothing
+    /// left to resolve. Starts parked on OTHER sessions stay parked.
     /// Stale generations drop (CX-008); `boot()`'s `stop(silent:)` detaches the
     /// delegate, so a reload produces no callback here at all.
-    private func settleRuntimeSessionStarts(state: String, reason: String?) {
+    private func settleRuntimeSessionStarts(
+        state: String, reason: String?, epoch: Int
+    ) {
         guard state == "running" || state == "invalidated" else { return }
         let pending = pendingRuntimeSessionStarts
-        pendingRuntimeSessionStarts = []
-        for entry in pending where entry.generation == generation {
+        pendingRuntimeSessionStarts = pending.filter {
+            $0.generation == generation && $0.epoch != epoch
+        }
+        for entry in pending
+        where entry.generation == generation && entry.epoch == epoch {
             if state == "running" {
                 runtime?.resolveInvoke(id: entry.id, resultJson: "null")
             } else {
@@ -2208,7 +2229,15 @@ extension ReactWatchModel {
     }
 
     func handleStopExtendedRuntimeSession(id: Int) {
-        extendedRuntime.stop()
+        // Settle BEFORE resolving the stop: `stop()` reports the epoch it just
+        // ended, so the starts parked on that session drain on THIS turn, and
+        // the JS that restarts on the stop's resolve parks under a fresh epoch
+        // the old session's late `invalidated` can no longer touch. A stop with
+        // no live session reports 0 and settles nothing.
+        let stopped = extendedRuntime.stop()
+        settleRuntimeSessionStarts(
+            state: "invalidated", reason: "the session was stopped",
+            epoch: stopped)
         runtime?.resolveInvoke(id: id, resultJson: "null")
     }
 
