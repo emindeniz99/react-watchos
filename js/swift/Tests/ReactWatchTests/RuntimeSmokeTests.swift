@@ -331,6 +331,11 @@ final class RuntimeSmokeTests: XCTestCase {
     // background thread.
     func testEntriesFromAnyThreadSerializeOntoOwningQueue() throws {
         let runtime = try JSRuntime(target: .widget)
+        // A .widget runtime owns a PRIVATE queue, and this test body runs on
+        // the test thread — exactly the release-off-queue shape shutdown()
+        // exists for (ARCH-08). Every production owner of a private-queue
+        // runtime does the same.
+        defer { runtime.shutdown() }
         try runtime.evaluate("globalThis.n = 41")
         let done = expectation(description: "background entry")
         // The runtime is confined by its owning queue, which is exactly what
@@ -352,6 +357,7 @@ final class RuntimeSmokeTests: XCTestCase {
         let marker = DispatchSpecificKey<Bool>()
         queue.setSpecific(key: marker, value: true)
         let runtime = try JSRuntime(queue: queue)
+        defer { runtime.shutdown() }
 
         let fired = expectation(description: "timer fired")
         nonisolated(unsafe) var onOwningQueue: Bool?
@@ -393,5 +399,109 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertEqual(
             runtime.evaluateString("JSON.stringify(order)"),
             #"["resolve:1","after-invoke","microtask"]"#)
+    }
+
+    // MARK: - ARCH-08: queue-confined shutdown
+
+    // The reason shutdown() exists. `deinit` runs on whatever thread drops the
+    // last reference — for the OTA validator/compiler and the widget runtime
+    // that is a WidgetKit/staging thread, NOT the runtime's private owning
+    // queue. A bundle whose module init arms a setTimeout leaves a live
+    // DispatchSourceTimer on that queue, so freeing the engine from the other
+    // thread raced the timer handler (which mutates the same pendingTimers
+    // dictionary and re-enters the context via __fireTimer): a data race plus
+    // a use-after-free reachable from a signed-but-hostile OTA bundle.
+    // shutdown() cancels the timer ON the owning queue, so the handler has
+    // either fully run before it or never runs at all.
+    func testShutdownFromAnotherThreadCancelsAnArmedTimer() throws {
+        let queue = DispatchQueue(label: "test.ota-validate")
+        let runtime = try JSRuntime(queue: queue)
+        nonisolated(unsafe) var fires = 0
+        nonisolated(unsafe) var refusals: [String] = []
+        runtime.bridge.log = { _ in fires += 1 }
+        runtime.onError = { source, message in
+            if source == "shutdown" { refusals.append(message) }
+        }
+        // Exactly the staged-bundle shape: a timer armed during evaluate().
+        try runtime.evaluate(
+            #"""
+            globalThis.__fireTimer = (id) => { __host.log("fired " + id); };
+            __host.setTimer(1, 20);
+            """#)
+
+        nonisolated(unsafe) let r = runtime
+        let done = expectation(description: "shut down off-queue")
+        DispatchQueue.global().async {
+            r.shutdown()
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+
+        // Well past the 20ms deadline (plus its leeway): the source was
+        // cancelled on the owning queue, so __fireTimer never ran.
+        let settled = expectation(description: "deadline passed")
+        queue.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
+        wait(for: [settled], timeout: 5)
+        XCTAssertEqual(fires, 0, "a cancelled timer must not fire after shutdown")
+        // The source was CANCELLED, not merely refused at the JS entry: a
+        // handler that still ran would have been turned away by the
+        // use-after-shutdown guard and reported here. On device that handler
+        // would be racing JS_FreeRuntime on another thread, which no entry
+        // guard can save us from — the cancel is the actual fix.
+        XCTAssertEqual(refusals, [], "the timer source itself must be cancelled")
+    }
+
+    // Idempotent, and safe to call from the owning queue after an off-queue
+    // shutdown — the deinit that follows must find nothing left to free rather
+    // than double-freeing the context.
+    func testShutdownIsIdempotent() throws {
+        let runtime = try JSRuntime(queue: DispatchQueue(label: "test.shutdown"))
+        try runtime.evaluate("globalThis.n = 1")
+        runtime.shutdown()
+        runtime.shutdown()
+        runtime.shutdown()
+    }
+
+    // Rule 12: an entry after shutdown is a bug at the CALL SITE (every site
+    // drops its runtime immediately after shutting it down), so it must report
+    // rather than quietly return a default — and above all must not dereference
+    // the freed context.
+    func testEntriesAfterShutdownFailLoudly() throws {
+        let runtime = try JSRuntime(queue: DispatchQueue(label: "test.after"))
+        try runtime.evaluate("globalThis.n = 1")
+        nonisolated(unsafe) var reported: [String] = []
+        runtime.onError = { source, message in reported.append("\(source):\(message)") }
+        runtime.shutdown()
+
+        XCTAssertThrowsError(try runtime.evaluate("globalThis.n = 2")) { error in
+            guard case JSRuntime.JSError.shutdown = error else {
+                return XCTFail("expected .shutdown, got \(error)")
+            }
+        }
+        XCTAssertFalse(runtime.evaluateBool("true"))
+        XCTAssertNil(runtime.evaluateString("'x'"))
+        XCTAssertNil(runtime.compileToBytecode("1 + 1"))
+        // The JS_Call bridge (dispatchEvent/push/resolve*/reject*) refuses too.
+        XCTAssertFalse(runtime.pushNativeEventReturning("anything"))
+        XCTAssertNil(runtime.dispatchEventReturning(nodeId: 1, event: "press"))
+        XCTAssertEqual(reported.count, 6, "each refused entry reports once: \(reported)")
+        XCTAssertTrue(reported.allSatisfy { $0.hasPrefix("shutdown:") })
+    }
+
+    // The DEBUG assertion in deinit fires when a runtime is released off its
+    // owning queue WITHOUT a prior shutdown. The passing path — shut down from
+    // any thread first, then let ARC drop it from anywhere — must stay quiet,
+    // which is what every call site relies on (`defer { validator.shutdown() }`,
+    // WidgetIntentRuntime.deinit, boot()'s `runtime?.shutdown()`).
+    func testReleaseAfterShutdownIsQuietFromAnyThread() throws {
+        let done = expectation(description: "released off-queue")
+        DispatchQueue.global().async {
+            // Created AND released on a thread that is not the owning queue —
+            // the OTA-validator shape.
+            let runtime = try? JSRuntime(queue: DispatchQueue(label: "test.release"))
+            runtime?.shutdown()
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
     }
 }

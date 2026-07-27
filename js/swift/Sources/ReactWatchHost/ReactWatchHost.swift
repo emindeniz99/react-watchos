@@ -251,13 +251,30 @@ final class ReactWatchModel {
                     memoryLimitBytes: 64 * 1024 * 1024,
                     queue: DispatchQueue(label: "react.watch.ota-validate"),
                     allowedFeatures: effectiveFeatures)
+                // ARCH-08 §3.E: shut the throwaway runtime down EXPLICITLY,
+                // even when evaluate() throws. The bundle we just ran is
+                // attacker-influenced (signed, but not ours), and its module
+                // init may have armed a setTimeout — leaving a live
+                // DispatchSourceTimer on this private queue. Dropping the
+                // validator on the staging thread would then free the engine
+                // from off-queue while that timer's handler re-entered it.
+                // `defer` runs on the owning queue via shutdown()'s hop, before
+                // ARC releases the local.
+                defer { validator.shutdown() }
                 try validator.evaluate(source)
             },
             compile: { source in
-                (try? JSRuntime(
-                    memoryLimitBytes: 64 * 1024 * 1024,
-                    queue: DispatchQueue(label: "react.watch.ota-compile")))?
-                    .compileToBytecode(source)
+                guard
+                    let compiler = try? JSRuntime(
+                        memoryLimitBytes: 64 * 1024 * 1024,
+                        queue: DispatchQueue(label: "react.watch.ota-compile"))
+                else { return nil }
+                // Compile-only never RUNS the bundle, so no timer can be armed
+                // here — but the runtime is still released on the staging
+                // thread, so shut it down on its own queue for the same reason
+                // and to keep all four sites on one rule.
+                defer { compiler.shutdown() }
+                return compiler.compileToBytecode(source)
             }
         )
     }
@@ -353,6 +370,13 @@ final class ReactWatchModel {
         audioBridge.stop()
         speechBridge.stop(silent: true)
         extendedRuntime.stop(silent: true)
+        // ARCH-08: free QuickJS explicitly, and ORDERED relative to the native
+        // teardown above, instead of leaving it implicit in ARC. boot() is
+        // @MainActor and this runtime's owning queue IS main, so shutdown()
+        // runs inline here — no hop, no deadlock — and any timer the outgoing
+        // bundle armed is cancelled before the next generation's context
+        // exists. `runtime = nil` then drops an already-shut-down object.
+        runtime?.shutdown()
         runtime = nil
         root = nil
         latestFatal = nil
@@ -1667,6 +1691,15 @@ final class ReactWatchModel {
     }()
     @ObservationIgnored private var devTask: Task<Void, Never>?
     @ObservationIgnored private var lastDevBundle: String?
+
+    /// The dev-reload poll is the one thing that outlived this model. The task
+    /// captures `[weak self]` — so there is no retain cycle and nothing kept
+    /// the model alive — but nobody cancelled it either, so after the model
+    /// went away the loop kept waking every 2 s to hit the dev server forever.
+    /// DEBUG-only, exactly like the loop it cancels.
+    deinit {
+        devTask?.cancel()
+    }
 
     private func startDevReload() {
         guard devTask == nil else { return }

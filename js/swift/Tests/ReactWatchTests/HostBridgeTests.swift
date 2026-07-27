@@ -197,6 +197,9 @@ final class HostBridgeTests: XCTestCase {
         // (typeof __host.fetch) wrongly report them present — and a call would
         // hang on a no-op instead of failing loudly. The widget target omits them.
         let widget = try JSRuntime(target: .widget)
+        // Private owning queue, released from the test thread: shut it down
+        // explicitly (ARCH-08), like every production owner of one.
+        defer { widget.shutdown() }
         for name in [
             "commit", "log", "setTimer", "clearTimer", "invoke", "publishWidgets",
             "getItem", "setItem", "counterGet", "counterAdd", "stateRevision",
@@ -258,6 +261,7 @@ final class HostBridgeTests: XCTestCase {
         // Policy composes with target filtering: the widget's watch-only
         // omissions still hold, and the allowlist gates the rest.
         let widget = try JSRuntime(target: .widget, allowedFeatures: ["widgets"])
+        defer { widget.shutdown() }
         XCTAssertTrue(widget.evaluateBool("typeof __host.publishWidgets === 'function'"))
         XCTAssertTrue(widget.evaluateBool("typeof __host.commit === 'function'"))
         XCTAssertTrue(widget.evaluateBool("typeof __host.getItem === 'undefined'"))

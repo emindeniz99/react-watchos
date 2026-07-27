@@ -224,6 +224,17 @@ public final class WidgetIntentRuntime {
         }
     }
 
+    /// ARCH-08 §3.E: this runtime owns a PRIVATE queue (`react.watch.widget-js`)
+    /// and is created and driven from whatever WidgetKit provider/intent thread
+    /// happens to be running, so the thread that drops the last reference is
+    /// almost never the owning queue. Freeing the QuickJS heap from there is a
+    /// race against anything still scheduled on that queue. `shutdown()` hops
+    /// onto it and is idempotent, so JSRuntime's own deinit then has nothing
+    /// left to do.
+    deinit {
+        js.shutdown()
+    }
+
     /// Exposes the widget target's capability set + bridge protocol to JS before
     /// the bundle runs (ARCH-01), mirroring the app's installHostCapabilities so
     /// the same JS gate logic sees a consistent host. Publishes the EFFECTIVE

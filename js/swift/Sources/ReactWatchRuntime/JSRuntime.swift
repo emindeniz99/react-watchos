@@ -19,6 +19,9 @@ public final class JSRuntime {
     public enum JSError: Error {
         case initialization
         case exception(String)
+        /// The runtime was already `shutdown()` — its context and heap are
+        /// freed, so the entry was refused rather than dereferencing them.
+        case shutdown
     }
 
     /// Every synchronous `__host` callback, GENERATED from codegen/schema.ts
@@ -61,11 +64,20 @@ public final class JSRuntime {
     /// hop with `sync` — and timers fire on it, so a cross-thread caller can no
     /// longer corrupt the engine heap (the old DEBUG-assert-only protection).
     public let owningQueue: DispatchQueue
+    /// Whether `owningQueue` is the main queue — see the init note on why this
+    /// is captured instead of compared.
+    private let owningQueueIsMain: Bool
     /// Armed JS timers by id. DispatchSourceTimer (not asyncAfter work items)
     /// so each timer carries LEEWAY — see scheduleTimer. All access is on the
     /// owning queue: setTimer/clearTimer arrive through JS entries and the
     /// sources fire on owningQueue.
     private var pendingTimers: [Int32: DispatchSourceTimer] = [:]
+    /// Set by `shutdown()`; read and written ONLY on the owning queue (the one
+    /// exception is `deinit`'s DEBUG assertion, where by definition no other
+    /// reference to this object exists). Once true, the context and runtime
+    /// pointers are dangling and every JS entry must refuse instead of using
+    /// them.
+    private var didShutdown = false
 
     /// Selects the Swift→JS call mechanism (CR-5). true: direct `JS_Call` on
     /// cached global functions — no per-call parse/compile, and not the
@@ -103,10 +115,19 @@ public final class JSRuntime {
         context = ctx
         self.target = target
         self.allowedFeatures = allowedFeatures
-        owningQueue =
+        let resolvedQueue =
             queue
             ?? (target == .widget
                 ? DispatchQueue(label: "react.watch.widget-js") : .main)
+        owningQueue = resolvedQueue
+        // Recorded here rather than compared later: `DispatchQueue.main` does
+        // NOT have a stable object identity on Linux (each access wraps the
+        // underlying queue in a fresh Swift object), so `owningQueue ===
+        // DispatchQueue.main` answered false there for the app runtime — which
+        // made `isOnOwningQueue` say "off queue" on the main thread and left
+        // the shutdown assertion untestable off Apple platforms.
+        owningQueueIsMain =
+            (queue == nil && target != .widget) || resolvedQueue === DispatchQueue.main
         // Tag the queue so `isOnOwningQueue` can recognize it from inside a
         // running block (same-value re-tagging is idempotent for shared queues).
         owningQueue.setSpecific(
@@ -124,11 +145,69 @@ public final class JSRuntime {
         JS_SetHostPromiseRejectionTracker(rt, promiseRejectionTracker, nil)
     }
 
-    deinit {
+    /// Releases the engine deterministically, ON the owning queue (ARCH-08).
+    ///
+    /// `deinit` alone was not enough. It did the right WORK, but it runs on
+    /// whatever thread drops the last reference. For the app runtime that is
+    /// main by luck (`boot()` is `@MainActor` and `owningQueue == .main`); for
+    /// the three private-queue runtimes — the OTA validator, the OTA compiler
+    /// and the widget runtime — it is NOT the owning queue. A staged bundle
+    /// that arms a `setTimeout` at module scope leaves a live
+    /// `DispatchSourceTimer` on the validate queue, so dropping the validator
+    /// on the staging thread mutated `pendingTimers` concurrently with that
+    /// source's handler (which does its own `removeValue`) and called
+    /// `JS_FreeRuntime` while `bridgeCall("__fireTimer", …)` could be
+    /// re-entering the context: a data race plus a use-after-free, reachable
+    /// from a signed-but-hostile OTA bundle.
+    ///
+    /// Idempotent, and callable from any thread. A caller already on the
+    /// owning queue runs inline — that is what lets `deinit` call this without
+    /// risking a `sync`-onto-itself deadlock — and anyone else is serialized
+    /// behind the queue. Serialization is the whole point: a timer handler has
+    /// either run to completion before this block or is cancelled by it, never
+    /// interleaved with it.
+    ///
+    /// Deliberately does NOT route through `onOwningQueue`: that helper calls
+    /// `JS_UpdateStackTop(runtime)` before running its body, which would be a
+    /// use-after-free on a second `shutdown()`.
+    public func shutdown() {
+        if isOnOwningQueue {
+            performShutdown()
+        } else {
+            owningQueue.sync { performShutdown() }
+        }
+    }
+
+    /// The teardown itself. MUST be on the owning queue; `shutdown()` is the
+    /// only caller and is what guarantees that.
+    private func performShutdown() {
+        guard !didShutdown else { return }
+        didShutdown = true
         pendingTimers.values.forEach { $0.cancel() }
+        pendingTimers.removeAll()
         globalFnCache.values.forEach { JS_FreeValue(context, $0) }
+        globalFnCache.removeAll()
         JS_FreeContext(context)
         JS_FreeRuntime(runtime)
+    }
+
+    deinit {
+        // Every call site that owns a runtime on a private queue calls
+        // `shutdown()` explicitly (OTA validate/compile, WidgetIntentRuntime,
+        // and `boot()` before `runtime = nil`), so by the time we get here the
+        // work is normally already done and this is a no-op. If it isn't, the
+        // object is being released on a thread that may not own the engine —
+        // trap in DEBUG so the new call site is fixed at its source rather than
+        // silently relying on the `sync` hop below to paper over a race we can
+        // only serialize, not undo (a hop from a thread that holds something
+        // the owning queue needs would deadlock instead).
+        #if DEBUG
+        assert(
+            didShutdown || isOnOwningQueue,
+            "JSRuntime released off its owning queue without shutdown() — "
+                + "call shutdown() on the owning queue before dropping it")
+        #endif
+        shutdown()
     }
 
     #if canImport(os)
@@ -171,6 +250,9 @@ public final class JSRuntime {
 
     public func evaluate(_ code: String, filename: String = "bundle.js") throws {
         try withJSEntry {
+            if refuseAfterShutdown("evaluate(\(filename))") {
+                throw JSError.shutdown
+            }
             #if canImport(os)
             let t0 = DispatchTime.now()
             #endif
@@ -208,6 +290,7 @@ public final class JSRuntime {
     /// source if this throws.
     public func evaluateBytecode(_ data: Data) throws {
         try withJSEntry {
+            if refuseAfterShutdown("evaluateBytecode") { throw JSError.shutdown }
             #if canImport(os)
             let t0 = DispatchTime.now()
             #endif
@@ -243,6 +326,7 @@ public final class JSRuntime {
     /// fall back to parsing the source. nil if `source` doesn't compile.
     public func compileToBytecode(_ source: String) -> Data? {
         onOwningQueue {
+            if refuseAfterShutdown("compileToBytecode") { return nil }
             let compiled = source.withCString { ptr in
                 JS_Eval(
                     context, ptr, strlen(ptr), "bundle.js",
@@ -365,6 +449,7 @@ public final class JSRuntime {
     /// Used by the widget extension's intent path (__handleIntent).
     public func evaluateBool(_ code: String) -> Bool {
         withJSEntry {
+            if refuseAfterShutdown("evaluateBool") { return false }
             let result = code.withCString {
                 JS_Eval(context, $0, strlen($0), "eval.js", qjs_eval_type_global())
             }
@@ -381,6 +466,7 @@ public final class JSRuntime {
     /// Used by the widget extension's intent path (__renderWidgets).
     public func evaluateString(_ code: String) -> String? {
         withJSEntry {
+            if refuseAfterShutdown("evaluateString") { return nil }
             let result = code.withCString {
                 JS_Eval(context, $0, strlen($0), "eval.js", qjs_eval_type_global())
             }
@@ -471,6 +557,7 @@ public final class JSRuntime {
         _ name: String, _ args: [JSArg], convert: (JSValue) -> T
     ) -> T? {
         withJSEntry {
+            if refuseAfterShutdown("call \(name)") { return nil }
             let values = args.map(makeValue)
             let fn = cachedGlobalFunction(name)
             guard JS_IsFunction(context, fn) else {
@@ -631,7 +718,7 @@ public final class JSRuntime {
     /// aren't dispatched blocks) keep counting as "on main" — exactly the
     /// audited pre-M1 semantics for the app runtime.
     private var isOnOwningQueue: Bool {
-        if owningQueue === DispatchQueue.main { return Thread.isMainThread }
+        if owningQueueIsMain { return Thread.isMainThread }
         return DispatchQueue.getSpecific(key: Self.queueMarker)
             == ObjectIdentifier(owningQueue)
     }
@@ -641,9 +728,13 @@ public final class JSRuntime {
     /// re-entrant JS entries like an inline invoke settle working), a `sync`
     /// hop otherwise. This replaces the old DEBUG main-thread assertion with a
     /// structural guarantee: a cross-thread caller is serialized, not trapped.
+    /// The stack-guard re-anchor is skipped after `shutdown()` — `runtime` is
+    /// freed by then, and every caller's body refuses the entry anyway
+    /// (`refuseAfterShutdown`), so the only thing left to avoid is touching the
+    /// dangling pointer on the way in.
     private func onOwningQueue<T>(_ body: () throws -> T) rethrows -> T {
         if isOnOwningQueue {
-            if jsEntryDepth == 0 { JS_UpdateStackTop(runtime) }
+            if jsEntryDepth == 0 && !didShutdown { JS_UpdateStackTop(runtime) }
             return try body()
         }
         return try owningQueue.sync {
@@ -656,9 +747,21 @@ public final class JSRuntime {
             // tests catch this; the widget runtime is called from varying
             // WidgetKit threads in production). Depth-gated so a nested
             // re-entry can't loosen the guard mid-recursion.
-            if jsEntryDepth == 0 { JS_UpdateStackTop(runtime) }
+            if jsEntryDepth == 0 && !didShutdown { JS_UpdateStackTop(runtime) }
             return try body()
         }
+    }
+
+    /// Fail-loud gate for every JS entry, evaluated INSIDE the confinement (so
+    /// it reads `didShutdown` on the owning queue). Reports through `onError`
+    /// like any other refused entry and returns true when the caller must bail.
+    /// No legitimate caller can hit this — each shutdown site drops its runtime
+    /// immediately after — so a report here means a new call site kept a
+    /// reference it shouldn't have.
+    private func refuseAfterShutdown(_ what: String) -> Bool {
+        guard didShutdown else { return false }
+        onError?("shutdown", "\(what) after JSRuntime.shutdown()")
+        return true
     }
 
     /// Runs `body` as one JS entry on the owning queue; the microtask queue
@@ -669,7 +772,10 @@ public final class JSRuntime {
             jsEntryDepth += 1
             defer {
                 jsEntryDepth -= 1
-                if jsEntryDepth == 0 { drainJobs() }
+                // A body that refused because the runtime is shut down leaves
+                // nothing to drain, and JS_ExecutePendingJob would be reading a
+                // freed runtime.
+                if jsEntryDepth == 0 && !didShutdown { drainJobs() }
             }
             return try body()
         }
