@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { type InvokeErrorCode, invoke } from "../src/invoke";
 import { installMockHost } from "./helpers";
@@ -188,5 +190,56 @@ describe("invoke timeout net (NF-01)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+/**
+ * The closed code set spans two languages, and until now only ONE side was
+ * machine-checked: SupportTests.swift compares `InvokeErrorCode.allCases`
+ * against a literal Swift array, so a member added to the TS union alone (plus
+ * the `INVOKE_ERROR_CODES` Record, which tsc forces) left every test green
+ * while JS advertised a code no bridge can emit — any
+ * `if (e.code === "NEW_CODE")` a consumer writes is then silently dead. This
+ * closes the TS -> Swift direction, the way codegen.test.ts pins
+ * HostInvokeFeatures against the schema.
+ */
+describe("InvokeErrorCode is the same closed set in TS and Swift", () => {
+  /** `INVOKE_ERROR_CODES` is `Record<InvokeErrorCode, true>`, so tsc already
+   *  forces its keys to be exactly the union — reading them from source is a
+   *  faithful image of the union without widening the public API. */
+  function tsCodes(): string[] {
+    const src = readFileSync(join(__dirname, "..", "src", "invoke.ts"), "utf8");
+    const start = src.indexOf("const INVOKE_ERROR_CODES");
+    expect(start).toBeGreaterThan(-1);
+    const block = src.slice(start, src.indexOf("};", start));
+    return [...block.matchAll(/(\w+): true/g)]
+      .map((m) => m[1] as string)
+      .sort();
+  }
+
+  function swiftCodes(): string[] {
+    const src = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "swift",
+        "Sources",
+        "ReactWatchSupport",
+        "InvokeErrorJSON.swift",
+      ),
+      "utf8",
+    );
+    const start = src.indexOf("public enum InvokeErrorCode");
+    expect(start).toBeGreaterThan(-1);
+    const block = src.slice(start, src.indexOf("\n}", start));
+    return [...block.matchAll(/case\s+`?\w+`?\s*=\s*"(\w+)"/g)]
+      .map((m) => m[1] as string)
+      .sort();
+  }
+
+  it("neither side carries a code the other cannot", () => {
+    const ts = tsCodes();
+    expect(ts.length).toBeGreaterThan(0);
+    expect(swiftCodes()).toEqual(ts);
   });
 });

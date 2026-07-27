@@ -77,8 +77,10 @@ final class InvokeErrorJSONTests: XCTestCase {
 
     /// The set is closed at RUNTIME now, not just in the TS type: every code a
     /// bridge can emit is an enum case, and its wire spelling is the exact
-    /// string js/src/invoke.ts's `InvokeErrorCode` union lists. A member added
-    /// on one side without the other fails here.
+    /// string js/src/invoke.ts's `InvokeErrorCode` union lists. This pins the
+    /// spellings themselves (a renamed case fails here); the cross-language
+    /// set equality — a member added to EITHER side alone — is pinned by
+    /// js/test/invoke.test.ts, which reads both sources.
     func testCodeSpellingsMatchTheJSUnion() {
         XCTAssertEqual(
             Set(InvokeErrorCode.allCases.map(\.rawValue)),
