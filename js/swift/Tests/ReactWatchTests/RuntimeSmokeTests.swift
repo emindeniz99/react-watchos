@@ -488,6 +488,73 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertTrue(reported.allSatisfy { $0.hasPrefix("shutdown:") })
     }
 
+    // ARCH-08 follow-up: shutdown() from INSIDE a live JS entry.
+    // A shutdown() from a bridge closure runs on the owning queue with JS_Eval
+    // live on the C stack. Freeing there aborted in JS_FreeRuntime.
+    func testShutdownFromInsideLiveJSEntryIsDeferred() throws {
+        let runtime = try JSRuntime(queue: DispatchQueue(label: "t.entry"))
+        nonisolated(unsafe) let r = runtime
+        nonisolated(unsafe) var refusals: [String] = []
+        r.onError = { source, message in
+            if source == "shutdown" { refusals.append(message) }
+        }
+        r.bridge.log = { _ in r.shutdown() }
+        try r.evaluate(#"""
+            __host.log("x");
+            let s = null;
+            for (let i = 0; i < 20000; i++) { s = { i, s: String(i) }; }
+            globalThis.after = s.i;
+        """#)
+        // The entry that requested the shutdown ran to completion...
+        XCTAssertEqual(refusals, [])
+        // ...and the free happened on the way out, so the next entry refuses.
+        XCTAssertThrowsError(try r.evaluate("globalThis.n = 1")) { error in
+            guard case JSRuntime.JSError.shutdown = error else {
+                return XCTFail("expected .shutdown, got \(error)")
+            }
+        }
+        r.shutdown()
+    }
+
+    // The microtask drain runs at jsEntryDepth 0 by construction, so a depth
+    // check alone does not cover a host closure reached from a job.
+    func testShutdownFromInsideDrainJobsIsDeferred() throws {
+        let runtime = try JSRuntime(queue: DispatchQueue(label: "t.drain"))
+        nonisolated(unsafe) let r = runtime
+        r.bridge.log = { _ in r.shutdown() }
+        try r.evaluate(#"""
+            Promise.resolve().then(() => {
+              __host.log("m");
+              let s = null;
+              for (let i = 0; i < 20000; i++) { s = { i, s: String(i) }; }
+              globalThis.after = s.i;
+            });
+        """#)
+        XCTAssertFalse(r.evaluateBool("true"), "runtime must be shut down by now")
+        r.shutdown()
+    }
+
+    // The deferred free must actually happen — a request from inside JS that
+    // only ever set a flag would leak the engine and its armed timers.
+    func testDeferredShutdownStillCancelsAnArmedTimer() throws {
+        let queue = DispatchQueue(label: "t.timer")
+        let runtime = try JSRuntime(queue: queue)
+        nonisolated(unsafe) let r = runtime
+        nonisolated(unsafe) var fires = 0
+        r.bridge.log = { message in
+            if message == "shutdown-now" { r.shutdown() } else { fires += 1 }
+        }
+        try r.evaluate(#"""
+            globalThis.__fireTimer = (id) => { __host.log("fired " + id); };
+            __host.setTimer(1, 20);
+            __host.log("shutdown-now");
+        """#)
+        let settled = expectation(description: "deadline passed")
+        queue.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
+        wait(for: [settled], timeout: 5)
+        XCTAssertEqual(fires, 0, "the armed timer must have been cancelled")
+    }
+
     // The DEBUG assertion in deinit fires when a runtime is released off its
     // owning queue WITHOUT a prior shutdown. The passing path — shut down from
     // any thread first, then let ARC drop it from anywhere — must stay quiet,

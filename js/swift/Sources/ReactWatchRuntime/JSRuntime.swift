@@ -78,6 +78,10 @@ public final class JSRuntime {
     /// pointers are dangling and every JS entry must refuse instead of using
     /// them.
     private var didShutdown = false
+    /// A `shutdown()` that arrived while the engine was live on the C stack
+    /// (from a `bridge.*` closure or a drained job). Owning-queue only, like
+    /// `didShutdown`; `withJSEntry` performs the deferred free once idle.
+    private var shutdownPending = false
 
     /// Selects the Swift→JS call mechanism (CR-5). true: direct `JS_Call` on
     /// cached global functions — no per-call parse/compile, and not the
@@ -167,6 +171,12 @@ public final class JSRuntime {
     /// either run to completion before this block or is cancelled by it, never
     /// interleaved with it.
     ///
+    /// Also callable from INSIDE JS — a `bridge.*` closure (or a job reached by
+    /// the microtask drain) runs on the owning queue with the engine live on
+    /// the C stack above it, so freeing there would be a use-after-free. Such a
+    /// call is RECORDED and the free happens the moment the engine goes idle;
+    /// the runtime therefore may still be alive when this returns.
+    ///
     /// Deliberately does NOT route through `onOwningQueue`: that helper calls
     /// `JS_UpdateStackTop(runtime)` before running its body, which would be a
     /// use-after-free on a second `shutdown()`.
@@ -182,6 +192,18 @@ public final class JSRuntime {
     /// only caller and is what guarantees that.
     private func performShutdown() {
         guard !didShutdown else { return }
+        // Being on the owning queue is NOT the same as the engine being idle:
+        // a host bridge closure runs on this queue with JS_Eval / JS_Call (or
+        // JS_ExecutePendingJob, during the drain) still on the C stack above
+        // us. Freeing there aborts inside JS_FreeRuntime on a non-empty
+        // gc_obj_list and returns every frame above into freed memory. Record
+        // the request instead; `withJSEntry` completes it as soon as the
+        // outermost entry has unwound and the drain has finished. Both
+        // conditions are needed — the drain runs at depth 0 by construction.
+        guard jsEntryDepth == 0 && !isDraining else {
+            shutdownPending = true
+            return
+        }
         didShutdown = true
         pendingTimers.values.forEach { $0.cancel() }
         pendingTimers.removeAll()
@@ -774,8 +796,16 @@ public final class JSRuntime {
                 jsEntryDepth -= 1
                 // A body that refused because the runtime is shut down leaves
                 // nothing to drain, and JS_ExecutePendingJob would be reading a
-                // freed runtime.
-                if jsEntryDepth == 0 && !didShutdown { drainJobs() }
+                // freed runtime. A shutdown REQUESTED from inside this entry
+                // skips the drain too: the caller asked to stop, and a job here
+                // could arm a fresh timer we would then have to cancel again.
+                if jsEntryDepth == 0 && !didShutdown && !shutdownPending {
+                    drainJobs()
+                }
+                // Runs after the drain above, so `isDraining` is clear and the
+                // engine is finally idle. A NESTED entry that unwinds to depth
+                // 0 mid-drain gets turned away by performShutdown's own guard.
+                if jsEntryDepth == 0 && shutdownPending { performShutdown() }
             }
             return try body()
         }
