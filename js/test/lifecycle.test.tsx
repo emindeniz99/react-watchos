@@ -8,7 +8,7 @@ import {
   Text,
   unregisterAllNativeListeners,
 } from "../src/index";
-import { resetApp } from "./helpers";
+import { installMockHost, mountApp, resetApp } from "./helpers";
 
 afterEach(resetApp);
 
@@ -188,5 +188,34 @@ describe("__disposeActiveRoot (native teardown hook, ARCH-08)", () => {
     expect(typeof g().__disposeActiveRoot).toBe("function");
     expect((g().__inspect as InspectFn)().commits).toBeGreaterThanOrEqual(1);
     second.dispose();
+  });
+});
+
+/**
+ * The shared `afterEach` itself. A throwing effect cleanup used to abort
+ * resetApp mid-teardown, leaking the listener table and `__host` into the next
+ * test in the file — which then failed pointing at the wrong case.
+ */
+describe("resetApp teardown (test harness, ARCH-08)", () => {
+  it("completes the teardown when a cleanup throws, and still rethrows", () => {
+    function ExplodingCleanup() {
+      useEffect(() => {
+        registerNativeListener("evt", () => {});
+        return () => {
+          throw new Error("cleanup exploded");
+        };
+      }, []);
+      return <Text>x</Text>;
+    }
+    installMockHost();
+    mountApp(<ExplodingCleanup />);
+    expect(dispatchNativeEvent("evt", {})).toBe(true);
+
+    // Loud (rule 12): the cleanup error is not swallowed…
+    expect(() => resetApp()).toThrow(/cleanup exploded/);
+
+    // …but the rest of the teardown ran anyway, so the next test starts clean.
+    expect(dispatchNativeEvent("evt", {})).toBe(false);
+    expect(g().__host).toBeUndefined();
   });
 });

@@ -43,7 +43,26 @@ export function mountApp(element: ReactNode, host?: HostBridge): WatchRoot {
  */
 export function resetApp(): void {
   // Reverse order: the newest root is torn down first, mirroring construction.
-  while (mounted.length > 0) mounted.pop()?.dispose();
+  //
+  // A throwing effect cleanup must not abort the rest of the teardown — same
+  // reasoning as WatchRoot.dispose()'s own `finally`: leaving the registries
+  // and `__host` behind poisons the NEXT test in the file, which then fails
+  // pointing at the wrong case. The first error is rethrown at the end, so the
+  // teardown is still loud (rule 12) — just no longer partial. `failed` rather
+  // than `failure ??= error` because a cleanup throwing a falsy value must
+  // still rethrow.
+  let failure: unknown;
+  let failed = false;
+  while (mounted.length > 0) {
+    try {
+      mounted.pop()?.dispose();
+    } catch (error) {
+      if (!failed) {
+        failed = true;
+        failure = error;
+      }
+    }
+  }
   // Process registries. Module-scope registrations (registerIntent /
   // registerWidget) are NOT root-owned, which is exactly why dispose() leaves
   // them alone and this explicit reset exists.
@@ -54,6 +73,7 @@ export function resetApp(): void {
   const g = globalThis as Record<string, unknown>;
   delete g.__host;
   delete g.__urlScheme;
+  if (failed) throw failure;
 }
 
 /**
