@@ -4,9 +4,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   captureError,
   captureLog,
+  DIAGNOSTIC_EVENT,
+  type Diagnostic,
+  dispatchNativeEvent,
   inspectorSnapshot,
   startInspector,
   stopInspector,
+  unregisterAllNativeListeners,
 } from "../src/index";
 
 afterEach(() => {
@@ -148,6 +152,47 @@ describe("inspector polling (CX-019)", () => {
     } finally {
       vi.unstubAllGlobals();
       delete (globalThis as Record<string, unknown>).__inspect;
+    }
+  });
+
+  // ARCH-08 §3.D. The diagnostics tap is a registerNativeListener
+  // subscription, so ANY unregisterAllNativeListeners() — a test teardown, or
+  // a host-side reset — silently revokes it. When the "already tapped" state
+  // was a boolean that latched forever, a restarted inspector never
+  // re-subscribed and reported zero diagnostics for the rest of the context's
+  // life: the dev tool went quiet exactly when something had gone wrong.
+  it("re-subscribes the diagnostics tap after a stop, even if the listener table was cleared", async () => {
+    vi.stubGlobal("setInterval", () => 1);
+    vi.stubGlobal("clearInterval", () => {});
+    vi.stubGlobal("fetch", () => Promise.resolve());
+    const diagnostic: Diagnostic = {
+      code: "ota.saveRejected",
+      severity: "recoverable",
+      subsystem: "ota",
+      sessionId: "s1",
+      target: "watch",
+      timestamp: 1,
+    };
+    try {
+      const stop = startInspector({ url: "http://a/snapshot" });
+      // Something else nukes the shared listener table — the tap goes with it.
+      unregisterAllNativeListeners();
+      stop();
+
+      const stop2 = startInspector({ url: "http://a/snapshot" });
+      dispatchNativeEvent(
+        DIAGNOSTIC_EVENT,
+        diagnostic as unknown as Record<string, unknown>,
+      );
+      expect(
+        inspectorSnapshot().diagnostics.some(
+          (d) => d.code === "ota.saveRejected",
+        ),
+      ).toBe(true);
+      stop2();
+    } finally {
+      vi.unstubAllGlobals();
+      unregisterAllNativeListeners();
     }
   });
 });

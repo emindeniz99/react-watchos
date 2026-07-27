@@ -320,8 +320,14 @@ export class WatchRoot {
    *  a commit's payload length or live node count outgrows its tripwire.
    *  Per-root state, so parallel roots (tests) can't share a crossing. */
   private checkCommitBudgets = createCommitBudgetCheck();
+  /** ARCH-08: set by dispose(). Every entry point checks it and throws. */
+  private disposed = false;
+  /** ARCH-08: uninstalls whatever the *creator* of this root installed on its
+   *  behalf — `runApp`'s three globals. Runs once, after the unmount. */
+  private readonly onDispose: (() => void) | undefined;
 
-  constructor(host: HostBridge) {
+  constructor(host: HostBridge, onDispose?: () => void) {
+    this.onDispose = onDispose;
     const container: Container = {
       children: [],
       instances: new Map(),
@@ -403,6 +409,7 @@ export class WatchRoot {
   }
 
   render(element: ReactNode): void {
+    this.assertLive("render");
     reconciler.updateContainerSync(element, this.root);
     this.flush();
   }
@@ -412,9 +419,57 @@ export class WatchRoot {
     this.flush();
   }
 
+  /**
+   * ARCH-08: the deterministic teardown for a root and everything installed
+   * FOR it. In order:
+   *   1. `unmount()`, so React runs every effect cleanup — that's what
+   *      releases the component-owned `registerNativeListener` unsubscribes,
+   *      sensor tokens and timers. A root that is merely abandoned keeps all
+   *      of them, and (worse) keeps receiving `dispatchNativeEvent` fan-out
+   *      into a tree nothing is looking at.
+   *   2. the `onDispose` hook — `runApp` uses it to uninstall its three
+   *      globals, identity-checked (see index.ts).
+   *   3. every later entry throws instead of silently no-op'ing (rule 12).
+   *
+   * Deliberately does NOT clear the process-wide `listeners`/`intents`/widget
+   * registries (module-scope `registerIntent`/`registerWidget` calls are made
+   * BEFORE any `runApp`, and the widget/intent entrypoints run in a context
+   * where `runApp` never happens — `unregisterAll*` stay the explicit,
+   * separate reset API), does not touch the Swift-owned `__host*` globals,
+   * does not stop the inspector (a process-level dev tool that spans reloads
+   * by design), and does not reject in-flight invoke/fetch/generate promises
+   * (they are id-correlated to native work that is still running; their
+   * watchdogs bound them, and cancelling native work is `boot()`'s job).
+   *
+   * Idempotent: a second call is a no-op.
+   */
+  dispose(): void {
+    if (this.disposed) return;
+    // Set first so a re-entrant dispose (an effect cleanup that disposes)
+    // can't recurse, and so the throw-guards are armed for anything the
+    // unmount's cleanups try to do to this root.
+    this.disposed = true;
+    try {
+      this.unmount();
+    } finally {
+      // Uninstall even if a cleanup threw: leaving the globals pointing at a
+      // half-torn-down root is strictly worse than the error we're propagating.
+      this.onDispose?.();
+    }
+  }
+
   /** Debug inspector: the current serialized tree + commit count. */
   inspect(): { commits: number; tree: SerializedTree } {
+    this.assertLive("inspect");
     return { commits: this.commitCount, tree: serializeTree(this.container) };
+  }
+
+  private assertLive(method: string): void {
+    if (this.disposed) {
+      throw new Error(
+        `WatchRoot.${method}: this root was disposed — create a new one with runApp()`,
+      );
+    }
   }
 
   /**
@@ -433,6 +488,7 @@ export class WatchRoot {
    * back. Other events: `accepted` mirrors `handled`.
    */
   dispatchEvent(event: WatchEvent): DispatchResult {
+    this.assertLive("dispatchEvent");
     const instance = this.container.instances.get(event.nodeId);
     if (event.seq !== undefined && event.seq > this.container.lastSeq) {
       this.container.lastSeq = event.seq;
@@ -476,6 +532,7 @@ export class WatchRoot {
    * scheduler's next default-priority turn.
    */
   runSync<T>(fn: () => T): T {
+    this.assertLive("runSync");
     const previousPriority = currentUpdatePriority;
     currentUpdatePriority = DiscreteEventPriority;
     try {

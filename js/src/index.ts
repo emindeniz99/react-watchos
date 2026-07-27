@@ -317,6 +317,12 @@ export {
  * objects. Without one (on the watch), the `__host` global installed by
  * JSRuntime.swift receives JSON strings, and `__dispatchEvent` is exposed
  * for Swift to deliver interactions.
+ *
+ * Call `root.dispose()` when the root is done: it unmounts the tree (running
+ * every effect cleanup) and uninstalls the three globals below. On the watch a
+ * reload never needs it (`boot()` builds a whole new QuickJS context, so every
+ * global and every module binding resets by construction); in tests it is what
+ * keeps sequential mounts from leaking into each other.
  */
 export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
   const g = globalThis as Record<string, unknown> & {
@@ -334,11 +340,18 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
       log: (message: string) => native.log(message),
     };
   }
-  const root = new WatchRoot(bridge);
+  // The three globals are captured as named closures, not assigned inline, so
+  // dispose() can uninstall exactly the functions it installed (identity
+  // check below) instead of clobbering a successor root's.
+  //
+  // `root` is referenced before its declaration on purpose: these are only
+  // ever CALLED after runApp returns, by which point the binding is
+  // initialized. Mirrors the stopFn === stop pattern in inspector.ts.
+  //
   // Returns the structured DispatchResult as a JSON string (ARCH-09) — the
   // navigation transaction's synchronous verdict. A thrown handler propagates
   // out instead of returning, which Swift's parse maps to a rollback.
-  g.__dispatchEvent = (
+  const dispatchEvent = (
     nodeId: number,
     event: string,
     payloadJson?: string,
@@ -355,7 +368,7 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
   };
   // Native state pushes: run the listener at urgent priority + flush so it
   // commits instantly (like a tap), not on the scheduler's next turn.
-  g.__pushNativeEvent = (name: string, payloadJson?: string): boolean =>
+  const pushNativeEvent = (name: string, payloadJson?: string): boolean =>
     root.runSync(() =>
       dispatchNativeEvent(
         name,
@@ -363,7 +376,27 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
       ),
     );
   // Debug inspector: returns the current serialized tree + commit count.
-  g.__inspect = () => root.inspect();
-  root.render(element);
+  const inspect = () => root.inspect();
+  const root = new WatchRoot(bridge, () => {
+    // Identity-checked: only remove a global that still points at THIS root's
+    // closure. Belt-and-braces against the single-root guard — a root created
+    // directly (`new WatchRoot`) or a late dispose() must never uninstall the
+    // live root's entry points.
+    if (g.__dispatchEvent === dispatchEvent) delete g.__dispatchEvent;
+    if (g.__pushNativeEvent === pushNativeEvent) delete g.__pushNativeEvent;
+    if (g.__inspect === inspect) delete g.__inspect;
+  });
+  g.__dispatchEvent = dispatchEvent;
+  g.__pushNativeEvent = pushNativeEvent;
+  g.__inspect = inspect;
+  try {
+    root.render(element);
+  } catch (error) {
+    // The first render threw: uninstall the globals this call installed rather
+    // than leaving native pointed at a half-mounted root. The original error
+    // still propagates.
+    root.dispose();
+    throw error;
+  }
   return root;
 }

@@ -9,6 +9,7 @@
  * Swift print); this adds a visual tree on top.
  */
 import { type Diagnostic, onDiagnostic } from "./diagnostics";
+import type { Unsubscribe } from "./nativeEvents";
 
 const logs: string[] = [];
 const MAX_LOGS = 200;
@@ -17,8 +18,22 @@ const MAX_ERRORS = 50;
 const diagnostics: Diagnostic[] = [];
 const MAX_DIAGNOSTICS = 50;
 let started = false;
+/** The console tee is deliberately one-way and process-lifetime: it wraps
+ *  `globalThis.console` once and is never restored. That is by design — the
+ *  inspector is a DEBUG dev tool whose value is capturing logs from BEFORE
+ *  and AFTER any restart, and the wrapper always calls the original first, so
+ *  an unstarted inspector costs one extra function call per log. Unlike the
+ *  diagnostics tap below, nothing else in the runtime can silently revoke it. */
 let teed = false;
-let diagnosticsTapped = false;
+/** ARCH-08 (§3.D): the live diagnostics subscription, held so `stop()` can
+ *  release it. This used to be a bare `diagnosticsTapped` boolean that latched
+ *  true forever — but the tap it guarded is a `registerNativeListener`
+ *  subscription, and `unregisterAllNativeListeners()` removes it WITHOUT
+ *  telling the inspector. Once that happened, every later `startInspector()`
+ *  saw the latch, skipped re-subscribing, and reported zero diagnostics for
+ *  the rest of the context's life. Holding the unsubscribe and clearing it in
+ *  `stop()` makes a restart re-subscribe unconditionally. */
+let diagnosticsUnsubscribe: Unsubscribe | null = null;
 let stopFn: (() => void) | null = null;
 
 /** String(x) that never throws (null-prototype / throwing toString). */
@@ -101,9 +116,8 @@ export function startInspector(options: InspectorOptions): () => void {
   // only when the inspector is actually started — the native ring is always
   // on, but this JS-side exposure stays DEV/opt-in like the rest of the
   // inspector.
-  if (!diagnosticsTapped) {
-    diagnosticsTapped = true;
-    onDiagnostic((diagnostic) => {
+  if (!diagnosticsUnsubscribe) {
+    diagnosticsUnsubscribe = onDiagnostic((diagnostic) => {
       diagnostics.push(diagnostic);
       if (diagnostics.length > MAX_DIAGNOSTICS) diagnostics.shift();
     });
@@ -191,6 +205,12 @@ export function startInspector(options: InspectorOptions): () => void {
     if (stopFn === stop) {
       started = false;
       stopFn = null;
+      // Release the diagnostics tap with the instance that armed it, so the
+      // next start re-subscribes into whatever listener table exists THEN
+      // (§3.D). Safe if the listener was already dropped by an
+      // unregisterAllNativeListeners() — the unsubscribe is a no-op then.
+      diagnosticsUnsubscribe?.();
+      diagnosticsUnsubscribe = null;
     }
   };
   stopFn = stop;
