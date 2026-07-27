@@ -50,7 +50,8 @@ public struct ReactEntry: TimelineEntry {
 public func reactTimeline(
     forKind kind: String, family: WidgetFamily, appGroupId: String
 ) -> Timeline<ReactEntry> {
-    let stored = SharedWidgetStore(appGroupId: appGroupId).loadPublishedWidgets()
+    let sharedStore = SharedWidgetStore(appGroupId: appGroupId)
+    let stored = sharedStore.loadPublishedWidgets()
     // Fresh-render (a full in-extension QuickJS boot) ONLY when the stored
     // payload can no longer cover this widget — the header's "decode and
     // display, render on stale refreshes" contract. Reloads that arrive while
@@ -58,19 +59,37 @@ public func reactTimeline(
     // intent that just republished, a system snapshot) decode the stored
     // payload instead of re-rendering the same data, which both saves the
     // engine boot and stops an intent tap from paying for TWO boots.
+    //
+    // "Current" is the ARCH-06 verdict, not a date comparison: the payload also
+    // has to derive from the App Group's live state revision and from a release
+    // this process shares. A payload that is inside its horizon but describes
+    // state the user has since changed is precisely what a timestamp cannot
+    // catch, and it is the case that shows a wrong number on the face.
     let storedIsCurrent: Bool = {
         guard let stored,
             let timeline = stored.widgets[kind]?[familyKey(family)]
         else { return false }
-        return WidgetSnapshot.isCurrent(
+        let revision = CoordinatedCounterStore(
+            appGroupId: appGroupId,
+            subdirectory: StateRevisionTracker.subdirectory)
+        return WidgetSnapshot.freshness(
             entryDates: timeline.entries.map(\.entryDate),
             reloadAfter: timeline.reloadAfterDate,
             publishedAt: Date(timeIntervalSince1970: stored.publishedAt / 1000),
-            now: Date())
+            now: Date(),
+            payloadRevision: stored.stateRevision,
+            currentRevision: revision.value(forKey: StateRevisionTracker.key),
+            payloadReleaseId: stored.releaseId,
+            runningReleaseId: sharedStore.widgetReleaseId()
+        ) == .current
     }()
     let fresh =
         storedIsCurrent
         ? nil : WidgetIntentRuntime.renderFreshTimelines(appGroupId: appGroupId)
+    // Rejecting a payload means "don't display it WITHOUT recomputing", never
+    // "blank the complication": if the fresh render fails (nil), the stored
+    // payload is still shown. An approximate face beats an empty one, and a
+    // foreign-release payload is still this app's data.
     let payload = WidgetSnapshot.newestPayload(stored, fresh)
     guard let timeline = payload?.widgets[kind]?[familyKey(family)],
         !timeline.entries.isEmpty
@@ -98,9 +117,14 @@ public func reactTimeline(
 public func reactSnapshotEntry(
     forKind kind: String, family: WidgetFamily, appGroupId: String
 ) -> ReactEntry {
+    // Same revision-ordered selection the timeline path uses (ARCH-06), so a
+    // snapshot arriving mid-burst can't prefer the stored payload over the
+    // newer one this process just rendered — but still no fresh render here.
+    let payload = WidgetSnapshot.newestPayload(
+        SharedWidgetStore(appGroupId: appGroupId).loadPublishedWidgets(),
+        WidgetIntentRuntime.cachedPayload(appGroupId: appGroupId))
     guard
-        let entries = SharedWidgetStore(appGroupId: appGroupId)
-            .loadPublishedWidgets()?.widgets[kind]?[familyKey(family)]?.entries,
+        let entries = payload?.widgets[kind]?[familyKey(family)]?.entries,
         let index = WidgetSnapshot.currentIndex(
             dates: entries.map(\.entryDate), now: .now)
     else { return .placeholder }

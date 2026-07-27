@@ -78,6 +78,13 @@ public final class WidgetIntentRuntime {
     /// here, in the extension, while the app may be incrementing the same
     /// counter.
     private let counters: CoordinatedCounterStore
+    /// The App-Group state revision (ARCH-06). Same primitive as `counters` in
+    /// its own subdirectory; the extension mints it exactly like the app,
+    /// because a control intent handled HERE is a committed mutation the app
+    /// never saw.
+    private let revision: CoordinatedCounterStore
+    /// Batches the bump to one file claim per mutation batch (ARCH-06).
+    private var revisionTracker = StateRevisionTracker()
     /// The ARCH-07 effective feature set for this extension:
     /// `HostFeatures.widget` filtered by `ReactWatchWidgetOTA.policy` ("core"
     /// always kept). Drives the install allowlist, the published
@@ -87,6 +94,9 @@ public final class WidgetIntentRuntime {
     public init?(appGroupId: String) {
         store = SharedWidgetStore(appGroupId: appGroupId)
         counters = CoordinatedCounterStore(appGroupId: appGroupId)
+        revision = CoordinatedCounterStore(
+            appGroupId: appGroupId,
+            subdirectory: StateRevisionTracker.subdirectory)
         let effectiveFeatures = ReactWatchWidgetOTA.policy.effectiveFeatures(
             native: HostFeatures.widget)
         self.effectiveFeatures = effectiveFeatures
@@ -123,16 +133,26 @@ public final class WidgetIntentRuntime {
                     + "intent-mode JS has no timers")
         }
         js.bridge.clearTimer = { _ in }
-        js.bridge.publishWidgets = { [store] json in
+        js.bridge.publishWidgets = { [weak self, store] json in
             store.save(json)
+            // The payload carries the revision it was rendered against, so the
+            // batch is closed: the next mutation must move past it (ARCH-06).
+            self?.revisionTracker.notePublished()
             WidgetIntentRuntime.invalidateCache()
             WidgetCenter.shared.reloadAllTimelines()
         }
         js.bridge.getItem = { [store] key in store.getItem(key) }
-        js.bridge.setItem = { [store] key, value in store.setItem(key, value) }
+        js.bridge.setItem = { [weak self, store] key, value in
+            self?.noteStateWrite()
+            store.setItem(key, value)
+        }
         js.bridge.counterGet = { [counters] key in counters.value(forKey: key) }
-        js.bridge.counterAdd = { [counters] key, delta, min, max in
-            counters.add(delta, toKey: key, min: min, max: max)
+        js.bridge.counterAdd = { [weak self, counters] key, delta, min, max in
+            self?.noteStateWrite()
+            return counters.add(delta, toKey: key, min: min, max: max)
+        }
+        js.bridge.stateRevision = { [revision] in
+            revision.value(forKey: StateRevisionTracker.key)
         }
         // The widget backs NO invoke-routed method, and it used to leave
         // bridge.invoke unset — so any invoke call from widget-mode JS hung
@@ -207,6 +227,36 @@ public final class WidgetIntentRuntime {
         )
     }
 
+    /// Moves the App-Group state revision for the first write of this mutation
+    /// batch (ARCH-06). Mirrors the app host, including the ordering: this runs
+    /// BEFORE the write lands, so a crash between the two leaves the revision
+    /// AHEAD of the data and the payload reads stale (safe) rather than
+    /// current-but-wrong. Never reorder it after the store call.
+    private func noteStateWrite() {
+        guard revisionTracker.needsBump() else { return }
+        revision.add(1, toKey: StateRevisionTracker.key, min: 0, max: .max)
+    }
+
+    /// Records the content id of the bundle this runtime is about to evaluate
+    /// and exposes it to JS as `globalThis.__bundleReleaseId` — the same
+    /// contract the app host has had since CX-025, which the extension was
+    /// missing entirely. Without it every payload the extension published was
+    /// stamped "producer unknown", and a payload the APP produced from a
+    /// different (e.g. unproven-OTA) bundle could not be told apart from one of
+    /// ours (ARCH-06).
+    ///
+    /// Also persisted to the App Group so a TimelineProvider — which has no
+    /// runtime and must not boot one to decide whether to boot one — can name
+    /// the release it reads with.
+    private func setBundleReleaseId(_ source: String) {
+        let releaseId = ContentHash.of(source)
+        bootedReleaseId = releaseId
+        store.saveWidgetReleaseId(releaseId)
+        try? js.evaluate(
+            "globalThis.__bundleReleaseId='\(releaseId)';",
+            filename: "release-id.js")
+    }
+
     private func loadBundle(appGroupId: String) throws {
         // The bundle-selection rule (known-good over the unvetted active record;
         // pinned bytecode only when the hash matches; shipped when there's no
@@ -247,7 +297,7 @@ public final class WidgetIntentRuntime {
                 return
             }
             logBundleIdentity(record)
-            bootedReleaseId = ContentHash.of(record.js)
+            setBundleReleaseId(record.js)
             do {
                 try js.evaluateBytecode(bytecode)
             } catch {
@@ -259,7 +309,7 @@ public final class WidgetIntentRuntime {
                 return
             }
             logBundleIdentity(record)
-            bootedReleaseId = ContentHash.of(record.js)
+            setBundleReleaseId(record.js)
             try js.evaluate(record.js)
         }
     }
@@ -322,6 +372,18 @@ public final class WidgetIntentRuntime {
     }
 
     private func loadShippedBundle() throws {
+        // Read the source up front for the release id (ARCH-06), even when the
+        // precompiled bytecode runs below — exactly what the app host does at
+        // loadShipped. This path used to return from the bytecode branch with
+        // no release id at all, so a shipped-bytecode extension published
+        // "producer unknown" payloads AND could not recognise a payload the app
+        // had produced from an unproven OTA bundle as foreign. That is the one
+        // configuration where the app and the extension genuinely run different
+        // releases, so it is the one that most needs the id.
+        let source = Bundle.main.url(forResource: "bundle", withExtension: "js")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        if let source { setBundleReleaseId(source) }
+
         // Prefer precompiled bytecode (faster cold start in the short-lived
         // extension), fall back to parsing bundle.js.
         if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
@@ -334,20 +396,16 @@ public final class WidgetIntentRuntime {
                 // fall through to source
             }
         }
-        guard let url = Bundle.main.url(forResource: "bundle", withExtension: "js"),
-            let code = try? String(contentsOf: url, encoding: .utf8)
-        else {
+        guard let code = source else {
             throw JSRuntime.JSError.exception("bundle missing — run `npm run build`")
         }
-        bootedReleaseId = ContentHash.of(code)
         try js.evaluate(code)
     }
 
     /// ARCH-13 widget render-time budget: WARN via the Logger sink when one
     /// timeline render pass overruns maxWidgetRenderMs — the early signal
     /// before the WidgetKit watchdog (or the 30 MB Jetsam wall) makes the
-    /// overrun a silent extension kill. The shipped-bytecode path leaves
-    /// releaseId nil (hashing would mean reading bundle.js just for the id).
+    /// overrun a silent extension kill.
     private func checkRenderBudget(elapsedMs: Double) {
         for diagnostic in budgets.check(
             widgetRenderMs: elapsedMs, sessionId: sessionId,
@@ -441,6 +499,16 @@ public final class WidgetIntentRuntime {
     /// Bumped by every invalidation (guarded by cacheLock) so an in-flight
     /// render can tell its result was superseded before it finished.
     nonisolated(unsafe) private static var cacheEpoch = 0
+
+    /// The payload this process rendered most recently for `appGroupId`, if the
+    /// burst cache still holds one. Lets `reactSnapshotEntry` — which must not
+    /// render — pick between it and the stored payload with the same ordering
+    /// rule the timeline path uses, instead of re-decoding the store.
+    static func cachedPayload(appGroupId: String) -> PublishedWidgets? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        return freshCache[appGroupId]?.payload
+    }
 
     /// Called when an intent handler publishes a newer payload.
     static func invalidateCache() {
