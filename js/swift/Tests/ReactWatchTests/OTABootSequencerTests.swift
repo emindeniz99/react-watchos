@@ -622,6 +622,51 @@ final class OTABootSequencerTests: XCTestCase {
         XCTAssertEqual(counters.attempts, 1, "the restored bundle's own first attempt")
     }
 
+    func testStagingADifferentBundleGivesItItsOwnBootBudget() throws {
+        // The crash-loop counter is a boot budget for ONE artifact (Android A/B's
+        // per-slot retry count). Without the reset at staging, bundle A exhausts
+        // the budget by booting fine and never confirming, the fixed bundle B is
+        // staged behind it, and the next launch takes the crash-loop branch
+        // against a bundle that has never run once — deleting the fix and
+        // blaming it for A's failure.
+        storeRecord(signedRecord(js: "unproven()"), in: active)
+        let seq = makeSequencer(healthSignal: .explicit)
+        for launch in 1...3 {
+            let run = try runBoot(seq)
+            guard case .ranOTA(let record, _) = run.outcome else {
+                return XCTFail("launch \(launch) should still run the staged bundle")
+            }
+            XCTAssertEqual(record.js, "unproven()")
+            XCTAssertEqual(counters.attempts, launch, "attempts accumulate across launches")
+        }
+        guard case .accepted = seq.stage(signedPayload(js: "fixed()", version: 3)) else {
+            return XCTFail("the fix should stage")
+        }
+        XCTAssertEqual(counters.attempts, 0, "a new artifact starts with a fresh budget")
+        let next = try runBoot(seq)
+        guard case .ranOTA(let record, let notice) = next.outcome else {
+            return XCTFail("the newly staged fix must get to boot, not be rolled back")
+        }
+        XCTAssertEqual(record.js, "fixed()")
+        XCTAssertEqual(next.sources, ["fixed()"], "the fix actually executed")
+        XCTAssertNil(notice)
+        XCTAssertNotNil(decodeActiveRecord(), "the fix is still staged, not dropped")
+    }
+
+    func testRestagingIdenticalBytesDoesNotClearTheBootBudget() {
+        // The `!= record` guard is load-bearing: an unconditional reset would let
+        // a bundle that renders-then-dies evade the crash-loop guard forever by
+        // re-staging its own bytes on every launch.
+        storeRecord(signedRecord(js: "unproven()"), in: active)
+        counters.attempts = 2
+        counters.highWater = 2
+        let seq = makeSequencer(healthSignal: .explicit)
+        guard case .accepted = seq.stage(signedPayload(js: "unproven()", version: 2)) else {
+            return XCTFail("re-staging identical bytes should still be accepted")
+        }
+        XCTAssertEqual(counters.attempts, 2, "the bundle cannot reset its own budget")
+    }
+
     func testExplicitConfirmationBlessesTheBundleTheSameWayACommitWould() {
         // markHealthy stays the single blessing implementation — the explicit
         // call drives exactly the same reset + promotion the commit path does,

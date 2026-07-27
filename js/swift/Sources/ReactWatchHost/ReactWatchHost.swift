@@ -112,6 +112,11 @@ final class ReactWatchModel {
     /// first healthy commit it's a no-op that still cost a UserDefaults read
     /// per commit.
     @ObservationIgnored private var markedHealthyThisBoot = false
+    /// Set when the bundle called `markUpdateHealthy()` from its module body or
+    /// its first passive effect — i.e. synchronously inside `js.evaluate`,
+    /// inside `otaSequencer.boot()`, before `bootedOTARecord` is known. Applied
+    /// at the end of `load(into:)`, where the booted record finally is known.
+    @ObservationIgnored private var pendingMarkHealthy = false
     /// Whether a committed tree may bless THIS boot's bundle, or the bundle
     /// must confirm itself via `markUpdateHealthy()` (ARCH-04). Decided ONCE
     /// per boot: the answer involves reading the known-good record off disk,
@@ -367,6 +372,7 @@ final class ReactWatchModel {
         warnedWireMismatch = false
         // Re-arm the once-per-boot markHealthy for the incoming generation.
         markedHealthyThisBoot = false
+        pendingMarkHealthy = false
         // Same for the ARCH-06 reconcile: a reload swaps the bundle, so the
         // new generation must re-check the published payload against state
         // (the outgoing bundle's publications are the incoming one's problem).
@@ -605,7 +611,19 @@ final class ReactWatchModel {
     /// Runs on main (invoke dispatch is main-isolated), so no generation guard
     /// is needed — unlike the handlers that settle asynchronously.
     private func handleMarkUpdateHealthy(id: Int) {
-        if !markedHealthyThisBoot {
+        // `runApp()` → `render()` → `flushPassiveEffects()` all run
+        // synchronously inside `js.evaluate`, which runs inside
+        // `otaSequencer.boot()` — so a bundle that calls this from its module
+        // body or a root mount effect arrives here while `bootedOTARecord` is
+        // still nil. Blessing with nil clears the crash-loop counter WITHOUT
+        // promoting the running bundle to known-good, and the latch then blocks
+        // the commit path from ever doing it: the bundle is never snapshotted,
+        // on every launch, forever. Park it until `load()` knows what booted.
+        // `jsReady` is exactly the right discriminator — false for the whole of
+        // `load(into:)`, true only after it returns.
+        if !jsReady {
+            pendingMarkHealthy = true
+        } else if !markedHealthyThisBoot {
             markedHealthyThisBoot = true
             otaSequencer.markHealthy(bootedRecord: bootedOTARecord)
         }
@@ -1087,6 +1105,15 @@ final class ReactWatchModel {
         // record is known — once, off the commit path (it reads the known-good
         // record from the App Group to spot an already-blessed bundle).
         commitBlessesHealth = otaSequencer.commitBlesses(bootedRecord: bootedOTARecord)
+        // A blessing parked by `handleMarkUpdateHealthy` during eval IS the
+        // explicit confirmation — apply it now that the record it blesses is
+        // known, so it promotes the running bundle to known-good instead of
+        // just clearing the counter. Deliberately after `commitBlesses` so the
+        // policy for this boot is still decided from the booted record alone.
+        if pendingMarkHealthy, !markedHealthyThisBoot {
+            markedHealthyThisBoot = true
+            otaSequencer.markHealthy(bootedRecord: bootedOTARecord)
+        }
     }
 
     /// Exposes the loaded bundle's content id to JS (CX-025) so `checkForUpdate`

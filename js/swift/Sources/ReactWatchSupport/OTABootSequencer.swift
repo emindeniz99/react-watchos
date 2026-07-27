@@ -321,6 +321,7 @@ public struct OTABootSequencer: Sendable {
             js: js, keyId: keyId, version: version, signature: signature,
             bytecodeHash: bytecodeHash, expiresAt: expiresAt
         )
+        let replacesADifferentBundle = loadRecord(from: active) != record
         // ONE atomic write is the commit point (ARCH-04): a crash before it
         // leaves the previous record (or none) intact — never a new source paired
         // with a stale version/signature.
@@ -328,6 +329,21 @@ public struct OTABootSequencer: Sendable {
             active.writeRecordData(data)
         else {
             return .rejected("OTA update rejected: could not write bundle record")
+        }
+        // A new artifact in the slot gets its own boot budget — the per-slot
+        // retry count Android A/B keeps, and the per-entry counter systemd keeps
+        // in the loader filename (docs/prior-art.md). Without this, the counter
+        // left by the bundle being REPLACED rolls the new one back before it has
+        // booted once: a bundle that boots fine but never confirms (`.explicit`)
+        // climbs to maxBootAttempts, the fix is staged behind it, and the next
+        // launch takes the crash-loop branch against a bundle that never ran —
+        // deleting the fix and blaming it for its predecessor's failure.
+        //
+        // Only on a CHANGED record: re-staging identical bytes must not let a
+        // bundle clear its own crash-loop counter every launch, which is exactly
+        // the render-then-die case `.explicit` exists to catch.
+        if replacesADifferentBundle {
+            counters.setOTABootAttempts(0)
         }
         return .accepted
     }
