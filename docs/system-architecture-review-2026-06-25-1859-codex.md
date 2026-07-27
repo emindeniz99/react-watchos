@@ -549,7 +549,46 @@ rather than the current Boolean result that Swift discards.
 - [ ] Measure transition latency on device.
 - [ ] Add route preload only as an explicit optimization.
 
-### [ ] ARCH-10 — Refine the shared interpreter into a shared core plus adapters
+### [~] ARCH-10 — Refine the shared interpreter into a shared core plus adapters
+
+> *(2026-07-27: **Phase A shipped; Phase B declined at two targets** — a
+> measured decision, not an oversight. Phase A extracted the byte-identical
+> SwiftUI value mappings (color/font/alignment/chart/rich-text) into the shared
+> `ReactWatchUI` target (`RNUI`), so the drift this item names is now
+> structural, not test-enforced. Phase B — one tree-walk behind a
+> `RenderAdapter` — was measured against both interpreters and rejected for
+> now: only ~38 net lines are reachable ONLY by unifying the walk (12 of the 41
+> primitives have identical case bodies; the other 29 differ by design —
+> interactivity, timers and navigation exist only in the app, static rendering
+> and families only in the widget), and the refactor would rewrite ~380 lines
+> of watchOS-only view code that `swift test` compiles to an empty module while
+> deleting the `case "X":` labels that `component-contract.test.ts` and
+> `interpreter-prop-parity.test.ts` parse — i.e. removing its own safety net.
+> Empirically the drift pressure is 8 lines: since these files were created,
+> exactly two commits changed both for parity reasons (`5c303e1` SecureField,
+> `40eac2c` min/max), 4 widget lines each; the other 15 app-interpreter commits
+> shared nothing.
+> **Trigger to revive: a THIRD render target** (the iOS/macOS widget host,
+> [roadmap §7](./roadmap.md)) — at that point forking the switch a third time
+> is the cost being paid, and the design to use is the `RenderContext`
+> COMPOSITION shape (`ctx.button(node, children)` polymorphism, no
+> `if isInteractive`), already specified in the roadmap's "ARCH-10 Phase B"
+> bullet and to be designed for all three targets at once.
+> Acceptance below is re-read: box 1 is moot (no `interactive: Bool` was ever
+> built — the shipped shape is two types over a shared kernel), box 2 is met by
+> `components[].widget: "full" | "degraded"` + the contract test, box 3 is met
+> by the module graph (`ReactWatchWidget` never depends on `ReactWatchHost`;
+> MapKit/HealthKit are host-only) and is what Phase B would most likely break,
+> box 4 is met at the prop-read level and its remaining half — a watchOS render
+> snapshot harness — is independent of Phase B.
+> Residual duplication, if anyone is already in these files with a watchOS build
+> green: the layout-modifier leaves (~41 lines/side, byte-identical), the
+> once-per-type unsupported-node logger (~9/side), route-path normalization
+> (4/side, byte-identical), and the `gauge`/`chart`/`navigationLinkLabel`
+> builders (~26/side, byte-identical) — Groups B and D from the
+> [2026-07-05 hand review](./human-review-2026-07-05-interpreter-duplication.md),
+> which Phase A was scoped for and did not take. Net −91 lines, no walk change.
+> Opportunistic, not scheduled.)*
 
 **Priority:** P1.
 

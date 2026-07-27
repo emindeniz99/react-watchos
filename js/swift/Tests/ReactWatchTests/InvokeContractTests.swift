@@ -5,12 +5,16 @@ import XCTest
 
 /// ARCH-11: the SD-1 invoke channel's shape contract, in actual Swift, on Linux.
 ///
-/// The fixtures are produced by `js/test/invoke-contract.test.ts` from the REAL
-/// wrappers (the payload `invoke()` actually serialized, and the result the
-/// wrapper actually resolved) — never a hand-authored copy, the same discipline
-/// as `WireContractTests`. Here each one is decoded with the schema-generated
-/// struct (`Generated/InvokeShapes.swift`), and the two payloads that have a
-/// real shipped decoder are additionally run through it.
+/// The REQUEST fixtures are produced by `js/test/invoke-contract.test.ts` from
+/// the REAL wrappers (the payload `invoke()` actually serialized) — never a
+/// hand-authored copy, the same discipline as `WireContractTests`. The RESPONSE
+/// fixtures are the result each wrapper resolved from a TS-literal mock reply,
+/// bound to the declared shape by the `Exact<>` compile-time assertion — honest
+/// but weaker: they pin the JS consumer side, not the native producers (a
+/// native→wire producer-key gate is a recorded follow-up in the backlog).
+/// Here each fixture is decoded with the schema-generated strict decoder
+/// (`Generated/InvokeShapes.swift`, undeclared keys reject), and the two
+/// payloads that have a real shipped decoder are additionally run through it.
 final class InvokeContractTests: XCTestCase {
     private func fixture(_ name: String) throws -> Data {
         let url = try XCTUnwrap(

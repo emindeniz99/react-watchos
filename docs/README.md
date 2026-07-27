@@ -61,7 +61,9 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   SD-3/SD-4 capability gate + OTA state machine. *Partly superseded by Codex
   ARCH-01/02/05 — see the banner at the top.*
 - [design-shared-interpreter-2026-06-25-1855.md](./design-shared-interpreter-2026-06-25-1855.md) —
-  SD-2 (refined by ARCH-10: core + adapters).
+  SD-2 (refined by ARCH-10: core + adapters). **Phase A shipped** (`RNUI` shared
+  target — the drift is gone); **Phase B declined at two targets** with a
+  documented revive trigger — see the ARCH-10 note in the codex review.
 - [design-typed-bridge-codegen-2026-06-25-1855.md](./design-typed-bridge-codegen-2026-06-25-1855.md) —
   SD-1/SD-6 (refined by ARCH-11, shipped re-scoped 2026-07-27: schema-declared
   invoke request/result shapes with cross-language fixtures and a
