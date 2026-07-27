@@ -3,6 +3,33 @@
 **Status:** design-first; not greenlit for implementation. Scoping note so the
 work is well-defined when it's picked up.
 
+> **2026-07-27 — SUPERSEDED IN SCOPE, and one claim below is refuted.**
+> ARCH-08 shipped under a different scope (see the re-scoped heading in
+> `system-architecture-review-2026-06-25-1859-codex.md`): a JS
+> `WatchRoot.dispose()` paired with `runApp`'s globals, a single-active-root
+> guard, the inspector diagnostics-tap fix, and a queue-confined
+> `JSRuntime.shutdown()`. No `RuntimeSession` type was created on either side.
+>
+> This doc is kept as the historical record of the *other* reading of ARCH-08
+> (the Swift per-runtime-correlation seam) and is deliberately NOT rewritten —
+> two competing acceptance lists for one ID is a rule 7 conflict, and the
+> resolution is: **the codex review's heading is the ID of record; this doc's
+> acceptance list is not tracked.** What survives here as real, unshipped work
+> is one bullet — rejecting the old generation's in-flight BLE Promises loudly
+> instead of dropping them — which is carried forward as its own backlog note.
+>
+> **"Why it's deferred (no failing scenario today)" is wrong.** Two failing
+> scenarios were found on 2026-07-27:
+> 1. a second `runApp` in the same context silently double-mounted (root #1
+>    stayed mounted and kept receiving every native push);
+> 2. `JSRuntime` was freed on whatever thread dropped the last reference, which
+>    for the OTA validator/compiler and the widget runtime is never the owning
+>    queue — a staged bundle that arms a `setTimeout` at module scope makes that
+>    a data race plus a use-after-free, reachable from a signed OTA bundle.
+>
+> Both are fixed. The claim stands only for the narrow thing this doc actually
+> analysed: the *abandoned-Promise* seam below really is cosmetic.
+
 ## What it is
 
 Today the watch host (`ReactWatchModel`) mixes two lifetimes of state with no

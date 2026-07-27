@@ -82,6 +82,11 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 - [design-arch-08-runtime-session.md](./design-arch-08-runtime-session.md) —
   ARCH-08 RuntimeSession isolation: the per-runtime vs persistent-transport
   seam, why it's deferred (no failing scenario today), and the shape to build.
+  **Superseded in scope (2026-07-27):** ARCH-08 shipped as
+  `WatchRoot.dispose()` + a queue-confined `JSRuntime.shutdown()`, no session
+  type; the doc's "no failing scenario" claim is refuted by two of the three
+  findings. Kept as the record of the other reading — see the annotation at
+  its head and the re-scoped heading in the codex architecture review.
 
 - [code-review-2026-06-27-deep-dive.md](./code-review-2026-06-27-deep-dive.md) — adversarially-verified code+design+DX review (64 confirmed findings; the blocker is fixed).
 - [code-review-2026-07-02-self-review-cycles.md](./code-review-2026-07-02-self-review-cycles.md) — three adversarial self-review cycles over the session's blind-written Swift/JS (capability, render-pipeline, core); 20 confirmed+fixed so far incl. a critical Swift-6 compile break.

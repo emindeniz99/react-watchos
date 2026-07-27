@@ -423,7 +423,19 @@ must require an explicit consumer configuration change/native release.
 - [x] Add policy-denied typed errors.
 - [x] Test that widget and OTA runtimes cannot call undeclared app capabilities.
 
-### [ ] ARCH-08 — Introduce a runtime session with deterministic teardown
+### [x] ARCH-08 — Pair `runApp`'s globals with a `WatchRoot.dispose()`; make Swift runtime teardown queue-confined
+
+> *(2026-07-27: shipped, RE-SCOPED — the heading above is the delivered scope;
+> the original was "Introduce a runtime session with deterministic teardown".
+> The `RuntimeSession` object graph was NOT built and was not the remaining
+> work: a reload already destroys the whole QuickJS context (`boot()` →
+> `runtime = nil` → `makeRuntime()`), so every process global and module
+> binding resets by construction, and every async settle is already
+> generation-guarded (CX-008). What was genuinely unsolved was (a) a
+> same-context second `runApp` silently double-mounting, (b) the inspector's
+> diagnostics latch desyncing from the listener table, and (c) QuickJS being
+> freed off its owning queue. Those three shipped. Evidence: the merged
+> backlog's build-progress log entry.)*
 
 **Priority:** P1.
 
@@ -455,11 +467,41 @@ isolated sessions without deleting globals manually.
 
 **Acceptance**
 
-- [ ] `createWatchApplication(config)` returns a disposable session.
-- [ ] All global entrypoints delegate to the active session.
-- [ ] Reload disposes the old session before starting the new one.
-- [ ] Teardown cancels timers, fetches, sensors, BLE work, and pending promises.
-- [ ] Tests can create sequential sessions without leaked listeners/registries.
+- [ ] ~~`createWatchApplication(config)` returns a disposable session.~~
+      **REJECTED and restated:** `runApp(element, host)` already returns a
+      `WatchRoot`, so a new factory + config type earns nothing — the config
+      surface it implies (host descriptor, policy) is Swift-owned already
+      (`HostPolicy`, ARCH-07), and a second way to mount would be the
+      speculative abstraction rule 2 forbids. Restated as: **`runApp` returns a
+      root with `dispose()`**, which shipped (`renderer.ts`), plus a
+      single-active-root guard so a second `runApp` throws instead of
+      superseding silently.
+- [x] All global entrypoints delegate to the active session. (Restated: the
+      three `runApp` globals — `__dispatchEvent`, `__pushNativeEvent`,
+      `__inspect` — are installed and uninstalled as a PAIR, identity-checked,
+      so a superseded root can never uninstall its successor's. `__handleIntent`
+      and `__renderWidgets` stay deliberately session-less: the widget/intent
+      process never calls `runApp`, so routing them through a root would break
+      those entrypoints.)
+- [x] Reload disposes the old session before starting the new one. (Already
+      true via `boot()`'s generation bump + reset block; now provably ordered —
+      `runtime?.shutdown()` immediately before `runtime = nil`, so QuickJS is
+      freed after `sensors.stopAll()` / `bluetooth.resetPendingForReload()` /
+      the media stops rather than whenever ARC got around to it. JS `dispose()`
+      is deliberately NOT called on this path: the context is being destroyed
+      wholesale.)
+- [x] Teardown cancels timers, fetches, sensors, BLE work, and pending promises.
+      (`boot()` already cancelled the native half; `JSRuntime.shutdown()` now
+      cancels the QuickJS timer sources ON the owning queue. In-flight
+      invoke/fetch/generate promises are deliberately left to their watchdogs
+      rather than rejected by `dispose()` — they are id-correlated to native
+      work that is still running, and rejecting would fire while the same
+      native op is live. Upgrading the BLE reload path from *drop* to *reject
+      loudly* was evaluated and deferred — see the backlog note.)
+- [x] Tests can create sequential sessions without leaked listeners/registries.
+      (`test/helpers.ts` gains `mountApp()` + `resetApp()`; all eight bespoke
+      `afterEach` teardown blocks are gone and every `runApp` call site in the
+      suite is disposed.)
 
 ### [x] ARCH-09 — Make navigation JS-confirmed and serialize only active stack screens
 
