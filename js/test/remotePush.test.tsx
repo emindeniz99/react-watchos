@@ -11,18 +11,11 @@ import {
   REMOTE_PUSH_TOKEN_EVENT,
   type RemotePushNotification,
   registerForRemoteNotifications,
-  runApp,
   Text,
-  unregisterAllNativeListeners,
 } from "../src/index";
-import { installMockHost } from "./helpers";
+import { installMockHost, mountApp, resetApp } from "./helpers";
 
-afterEach(() => {
-  unregisterAllNativeListeners();
-  delete (globalThis as Record<string, unknown>).__host;
-  delete (globalThis as Record<string, unknown>).__pushNativeEvent;
-  delete (globalThis as Record<string, unknown>).__dispatchEvent;
-});
+afterEach(resetApp);
 
 type PushFn = (name: string, payloadJson?: string) => boolean;
 
@@ -111,7 +104,7 @@ describe("remote push (APNs)", () => {
       return <Text>{status}</Text>;
     }
     const host = new MemoryHost();
-    runApp(<OrderStatus />, host);
+    mountApp(<OrderStatus />, host);
     expect(host.lastCommit!.root!.props.text).toBe("waiting");
 
     // Simulate the native delegate delivering a push

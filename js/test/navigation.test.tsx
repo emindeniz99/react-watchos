@@ -12,11 +12,9 @@ import {
   NavigationStack,
   type ParamsOf,
   routeFromURL,
-  runApp,
   type SerializedNode,
   Text,
   Toggle,
-  unregisterAllNativeListeners,
   useFocusEffect,
   useIsFocused,
   useNavigate,
@@ -25,14 +23,9 @@ import {
   useRoute,
   VStack,
 } from "../src/index";
-import { findByText, findByType } from "./helpers";
+import { findByText, findByType, mountApp, resetApp } from "./helpers";
 
-afterEach(() => {
-  unregisterAllNativeListeners();
-  delete (globalThis as Record<string, unknown>).__pushNativeEvent;
-  delete (globalThis as Record<string, unknown>).__dispatchEvent;
-  delete (globalThis as Record<string, unknown>).__urlScheme;
-});
+afterEach(resetApp);
 
 function RouteProbe() {
   const route = useRoute();
@@ -93,7 +86,7 @@ describe("navigation helpers", () => {
 
   it("pushes, pops, and accepts native openURL events", () => {
     const host = new MemoryHost();
-    const root = runApp(
+    const root = mountApp(
       <NavigationProvider>
         <RouteProbe />
       </NavigationProvider>,
@@ -123,7 +116,7 @@ describe("navigation helpers", () => {
 
   it("normalizes initial path arrays", () => {
     const host = new MemoryHost();
-    runApp(
+    mountApp(
       <NavigationProvider initialPath={["hydration"]}>
         <RouteProbe />
       </NavigationProvider>,
@@ -183,7 +176,7 @@ function ParamProbe() {
 describe("useParams", () => {
   it("exposes the active route's dynamic params to descendants", () => {
     const host = new MemoryHost();
-    runApp(
+    mountApp(
       <NavigationStack path={["/list/42"]}>
         <NavigationRoute path="/">
           <Text>home</Text>
@@ -207,7 +200,7 @@ describe("useParams", () => {
       return <Text>{`${tag}:${focused}`}</Text>;
     }
     const host = new MemoryHost();
-    runApp(
+    mountApp(
       <NavigationStack path={["/shop/nike"]}>
         <NavigationRoute path="/shop/[name]">
           <FocusProbe tag="concrete" />
@@ -237,7 +230,7 @@ describe("uncontrolled NavigationStack", () => {
       return <Text>{`list:${id ?? "none"}:${focused}`}</Text>;
     }
     const host = new MemoryHost();
-    const root = runApp(
+    const root = mountApp(
       <NavigationStack>
         <NavigationRoute path="/">
           <Text>home</Text>
@@ -270,7 +263,7 @@ describe("uncontrolled NavigationStack", () => {
     // local tracking AND fire the user handler.
     const seen: string[][] = [];
     const host = new MemoryHost();
-    const root = runApp(
+    const root = mountApp(
       <NavigationStack onPathChange={(p) => seen.push(p)}>
         <NavigationRoute path="/">
           <Text>home</Text>
@@ -322,7 +315,7 @@ describe("NavigationRoute lazy mounting (ARCH-09)", () => {
 
   it("serializes no inactive subtree at launch; a confirmed push mounts it in the same dispatch", () => {
     const host = new MemoryHost();
-    const root = runApp(<FoldingStack>{routes}</FoldingStack>, host);
+    const root = mountApp(<FoldingStack>{routes}</FoldingStack>, host);
     const before = host.lastCommit!.root!;
     // Root is active; its screen renders.
     expect(findByText(before, "home")).toHaveLength(1);
@@ -346,7 +339,7 @@ describe("NavigationRoute lazy mounting (ARCH-09)", () => {
 
   it("declines a proposal the controlled handler ignores and leaves the tree unchanged", () => {
     const host = new MemoryHost();
-    const root = runApp(
+    const root = mountApp(
       <NavigationStack path={[]} onPathChange={() => {}}>
         {routes}
       </NavigationStack>,
@@ -372,7 +365,7 @@ describe("NavigationRoute lazy mounting (ARCH-09)", () => {
 
   it("acks handlerless and unknown-node proposals so native can roll back (CX-010)", () => {
     const host = new MemoryHost();
-    const root = runApp(<FoldingStack>{routes}</FoldingStack>, host);
+    const root = mountApp(<FoldingStack>{routes}</FoldingStack>, host);
     // A node with no onPathChange handler (the home Text).
     const text = findByText(host.lastCommit!.root!, "home")[0];
     expect(
@@ -399,7 +392,7 @@ describe("NavigationRoute lazy mounting (ARCH-09)", () => {
 
   it("unmounts a popped screen's subtree", () => {
     const host = new MemoryHost();
-    const root = runApp(<FoldingStack>{routes}</FoldingStack>, host);
+    const root = mountApp(<FoldingStack>{routes}</FoldingStack>, host);
     const stack = findByType(host.lastCommit!.root!, "NavigationStack")[0];
     root.dispatchEvent({
       nodeId: stack.id,
@@ -425,7 +418,7 @@ describe("NavigationRoute lazy mounting (ARCH-09)", () => {
     // Covered screens must keep their subtree: SwiftUI still holds their
     // destination views, and popping back must land on content instantly.
     const host = new MemoryHost();
-    const root = runApp(
+    const root = mountApp(
       <FoldingStack>
         <NavigationRoute path="/">
           <Text>home</Text>
@@ -484,7 +477,7 @@ describe("useFocusEffect", () => {
       </NavigationStack>
     );
     const host = new MemoryHost();
-    const root = runApp(tree(["/fx"]), host);
+    const root = mountApp(tree(["/fx"]), host);
     // Mounted AND focused → the effect runs once.
     expect(log).toEqual(["focus"]);
     // Push another screen ON TOP: the covered entry stays mounted (ARCH-09

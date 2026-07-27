@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BUDGETS, createCommitBudgetCheck } from "../src/budgets";
-import { MemoryHost, runApp, Text, VStack } from "../src/index";
+import { MemoryHost, Text, VStack } from "../src/index";
+import { mountApp, resetApp } from "./helpers";
 
 afterEach(() => {
-  delete (globalThis as Record<string, unknown>).__pushNativeEvent;
-  delete (globalThis as Record<string, unknown>).__dispatchEvent;
-  delete (globalThis as Record<string, unknown>).__inspect;
+  resetApp();
   vi.restoreAllMocks();
 });
 
@@ -78,7 +77,7 @@ describe("renderer wiring", () => {
     const items = Array.from({ length: BUDGETS.maxNodes + 1 }, (_, n) => (
       <Text key={n}>item</Text>
     ));
-    runApp(<VStack>{items}</VStack>, host);
+    mountApp(<VStack>{items}</VStack>, host);
 
     const nodeWarnings = warn.mock.calls
       .map(([message]) => String(message))
@@ -91,7 +90,7 @@ describe("renderer wiring", () => {
   it("does not warn for a small tree", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const host = new MemoryHost();
-    runApp(<Text>small</Text>, host);
+    mountApp(<Text>small</Text>, host);
     expect(
       warn.mock.calls.some(([message]) => String(message).includes("budget")),
     ).toBe(false);

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   MemoryHost,
-  runApp,
   startGyroscope,
   startHeartRate,
   startLocation,
@@ -10,18 +9,11 @@ import {
   startSensor,
   stopSensor,
   Text,
-  unregisterAllNativeListeners,
 } from "../src/index";
 import { __resetSensorCountsForTest } from "../src/sensors";
-import { installMockHost } from "./helpers";
+import { installMockHost, mountApp, resetApp } from "./helpers";
 
-afterEach(() => {
-  unregisterAllNativeListeners();
-  __resetSensorCountsForTest();
-  delete (globalThis as Record<string, unknown>).__host;
-  delete (globalThis as Record<string, unknown>).__pushNativeEvent;
-  delete (globalThis as Record<string, unknown>).__dispatchEvent;
-});
+afterEach(resetApp);
 
 function HeartRate() {
   const [bpm, setBpm] = useState(0);
@@ -36,7 +28,7 @@ type PushFn = (name: string, payloadJson?: string) => boolean;
 describe("sensor streams", () => {
   it("routes a sensor reading to the UI live", () => {
     const host = new MemoryHost();
-    runApp(<HeartRate />, host);
+    mountApp(<HeartRate />, host);
     expect(host.lastCommit!.root!.props.text).toBe("0");
 
     const push = (globalThis as { __pushNativeEvent?: PushFn })

@@ -6,18 +6,11 @@ import {
   bleWrite,
   MemoryHost,
   onBleNotify,
-  runApp,
   Text,
-  unregisterAllNativeListeners,
 } from "../src/index";
-import { installMockHost } from "./helpers";
+import { installMockHost, mountApp, resetApp } from "./helpers";
 
-afterEach(() => {
-  unregisterAllNativeListeners();
-  delete (globalThis as Record<string, unknown>).__host;
-  delete (globalThis as Record<string, unknown>).__pushNativeEvent;
-  delete (globalThis as Record<string, unknown>).__dispatchEvent;
-});
+afterEach(resetApp);
 
 function NowPlaying() {
   const [title, setTitle] = useState("nothing");
@@ -34,7 +27,7 @@ type PushFn = (name: string, payloadJson?: string) => boolean;
 describe("BLE bridge", () => {
   it("updates the UI live from a characteristic notification", () => {
     const host = new MemoryHost();
-    runApp(<NowPlaying />, host);
+    mountApp(<NowPlaying />, host);
     expect(host.lastCommit!.root!.props.text).toBe("nothing");
 
     const push = (globalThis as { __pushNativeEvent?: PushFn })

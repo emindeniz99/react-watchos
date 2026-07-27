@@ -4,16 +4,11 @@ import {
   dispatchNativeEvent,
   MemoryHost,
   registerNativeListener,
-  runApp,
   Text,
-  unregisterAllNativeListeners,
 } from "../src/index";
+import { mountApp, resetApp } from "./helpers";
 
-afterEach(() => {
-  unregisterAllNativeListeners();
-  delete (globalThis as Record<string, unknown>).__pushNativeEvent;
-  delete (globalThis as Record<string, unknown>).__dispatchEvent;
-});
+afterEach(resetApp);
 
 function Connection() {
   const [status, setStatus] = useState("offline");
@@ -30,7 +25,7 @@ type PushFn = (name: string, payloadJson?: string) => boolean;
 describe("native event push (runSync)", () => {
   it("commits a native-pushed state change synchronously", () => {
     const host = new MemoryHost();
-    runApp(<Connection />, host);
+    mountApp(<Connection />, host);
     expect(host.lastCommit!.root!.props.text).toBe("offline");
     const commitsBefore = host.commits.length;
 
@@ -46,7 +41,7 @@ describe("native event push (runSync)", () => {
 
   it("returns false for an unregistered native event", () => {
     const host = new MemoryHost();
-    runApp(<Connection />, host);
+    mountApp(<Connection />, host);
     const push = (globalThis as { __pushNativeEvent?: PushFn })
       .__pushNativeEvent!;
     expect(push("unknown")).toBe(false);

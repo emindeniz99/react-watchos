@@ -6,21 +6,14 @@ import {
   onApplicationContext,
   onPhoneMessage,
   onUserInfo,
-  runApp,
   sendToPhone,
   Text,
   transferUserInfo,
-  unregisterAllNativeListeners,
   updateApplicationContext,
 } from "../src/index";
-import { installMockHost } from "./helpers";
+import { installMockHost, mountApp, resetApp } from "./helpers";
 
-afterEach(() => {
-  unregisterAllNativeListeners();
-  delete (globalThis as Record<string, unknown>).__host;
-  delete (globalThis as Record<string, unknown>).__pushNativeEvent;
-  delete (globalThis as Record<string, unknown>).__dispatchEvent;
-});
+afterEach(resetApp);
 
 function PhoneStatus() {
   const [status, setStatus] = useState("waiting");
@@ -35,7 +28,7 @@ type PushFn = (name: string, payloadJson?: string) => boolean;
 describe("WatchConnectivity bridge", () => {
   it("updates the UI live when a phone message is pushed", () => {
     const host = new MemoryHost();
-    runApp(<PhoneStatus />, host);
+    mountApp(<PhoneStatus />, host);
     expect(host.lastCommit!.root!.props.text).toBe("waiting");
 
     // Simulate the native side delivering a phone message (WCSession ->
@@ -70,8 +63,8 @@ describe("WatchConnectivity bridge", () => {
   });
 
   it("routes each delivery channel to its own listener (ARCH-12 split)", () => {
-    // runApp installs __pushNativeEvent (the native push entry point).
-    runApp(<Text>x</Text>, new MemoryHost());
+    // mountApp installs __pushNativeEvent (the native push entry point).
+    mountApp(<Text>x</Text>, new MemoryHost());
     const seen: Record<string, unknown[]> = { msg: [], ctx: [], info: [] };
     onPhoneMessage((p) => seen.msg.push(p?.v));
     onApplicationContext((p) => seen.ctx.push(p?.v));
@@ -126,7 +119,7 @@ describe("WatchConnectivity bridge", () => {
       return <Text>{s}</Text>;
     }
     const host = new MemoryHost();
-    runApp(<View />, host);
+    mountApp(<View />, host);
     const push = (globalThis as { __pushNativeEvent?: PushFn })
       .__pushNativeEvent!;
 

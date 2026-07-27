@@ -1,18 +1,15 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { MemoryHost, runApp, Text, VStack } from "../src/index";
+import { MemoryHost, Text, VStack } from "../src/index";
+import { mountApp, resetApp } from "./helpers";
 
-afterEach(() => {
-  delete (globalThis as Record<string, unknown>).__inspect;
-  delete (globalThis as Record<string, unknown>).__dispatchEvent;
-  delete (globalThis as Record<string, unknown>).__pushNativeEvent;
-});
+afterEach(resetApp);
 
 type Inspect = () => { commits: number; tree: { root: { type: string } } };
 
 describe("inspector / devtools", () => {
   it("exposes __inspect with the current tree and commit count", () => {
     const host = new MemoryHost();
-    runApp(
+    mountApp(
       <VStack>
         <Text>hi</Text>
       </VStack>,
