@@ -76,6 +76,7 @@ final class OTABootSequencerTests: XCTestCase {
         policyAllowedFeatures: Set<String> = ["network"],
         maxBundleBytes: Int = 4096,
         maxBootAttempts: Int = 3,
+        healthSignal: OTAHealthSignal = .firstCommit,
         validate: @escaping @Sendable (String) throws -> Void = { _ in },
         compile: @escaping @Sendable (String) -> Data? = { Data("qbc:\($0)".utf8) }
     ) -> OTABootSequencer {
@@ -84,7 +85,8 @@ final class OTABootSequencerTests: XCTestCase {
                 keyState: keyState, gate: gate, shippedVersion: shippedVersion,
                 nativeBridgeProtocol: 1, nativeFeatures: ["network"],
                 policyAllowedFeatures: policyAllowedFeatures,
-                maxBundleBytes: maxBundleBytes, maxBootAttempts: maxBootAttempts),
+                maxBundleBytes: maxBundleBytes, maxBootAttempts: maxBootAttempts,
+                healthSignal: healthSignal),
             active: active,
             knownGood: knownGood,
             counters: counters,
@@ -551,6 +553,92 @@ final class OTABootSequencerTests: XCTestCase {
         makeSequencer().markHealthy(bootedRecord: nil)
         XCTAssertEqual(counters.attempts, 0)
         XCTAssertNil(knownGood.record)
+    }
+
+    // MARK: - Health signal (ARCH-04 `bundleReady`)
+
+    func testFirstCommitPolicyLetsAnyCommitBlessTheBundle() {
+        // The default: a committed tree is the whole proof, so the host never
+        // needs anything from the bundle. Everything below is what changes
+        // when a consumer opts out of that.
+        XCTAssertTrue(makeSequencer().commitBlesses(bootedRecord: signedRecord()))
+    }
+
+    func testExplicitPolicyWithholdsBlessingFromAnUnprovenOTABundle() {
+        // The point of .explicit: a freshly staged bundle that renders a blank
+        // screen (or renders, then dies) must NOT clear the crash-loop counter
+        // just by committing — only its own markUpdateHealthy() call may.
+        let seq = makeSequencer(healthSignal: .explicit)
+        XCTAssertFalse(seq.commitBlesses(bootedRecord: signedRecord()))
+    }
+
+    func testExplicitPolicyStillSelfBlessesShippedBoots() {
+        // Carve-out 1: the explicit bar governs OTA bundles only. The shipped
+        // bundle ships inside the signed binary and may predate the API; if it
+        // couldn't bless, a counter left non-zero by a dropped OTA would
+        // survive into the NEXT staged bundle and roll it back early.
+        let seq = makeSequencer(healthSignal: .explicit)
+        XCTAssertTrue(seq.commitBlesses(bootedRecord: nil))
+    }
+
+    func testExplicitPolicyStillSelfBlessesAnAlreadyPromotedBundle() {
+        // Carve-out 2, the config-flip regression: a consumer turns on
+        // .explicit in a new app release while an OTA bundle that predates the
+        // API is installed AND already known-good. Without this it would
+        // crash-loop, find knownGood == active, and drop all the way to
+        // shipped — a silent downgrade caused purely by flipping a flag.
+        let record = signedRecord()
+        storeRecord(record, in: knownGood)
+        let seq = makeSequencer(healthSignal: .explicit)
+        XCTAssertTrue(seq.commitBlesses(bootedRecord: record))
+        // A DIFFERENT bundle in the same slot is still unproven.
+        XCTAssertFalse(seq.commitBlesses(bootedRecord: signedRecord(js: "other()")))
+    }
+
+    func testExplicitPolicyRollsBackABundleThatNeverConfirms() {
+        // The enforcement, end to end: there is no timer: a bundle that never
+        // calls markUpdateHealthy() simply never clears the counter, so the
+        // EXISTING crash-loop guard rolls it back after maxBootAttempts
+        // launches. This is what "opting in and not calling" costs.
+        storeRecord(signedRecord(js: "unproven()"), in: active)
+        storeRecord(signedRecord(js: "proven()"), in: knownGood)
+        counters.highWater = 2
+        let seq = makeSequencer(healthSignal: .explicit)
+        for launch in 1...3 {
+            let run = try? runBoot(seq)
+            guard case .ranOTA(let record, _)? = run?.outcome else {
+                return XCTFail("launch \(launch) should still run the staged bundle")
+            }
+            XCTAssertEqual(record.js, "unproven()")
+            XCTAssertFalse(seq.commitBlesses(bootedRecord: record), "never self-blesses")
+            XCTAssertEqual(counters.attempts, launch, "attempts accumulate across launches")
+        }
+        let recovered = try? runBoot(seq)
+        guard case .ranOTA(let record, let notice)? = recovered?.outcome else {
+            return XCTFail("expected the known-good rollback")
+        }
+        XCTAssertEqual(record.js, "proven()")
+        XCTAssertTrue(notice?.contains("crash-looped") == true)
+        XCTAssertEqual(counters.attempts, 1, "the restored bundle's own first attempt")
+    }
+
+    func testExplicitConfirmationBlessesTheBundleTheSameWayACommitWould() {
+        // markHealthy stays the single blessing implementation — the explicit
+        // call drives exactly the same reset + promotion the commit path does,
+        // so a confirming bundle is never rolled back.
+        let record = signedRecord(js: "confirms()")
+        storeRecord(record, in: active)
+        counters.highWater = 2
+        let seq = makeSequencer(healthSignal: .explicit)
+        _ = try? runBoot(seq)
+        XCTAssertEqual(counters.attempts, 1)
+        seq.markHealthy(bootedRecord: record)
+        XCTAssertEqual(counters.attempts, 0)
+        XCTAssertEqual(
+            knownGood.record.flatMap { try? JSONDecoder().decode(OTARecord.self, from: $0) },
+            record)
+        // And now it is proven, so a later launch self-blesses (carve-out 2).
+        XCTAssertTrue(seq.commitBlesses(bootedRecord: record))
     }
 }
 

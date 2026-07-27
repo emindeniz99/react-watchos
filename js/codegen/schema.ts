@@ -537,6 +537,19 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     via: "invoke",
   },
+  // ARCH-04's explicit `bundleReady`: the bundle confirming, after its own
+  // smoke checks, that this launch is healthy. Inert unless the app configured
+  // `OTAConfig(healthSignal: .explicit)` — under the default `.firstCommit` the
+  // first committed tree already blessed the bundle and this is a no-op.
+  // watch-only: the widget renders the known-good record and never counts boot
+  // attempts, so it has nothing to confirm.
+  {
+    name: "markUpdateHealthy",
+    targets: ["watch"],
+    feature: "ota",
+    since: 1,
+    via: "invoke",
+  },
   {
     name: "generate",
     targets: ["watch"],

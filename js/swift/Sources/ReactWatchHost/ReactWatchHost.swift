@@ -101,6 +101,11 @@ final class ReactWatchModel {
     /// first healthy commit it's a no-op that still cost a UserDefaults read
     /// per commit.
     @ObservationIgnored private var markedHealthyThisBoot = false
+    /// Whether a committed tree may bless THIS boot's bundle, or the bundle
+    /// must confirm itself via `markUpdateHealthy()` (ARCH-04). Decided ONCE
+    /// per boot: the answer involves reading the known-good record off disk,
+    /// which must not happen on the 10-20 commits/sec sensor path.
+    @ObservationIgnored private var commitBlessesHealth = true
     /// Serial queue for decoding committed trees off the main thread.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
     /// Reused across commits — only ever touched on the serial decodeQueue,
@@ -135,6 +140,10 @@ final class ReactWatchModel {
     /// `otaSequencer`; the host keeps only this for the fail-open warning.
     private let updateKeyState: OTAKeyState
     private let updateManifestURL: String?
+    /// The configured ARCH-04 health policy. The sequencer owns the decision;
+    /// the host keeps it only to report it through `getUpdateState`, so fleet
+    /// telemetry can see which policy a device's binary is on.
+    private let updateHealthSignal: OTAHealthSignal
     /// The OTA staging + boot orchestration (M5), extracted to Linux-tested
     /// ReactWatchSupport. The host injects the App-Group file IO, the
     /// SharedWidgetStore counters, CryptoKit verification, and throwaway
@@ -178,6 +187,7 @@ final class ReactWatchModel {
                     + "signing key(s) failed to decode and were dropped (CX-003).")
         }
         updateManifestURL = ota.manifestURL
+        updateHealthSignal = ota.healthSignal
         self.useJSCallBridge = useJSCallBridge
         // Filenames come from the shared OTAFiles so the widget reads the same
         // paths; nil appGroupId disables OTA persistence (writes fail loudly).
@@ -193,7 +203,8 @@ final class ReactWatchModel {
                 nativeFeatures: HostFeatures.watch,
                 policyAllowedFeatures: effectiveFeatures,
                 maxBundleBytes: Self.maxOTABundleBytes,
-                maxBootAttempts: Self.maxOTABootAttempts),
+                maxBootAttempts: Self.maxOTABootAttempts,
+                healthSignal: ota.healthSignal),
             active: FileOTASlotStore(
                 recordURL: otaFile(OTAFiles.activeRecord),
                 bytecodeURL: otaFile(OTAFiles.activeBytecode)),
@@ -347,6 +358,10 @@ final class ReactWatchModel {
         // and the first-healthy-commit handler could promote a bundle that is
         // not the one actually running to known-good.
         bootedOTARecord = nil
+        // Re-decided at the end of load() once the booted record is known; the
+        // permissive default covers the paths that never reach that point
+        // (a shipped/dev boot has nothing to withhold blessing from).
+        commitBlessesHealth = true
         do {
             let js = try makeRuntime()
             runtime = js
@@ -467,6 +482,8 @@ final class ReactWatchModel {
             handleSaveUpdate(id: id, payload: payload)
         case "getUpdateState":
             handleGetUpdateState(id: id)
+        case "markUpdateHealthy":
+            handleMarkUpdateHealthy(id: id)
         case "requestNotificationPermission":
             requestNotificationPermission(id: id)
         case "registerForRemoteNotifications":
@@ -536,10 +553,18 @@ final class ReactWatchModel {
     /// actually booted — source/version/keyId/expiresAt + the anti-rollback
     /// high-water mark — so an app can ship fleet telemetry. JS merges the
     /// running bundle's content id (`__bundleReleaseId`) on its side.
+    ///
+    /// `healthSignal` + `bootAttempts` are the ARCH-04 pair: which policy this
+    /// BINARY is on (a bundle can't know that on its own — the trust anchor is
+    /// native, so `markUpdateHealthy()` looks identical either way) and how
+    /// close this device is to a crash-loop rollback. Together they make
+    /// "the fleet is on explicit, this device is on attempt 2" reportable.
     private func handleGetUpdateState(id: Int) {
         var result: [String: Any] = [
             "source": bootedOTARecord != nil ? "ota" : "shipped",
             "highWater": store.otaHighWater(),
+            "healthSignal": updateHealthSignal == .explicit ? "explicit" : "commit",
+            "bootAttempts": store.otaBootAttempts(),
         ]
         if let record = bootedOTARecord {
             if let version = record.version { result["version"] = version }
@@ -547,6 +572,23 @@ final class ReactWatchModel {
             if let expiresAt = record.expiresAt { result["expiresAt"] = expiresAt }
         }
         runtime?.resolveInvoke(id: id, resultJson: Self.jsonObject(result))
+    }
+
+    /// ARCH-04's explicit `bundleReady`: the running bundle confirming, after
+    /// its own smoke checks, that this launch is healthy — the same blessing a
+    /// committed tree performs under the default `.firstCommit` policy, routed
+    /// through `markHealthy` so there is exactly one implementation. Under
+    /// `.firstCommit` the commit handler already fired, so this is the no-op
+    /// the `markedHealthyThisBoot` latch makes it. Always resolves: a bundle
+    /// that calls it on a binary configured either way must behave the same.
+    /// Runs on main (invoke dispatch is main-isolated), so no generation guard
+    /// is needed — unlike the handlers that settle asynchronously.
+    private func handleMarkUpdateHealthy(id: Int) {
+        if !markedHealthyThisBoot {
+            markedHealthyThisBoot = true
+            otaSequencer.markHealthy(bootedRecord: bootedOTARecord)
+        }
+        runtime?.resolveInvoke(id: id, resultJson: "null")
     }
 
     /// MapKit local POI search (MKLocalSearch): resolves the invoke with an
@@ -1020,6 +1062,10 @@ final class ReactWatchModel {
             }
             updateRequired = true
         }
+        // ARCH-04: resolve the health policy for this boot now that the booted
+        // record is known — once, off the commit path (it reads the known-good
+        // record from the App Group to spot an already-blessed bundle).
+        commitBlessesHealth = otaSequencer.commitBlesses(bootedRecord: bootedOTARecord)
     }
 
     /// Exposes the loaded bundle's content id to JS (CX-025) so `checkForUpdate`
@@ -1134,7 +1180,11 @@ final class ReactWatchModel {
                     // known-good rollback target. Once per boot: after the first
                     // healthy commit this was a semantic no-op that still read
                     // UserDefaults on every commit (10-20/sec under sensors).
-                    if !self.markedHealthyThisBoot {
+                    // Under OTAConfig.healthSignal == .explicit a commit is NOT
+                    // proof for an unproven OTA bundle — only its own
+                    // markUpdateHealthy() call is (commitBlessesHealth, decided
+                    // once at boot so this stays two bool reads per commit).
+                    if !self.markedHealthyThisBoot, self.commitBlessesHealth {
                         self.markedHealthyThisBoot = true
                         self.otaSequencer.markHealthy(bootedRecord: self.bootedOTARecord)
                     }
@@ -1526,17 +1576,49 @@ public struct OTAConfig: Sendable {
     /// who can answer the manifest URL gets the full host surface. Ignored
     /// once `signerPublicKeys` is non-empty — keys always enforce.
     public var allowUnsignedUpdates: Bool
+    /// What proves an OTA bundle healthy (ARCH-04's `bundleReady`), so the
+    /// crash-loop counter clears and the bundle is promoted to known-good.
+    ///
+    /// `.firstCommit` (default): the first committed tree is the proof. Cheap
+    /// and needs nothing from the bundle, but it can't tell a correct screen
+    /// from a blank one or an error fallback, and a bundle that renders and
+    /// *then* reliably dies resets the counter on every launch, so it never
+    /// reaches the rollback threshold.
+    ///
+    /// `.explicit`: only the bundle's own `markUpdateHealthy()` call blesses
+    /// it — put it after your smoke checks (first screen rendered, session
+    /// restored, whatever "working" means for your app), never at module top
+    /// level.
+    ///
+    /// ⚠️ There is no timer and no grace period: the boot counter IS the
+    /// enforcement. **Opting into `.explicit` and shipping an OTA bundle that
+    /// never calls `markUpdateHealthy()` rolls that bundle back after 3
+    /// launches** (`maxOTABootAttempts`), to the previous known-good bundle or
+    /// to shipped. Flip this flag and ship the calling bundle together.
+    ///
+    /// Two boots bless themselves regardless, because the explicit bar is only
+    /// meaningful for an OTA bundle that hasn't proved itself: the SHIPPED
+    /// bundle (inside this signed binary — it has nothing to confirm), and an
+    /// OTA bundle that is ALREADY the known-good snapshot (so flipping this
+    /// flag can't retroactively condemn a bundle that predates the API).
+    ///
+    /// The policy lives here — in the code-signed binary — and never in the
+    /// bundle, for the same reason `signerPublicKeys` does: a bundle that
+    /// could relax its own health bar would declare itself trustworthy.
+    public var healthSignal: OTAHealthSignal
 
     public init(
         signerPublicKeys: [String: String] = [:], gate: OTAGate = .soft,
         shippedVersion: Int = 1, manifestURL: String? = nil,
-        allowUnsignedUpdates: Bool = false
+        allowUnsignedUpdates: Bool = false,
+        healthSignal: OTAHealthSignal = .firstCommit
     ) {
         self.signerPublicKeys = signerPublicKeys
         self.gate = gate
         self.shippedVersion = shippedVersion
         self.manifestURL = manifestURL
         self.allowUnsignedUpdates = allowUnsignedUpdates
+        self.healthSignal = healthSignal
     }
 }
 

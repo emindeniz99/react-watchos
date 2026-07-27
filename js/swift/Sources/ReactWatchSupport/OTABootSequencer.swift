@@ -122,12 +122,16 @@ public struct OTABootSequencer: Sendable {
         public let policyAllowedFeatures: Set<String>
         public let maxBundleBytes: Int
         public let maxBootAttempts: Int
+        /// What clears the crash-loop counter (ARCH-04): the first committed
+        /// tree, or the bundle's own `markUpdateHealthy()` call.
+        public let healthSignal: OTAHealthSignal
 
         public init(
             keyState: OTAKeyState, gate: OTAGate, shippedVersion: Int,
             nativeBridgeProtocol: Int, nativeFeatures: Set<String>,
             policyAllowedFeatures: Set<String>,
-            maxBundleBytes: Int, maxBootAttempts: Int
+            maxBundleBytes: Int, maxBootAttempts: Int,
+            healthSignal: OTAHealthSignal
         ) {
             self.keyState = keyState
             self.gate = gate
@@ -137,6 +141,7 @@ public struct OTABootSequencer: Sendable {
             self.policyAllowedFeatures = policyAllowedFeatures
             self.maxBundleBytes = maxBundleBytes
             self.maxBootAttempts = maxBootAttempts
+            self.healthSignal = healthSignal
         }
     }
 
@@ -489,6 +494,31 @@ public struct OTABootSequencer: Sendable {
         guard counters.otaBootAttempts() != 0 else { return }
         counters.setOTABootAttempts(0)
         if let bootedRecord { promoteToKnownGood(bootedRecord) }
+    }
+
+    /// Whether a first committed tree is enough to bless THIS boot's bundle, or
+    /// whether the bundle must call `markUpdateHealthy()` itself (ARCH-04's
+    /// `bundleReady`). Both triggers land on the same `markHealthy`.
+    ///
+    /// Under `.explicit` there are two carve-outs, because the explicit bar is
+    /// only meaningful for an OTA bundle that hasn't proved itself yet:
+    /// - **Shipped boots self-bless** (`bootedRecord == nil`). The shipped
+    ///   bundle is inside the code-signed binary and predates the API; without
+    ///   this a non-zero counter left by a dropped OTA would survive into the
+    ///   next staged bundle and roll it back early.
+    /// - **Already-blessed bundles self-bless** (the booted record IS the
+    ///   known-good snapshot). This is the config-flip case: a consumer turns
+    ///   on `.explicit` in a new app release while an OTA bundle that predates
+    ///   the API is installed and already promoted. Without the carve-out that
+    ///   healthy bundle crash-loops, finds `knownGood == active`, and drops all
+    ///   the way to shipped.
+    ///
+    /// Deliberately NOT cheap (the known-good check is a file read), so the
+    /// host computes it once per boot rather than per commit.
+    public func commitBlesses(bootedRecord: OTARecord?) -> Bool {
+        if config.healthSignal == .firstCommit { return true }
+        guard let bootedRecord else { return true }
+        return loadRecord(from: knownGood) == bootedRecord
     }
 
     // MARK: - Private boot plumbing

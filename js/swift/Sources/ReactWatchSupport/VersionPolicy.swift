@@ -16,6 +16,22 @@ public enum OTAGate: Sendable, Equatable {
     case hard
 }
 
+/// What proves an OTA bundle healthy, so the crash-loop counter may be cleared
+/// and the bundle promoted to known-good (ARCH-04's `bundleReady`).
+///
+/// `firstCommit` (the default) treats the first committed tree as proof the
+/// bundle boots: cheap, needs nothing from the bundle, but it can't tell a
+/// correct screen from a blank one, and a bundle that renders and *then*
+/// reliably dies never accumulates boot attempts at all.
+/// `explicit` withholds that proof until the bundle calls
+/// `markUpdateHealthy()` — after its own smoke checks — so a bundle that never
+/// gets that far rolls back. The policy lives in the code-signed binary, never
+/// in the bundle: a bundle that could relax it would declare itself trustworthy.
+public enum OTAHealthSignal: Sendable, Equatable {
+    case firstCommit
+    case explicit
+}
+
 /// What the host should do at boot.
 public enum BootDecision: Sendable, Equatable {
     /// The persisted OTA bundle is current — run it.

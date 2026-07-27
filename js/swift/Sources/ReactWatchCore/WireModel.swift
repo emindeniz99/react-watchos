@@ -160,6 +160,7 @@ public enum HostInvokeFeatures {
         "keychainDelete": "keychain",
         "keychainGet": "keychain",
         "keychainSet": "keychain",
+        "markUpdateHealthy": "ota",
         "playAudio": "audio",
         "purchase": "iap",
         "registerForRemoteNotifications": "push",
