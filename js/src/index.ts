@@ -330,7 +330,7 @@ let activeRoot: WatchRoot | null = null;
  * for Swift to deliver interactions.
  *
  * One root at a time: call `root.dispose()` before mounting another — it
- * unmounts the tree (running every effect cleanup) and uninstalls the three
+ * unmounts the tree (running every effect cleanup) and uninstalls the four
  * globals below. On the watch a reload never needs it (`boot()` builds a whole
  * new QuickJS context, so every global and every module binding resets by
  * construction); in tests it is what keeps sequential mounts from leaking into
@@ -357,7 +357,7 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
       log: (message: string) => native.log(message),
     };
   }
-  // The three globals are captured as named closures, not assigned inline, so
+  // The four globals are captured as named closures, not assigned inline, so
   // dispose() can uninstall exactly the functions it installed (identity
   // check below) instead of clobbering a successor root's.
   //
@@ -394,6 +394,14 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
     );
   // Debug inspector: returns the current serialized tree + commit count.
   const inspect = () => root.inspect();
+  // Native teardown hook: lets Swift dispose the live root before it evaluates
+  // ANOTHER bundle into the same QuickJS context. `activeRoot` lives in this
+  // module's IIFE scope (esbuild format:"iife"), so a re-evaluation gets a
+  // FRESH module scope on a context whose globals persist — the single-root
+  // guard above cannot see the previous evaluation's root, and the OTA→shipped
+  // fallback (OTABootSequencer) would otherwise leave the failed bundle's tree
+  // mounted with its sensors/listeners still live.
+  const disposeRoot = () => root.dispose();
   const root = new WatchRoot(bridge, () => {
     // Identity-checked: only remove a global that still points at THIS root's
     // closure. Belt-and-braces against the single-root guard — a root created
@@ -402,11 +410,13 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
     if (g.__dispatchEvent === dispatchEvent) delete g.__dispatchEvent;
     if (g.__pushNativeEvent === pushNativeEvent) delete g.__pushNativeEvent;
     if (g.__inspect === inspect) delete g.__inspect;
+    if (g.__disposeActiveRoot === disposeRoot) delete g.__disposeActiveRoot;
     if (activeRoot === root) activeRoot = null;
   });
   g.__dispatchEvent = dispatchEvent;
   g.__pushNativeEvent = pushNativeEvent;
   g.__inspect = inspect;
+  g.__disposeActiveRoot = disposeRoot;
   activeRoot = root;
   try {
     root.render(element);

@@ -436,6 +436,17 @@ must require an explicit consumer configuration change/native release.
 > diagnostics latch desyncing from the listener table, and (c) QuickJS being
 > freed off its owning queue. Those three shipped. Evidence: the merged
 > backlog's build-progress log entry.)*
+>
+> *(2026-07-27, amendment: claim (a) as written overstated the fix.
+> `runApp`'s single-root guard covers a second `runApp` within ONE
+> evaluation. It cannot see across evaluations — the bundle is an IIFE, so
+> `js.evaluate(bundle)` a second time into the same context gets a fresh
+> module scope (and a fresh `activeRoot`) while the globals persist, which
+> is exactly what the OTA→shipped fallback does after a bad bundle throws.
+> That case is covered by the `__disposeActiveRoot` global, which the host
+> calls before every bundle eval to tear the previous root down. Module-scope
+> side effects of the half-executed bundle still survive into the fallback;
+> the complete answer is a fresh `JSRuntime` for the fallback boot.)*
 
 **Priority:** P1.
 

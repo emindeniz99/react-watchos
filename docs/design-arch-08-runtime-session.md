@@ -21,7 +21,13 @@ work is well-defined when it's picked up.
 > **"Why it's deferred (no failing scenario today)" is wrong.** Two failing
 > scenarios were found on 2026-07-27:
 > 1. a second `runApp` in the same context silently double-mounted (root #1
->    stayed mounted and kept receiving every native push);
+>    stayed mounted; correction, 2026-07-27: it does NOT keep receiving native
+>    pushes — `nativeEvents` is module-scope too, so root #1's listeners stay in
+>    the old IIFE's table. It is a leak, not double-delivery.) `runApp` now
+>    throws on a second mount within one evaluation; the same-context
+>    RE-evaluation case (the OTA→shipped fallback, where the second `evaluate`
+>    gets a fresh module scope) is covered by the `__disposeActiveRoot` global
+>    the host calls before each bundle eval;
 > 2. `JSRuntime` was freed on whatever thread dropped the last reference, which
 >    for the OTA validator/compiler and the widget runtime is never the owning
 >    queue — a staged bundle that arms a `setTimeout` at module scope makes that

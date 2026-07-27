@@ -1074,10 +1074,12 @@ final class ReactWatchModel {
         do {
             outcome = try otaSequencer.boot(
                 evalSource: { source in
+                    self.disposeActiveRoot(in: js)
                     self.setBundleReleaseId(source, into: js)
                     try js.evaluate(source)
                 },
                 evalBytecode: { bytecode, source in
+                    self.disposeActiveRoot(in: js)
                     self.setBundleReleaseId(source, into: js)
                     try js.evaluateBytecode(bytecode)
                 },
@@ -1154,6 +1156,28 @@ final class ReactWatchModel {
             filename: "release-id.js")
     }
 
+    /// Disposes whatever root is mounted in `js` before another bundle is
+    /// evaluated into the SAME context (ARCH-08). `runApp`'s single-root guard
+    /// only spans one evaluation — the bundle is an IIFE, so a second `evaluate`
+    /// gets a fresh module scope on a context whose globals survive, and the
+    /// guard cannot see the previous evaluation's root. Without this, the
+    /// OTA→shipped fallback (the path that exists to survive a bad bundle)
+    /// leaves the failed bundle's tree mounted with its sensor streams and
+    /// native listeners still live for the rest of the generation.
+    ///
+    /// A no-op when nothing is mounted, and best-effort by design: a bundle
+    /// that never reached `runApp` has no hook, and a throwing dispose must not
+    /// block the recovery boot this call precedes.
+    ///
+    /// Only ROOT-owned resources are released. Module-scope side effects of the
+    /// half-executed bundle (armed timers, widget/intent registrations, a
+    /// started inspector) survive into the fallback; the complete fix is a
+    /// FRESH runtime for the fallback boot, tracked separately.
+    private func disposeActiveRoot(in js: JSRuntime) {
+        try? js.evaluate(
+            "globalThis.__disposeActiveRoot?.()", filename: "dispose-root.js")
+    }
+
     private func loadShipped(into js: JSRuntime) throws {
         // Read the source up front for the release id (CX-025), even when the
         // precompiled bytecode runs below — so JS always learns its content id.
@@ -1165,6 +1189,7 @@ final class ReactWatchModel {
             let data = try? Data(contentsOf: qbc)
         {
             do {
+                disposeActiveRoot(in: js)
                 try js.evaluateBytecode(data)
                 return
             } catch {
@@ -1177,6 +1202,7 @@ final class ReactWatchModel {
         guard let code = source else {
             throw JSRuntime.JSError.exception("bundle.js missing — run `npm run build`")
         }
+        disposeActiveRoot(in: js)
         try js.evaluate(code)
     }
 

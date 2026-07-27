@@ -27,17 +27,19 @@ function g() {
  * double-mount the 2026-06-25 review found.
  */
 describe("WatchRoot.dispose (ARCH-08)", () => {
-  it("uninstalls exactly the three globals runApp installed", () => {
+  it("uninstalls exactly the four globals runApp installed", () => {
     const root = runApp(<Text>hi</Text>, new MemoryHost());
     expect(typeof g().__dispatchEvent).toBe("function");
     expect(typeof g().__pushNativeEvent).toBe("function");
     expect(typeof g().__inspect).toBe("function");
+    expect(typeof g().__disposeActiveRoot).toBe("function");
 
     root.dispose();
 
     expect(g().__dispatchEvent).toBeUndefined();
     expect(g().__pushNativeEvent).toBeUndefined();
     expect(g().__inspect).toBeUndefined();
+    expect(g().__disposeActiveRoot).toBeUndefined();
   });
 
   it("runs effect cleanups, so a disposed root stops receiving native events", () => {
@@ -141,5 +143,50 @@ describe("WatchRoot.dispose (ARCH-08)", () => {
     expect(() => push("nobody-listens")).toThrow(/disposed/);
     expect(() => dispatch(1, "press")).toThrow(/disposed/);
     unregisterAllNativeListeners();
+  });
+});
+
+/**
+ * ARCH-08, the same-CONTEXT re-evaluation half. `activeRoot` lives in the
+ * bundle's IIFE scope, so a second `js.evaluate(bundle)` — what the OTA→shipped
+ * fallback does after a bad bundle throws — gets a fresh module scope on a
+ * context whose globals persist. The single-root guard cannot see the previous
+ * evaluation's root, so the native side needs a global hook to tear it down
+ * first, or the failed bundle's tree stays mounted with its listeners and
+ * sensor streams live for the rest of the generation.
+ */
+describe("__disposeActiveRoot (native teardown hook, ARCH-08)", () => {
+  it("disposes the live root, releasing its listeners and the single-root slot", () => {
+    function Listener() {
+      useEffect(() => registerNativeListener("connection", () => {}), []);
+      return <Text>x</Text>;
+    }
+    runApp(<Listener />, new MemoryHost());
+    expect(dispatchNativeEvent("connection", {})).toBe(true);
+
+    // Stands in for Swift's `globalThis.__disposeActiveRoot?.()` before it
+    // evaluates the fallback bundle into the same runtime.
+    (g().__disposeActiveRoot as () => void)();
+
+    expect(dispatchNativeEvent("connection", {})).toBe(false);
+    expect(g().__dispatchEvent).toBeUndefined();
+    expect(g().__disposeActiveRoot).toBeUndefined();
+    // The fallback bundle can now mount — this is the whole point of the hook.
+    runApp(<Text>fallback</Text>, new MemoryHost()).dispose();
+  });
+
+  it("a superseded root's hook does not tear down the live root", () => {
+    const first = runApp(<Text>first</Text>, new MemoryHost());
+    const staleHook = g().__disposeActiveRoot as () => void;
+    first.dispose();
+
+    const second = runApp(<Text>second</Text>, new MemoryHost());
+    staleHook();
+
+    // Identity-checked like the other three globals: the stale hook's own
+    // dispose() is a no-op, and it must not uninstall its successor's.
+    expect(typeof g().__disposeActiveRoot).toBe("function");
+    expect((g().__inspect as InspectFn)().commits).toBeGreaterThanOrEqual(1);
+    second.dispose();
   });
 });

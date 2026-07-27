@@ -323,7 +323,7 @@ export class WatchRoot {
   /** ARCH-08: set by dispose(). Every entry point checks it and throws. */
   private disposed = false;
   /** ARCH-08: uninstalls whatever the *creator* of this root installed on its
-   *  behalf — `runApp`'s three globals. Runs once, after the unmount. */
+   *  behalf — `runApp`'s four globals. Runs once, after the unmount. */
   private readonly onDispose: (() => void) | undefined;
 
   constructor(host: HostBridge, onDispose?: () => void) {
