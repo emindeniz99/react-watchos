@@ -320,7 +320,42 @@ through typed commands, not unrestricted `getItem`/`setItem`.
 - [ ] Add concurrent-writer and interrupted-migration tests.
 - [ ] Until this exists, document OTA as safe only for data-compatible releases.
 
-### [ ] ARCH-06 — Bind widget publications to state and release revisions
+### [x] ARCH-06 — Bind widget publications to state and release revisions
+
+> *(2026-07-27: shipped — `PublishedWidgets` carries `stateRevision` +
+> `releaseId`, a monotonic per-App-Group revision minted natively inside the
+> Storage bridge closures (`StateRevisionTracker` batching over a
+> `CoordinatedCounterStore` in its own `revision/` subdirectory),
+> `WidgetSnapshot.freshness` as the consumer-side gate, and reconciliation on
+> the app's first commit + every foreground. Evidence: the merged backlog's
+> build-progress log entry.)*
+>
+> **What is actually guaranteed** (owner-signed, deliberately not
+> "linearizable"):
+> 1. The revision is **monotonic and cross-process atomic** — one
+>    `NSFileCoordinator` write claim per bump, the ARCH-05 guarantee. (Darwin
+>    only; Linux is an unclaimed RMW for unit tests.)
+> 2. The bump happens **before** the state write, so every crash between
+>    mutation and publication reads as **stale, never as current**. Within a
+>    process the detection is exact. Fail-stale is the only acceptable
+>    direction: the reverse ordering is the bug this item exists to close.
+> 3. **Residual cross-process window**: process A can sample the revision at
+>    render start after process B bumped but before B's UserDefaults write
+>    lands (sub-millisecond), and stamp "current" over data it read pre-write.
+>    B's own publication immediately supersedes it — with `invalidateCache` +
+>    `reloadAllTimelines` forcing a re-read — so the system converges. That is
+>    "eventually consistent, inconsistency observable and recoverable", exactly
+>    the Decision's wording, not linearizability.
+> 4. Closing (3) needs a 2-phase `pending`/`committed` revision pair — two
+>    coordinated claims per batch. **Recorded as a follow-up, not built.**
+>
+> The state write (a UserDefaults key) and the revision bump (a coordinated
+> file) remain two stores: watchOS App Groups offer per-key UserDefaults
+> atomicity and per-file coordination claims, and no cross-key transaction.
+> Making them one operation means moving the whole Storage KV into a
+> coordinated document — the transactional store deferred at ARCH-05 above.
+> Sampling discipline that (2) depends on: the revision stamped on a payload is
+> sampled at **render start**, before any `render()` callback reads state.
 
 **Priority:** P1.
 
@@ -344,10 +379,21 @@ remains eventually consistent, but inconsistency is observable and recoverable.
 
 **Acceptance**
 
-- [ ] Add revision metadata to `PublishedWidgets`.
-- [ ] Persist state revision and payload atomically where practical.
-- [ ] Add reconciliation on app launch and after intent completion.
-- [ ] Test crash between mutation and publication.
+- [x] Add revision metadata to `PublishedWidgets`. (`stateRevision: Int` +
+      `releaseId: String?` in `codegen/schema.ts`; the payload schema version
+      `v` and the generated-at `publishedAt` were already there.)
+- [x] Persist state revision and payload atomically where practical. (The
+      stamps ride INSIDE the one JSON string under the one UserDefaults key, so
+      payload↔stamp can never tear. State-write↔bump is the residual window
+      above — "where practical" is doing real work in that sentence.)
+- [x] Add reconciliation on app launch and after intent completion.
+      (`reconcileWidgets()` on the first healthy commit and on every
+      foreground; intent completion already republishes on any Storage write —
+      `intents.ts` — and that publication now closes the revision batch.)
+- [x] Test crash between mutation and publication. (`PayloadFreshnessTests`
+      pins bump-without-publication → `.staleRevision` even inside a live
+      `reloadAfter`; the JS suite simulates the lost publication with a
+      throwing host and asserts the surviving mismatch.)
 
 ### [x] ARCH-07 — Enforce host policy, not only host availability
 
