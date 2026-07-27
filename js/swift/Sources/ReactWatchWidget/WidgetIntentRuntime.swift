@@ -187,26 +187,26 @@ public final class WidgetIntentRuntime {
         // UNKNOWN_METHOD rejection uses.
         js.bridge.invoke = { [weak js] id, method, _ in
             guard let js else { return }
-            let code: String
+            let code: InvokeErrorCode
             let message: String
             if let feature = HostInvokeFeatures.byMethod[method] {
                 if !HostFeatures.widget.contains(feature) {
-                    code = "UNAVAILABLE"
+                    code = .unavailable
                     message =
                         "method '\(method)' is not available in the widget runtime"
                 } else if !effectiveFeatures.contains(feature) {
-                    code = "POLICY_DENIED"
+                    code = .policyDenied
                     message =
                         "method '\(method)' is blocked by this app's host policy "
                         + "— requires an app configuration change"
                 } else {
-                    code = "UNAVAILABLE"
+                    code = .unavailable
                     message =
                         "method '\(method)' has no native backing in the widget "
                         + "runtime"
                 }
             } else {
-                code = "UNKNOWN_METHOD"
+                code = .unknownMethod
                 message = "no invoke handler for \(method)"
             }
             js.rejectInvoke(

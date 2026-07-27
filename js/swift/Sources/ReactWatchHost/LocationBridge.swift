@@ -11,7 +11,19 @@ import CoreLocation
 /// one delegate callback (a fix or an error), and every authorization path ends
 /// in one too, so `onResult` always fires — no separate timeout needed.
 final class OneShotLocation: NSObject, CLLocationManagerDelegate {
-    enum Failure: Error { case denied }
+    /// Why the fix failed — the two cases mean different things to the caller
+    /// and map to different invoke codes: `denied` is the USER's decision
+    /// (PERMISSION_DENIED — re-prompting won't help, Settings will), while a
+    /// CoreLocation error or an unrecognized authorization state is
+    /// UNAVAILABLE. Collapsing both into one code (the old
+    /// `LOCATION_UNAVAILABLE`) told the caller nothing actionable.
+    enum Failure: Error, Equatable {
+        /// `.denied` / `.restricted` — the user (or a profile) said no.
+        case denied
+        /// No fix available: a CLError, or an authorization state this build
+        /// doesn't know (@unknown default).
+        case unavailable
+    }
 
     private let manager = CLLocationManager()
     private let onResult: (Result<CLLocationCoordinate2D, Error>) -> Void
@@ -30,8 +42,10 @@ final class OneShotLocation: NSObject, CLLocationManagerDelegate {
             manager.requestLocation()
         case .notDetermined:
             manager.requestWhenInUseAuthorization()
-        default:
+        case .denied, .restricted:
             finish(.failure(Failure.denied))
+        @unknown default:
+            finish(.failure(Failure.unavailable))
         }
     }
 
@@ -39,7 +53,8 @@ final class OneShotLocation: NSObject, CLLocationManagerDelegate {
         switch m.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways: m.requestLocation()
         case .notDetermined: break  // still waiting on the prompt
-        default: finish(.failure(Failure.denied))
+        case .denied, .restricted: finish(.failure(Failure.denied))
+        @unknown default: finish(.failure(Failure.unavailable))
         }
     }
 

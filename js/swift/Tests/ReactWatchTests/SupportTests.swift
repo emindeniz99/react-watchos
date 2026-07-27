@@ -70,14 +70,27 @@ final class InvokeErrorJSONTests: XCTestCase {
     func testRoundTripsHostileMessages() throws {
         let hostile = "line1\nline2 \\ \"quoted\" \t control\u{1F}"
         let decoded = try decode(
-            InvokeErrorJSON.make(code: "UNAVAILABLE", message: hostile))
+            InvokeErrorJSON.make(code: .unavailable, message: hostile))
         XCTAssertEqual(decoded["code"], "UNAVAILABLE")
         XCTAssertEqual(decoded["message"], hostile)  // exact, not mangled to '
     }
 
+    /// The set is closed at RUNTIME now, not just in the TS type: every code a
+    /// bridge can emit is an enum case, and its wire spelling is the exact
+    /// string js/src/invoke.ts's `InvokeErrorCode` union lists. A member added
+    /// on one side without the other fails here.
+    func testCodeSpellingsMatchTheJSUnion() {
+        XCTAssertEqual(
+            Set(InvokeErrorCode.allCases.map(\.rawValue)),
+            [
+                "UNKNOWN_METHOD", "PERMISSION_DENIED", "POLICY_DENIED",
+                "UNAVAILABLE", "INVALID_REQUEST", "INTERNAL",
+            ])
+    }
+
     func testPlainMessageStaysPlain() throws {
         let decoded = try decode(
-            InvokeErrorJSON.make(code: "INTERNAL", message: "boom"))
+            InvokeErrorJSON.make(code: .internal, message: "boom"))
         XCTAssertEqual(decoded, ["code": "INTERNAL", "message": "boom"])
     }
 }

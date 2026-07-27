@@ -523,7 +523,7 @@ final class ReactWatchModel {
             runtime?.rejectInvoke(
                 id: id,
                 errorJson: Self.errorJSON(
-                    code: "POLICY_DENIED",
+                    code: .policyDenied,
                     message: "method '\(method)' is blocked by this app's host "
                         + "policy — requires an app configuration change"))
             return
@@ -596,7 +596,7 @@ final class ReactWatchModel {
             runtime?.rejectInvoke(
                 id: id,
                 errorJson: Self.errorJSON(
-                    code: "UNKNOWN_METHOD", message: "no invoke handler for \(method)"))
+                    code: .unknownMethod, message: "no invoke handler for \(method)"))
         }
     }
 
@@ -700,8 +700,11 @@ final class ReactWatchModel {
     @ObservationIgnored private var pendingLocations: [Int: OneShotLocation] = [:]
 
     /// One-shot current location (CLLocationManager.requestLocation): resolves
-    /// {lat, lon} for centering a map / biasing a POI search, or rejects
-    /// LOCATION_UNAVAILABLE if denied or no fix arrives. Generation-guarded.
+    /// {lat, lon} for centering a map / biasing a POI search, or rejects in the
+    /// closed code set — PERMISSION_DENIED when the user (or a restriction)
+    /// said no, UNAVAILABLE when no fix is obtainable. It used to reject a
+    /// bespoke `LOCATION_UNAVAILABLE`, which no `InvokeErrorCode` comparison in
+    /// JS could ever match. Generation-guarded.
     private func handleGetCurrentLocation(id: Int) {
         let gen = generation
         DispatchQueue.main.async { [weak self] in
@@ -715,12 +718,15 @@ final class ReactWatchModel {
                     self.runtime?.resolveInvoke(
                         id: id,
                         resultJson: Self.jsonObject(["lat": c.latitude, "lon": c.longitude]))
-                case .failure:
+                case .failure(let error):
+                    let denied = (error as? OneShotLocation.Failure) == .denied
                     self.runtime?.rejectInvoke(
                         id: id,
                         errorJson: Self.errorJSON(
-                            code: "LOCATION_UNAVAILABLE",
-                            message: "current location unavailable"))
+                            code: denied ? .permissionDenied : .unavailable,
+                            message: denied
+                                ? "location permission denied"
+                                : "current location unavailable"))
                 }
             }
             self.pendingLocations[id] = request
@@ -799,7 +805,7 @@ final class ReactWatchModel {
                     self.runtime?.rejectInvoke(
                         id: id,
                         errorJson: Self.errorJSON(
-                            code: "INTERNAL", message: error.localizedDescription))
+                            code: .internal, message: error.localizedDescription))
                 }
                 return
             }
@@ -885,7 +891,9 @@ final class ReactWatchModel {
 
     /// JSON-encodes a {code, message} reject payload, escaping safely — the
     /// shared builder so every bridge produces identical, always-valid JSON.
-    private static func errorJSON(code: String, message: String) -> String {
+    /// `code` is the closed `InvokeErrorCode` enum, so a handler can't invent a
+    /// code JS would have to cast through unchecked.
+    private static func errorJSON(code: InvokeErrorCode, message: String) -> String {
         InvokeErrorJSON.make(code: code, message: message)
     }
 
@@ -1408,7 +1416,7 @@ final class ReactWatchModel {
             runtime?.rejectInvoke(
                 id: id,
                 errorJson: Self.errorJSON(
-                    code: "INVALID_REQUEST", message: "bad notification payload"))
+                    code: .invalidRequest, message: "bad notification payload"))
             return
         }
         let content = UNMutableNotificationContent()
@@ -1430,7 +1438,7 @@ final class ReactWatchModel {
                     self.runtime?.rejectInvoke(
                         id: id,
                         errorJson: Self.errorJSON(
-                            code: "INTERNAL", message: error.localizedDescription))
+                            code: .internal, message: error.localizedDescription))
                 } else {
                     self.runtime?.resolveInvoke(id: id, resultJson: "null")
                 }
@@ -2051,7 +2059,7 @@ extension ReactWatchModel {
                     self.runtime?.rejectInvoke(
                         id: id,
                         errorJson: Self.errorJSON(
-                            code: "INTERNAL", message: error.localizedDescription))
+                            code: .internal, message: error.localizedDescription))
                 } else {
                     self.runtime?.resolveInvoke(id: id, resultJson: "null")
                 }
@@ -2096,7 +2104,7 @@ extension ReactWatchModel {
         for entry in pending where entry.generation == generation {
             runtime?.rejectInvoke(
                 id: entry.id,
-                errorJson: Self.errorJSON(code: "UNAVAILABLE", message: message))
+                errorJson: Self.errorJSON(code: .unavailable, message: message))
         }
         if jsReady {
             pushNativeEvent("remotePush.registrationError", payload: ["message": message])
@@ -2140,7 +2148,7 @@ extension ReactWatchModel {
         } else {
             runtime?.rejectInvoke(
                 id: id,
-                errorJson: Self.errorJSON(code: "INTERNAL", message: "keychain write failed"))
+                errorJson: Self.errorJSON(code: .internal, message: "keychain write failed"))
         }
     }
 
@@ -2204,7 +2212,7 @@ extension ReactWatchModel {
             if let error {
                 self.runtime?.rejectInvoke(
                     id: id,
-                    errorJson: Self.errorJSON(code: "INTERNAL", message: error))
+                    errorJson: Self.errorJSON(code: .internal, message: error))
             } else {
                 self.runtime?.resolveInvoke(id: id, resultJson: "null")
             }
@@ -2274,7 +2282,7 @@ extension ReactWatchModel {
         case .error(let message):
             runtime?.rejectInvoke(
                 id: id,
-                errorJson: Self.errorJSON(code: "INTERNAL", message: message))
+                errorJson: Self.errorJSON(code: .internal, message: message))
         }
     }
 
@@ -2287,7 +2295,7 @@ extension ReactWatchModel {
     private func rejectInvalid(id: Int, message: String) {
         runtime?.rejectInvoke(
             id: id,
-            errorJson: Self.errorJSON(code: "INVALID_REQUEST", message: message))
+            errorJson: Self.errorJSON(code: .invalidRequest, message: message))
     }
 }
 

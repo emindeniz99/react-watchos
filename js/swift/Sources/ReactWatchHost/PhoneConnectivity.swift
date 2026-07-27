@@ -2,13 +2,14 @@
 // file to an empty module off-watchOS so `swift test` runs on macOS — see Package.swift.
 #if os(watchOS)
 import Foundation
+import ReactWatchSupport
 import WatchConnectivity
 
 /// A sendToPhone failure, mapped to a generic invoke error `code` (SD-1) with
 /// the WCError detail in `message`. Sendable so it can cross WCSession's
 /// background-queue handlers back to the main actor.
 struct SendError: Error, Sendable {
-    let code: String
+    let code: InvokeErrorCode
     let message: String
 }
 
@@ -46,7 +47,7 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
             completion(
                 .failure(
                     SendError(
-                        code: "UNAVAILABLE", message: "WatchConnectivity is not supported")))
+                        code: .unavailable, message: "WatchConnectivity is not supported")))
             return
         }
         let session = WCSession.default
@@ -57,7 +58,7 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
             completion(
                 .failure(
                     SendError(
-                        code: "INVALID_REQUEST", message: "message is not a JSON object")))
+                        code: .invalidRequest, message: "message is not a JSON object")))
             return
         }
         // sendMessage is the only API with a reply/error pair, and it needs the
@@ -66,7 +67,7 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
             completion(
                 .failure(
                     SendError(
-                        code: "UNAVAILABLE", message: "the iPhone is not reachable")))
+                        code: .unavailable, message: "the iPhone is not reachable")))
             return
         }
         session.sendMessage(
@@ -128,12 +129,12 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         guard WCSession.isSupported() else {
             return .failure(
                 SendError(
-                    code: "UNAVAILABLE", message: "WatchConnectivity is not supported"))
+                    code: .unavailable, message: "WatchConnectivity is not supported"))
         }
         let session = WCSession.default
         guard session.activationState == .activated else {
             return .failure(
-                SendError(code: "UNAVAILABLE", message: "the session is not activated"))
+                SendError(code: .unavailable, message: "the session is not activated"))
         }
         guard let data = json.data(using: .utf8),
             let object = (try? JSONSerialization.jsonObject(with: data))
@@ -141,21 +142,21 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         else {
             return .failure(
                 SendError(
-                    code: "INVALID_REQUEST", message: "payload is not a JSON object"))
+                    code: .invalidRequest, message: "payload is not a JSON object"))
         }
         return .success((session, object))
     }
 
     /// Maps a WCError to a generic invoke error code (the closed channel enum);
     /// the specific WCError reason stays in the message.
-    private static func invokeCode(for error: Error) -> String {
+    private static func invokeCode(for error: Error) -> InvokeErrorCode {
         switch (error as? WCError)?.code {
         case .notReachable, .sessionNotActivated, .sessionInactive:
-            "UNAVAILABLE"
+            .unavailable
         case .payloadTooLarge, .payloadUnsupportedTypes:
-            "INVALID_REQUEST"
+            .invalidRequest
         default:
-            "INTERNAL"
+            .internal
         }
     }
 

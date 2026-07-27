@@ -65,6 +65,48 @@ describe("invoke channel (SD-1)", () => {
     });
   });
 
+  it("degrades an unrecognized native code to INTERNAL, keeping it in the message", async () => {
+    // The closed set used to be closed by TYPE ONLY: settle() did
+    // `parsed.code as InvokeErrorCode`, so a native code outside the union
+    // landed in error.code and TypeScript endorsed it — no
+    // `if (e.code === "UNAVAILABLE")` could ever match. That shipped twice
+    // ("AUDIO_FAILED", then "LOCATION_UNAVAILABLE"). The Swift side is now an
+    // enum; this is the runtime guard on the JS end, for an older binary or a
+    // future drift.
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number) => {
+      (g.__rejectInvoke as (i: number, j: string) => void)(
+        id,
+        JSON.stringify({
+          code: "LOCATION_UNAVAILABLE",
+          message: "current location unavailable",
+        }),
+      );
+    });
+    await expect(invoke("getCurrentLocation")).rejects.toMatchObject({
+      code: "INTERNAL",
+      // The original spelling survives in the message — the native bug stays
+      // diagnosable instead of being erased by the degrade.
+      message: "LOCATION_UNAVAILABLE: current location unavailable",
+    });
+  });
+
+  it("does not treat an inherited Object key as a valid code", async () => {
+    // The lookup indexes a Record, so "constructor"/"toString" (present on
+    // every object's prototype chain) must NOT pass as members of the set.
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number) => {
+      (g.__rejectInvoke as (i: number, j: string) => void)(
+        id,
+        JSON.stringify({ code: "constructor", message: "wat" }),
+      );
+    });
+    await expect(invoke("getCurrentLocation")).rejects.toMatchObject({
+      code: "INTERNAL",
+      message: "constructor: wat",
+    });
+  });
+
   it("settles exactly once — a duplicate native reply is ignored", async () => {
     const host = installMockHost();
     let capturedId = 0;

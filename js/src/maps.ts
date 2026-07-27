@@ -42,9 +42,11 @@ export interface Coordinate {
 /**
  * Resolves the watch's current location as a single `{lat, lon}` fix — for
  * centering a map or biasing a {@link searchPOI} call. Prompts for When-In-Use
- * location permission the first time; rejects if permission is denied or no fix
- * is available (e.g. a simulator with no location set), so callers should catch
- * and fall back to a default region.
+ * location permission the first time; rejects `PERMISSION_DENIED` when the user
+ * (or a restriction) said no and `UNAVAILABLE` when no fix is obtainable (e.g.
+ * a simulator with no location set), so callers should catch and fall back to a
+ * default region. Both codes are in the closed {@link
+ * import("./invoke").InvokeErrorCode} set — a switch on them is exhaustive.
  */
 export function getCurrentLocation(): Promise<Coordinate> {
   return invoke<Coordinate>("getCurrentLocation");

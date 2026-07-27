@@ -28,6 +28,34 @@ export interface InvokeError extends Error {
   code: InvokeErrorCode;
 }
 
+/**
+ * The runtime half of the closed set. `settle()` used to do
+ * `code = parsed.code as InvokeErrorCode` — an unchecked cast, so ANY native
+ * string landed in `error.code` and TypeScript endorsed it: `playAudio` once
+ * rejected `"AUDIO_FAILED"` and `getCurrentLocation` `"LOCATION_UNAVAILABLE"`,
+ * and no `if (e.code === "UNAVAILABLE")` could ever match either. The Swift
+ * side is now an enum (`InvokeErrorCode` in ReactWatchSupport), so this is the
+ * belt to that braces — a code from an older/other binary degrades to
+ * `INTERNAL` instead of lying about the union.
+ *
+ * A `Record` keyed by the union, not a `Set`: adding a member to
+ * `InvokeErrorCode` without adding it here fails to compile.
+ */
+const INVOKE_ERROR_CODES: Record<InvokeErrorCode, true> = {
+  UNKNOWN_METHOD: true,
+  PERMISSION_DENIED: true,
+  POLICY_DENIED: true,
+  UNAVAILABLE: true,
+  INVALID_REQUEST: true,
+  INTERNAL: true,
+};
+
+/** Index rather than `in`/`hasOwn` so an inherited key ("constructor",
+ *  "toString") can't answer true. */
+function isInvokeErrorCode(value: string): value is InvokeErrorCode {
+  return INVOKE_ERROR_CODES[value as InvokeErrorCode] === true;
+}
+
 function invokeError(code: InvokeErrorCode, message: string): InvokeError {
   const error = new Error(message) as InvokeError;
   error.code = code;
@@ -89,8 +117,17 @@ function settle(id: number, ok: boolean, json: string): void {
   let message = "native error";
   try {
     const parsed = json ? JSON.parse(json) : {};
-    if (typeof parsed.code === "string") code = parsed.code as InvokeErrorCode;
     if (typeof parsed.message === "string") message = parsed.message;
+    if (typeof parsed.code === "string") {
+      if (isInvokeErrorCode(parsed.code)) {
+        code = parsed.code;
+      } else {
+        // Unrecognized: report INTERNAL (the honest "we don't know") but keep
+        // the original spelling in the message so the native bug is
+        // diagnosable from a crash report instead of erased.
+        message = `${parsed.code}: ${message}`;
+      }
+    }
   } catch {}
   entry.reject(invokeError(code, message));
 }

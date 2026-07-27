@@ -111,19 +111,19 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         switch method {
         case "bleConnect":
             guard let service = p?.service else {
-                return reject(id, "INVALID_REQUEST", "bleConnect needs a service UUID")
+                return reject(id, .invalidRequest, "bleConnect needs a service UUID")
             }
             // Reject a malformed UUID up front: CBUUID(string:) raises an uncaught
             // NSException, and connect()'s own guard would just drop a bad value
             // silently → the promise hangs to the 15s timeout. BluetoothUUID
             // accepts exactly what CBUUID does, and is Linux-tested.
             guard BluetoothUUID.canonical(service) != nil else {
-                return reject(id, "INVALID_REQUEST", "malformed service UUID")
+                return reject(id, .invalidRequest, "malformed service UUID")
             }
             // Only one connect promise in flight: a re-entrant connect rejects
             // the stale one rather than leaving it hanging.
             if let stale = session.awaitConnect(id: id) {
-                reject(stale, "INVALID_REQUEST", "superseded by a newer bleConnect")
+                reject(stale, .invalidRequest, "superseded by a newer bleConnect")
             }
             // Per-connection reconnect config (P0-1). Absent options RESET to
             // the defaults — bluetooth.ts documents "omit for the defaults",
@@ -138,39 +138,39 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             armConnectTimeout(id: id)
         case "bleWrite":
             guard let c = p?.characteristic, let v = p?.value else {
-                return reject(id, "INVALID_REQUEST", "bleWrite needs characteristic + value")
+                return reject(id, .invalidRequest, "bleWrite needs characteristic + value")
             }
             guard BluetoothUUID.canonical(c) != nil else {
-                return reject(id, "INVALID_REQUEST", "malformed characteristic UUID")
+                return reject(id, .invalidRequest, "malformed characteristic UUID")
             }
             // No connection in flight → the write would queue for a discovery
             // that never arrives and hang forever. Fail fast instead.
             guard isConnectedOrConnecting else {
-                return reject(id, "UNAVAILABLE", "not connected")
+                return reject(id, .unavailable, "not connected")
             }
             write(c, v, confirm: p?.confirm, invokeId: id)
         case "bleSubscribe":
             guard let c = p?.characteristic else {
-                return reject(id, "INVALID_REQUEST", "bleSubscribe needs a characteristic")
+                return reject(id, .invalidRequest, "bleSubscribe needs a characteristic")
             }
             guard let key = BluetoothUUID.canonical(c) else {
-                return reject(id, "INVALID_REQUEST", "malformed characteristic UUID")
+                return reject(id, .invalidRequest, "malformed characteristic UUID")
             }
             guard isConnectedOrConnecting else {
-                return reject(id, "UNAVAILABLE", "not connected")
+                return reject(id, .unavailable, "not connected")
             }
             if let stale = session.awaitSubscribe(characteristic: key, id: id) {
-                reject(stale, "INVALID_REQUEST", "superseded by a newer bleSubscribe")
+                reject(stale, .invalidRequest, "superseded by a newer bleSubscribe")
             }
             subscribe(c)
         default:
-            reject(id, "INTERNAL", "no BLE invoke handler for \(method)")
+            reject(id, .internal, "no BLE invoke handler for \(method)")
         }
     }
 
     private func resolve(_ id: Int, _ json: String = "") { onResolve?(id, json) }
 
-    private func reject(_ id: Int, _ code: String, _ message: String) {
+    private func reject(_ id: Int, _ code: InvokeErrorCode, _ message: String) {
         // Shared JSON-safe builder: the hand-built version escaped only double
         // quotes, so a backslash/newline in a peripheral-supplied message made
         // the errorJson unparseable and JS lost the typed rejection.
@@ -183,7 +183,7 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
     /// ops: the verify pass found exactly that divergence in didFailToConnect.
     private func failPendingOps(_ message: String) {
         for id in session.takeAllPending() {
-            reject(id, "UNAVAILABLE", message)
+            reject(id, .unavailable, message)
         }
     }
 
@@ -523,7 +523,7 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         for (char, id) in session.pendingSubscribes
         where characteristics[char] == nil {
             _ = session.takeSubscribeSettle(characteristic: char)
-            reject(id, "UNAVAILABLE", "characteristic not found")
+            reject(id, .unavailable, "characteristic not found")
         }
         // Flush queued writes; reject (don't silently re-queue) those whose
         // characteristic is absent — a re-queue that can never flush is a hang.
@@ -533,7 +533,7 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
                     w.characteristic, w.value, confirm: w.confirm,
                     invokeId: w.invokeId)
             } else if let id = w.invokeId {
-                reject(id, "UNAVAILABLE", "characteristic not found")
+                reject(id, .unavailable, "characteristic not found")
             }
         }
     }
@@ -547,7 +547,7 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             ?? characteristic.uuid.uuidString
         guard let id = session.takeWriteAck(characteristic: key) else { return }
         if let error {
-            reject(id, "INTERNAL", error.localizedDescription)
+            reject(id, .internal, error.localizedDescription)
         } else {
             resolve(id)
         }
@@ -563,7 +563,7 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
             ?? characteristic.uuid.uuidString
         guard let id = session.takeSubscribeSettle(characteristic: key) else { return }
         if let error {
-            reject(id, "INTERNAL", error.localizedDescription)
+            reject(id, .internal, error.localizedDescription)
         } else {
             resolve(id)
         }
