@@ -656,15 +656,23 @@ final class ReactWatchModel {
 
     /// MapKit local POI search (MKLocalSearch): resolves the invoke with an
     /// array of {lat, lon, title, subtitle} for the natural-language `query`,
-    /// biased to the optional region. An empty or failed search resolves to
-    /// `[]` (not a rejection) so the UI just shows no pins. The completion is
-    /// generation-guarded (CX-008) so a search settling after a dev-reload is
-    /// dropped.
+    /// biased to the optional region. An empty or failed SEARCH resolves to
+    /// `[]` (not a rejection) so the UI just shows no pins — but a payload that
+    /// isn't `{query: String, …}` is a malformed REQUEST and rejects: resolving
+    /// `[]` for it made a caller bug indistinguishable from "no coffee near
+    /// you". The completion is generation-guarded (CX-008) so a search settling
+    /// after a dev-reload is dropped.
     private func handleSearchPOI(id: Int, payload: String) {
         guard let data = payload.data(using: .utf8),
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let query = obj["query"] as? String, !query.isEmpty
+            let query = obj["query"] as? String
         else {
+            rejectInvalid(id: id, message: "searchPOI needs a string query")
+            return
+        }
+        // The one branch that stays a resolve, per maps.ts's documented
+        // contract ("an empty or failed search resolves to []").
+        guard !query.isEmpty else {
             runtime?.resolveInvoke(id: id, resultJson: "[]")
             return
         }
@@ -2038,7 +2046,16 @@ extension ReactWatchModel {
 
     func handleScheduleBackgroundRefresh(id: Int, payload: String) {
         let fields = Self.decodeObject(payload)
-        let afterMs = (fields["afterMs"] as? Double) ?? 0
+        // `?? 0` used to turn a missing/misnamed afterMs into "wake me RIGHT
+        // NOW" — a battery-budget request the developer never made, silently
+        // spending one of watchOS's ~hourly refresh grants and, for a caller
+        // that reschedules from its own fire handler, doing it in a loop.
+        guard let afterMs = fields["afterMs"] as? Double else {
+            rejectInvalid(
+                id: id,
+                message: "scheduleBackgroundRefresh needs afterMs (ms from now)")
+            return
+        }
         let date = Date().addingTimeInterval(max(0, afterMs) / 1000)
         // userInfo must be (NSSecureCoding & NSObjectProtocol)?: carry the JSON
         // userInfo as an NSString so it round-trips to the fire event verbatim.
@@ -2225,9 +2242,15 @@ extension ReactWatchModel {
     }
 
     func handleGetProducts(id: Int, payload: String) {
-        let ids =
-            (Self.decodeObject(payload)["productIds"] as? [Any])?
-            .compactMap { $0 as? String } ?? []
+        // `?? []` used to resolve an EMPTY product list for a typo'd key —
+        // indistinguishable from "the App Store knows none of these ids", which
+        // is the one outcome a paywall must not silently render. An explicitly
+        // empty `productIds: []` is still a legitimate (if pointless) call.
+        guard let raw = Self.decodeObject(payload)["productIds"] as? [Any] else {
+            rejectInvalid(id: id, message: "getProducts needs productIds")
+            return
+        }
+        let ids = raw.compactMap { $0 as? String }
         let gen = generation
         Task { [weak self] in
             let result = await StoreKitBridge.products(for: ids)
