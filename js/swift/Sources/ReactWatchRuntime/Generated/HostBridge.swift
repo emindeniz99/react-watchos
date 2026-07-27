@@ -68,6 +68,9 @@ extension JSRuntime {
         JS_SetPropertyStr(
             context, host, "invoke",
             JS_NewCFunction(context, hostInvoke, "invoke", 3))
+        JS_SetPropertyStr(
+            context, host, "stateRevision",
+            JS_NewCFunction(context, hostStateRevision, "stateRevision", 0))
         if allows("widgets") {
             JS_SetPropertyStr(
                 context, host, "publishWidgets",
@@ -86,9 +89,6 @@ extension JSRuntime {
             JS_SetPropertyStr(
                 context, host, "counterAdd",
                 JS_NewCFunction(context, hostCounterAdd, "counterAdd", 4))
-            JS_SetPropertyStr(
-                context, host, "stateRevision",
-                JS_NewCFunction(context, hostStateRevision, "stateRevision", 0))
         }
         if target == .watch {
             if allows("haptics") {

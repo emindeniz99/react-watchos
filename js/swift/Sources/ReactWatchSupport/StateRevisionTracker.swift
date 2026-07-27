@@ -9,11 +9,24 @@ import Foundation
 /// user-visible change.
 ///
 /// The observation that makes batching safe: a consumer only ever compares a
-/// PUBLISHED payload's revision against the live one. So the revision only has
-/// to move once per *mutation batch* — the writes between two publications —
-/// because every payload published from that batch is stamped after the move.
-/// This is the whole rule: bump on the FIRST write since the last publication,
-/// re-arm on publication.
+/// payload's revision against the live one. So the revision only has to move
+/// once per *mutation batch* — the writes between two payload STAMPS — because
+/// every payload stamped from that batch is stamped after the move. The rule:
+/// bump on the FIRST write since the batch was last closed.
+///
+/// A batch is closed by `closeBatch()`, at every point where the store's
+/// contents stop being something this tracker can reason about:
+/// * a payload was published (it now carries a revision a consumer compares);
+/// * a payload SAMPLED the revision it is about to be stamped with — any write
+///   landing after the sample (e.g. inside a `render()` callback) must move the
+///   revision past that stamp, or the payload would certify state it was
+///   computed before;
+/// * another process was observed to have published (the app host's foreground
+///   reconcile), because this tracker only ever sees its own writes.
+///
+/// Closing too often costs one extra file claim; closing too rarely lets a
+/// payload read `.current` over state that moved. Fail-stale is the only
+/// acceptable direction, so this errs toward closing.
 ///
 /// Deliberately a pure value type with no I/O: the counter it gates lives in
 /// `CoordinatedCounterStore`, so the batching rule is unit-tested on Linux with
@@ -32,7 +45,7 @@ public struct StateRevisionTracker: Sendable {
     public static let key = "state"
 
     /// False = the next write is the first of a new batch and must bump.
-    private var bumpedSincePublish = false
+    private var bumpedInThisBatch = false
 
     public init() {}
 
@@ -40,14 +53,15 @@ public struct StateRevisionTracker: Sendable {
     /// exactly once per batch; call it BEFORE the write lands (see the wiring
     /// sites) so a crash between the two leaves the revision AHEAD of the data.
     public mutating func needsBump() -> Bool {
-        if bumpedSincePublish { return false }
-        bumpedSincePublish = true
+        if bumpedInThisBatch { return false }
+        bumpedInThisBatch = true
         return true
     }
 
-    /// A payload just went to the store — re-arm, so the next mutation opens a
-    /// new batch and moves the revision past the one that payload carries.
-    public mutating func notePublished() {
-        bumpedSincePublish = false
+    /// The current batch is over (a payload was published, a payload sampled the
+    /// revision, or a foreign publication was observed) — the next mutation
+    /// opens a new batch and moves the revision past whatever was stamped.
+    public mutating func closeBatch() {
+        bumpedInThisBatch = false
     }
 }

@@ -1148,10 +1148,10 @@ final class StateRevisionTrackerTests: XCTestCase {
         XCTAssertFalse(tracker.needsBump())
     }
 
-    func testPublicationRearmsTheNextBatch() {
+    func testClosingTheBatchRearmsTheNextOne() {
         var tracker = StateRevisionTracker()
         XCTAssertTrue(tracker.needsBump())
-        tracker.notePublished()
+        tracker.closeBatch()
         // A write AFTER a publication must move the revision past the one that
         // publication stamped — otherwise the stored payload would still claim
         // to describe the mutated state.
@@ -1159,11 +1159,70 @@ final class StateRevisionTrackerTests: XCTestCase {
         XCTAssertFalse(tracker.needsBump())
     }
 
-    func testPublicationWithoutWritesLeavesTheBatchArmed() {
+    func testClosingWithoutWritesLeavesTheBatchArmed() {
         var tracker = StateRevisionTracker()
-        tracker.notePublished()
-        tracker.notePublished()
+        tracker.closeBatch()
+        tracker.closeBatch()
         XCTAssertTrue(tracker.needsBump())
+    }
+
+    /// A foreign publication has to close this process's batch too (ARCH-06).
+    ///
+    /// The app's tracker only ever sees the app's own writes, but the payload a
+    /// consumer compares against is whatever landed in the SHARED store — which
+    /// the widget extension also writes. Without the reconcile-time close, the
+    /// app's next write skips its bump and the extension's payload keeps reading
+    /// `.current` while state has moved, with no check able to notice.
+    ///
+    /// Two trackers over ONE counter directory, wired exactly like the two
+    /// committed sites.
+    func testAForeignPublicationClosesThisProcessesBatch() {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("revision-tests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let revision = CoordinatedCounterStore(directory: dir)
+        var app = StateRevisionTracker()
+        var extensionTracker = StateRevisionTracker()
+        func write(_ tracker: inout StateRevisionTracker) {
+            guard tracker.needsBump() else { return }
+            revision.add(1, toKey: StateRevisionTracker.key, min: 0, max: .max)
+        }
+        let live = { revision.value(forKey: StateRevisionTracker.key) }
+
+        // 1. App writes, publishes: the store is at the live revision.
+        write(&app)
+        app.closeBatch()
+        var storedPayloadRevision = live()
+
+        // 2. App writes again and is suspended before it can publish. The store
+        //    is stale but DETECTABLE — that is what step 3 acts on.
+        write(&app)
+        XCTAssertNotEqual(storedPayloadRevision, live())
+
+        // 3. WidgetKit asks for a timeline in the EXTENSION process; it renders
+        //    fresh and saves a payload stamped at the live revision.
+        _ = extensionTracker.needsBump()
+        storedPayloadRevision = live()
+
+        // 4. App foregrounds and reconciles. Revisions match, so the republish
+        //    is correctly skipped — but the batch must still close, because the
+        //    payload now in the store is not one this process published.
+        app.closeBatch()
+
+        // 5. The user changes state in the app.
+        write(&app)
+
+        // 6. The next timeline request must see the store as stale.
+        XCTAssertNotEqual(
+            storedPayloadRevision, live(),
+            "a write after a foreign publication must move the revision past it")
+        XCTAssertEqual(
+            WidgetSnapshot.freshness(
+                entryDates: [Date()], reloadAfter: nil, publishedAt: Date(),
+                now: Date(), payloadRevision: storedPayloadRevision,
+                currentRevision: live(), payloadReleaseId: nil,
+                runningReleaseId: nil),
+            .staleRevision)
     }
 
     // The counter this gates must not be reachable from JS: keys become file

@@ -1273,7 +1273,7 @@ final class ReactWatchModel {
             // The payload just went to the store carrying the revision it was
             // rendered against, so the batch is closed: the NEXT mutation must
             // move the revision past it (ARCH-06).
-            self.revisionTracker.notePublished()
+            self.revisionTracker.closeBatch()
             self.scheduleWidgetReload()
         }
         js.bridge.getItem = { [store] in store.getItem($0) }
@@ -1286,8 +1286,18 @@ final class ReactWatchModel {
             self?.noteStateWrite()
             return counters.add(delta, toKey: key, min: min, max: max)
         }
-        js.bridge.stateRevision = { [revisionCounter] in
-            revisionCounter.value(forKey: StateRevisionTracker.key)
+        js.bridge.stateRevision = { [weak self, revisionCounter] in
+            // A read means a payload is being STAMPED against this value, so
+            // the batch closes here too (ARCH-06). Without this the rule would
+            // be "the revision moves on the first write since the last
+            // PUBLICATION", and a write landing after the sample — a `render()`
+            // callback writing Storage while a batch opened by an earlier write
+            // is still open — would bump nothing: the payload would be stamped
+            // equal to the live revision and read `.current` over state it was
+            // computed before. The honest rule is "the revision moves on the
+            // first write after the last sample-or-publication".
+            self?.revisionTracker.closeBatch()
+            return revisionCounter.value(forKey: StateRevisionTracker.key)
         }
         js.bridge.fetch = { [weak self] id, reqJson in
             self?.performFetch(id: id, requestJson: reqJson)
@@ -1455,8 +1465,30 @@ final class ReactWatchModel {
     /// A missing payload counts as a mismatch: never-published is exactly the
     /// state a republish fixes.
     private func reconcileWidgets() {
+        // Nothing to reconcile when the payload cannot be persisted: with no App
+        // Group (or `widgets` denied by ARCH-07 policy) `save` is a no-op, so
+        // `published` stays nil against revision 0 and the mismatch below would
+        // republish — and log an info diagnostic into the 50-entry forensic ring
+        // — on every single foreground, without ever converging.
+        guard store.appGroupId != nil, effectiveFeatures.contains("widgets")
+        else { return }
         let published = store.loadPublishedWidgets()?.stateRevision
         let current = revisionCounter.value(forKey: StateRevisionTracker.key)
+        // The payload now in the store may have been published by the WIDGET
+        // EXTENSION (a control intent, or renderFreshTimelines saving its own
+        // render). That closes the mutation batch for the SHARED store, but this
+        // process's tracker only ever sees its own writes — so the next local
+        // write would skip the bump and leave that foreign payload reading
+        // `.current` while state had moved, with nothing able to detect it.
+        // Close the batch on any observed publication: an extra bump is
+        // fail-stale (one spurious republish), the safe direction.
+        //
+        // Residual: a foreign publication landing while the app is in the
+        // FOREGROUND with an open batch is still not observed. That is a much
+        // narrower window (control taps and WidgetKit renders overwhelmingly
+        // happen while the app is not frontmost); closing it fully needs the
+        // recorded 2-phase pending/committed follow-up.
+        revisionTracker.closeBatch()
         guard published != current else { return }
         report(
             code: "widgets.reconcile", severity: .info, subsystem: .widgets,

@@ -425,8 +425,18 @@ export const hostMethods: HostMethod[] = [
   },
   {
     name: "stateRevision",
+    // "core", NOT "storage", deliberately: this stamp is compared against a
+    // NATIVE read of the same counter that no policy can remove (ReactTimeline
+    // builds its own CoordinatedCounterStore). Gating the two sides
+    // asymmetrically turned ARCH-07's least-privilege lever into a silent
+    // ARCH-06 defeat — an extension configured `.allow(["widgets"])` while the
+    // app kept `storage` fell back to `?? 0`, stamped 0 over the app's rev-N
+    // payload, and then read `.staleRevision` on every timeline request
+    // forever, booting QuickJS each time. It is a read of an opaque monotonic
+    // integer — no user data, no mutation — and it is payload provenance for
+    // the widgets protocol, not a storage capability.
     targets: ["watch", "widget"],
-    feature: "storage",
+    feature: "core",
     since: 1,
     doc: "Monotonic App-Group state revision (ARCH-06): sampled at widget render start and stamped into the payload so a consumer can prove the timelines derive from current state.",
     returns: "int",

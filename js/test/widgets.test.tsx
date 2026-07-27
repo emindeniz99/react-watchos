@@ -359,6 +359,43 @@ describe("payload provenance stamps (ARCH-06)", () => {
     expect(renderWidgets(NOW).stateRevision).toBe(0);
   });
 
+  it("detects a mid-render write even when a batch was already open", () => {
+    const host = installMockHost();
+    // The other direction of the same guarantee, and the one the batching rule
+    // used to get wrong: sampling early only makes the payload read stale if
+    // the SAMPLE closes the mutation batch. Keyed to publications instead, a
+    // write landing inside a batch some earlier write had already opened bumps
+    // nothing — the payload gets stamped equal to the live revision and reads
+    // `.current` over families computed before the write.
+    Storage.set("before-render", 1); // opens the batch, revision 0 -> 1
+    registerCounterWidget(() => Storage.set("during-render", 2));
+
+    const payload = renderWidgets(NOW);
+
+    expect(payload.stateRevision).toBe(1);
+    expect(host.stateRevision()).toBe(2);
+    expect(payload.stateRevision).toBeLessThan(host.stateRevision());
+  });
+
+  it("a throwing stateRevision does not wedge the recursion guard", () => {
+    const host = installMockHost();
+    registerCounterWidget();
+    // The sample must happen BEFORE `renderingWidgets` is raised. Sampling
+    // after it, outside the try, means a throwing host skips the `finally` and
+    // leaves the guard set for the life of the process: every later
+    // publishWidgets() then returns an empty payload, never calls the host, and
+    // logs "called inside a widget render" — naming the wrong cause.
+    host.stateRevision.mockImplementationOnce(() => {
+      throw new Error("bridge exploded");
+    });
+    expect(() => renderWidgets(NOW)).toThrow("bridge exploded");
+
+    const payload = publishWidgets(NOW);
+
+    expect(host.publishWidgets).toHaveBeenCalledTimes(1);
+    expect(Object.keys(payload.widgets)).toEqual(["hydration"]);
+  });
+
   it("__republishWidgets publishes a payload stamped with the live revision", () => {
     const host = installMockHost();
     registerCounterWidget();

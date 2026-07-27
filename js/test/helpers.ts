@@ -13,15 +13,20 @@ export function installMockHost() {
   // clamps + accumulates, mirroring CoordinatedCounterStore.
   const counters = new Map<string, number>();
   // ARCH-06: the monotonic App-Group state revision, mirroring the native
-  // wiring so JS tests see real stamping — the FIRST write since the last
-  // publish bumps it (StateRevisionTracker's batching), and the bump happens
-  // BEFORE the write lands (fail-stale ordering).
+  // wiring so JS tests see real stamping — the FIRST write since the batch was
+  // last closed bumps it (StateRevisionTracker's batching), and the bump happens
+  // BEFORE the write lands (fail-stale ordering). Both publishing AND sampling
+  // close the batch, so a write landing after a payload sampled the revision
+  // always moves it past that payload's stamp.
   let revision = 0;
-  let bumpedSincePublish = false;
+  let bumpedInThisBatch = false;
   const noteWrite = () => {
-    if (bumpedSincePublish) return;
-    bumpedSincePublish = true;
+    if (bumpedInThisBatch) return;
+    bumpedInThisBatch = true;
     revision += 1;
+  };
+  const closeBatch = () => {
+    bumpedInThisBatch = false;
   };
   const host = {
     commit: vi.fn(),
@@ -29,13 +34,16 @@ export function installMockHost() {
     setTimer: vi.fn(),
     clearTimer: vi.fn(),
     publishWidgets: vi.fn((_payloadJson: string) => {
-      bumpedSincePublish = false;
+      closeBatch();
     }),
     getItem: vi.fn((_key: string): string | null => null),
     setItem: vi.fn((_key: string, _value: string) => {
       noteWrite();
     }),
-    stateRevision: vi.fn((): number => revision),
+    stateRevision: vi.fn((): number => {
+      closeBatch();
+      return revision;
+    }),
     counterGet: vi.fn((key: string): number => counters.get(key) ?? 0),
     counterAdd: vi.fn(
       (key: string, delta: number, min: number, max: number): number => {

@@ -262,5 +262,15 @@ final class HostBridgeTests: XCTestCase {
         XCTAssertTrue(widget.evaluateBool("typeof __host.commit === 'function'"))
         XCTAssertTrue(widget.evaluateBool("typeof __host.getItem === 'undefined'"))
         XCTAssertTrue(widget.evaluateBool("typeof __host.fetch === 'undefined'"))
+        // …but NOT stateRevision, which is "core" precisely so it cannot be
+        // gated asymmetrically: a payload this extension renders must always be
+        // able to stamp the revision the NATIVE freshness gate compares it
+        // against (ReactTimeline builds its own counter store, which no policy
+        // can remove). Falling back to `?? 0` here stamps 0 over the app's
+        // rev-N payload and makes every later timeline request read
+        // `.staleRevision` — a full QuickJS boot per request, forever.
+        XCTAssertTrue(
+            widget.evaluateBool("typeof __host.stateRevision === 'function'"),
+            "stateRevision must survive any policy — it is the payload's provenance")
     }
 }

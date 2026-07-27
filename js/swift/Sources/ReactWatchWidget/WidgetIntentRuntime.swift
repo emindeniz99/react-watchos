@@ -137,7 +137,7 @@ public final class WidgetIntentRuntime {
             store.save(json)
             // The payload carries the revision it was rendered against, so the
             // batch is closed: the next mutation must move past it (ARCH-06).
-            self?.revisionTracker.notePublished()
+            self?.revisionTracker.closeBatch()
             WidgetIntentRuntime.invalidateCache()
             WidgetCenter.shared.reloadAllTimelines()
         }
@@ -151,8 +151,27 @@ public final class WidgetIntentRuntime {
             self?.noteStateWrite()
             return counters.add(delta, toKey: key, min: min, max: max)
         }
-        js.bridge.stateRevision = { [revision] in
-            revision.value(forKey: StateRevisionTracker.key)
+        js.bridge.stateRevision = { [weak self, revision] in
+            // A read means a payload is being STAMPED against this value, so
+            // the batch normally closes here: a write landing after the sample
+            // must move the revision past the stamp, or the payload would
+            // certify state it was computed before (ARCH-06 — same rule as the
+            // app host).
+            //
+            // EXCEPT on a render-only pass, where the payload about to be
+            // stamped OWNS any write its own `render()` callbacks make. There
+            // the sample CONSUMES the batch slot instead: this runtime is built
+            // per render and its tracker starts armed, so closing here would
+            // guarantee the write bumps past the stamp the payload already
+            // carries — leaving it stale the instant it is saved and booting
+            // QuickJS again on the very next timeline request, forever.
+            if self?.renderOnlyPass == true {
+                self?.renderOnlyPass = false
+                _ = self?.revisionTracker.needsBump()
+            } else {
+                self?.revisionTracker.closeBatch()
+            }
+            return revision.value(forKey: StateRevisionTracker.key)
         }
         // The widget backs NO invoke-routed method, and it used to leave
         // bridge.invoke unset — so any invoke call from widget-mode JS hung
@@ -235,6 +254,30 @@ public final class WidgetIntentRuntime {
     private func noteStateWrite() {
         guard revisionTracker.needsBump() else { return }
         revision.add(1, toKey: StateRevisionTracker.key, min: 0, max: .max)
+    }
+
+    /// One-shot: the next `stateRevision` sample belongs to a render-only pass
+    /// (`__renderWidgets`), not to a publication. Set by `renderFreshTimelines`;
+    /// consumed by the `stateRevision` bridge closure above.
+    ///
+    /// Deliberately NOT set in `init`: the intent path (`handle(intent:)`) runs
+    /// a handler whose Storage write is a committed mutation the app never saw,
+    /// and that write MUST bump.
+    private var renderOnlyPass = false
+
+    /// Marks the render about to run as render-only, so its `render()`-time
+    /// Storage writes fold into the batch the payload it produces belongs to
+    /// instead of moving the revision past that payload's stamp.
+    ///
+    /// Without this, a bundle whose `render()` writes Storage (a cached value, a
+    /// last-render timestamp — a pattern the library's own tests register) makes
+    /// every timeline request find `.staleRevision` and boot the engine again:
+    /// a full QuickJS boot plus bundle eval per WidgetKit request, indefinitely,
+    /// which the code calls the extension's dominant avoidable cost. Sampling
+    /// after the render instead would re-introduce the exact ARCH-06 bug
+    /// (certifying state the payload never read).
+    private func armRenderOnlyBatch() {
+        renderOnlyPass = true
     }
 
     /// Records the content id of the bundle this runtime is about to evaluate
@@ -459,6 +502,7 @@ public final class WidgetIntentRuntime {
         }
         let ms = now.timeIntervalSince1970 * 1000
         let renderStart = DispatchTime.now()
+        runtime.armRenderOnlyBatch()
         let rendered = runtime.js.callReturningString("__renderWidgets", ms)
         runtime.checkRenderBudget(
             elapsedMs: Double(

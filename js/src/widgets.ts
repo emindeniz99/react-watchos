@@ -162,11 +162,25 @@ let renderingWidgets = false;
 
 /**
  * The App-Group state revision this render derives from (ARCH-06). Sampled at
- * RENDER START — before any `render()` callback reads Storage — so a write that
- * lands mid-render leaves the payload stamped with the OLDER revision and a
- * consumer detects it as stale. Sampling at the END would stamp "current" over
- * data read before the write: the exact bug ARCH-06 closes. 0 where the host
- * has no storage bridge (tests, Node, a policy that denied `storage`).
+ * RENDER START — before any `render()` callback reads Storage. Sampling at the
+ * END would stamp "current" over data read before the write: the exact bug
+ * ARCH-06 closes.
+ *
+ * Sampling early is necessary but not sufficient. What makes "a write that
+ * lands mid-render leaves the payload stamped with the OLDER revision" actually
+ * true is that the SAMPLE ITSELF closes the native mutation batch: the rule is
+ * "the revision moves on the first write after the last sample-or-publication",
+ * not "…since the last publication". Without that, a mid-render write landing
+ * inside a batch some earlier write had already opened would bump nothing, and
+ * the payload would be stamped equal to the live revision — reading `.current`
+ * over state it was computed before.
+ *
+ * The one deliberate exception is the widget extension's render-only pass,
+ * where the payload being stamped owns its own `render()`-time writes (see
+ * WidgetIntentRuntime.armRenderOnlyBatch) — otherwise such a bundle would boot
+ * the engine on every timeline request forever.
+ *
+ * 0 where the host has no storage bridge (tests, Node).
  */
 function sampleStateRevision(): number {
   return getHost()?.stateRevision?.() ?? 0;
@@ -183,8 +197,13 @@ function bundleReleaseId(): string | undefined {
 
 /** Renders every registered widget for every family it supports. */
 export function renderWidgets(now: number = Date.now()): PublishedWidgets {
-  renderingWidgets = true;
+  // Sampled BEFORE the guard is raised: a host whose `stateRevision` throws
+  // (any consumer- or test-supplied `__host`) would otherwise skip the
+  // `finally` and leave `renderingWidgets` true for the life of the process,
+  // making every later publishWidgets() a silent no-op that logs the wrong
+  // cause. Nothing may throw between raising the flag and entering the try.
   const stateRevision = sampleStateRevision();
+  renderingWidgets = true;
   try {
     return renderWidgetsInner(now, stateRevision);
   } finally {
