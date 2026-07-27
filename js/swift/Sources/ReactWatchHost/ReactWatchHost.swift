@@ -330,6 +330,10 @@ final class ReactWatchModel {
             self?.pushNativeEvent("audio.finished")
         }
         extendedRuntime.onState = { [weak self] state, reason in
+            // Settle the parked start invokes from the REAL lifecycle before
+            // publishing the state, so `await startExtendedRuntimeSession()`
+            // means "running" rather than "the request was submitted".
+            self?.settleRuntimeSessionStarts(state: state, reason: reason)
             var payload: [String: Any] = ["state": state]
             if let reason { payload["reason"] = reason }
             self?.pushNativeEvent("runtimeSession.state", payload: payload)
@@ -836,6 +840,17 @@ final class ReactWatchModel {
     /// dev-reload drops stale ids instead of settling the fresh runtime's
     /// reused id space (CX-008).
     @ObservationIgnored private var pendingRemotePushRegistrations: [(id: Int, generation: Int)] =
+        []
+
+    /// Invoke ids awaiting the extended-runtime session's start outcome, each
+    /// stamped with the generation it was requested in. `WKExtendedRuntimeSession
+    /// .start()` is asynchronous and has no completion handler — only the
+    /// `extendedRuntimeSessionDidStart` / `didInvalidateWith` delegate callbacks
+    /// — so the correlation lives here, exactly like the APNs parking above:
+    /// ONE delegate callback settles every pending start, and a callback landing
+    /// after a dev-reload drops stale ids instead of settling the fresh
+    /// runtime's reused id space (CX-008).
+    @ObservationIgnored private var pendingRuntimeSessionStarts: [(id: Int, generation: Int)] =
         []
 
     /// Registers this launch with APNs and parks the invoke until the
@@ -2142,9 +2157,54 @@ extension ReactWatchModel {
             ? .newData : .noData
     }
 
+    /// Starts an extended runtime session and PARKS the invoke until the
+    /// session's own lifecycle reports the outcome — `extendedRuntime.ts`
+    /// promises "Resolves when it becomes running; rejects if the system
+    /// declines (already active, or unsupported session type)", and resolving
+    /// `"null"` the instant `start()` returned delivered none of that:
+    /// `WKExtendedRuntimeSession.start()` is asynchronous, and the
+    /// already-active case early-returned and still reported success.
+    ///
+    /// "Already active" is settled here because it is the one refusal that
+    /// produces no delegate callback; everything else settles in
+    /// `settleRuntimeSessionStarts`.
     func handleStartExtendedRuntimeSession(id: Int) {
-        extendedRuntime.start()
-        runtime?.resolveInvoke(id: id, resultJson: "null")
+        guard extendedRuntime.start() else {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(
+                    code: .unavailable,
+                    message: "an extended runtime session is already active"))
+            return
+        }
+        pendingRuntimeSessionStarts.append((id: id, generation: generation))
+    }
+
+    /// Settles every parked `startExtendedRuntimeSession` of the current
+    /// generation from the session's terminal-ish states: `running` resolves,
+    /// `invalidated` rejects UNAVAILABLE with the system's reason — which is
+    /// what a consumer who forgot the Info.plist runtime-session reason
+    /// actually hits, and what used to look like a successful start.
+    /// A `stopExtendedRuntimeSession` before the session started invalidates
+    /// it, so the pending start rejects rather than hanging to its watchdog.
+    /// Stale generations drop (CX-008); `boot()`'s `stop(silent:)` detaches the
+    /// delegate, so a reload produces no callback here at all.
+    private func settleRuntimeSessionStarts(state: String, reason: String?) {
+        guard state == "running" || state == "invalidated" else { return }
+        let pending = pendingRuntimeSessionStarts
+        pendingRuntimeSessionStarts = []
+        for entry in pending where entry.generation == generation {
+            if state == "running" {
+                runtime?.resolveInvoke(id: entry.id, resultJson: "null")
+            } else {
+                runtime?.rejectInvoke(
+                    id: entry.id,
+                    errorJson: Self.errorJSON(
+                        code: .unavailable,
+                        message: "the extended runtime session was invalidated: "
+                            + (reason ?? "unknown reason")))
+            }
+        }
     }
 
     func handleStopExtendedRuntimeSession(id: Int) {

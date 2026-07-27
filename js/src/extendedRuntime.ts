@@ -19,8 +19,14 @@ import {
 export const RUNTIME_STATE_EVENT = "runtimeSession.state";
 export const RUNTIME_WILL_EXPIRE_EVENT = "runtimeSession.willExpire";
 
-/** Starts a session. Resolves when it becomes running; rejects if the system
- *  declines (already active, or unsupported session type). */
+/**
+ * Starts a session. Resolves when the session is actually RUNNING — the invoke
+ * is parked on `WKExtendedRuntimeSession`'s delegate, not settled when the
+ * request is submitted — and rejects `UNAVAILABLE` when the system declines:
+ * a session is already active, or it invalidates immediately (the usual cause
+ * being a missing runtime-session reason in the app's Info.plist, whose reason
+ * string comes back in the error message).
+ */
 export function startExtendedRuntimeSession(): Promise<void> {
   return invoke("startExtendedRuntimeSession");
 }

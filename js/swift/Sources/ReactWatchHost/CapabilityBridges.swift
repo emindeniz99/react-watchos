@@ -346,18 +346,25 @@ final class ExtendedRuntimeBridge: NSObject, WKExtendedRuntimeSessionDelegate {
     var onWillExpire: (() -> Void)?
     private var session: WKExtendedRuntimeSession?
 
-    func start() {
+    /// Starts a session, or reports `false` when one is already live. The
+    /// caller needs that distinction: `start()` is ASYNCHRONOUS (the outcome
+    /// lands on `extendedRuntimeSessionDidStart` / `didInvalidateWith`), so
+    /// "already active" is the one refusal that produces no delegate callback
+    /// at all — a parked invoke would hang to its watchdog if this returned
+    /// Void the way it used to.
+    @discardableResult func start() -> Bool {
         // A session can only run once; replace any finished one. Guard on
         // "not yet invalid", not ".running": start() is asynchronous, so a
         // second start() arriving in the .notStarted window would otherwise
         // create a second session and overwrite this reference — orphaning a
         // session the system may still start, with nothing left to
         // invalidate() it (watchOS allows only one at a time).
-        if let session, session.state != .invalid { return }
+        if let session, session.state != .invalid { return false }
         let session = WKExtendedRuntimeSession()
         session.delegate = self
         session.start()
         self.session = session
+        return true
     }
 
     /// `silent` (used by boot() teardown) detaches the delegate before
