@@ -63,7 +63,10 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 - [design-shared-interpreter-2026-06-25-1855.md](./design-shared-interpreter-2026-06-25-1855.md) —
   SD-2 (refined by ARCH-10: core + adapters).
 - [design-typed-bridge-codegen-2026-06-25-1855.md](./design-typed-bridge-codegen-2026-06-25-1855.md) —
-  SD-1/SD-6 (refined by ARCH-11: generated typed envelopes).
+  SD-1/SD-6 (refined by ARCH-11, shipped re-scoped 2026-07-27: schema-declared
+  invoke request/result shapes with cross-language fixtures and a
+  runtime-closed error enum — *not* generated envelopes; `deadline`/`sessionId`/
+  cancellation/backpressure are recorded as WONTFIX on the review heading).
 - [design-arch-02-capability-contract.md](./design-arch-02-capability-contract.md) —
   ARCH-02 explicit capability contract. Criterion #4 (no raw `__host` in app
   code) **done + CI-guarded**; flags the side-effect soundness hole that the

@@ -578,9 +578,31 @@ dependency or behavior into the widget module.
 - [ ] Verify the widget target does not link unnecessary app-only frameworks.
 - [ ] Golden-test every primitive in both contexts.
 
-### [ ] ARCH-11 — Complete the typed bridge as a protocol, not a generic escape hatch
+### [x] ARCH-11 — Declare and fixture the invoke channel's shapes; close its error set at runtime
 
-**Priority:** P1.
+> *(2026-07-27: shipped, RE-SCOPED P1 → P2 — the heading above is the delivered
+> scope; the original was "Complete the typed bridge as a protocol, not a
+> generic escape hatch". Two of the five acceptance boxes were **already
+> shipped** when this was picked up (disposed-session/unknown-id rejection, and
+> the preserved streaming channels); three are **rejected outright** and struck
+> below. The premise "without generated method IDs/types … it can become a
+> second stringly typed bridge" was measured rather than assumed: every
+> JS-declared shape was checked against its Swift producer/consumer and the
+> structural drift found was **zero**. What the missing shape contract HAD let
+> through was four adjacent defects — a bespoke `LOCATION_UNAVAILABLE` reject
+> code outside the closed set (the second instance of that class in a month),
+> three silently-defaulting decodes, one entirely unguarded surface (the JS
+> caller literals), and a lifecycle promise that resolved before its session
+> ran. Those are what shipped. Evidence: the merged backlog's build-progress
+> log entry.)*
+>
+> *(2026-07-27, scope note: the shapes are declared and generated, but the 31
+> Swift handlers keep their own hand-written decoders. So the gate proves
+> "the JS payload matches the schema" and "the schema matches the public TS
+> types" — it does **not** force a handler to read the field names its method
+> declares. That last step is option (i) below, deliberately not taken.)*
+
+**Priority:** ~~P1~~ → **P2** (re-scoped 2026-07-27).
 
 The proposed `invoke(id, method, payloadJson)` is the right transport shape, but
 without generated method IDs/types, cancellation, and timeout semantics it can
@@ -599,13 +621,80 @@ Keep event streams separate. Fold fallible storage mutation, OTA, BLE,
 notifications, connectivity, fetch, and generation into the request lifecycle
 where their delivery semantics require acknowledgement.
 
+> **The Decision text is partly stale — struck 2026-07-27.** The envelope's
+> `deadline` and `sessionId` fields are rejected (see the acceptance boxes
+> below). ~~"Fold fallible storage mutation, OTA, BLE, notifications,
+> connectivity, fetch, and generation into the request lifecycle."~~ OTA, BLE,
+> notifications and connectivity have **been** on the channel since SD-1;
+> `fetch` and `generate` are *documented exclusions* (abort semantics and
+> streaming, each with its own dedicated path) and moving them would be a
+> regression; and storage mutation was **superseded** — the backlog's SD-4 note
+> settled on `CoordinatedCounterStore` + `Storage.counterAdd` (an
+> `NSFileCoordinator` write-claim), because the cross-process
+> read-modify-write cannot be made correct by routing it through invoke. The
+> surviving instruction, "keep event streams separate", was already satisfied
+> and stays satisfied.
+
 **Acceptance**
 
-- [ ] Generate TS and Swift request/result/error types.
-- [ ] Add timeout and cancellation on both sides.
-- [ ] Reject replies for disposed sessions or unknown request IDs.
-- [ ] Define backpressure/maximum in-flight requests.
-- [ ] Preserve dedicated streaming channels for sensors/BLE/connectivity events.
+- [x] Generate TS and Swift request/result/error types. (Delivered as
+      `invokeShapes` in `codegen/schema.ts` + `HostMethod.request`/`.response`
+      refs, with an explicit `"opaque"` sentinel for the three connectivity
+      payloads that are the consuming app's own JSON by contract. TS interfaces
+      + an `INVOKE_SHAPES` table are emitted into `src/generated/wire.ts`;
+      Codable mirrors into the **test target** (`Tests/…/Generated/
+      InvokeShapes.swift`) rather than `ReactWatchCore`, since the shapes are a
+      contract and not a runtime dependency — emitting them into Core would put
+      ~20 types nobody instantiates into both shipping binaries, the widget
+      extension included. The **error** type is the part that changed at
+      runtime: `InvokeErrorCode` is now a Swift enum that
+      `InvokeErrorJSON.make` takes, so a bespoke code is a compile error at the
+      reject site, and JS's `settle()` validates instead of casting.)
+- [ ] ~~Add timeout and cancellation on both sides.~~ **Timeout: already done,
+      JS-side, deliberately** — `INVOKE_TIMEOUT_MS` 30 s with a 5 min
+      user-mediated tier and a per-call override. A *native* deadline is
+      **REJECTED**: it cannot preempt a `CBPeripheral` delegate callback,
+      `UNUserNotificationCenter.add`, `Product.purchase()`, or `MKLocalSearch`
+      anyway, so it would only add a second, weaker timer that can disagree
+      with the JS one and settle the same id twice — which `settle()` would
+      then silently swallow, hiding the disagreement. **Cancellation: REJECTED**
+      — zero callers want it; the one op with a real abort story (`fetch`) is
+      deliberately off this channel with its own `abortFetch`; the SD-1
+      shipping note already justified deferring it from prior art
+      (Capacitor/RN/TurboModule). A `cancelled` state would grow a
+      cancellation check in all 31 handlers for a feature nothing calls.
+- [x] Reject replies for disposed sessions or unknown request IDs. (Already
+      true on both sides when this item was picked up: JS `settle()` does
+      `pending.get(id)` → `if (!entry) return`, so an unknown or duplicate id
+      is a silent no-op; every async Swift settle captures `let gen =
+      generation` and drops on mismatch (CX-008). The extended-runtime fix in
+      this pass is the newest instance of that same guard.)
+- [ ] ~~Define backpressure/maximum in-flight requests.~~ **REJECTED.**
+      Observed concurrent in-flight invokes: ~2 (a `getUpdateState` at boot
+      plus one user-initiated op). A cap would be a limit chosen from nothing,
+      and its rejection would need a code outside the closed set — the exact
+      problem this pass spent its effort closing.
+- [x] Preserve dedicated streaming channels for sensors/BLE/connectivity
+      events. (Unchanged and now pinned: BLE/sensor notifications and inbound
+      connectivity stay on `pushNativeEvent`; `fetch`/`generate` keep their own
+      paths. The schema's `ble`/`sensor`/`fetch`/`generate` are direct methods,
+      not `via:"invoke"`, and `invoke-routing.test.ts` fails if a JS caller
+      ever routes one of them through the channel.)
+
+**Rejected alternative — full generated envelopes (option (i), the review's own
+shape).** Schema-declared `args`/`returns` driving generated Swift `Codable`
+request structs and a generated decode switch between the ARCH-07 gate and the
+dispatcher. Its marginal benefit over what shipped is compile-time rather than
+test-time enforcement of payload shapes for **9 methods** — and those 9 already
+have hand-written guards. Its cost is a 31-handler signature migration that
+supersedes two already-unit-tested hand-written decoders (`NotificationPlan`,
+`BluetoothBridge.InvokePayload`), needs a stringly escape hatch for the three
+opaque connectivity payloads anyway, and drags `saveUpdate`'s decode back onto
+main (it lives inside `OTASequencer.stage`, off-main, by M5). That is a large
+cost against a **measured** structural drift of zero. The trade-off is recorded
+on the `invokeShapes` doc block in `codegen/schema.ts` so it is revisitable:
+revisit if a fixture ever actually catches a shape break, or if the invoke
+surface grows well past 31 methods.
 
 ### [x] ARCH-12 — Split WatchConnectivity delivery semantics
 
