@@ -148,6 +148,30 @@ final class HostBridgeTests: XCTestCase {
         XCTAssertEqual(got?.3, 8)
     }
 
+    func testStateRevisionTakesNoArgsAndReturnsIntToJS() throws {
+        // ARCH-06's revision read is the first ZERO-arg direct host method, so
+        // it exercises a trampoline shape nothing else did: no argv marshalling
+        // at all, just the return. JS calling it with a stray argument must
+        // still work (QuickJS passes extra args; the trampoline ignores them).
+        let r = try JSRuntime()
+        var calls = 0
+        r.bridge.stateRevision = {
+            calls += 1
+            return 7
+        }
+        XCTAssertEqual(r.evaluateString("String(__host.stateRevision())"), "7")
+        XCTAssertEqual(r.evaluateString("String(__host.stateRevision(1, 2))"), "7")
+        XCTAssertEqual(calls, 2)
+    }
+
+    func testUnsetStateRevisionReadsZeroInJS() throws {
+        // An embedding that doesn't back the revision (no App Group) must read
+        // as 0, not throw — the JS side stamps 0 and the consumer's comparison
+        // still works, it just can't prove anything.
+        let r = try JSRuntime()
+        XCTAssertEqual(r.evaluateString("String(__host.stateRevision())"), "0")
+    }
+
     // MARK: - install completeness
 
     func testEveryDirectMethodIsInstalledOnHost() throws {
@@ -155,8 +179,9 @@ final class HostBridgeTests: XCTestCase {
         // The generated install table must put a function at each name.
         for name in [
             "commit", "log", "setTimer", "clearTimer", "invoke", "publishWidgets",
-            "getItem", "setItem", "counterGet", "counterAdd", "playHaptic",
-            "cancelNotification", "fetch", "abortFetch", "ble", "sensor", "generate",
+            "getItem", "setItem", "counterGet", "counterAdd", "stateRevision",
+            "playHaptic", "cancelNotification", "fetch", "abortFetch", "ble",
+            "sensor", "generate",
         ] {
             XCTAssertTrue(
                 r.evaluateBool("typeof __host.\(name) === 'function'"),
@@ -174,7 +199,7 @@ final class HostBridgeTests: XCTestCase {
         let widget = try JSRuntime(target: .widget)
         for name in [
             "commit", "log", "setTimer", "clearTimer", "invoke", "publishWidgets",
-            "getItem", "setItem", "counterGet", "counterAdd",
+            "getItem", "setItem", "counterGet", "counterAdd", "stateRevision",
         ] {
             XCTAssertTrue(
                 widget.evaluateBool("typeof __host.\(name) === 'function'"),
@@ -196,7 +221,9 @@ final class HostBridgeTests: XCTestCase {
         // A restricted runtime installs only the allowed features' functions;
         // JS feature detection (typeof) must reflect the policy, not the binary.
         let r = try JSRuntime(allowedFeatures: ["core", "storage"])
-        for name in ["getItem", "setItem", "counterGet", "counterAdd"] {
+        for name in [
+            "getItem", "setItem", "counterGet", "counterAdd", "stateRevision",
+        ] {
             XCTAssertTrue(
                 r.evaluateBool("typeof __host.\(name) === 'function'"),
                 "allowed __host.\(name) should be installed")
