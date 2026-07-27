@@ -106,6 +106,29 @@ describe("WatchRoot.dispose (ARCH-08)", () => {
     second.dispose();
   });
 
+  it("a second runApp throws instead of silently superseding the live root", () => {
+    const first = runApp(<Text>first</Text>, new MemoryHost());
+    expect(() => runApp(<Text>second</Text>, new MemoryHost())).toThrow(
+      /already mounted — call root\.dispose\(\) first/,
+    );
+    // The live root is untouched by the rejected mount.
+    expect((g().__inspect as InspectFn)().commits).toBeGreaterThanOrEqual(1);
+    first.dispose();
+    // …and the slot is released, so the next mount succeeds.
+    runApp(<Text>second</Text>, new MemoryHost()).dispose();
+  });
+
+  it("releases the single-root slot when the first render throws", () => {
+    function Boom(): never {
+      throw new Error("render exploded");
+    }
+    expect(() => runApp(<Boom />, new MemoryHost())).toThrow(/render exploded/);
+    // A failed mount must not hold the slot hostage: the next runApp reports
+    // its OWN outcome, not "a root is already mounted".
+    expect(g().__dispatchEvent).toBeUndefined();
+    runApp(<Text>ok</Text>, new MemoryHost()).dispose();
+  });
+
   it("the uninstalled globals are the ones that reached the root", () => {
     const host = new MemoryHost();
     const root = runApp(<Text>hi</Text>, host);

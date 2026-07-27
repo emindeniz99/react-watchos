@@ -313,18 +313,35 @@ export {
 } from "./widgets";
 
 /**
+ * ARCH-08: the one root `runApp` has mounted and not yet disposed. A second
+ * `runApp` used to silently supersede the first — it overwrote the three
+ * globals so native reached only the new root, while the old one stayed
+ * mounted, kept its listeners in the shared `nativeEvents` table and kept
+ * committing into its stale host. Superseding silently is the bug; throwing is
+ * the fix (rule 12). Auto-disposing the predecessor was the alternative and
+ * was rejected: it makes a genuine double-mount look like it worked.
+ */
+let activeRoot: WatchRoot | null = null;
+
+/**
  * Mounts the app. With an explicit host (tests), trees are delivered as
  * objects. Without one (on the watch), the `__host` global installed by
  * JSRuntime.swift receives JSON strings, and `__dispatchEvent` is exposed
  * for Swift to deliver interactions.
  *
- * Call `root.dispose()` when the root is done: it unmounts the tree (running
- * every effect cleanup) and uninstalls the three globals below. On the watch a
- * reload never needs it (`boot()` builds a whole new QuickJS context, so every
- * global and every module binding resets by construction); in tests it is what
- * keeps sequential mounts from leaking into each other.
+ * One root at a time: call `root.dispose()` before mounting another — it
+ * unmounts the tree (running every effect cleanup) and uninstalls the three
+ * globals below. On the watch a reload never needs it (`boot()` builds a whole
+ * new QuickJS context, so every global and every module binding resets by
+ * construction); in tests it is what keeps sequential mounts from leaking into
+ * each other.
  */
 export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
+  if (activeRoot !== null) {
+    throw new Error(
+      "runApp: a root is already mounted — call root.dispose() first",
+    );
+  }
   const g = globalThis as Record<string, unknown> & {
     __host?: QuickJSHostGlobal;
   };
@@ -385,16 +402,19 @@ export function runApp(element: ReactNode, host?: HostBridge): WatchRoot {
     if (g.__dispatchEvent === dispatchEvent) delete g.__dispatchEvent;
     if (g.__pushNativeEvent === pushNativeEvent) delete g.__pushNativeEvent;
     if (g.__inspect === inspect) delete g.__inspect;
+    if (activeRoot === root) activeRoot = null;
   });
   g.__dispatchEvent = dispatchEvent;
   g.__pushNativeEvent = pushNativeEvent;
   g.__inspect = inspect;
+  activeRoot = root;
   try {
     root.render(element);
   } catch (error) {
-    // The first render threw: uninstall the globals this call installed rather
-    // than leaving native pointed at a half-mounted root. The original error
-    // still propagates.
+    // The first render threw: release the single-root slot and uninstall the
+    // globals this call installed, so the NEXT runApp reports its own failure
+    // instead of "a root is already mounted". The original error still
+    // propagates.
     root.dispose();
     throw error;
   }
