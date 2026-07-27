@@ -68,6 +68,17 @@ final class ReactWatchModel {
     private let store: SharedWidgetStore
     /// Cross-process-atomic counters (ARCH-05), same App Group as `store`.
     private let counters: CoordinatedCounterStore
+    /// The App-Group state revision (ARCH-06) — the same coordinated-counter
+    /// primitive in its own subdirectory, so a bundle can't reach it through
+    /// `Storage.counterAdd`. Every committed mutation moves it; every published
+    /// payload is stamped with the value sampled at render start.
+    private let revisionCounter: CoordinatedCounterStore
+    /// Batches the bump to one file claim per mutation batch (ARCH-06).
+    @ObservationIgnored private var revisionTracker = StateRevisionTracker()
+    /// Reconciliation runs once per boot, off the first healthy commit — the
+    /// point where JS is proven able to render, so `__republishWidgets` can
+    /// actually answer.
+    @ObservationIgnored private var reconciledThisBoot = false
     @ObservationIgnored private var runtime: JSRuntime?
     @ObservationIgnored private var nextSeq = 1
     /// Set once after reporting a renderer-vs-runtime wire mismatch.
@@ -165,6 +176,9 @@ final class ReactWatchModel {
     ) {
         store = SharedWidgetStore(appGroupId: appGroupId)
         counters = CoordinatedCounterStore(appGroupId: appGroupId)
+        revisionCounter = CoordinatedCounterStore(
+            appGroupId: appGroupId,
+            subdirectory: StateRevisionTracker.subdirectory)
         // Local binding: the validate closure below captures it (capturing
         // self.effectiveFeatures from an escaping closure inside init isn't
         // allowed before self is fully initialized).
@@ -353,6 +367,13 @@ final class ReactWatchModel {
         warnedWireMismatch = false
         // Re-arm the once-per-boot markHealthy for the incoming generation.
         markedHealthyThisBoot = false
+        // Same for the ARCH-06 reconcile: a reload swaps the bundle, so the
+        // new generation must re-check the published payload against state
+        // (the outgoing bundle's publications are the incoming one's problem).
+        reconciledThisBoot = false
+        // The incoming runtime has published nothing yet, so the first write
+        // it makes opens a new mutation batch and must move the revision.
+        revisionTracker = StateRevisionTracker()
         // Only the .runOTA branches repopulate this; without the reset a later
         // .runShipped or DEBUG dev-code boot retains the previous OTA record,
         // and the first-healthy-commit handler could promote a bundle that is
@@ -1188,6 +1209,16 @@ final class ReactWatchModel {
                         self.markedHealthyThisBoot = true
                         self.otaSequencer.markHealthy(bootedRecord: self.bootedOTARecord)
                     }
+                    // ARCH-06 reconciliation, once per boot. The first
+                    // committed tree is the earliest moment JS is proven able
+                    // to render — before it, `__republishWidgets` either
+                    // doesn't exist yet or would publish from a half-built
+                    // tree. Same once-per-boot shape (and reason) as the
+                    // markHealthy call above: it reads the App Group.
+                    if !self.reconciledThisBoot {
+                        self.reconciledThisBoot = true
+                        self.reconcileWidgets()
+                    }
                     if tree.seq > self.ackedSeq {
                         self.ackedSeq = tree.seq
                         // Calling a mutating method registers an observation
@@ -1212,13 +1243,24 @@ final class ReactWatchModel {
                 WidgetCenter.shared.reloadAllTimelines()
                 return
             }
+            // The payload just went to the store carrying the revision it was
+            // rendered against, so the batch is closed: the NEXT mutation must
+            // move the revision past it (ARCH-06).
+            self.revisionTracker.notePublished()
             self.scheduleWidgetReload()
         }
         js.bridge.getItem = { [store] in store.getItem($0) }
-        js.bridge.setItem = { [store] in store.setItem($0, $1) }
+        js.bridge.setItem = { [weak self, store] key, value in
+            self?.noteStateWrite()
+            store.setItem(key, value)
+        }
         js.bridge.counterGet = { [counters] in counters.value(forKey: $0) }
-        js.bridge.counterAdd = { [counters] key, delta, min, max in
-            counters.add(delta, toKey: key, min: min, max: max)
+        js.bridge.counterAdd = { [weak self, counters] key, delta, min, max in
+            self?.noteStateWrite()
+            return counters.add(delta, toKey: key, min: min, max: max)
+        }
+        js.bridge.stateRevision = { [revisionCounter] in
+            revisionCounter.value(forKey: StateRevisionTracker.key)
         }
         js.bridge.fetch = { [weak self] id, reqJson in
             self?.performFetch(id: id, requestJson: reqJson)
@@ -1357,6 +1399,46 @@ final class ReactWatchModel {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
+    /// Moves the App-Group state revision for the first write of this mutation
+    /// batch (ARCH-06).
+    ///
+    /// ORDER IS THE WHOLE POINT: this runs BEFORE the write lands. A crash
+    /// between the bump and the write leaves the revision AHEAD of the data, so
+    /// any payload published from it reads as stale — a spurious recompute,
+    /// which is safe. The reverse order (write, then bump) would let a payload
+    /// read CURRENT while the state it describes had already moved: exactly the
+    /// bug ARCH-06 exists to close. Fail-stale is the only acceptable
+    /// direction, so the bump must never be reordered after the store call.
+    private func noteStateWrite() {
+        guard revisionTracker.needsBump() else { return }
+        revisionCounter.add(
+            1, toKey: StateRevisionTracker.key, min: 0, max: .max)
+    }
+
+    /// ARCH-06 reconciliation: republish when the payload on the face was
+    /// derived from a different state revision than the App Group now holds.
+    ///
+    /// That gap is what a crash between mutation and publication leaves behind
+    /// — the write survived, the publication didn't — and nothing else would
+    /// ever close it: the app doesn't re-render widgets on its own, and the
+    /// extension only re-renders when WidgetKit asks. JS owns rendering, so
+    /// this asks rather than fabricating a payload; `__republishWidgets` is
+    /// optional-called, so a bundle that registers no widgets is a no-op.
+    ///
+    /// A missing payload counts as a mismatch: never-published is exactly the
+    /// state a republish fixes.
+    private func reconcileWidgets() {
+        let published = store.loadPublishedWidgets()?.stateRevision
+        let current = revisionCounter.value(forKey: StateRevisionTracker.key)
+        guard published != current else { return }
+        report(
+            code: "widgets.reconcile", severity: .info, subsystem: .widgets,
+            details: "published revision \(published.map(String.init) ?? "none")"
+                + " != state revision \(current) — republishing")
+        try? runtime?.evaluate(
+            "globalThis.__republishWidgets?.()", filename: "reconcile.js")
+    }
+
     /// scenePhase teardown backstop (P0-3). A backgrounded app is not unmounted,
     /// so JS effect/focus cleanups never fire on background — native must stop
     /// the high-drain heart-rate workout session (unless the app opted into
@@ -1368,6 +1450,12 @@ final class ReactWatchModel {
             flushPendingWidgetReload()
         } else {
             sensors.resumeFromForeground()
+            // ARCH-06: while the app was away, a control intent running in the
+            // widget extension may have mutated shared state, and a payload
+            // published from THIS process is now stale. Foreground is the
+            // cheapest place to notice (the app is awake and rendering
+            // anyway); mismatch → republish.
+            reconcileWidgets()
         }
     }
 

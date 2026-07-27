@@ -22,7 +22,8 @@ export type DiagnosticSubsystem =
   | "js"
   | "capability"
   | "budget"
-  | "connectivity";
+  | "connectivity"
+  | "widgets";
 
 export interface Diagnostic {
   /** Stable machine code, dot-namespaced by subsystem (e.g. "ota.saveRejected"). */

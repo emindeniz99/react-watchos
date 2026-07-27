@@ -24,6 +24,8 @@ public struct Diagnostic: Codable, Sendable, Equatable {
 
     public enum Subsystem: String, Codable, Sendable {
         case boot, ota, wire, commit, js, capability, budget, connectivity
+        /// Widget publication/reconciliation (ARCH-06).
+        case widgets
     }
 
     /// Which embedding emitted this (the widget extension is its own process).
