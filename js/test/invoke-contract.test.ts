@@ -30,7 +30,7 @@ import { getCurrentLocation, searchPOI } from "../src/maps";
 import { scheduleNotification } from "../src/notifications";
 import { speak } from "../src/speech";
 import type { SaveUpdateResult, UpdateState } from "../src/update";
-import { applyUpdate, getUpdateState } from "../src/update";
+import { applyUpdate, getUpdateState, markUpdateHealthy } from "../src/update";
 
 /**
  * ARCH-11: the invoke channel's shape contract, checked against REAL traffic
@@ -155,12 +155,19 @@ const RESULTS: Record<string, unknown> = {
  * payload-swallowing wrappers (applyUpdate, getUpdateState) report their
  * fallback instead of the fixture.
  */
+/** Every payload recorded this run, across every host installed in this file.
+ *  `installRecordingHost()` hands each test its own map, so the "declares a
+ *  shape" assertion below would only ever see that test's own two calls;
+ *  accumulating here lets it judge the whole file's real traffic. */
+const sentPayloads = new Map<string, string>();
+
 function installRecordingHost(): Map<string, string> {
   const payloads = new Map<string, string>();
   const g = globalThis as Record<string, unknown>;
   g.__host = {
     invoke: (id: number, method: string, payloadJson: string) => {
       payloads.set(method, payloadJson);
+      sentPayloads.set(method, payloadJson);
       const result = RESULTS[method];
       (g.__resolveInvoke as (i: number, j: string) => void)(
         id,
@@ -296,17 +303,28 @@ describe("invoke contract fixtures (ARCH-11)", () => {
     expect(missing).toEqual([]);
   });
 
-  it("declares a shape for every wrapper that sends a payload", async () => {
-    // The other direction: a wrapper that sends a payload with no declared
-    // shape is an undeclared seam. `aiAvailability` stands in for the
+  it("declares a request shape for every wrapper that sends payload fields", async () => {
+    // The other direction: a wrapper that ships fields with no declared
+    // `request` is an undeclared seam. `aiAvailability` stands in for the
     // no-payload majority — it must stay absent from the table.
     const payloads = installRecordingHost();
     await isOnDeviceAIAvailable();
+    // The one payload-sending wrapper no test above drives.
+    await markUpdateHealthy();
     expect(payloads.get("aiAvailability")).toBe("");
     expect("aiAvailability" in INVOKE_SHAPES).toBe(false);
 
-    const undeclared = [...payloads]
-      .filter(([method, json]) => json !== "" && !(method in INVOKE_SHAPES))
+    // Judged over `sentPayloads` (the whole file's traffic), not `payloads`:
+    // this test's own calls carry no fields, so filtering its map alone would
+    // pass no matter what the schema said.
+    const undeclared = [...sentPayloads]
+      .filter(([method, json]) => {
+        // "" = no payload; "{}" = an argument-less call — no field to drift,
+        // which is why getUpdateState/markUpdateHealthy need no `request`.
+        if (json === "" || json === "{}") return false;
+        const shape = INVOKE_SHAPES[method as keyof typeof INVOKE_SHAPES];
+        return shape === undefined || !("request" in shape);
+      })
       .map(([method]) => method);
     expect(undeclared).toEqual([]);
   });
