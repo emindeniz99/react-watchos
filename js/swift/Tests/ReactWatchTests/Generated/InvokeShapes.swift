@@ -9,9 +9,55 @@ import ReactWatchCore
 // Fixtures/invoke-*.json with these, so a wrapper that changes its payload
 // (or a native result that changes its keys) fails `swift test` instead of
 // on a watch. The 31 handlers keep their own decoders by design.
+//
+// The decode is STRICT about undeclared keys, because a synthesized
+// `Codable` init ignores unknown keys AND maps a missing key for an
+// Optional property to nil — so a plain decode is blind to every rename or
+// addition of an OPTIONAL field (the majority of the declared surface), and
+// the JS suite would just rewrite the fixture around the drift. A rename
+// always shows up as (tolerated missing key) + (extra unknown key), so
+// rejecting unknown keys catches renames and additions with one check.
+
+protocol InvokeShape: Codable, Equatable {
+    /// Every key the schema declares for this shape.
+    static var declaredKeys: Set<String> { get }
+}
+
+struct UndeclaredInvokeKeys: Error, CustomStringConvertible {
+    let shape: String
+    let keys: [String]
+    var description: String {
+        "\(shape) has undeclared payload keys \(keys.sorted()) — the schema "
+            + "does not declare them, so no handler reads them"
+    }
+}
+
+private func assertDeclared<T: InvokeShape>(
+    _: T.Type, _ object: [String: JSONValue]
+) throws {
+    let extra = Set(object.keys).subtracting(T.declaredKeys)
+    guard extra.isEmpty else {
+        throw UndeclaredInvokeKeys(shape: "\(T.self)", keys: Array(extra))
+    }
+}
+
+func decodeStrict<T: InvokeShape>(_ type: T.Type, from data: Data) throws {
+    _ = try JSONDecoder().decode(T.self, from: data)
+    try assertDeclared(
+        type, try JSONDecoder().decode([String: JSONValue].self, from: data))
+}
+
+func decodeStrict<T: InvokeShape>(arrayOf type: T.Type, from data: Data) throws {
+    _ = try JSONDecoder().decode([T].self, from: data)
+    for object in try JSONDecoder().decode(
+        [[String: JSONValue]].self, from: data)
+    {
+        try assertDeclared(type, object)
+    }
+}
 
 /// js/src/notifications.ts scheduleNotification -> NotificationPlan.
-struct ScheduleNotificationRequest: Codable, Equatable {
+struct ScheduleNotificationRequest: InvokeShape {
     let id: String
     let title: String
     let body: String
@@ -19,26 +65,30 @@ struct ScheduleNotificationRequest: Codable, Equatable {
     let at: Double?
     let afterMs: Double?
     let sound: Bool
+    static let declaredKeys: Set<String> = ["id", "title", "body", "at", "afterMs", "sound"]
 }
 
-struct BleConnectRequest: Codable, Equatable {
+struct BleConnectRequest: InvokeShape {
     let service: String
     let maxReconnectAttempts: Int?
     let reconnectWindowMs: Double?
+    static let declaredKeys: Set<String> = ["service", "maxReconnectAttempts", "reconnectWindowMs"]
 }
 
-struct BleWriteRequest: Codable, Equatable {
+struct BleWriteRequest: InvokeShape {
     let characteristic: String
     let value: String
     let confirm: Bool?
+    static let declaredKeys: Set<String> = ["characteristic", "value", "confirm"]
 }
 
-struct BleSubscribeRequest: Codable, Equatable {
+struct BleSubscribeRequest: InvokeShape {
     let characteristic: String
+    static let declaredKeys: Set<String> = ["characteristic"]
 }
 
 /// js/src/update.ts applyUpdate -> UpdatePlan (decoded inside OTASequencer.stage, off-main).
-struct SaveUpdateRequest: Codable, Equatable {
+struct SaveUpdateRequest: InvokeShape {
     let js: String
     let version: Int?
     let signature: String?
@@ -46,55 +96,66 @@ struct SaveUpdateRequest: Codable, Equatable {
     let requiredFeatures: [String]?
     let minBridgeProtocol: Int?
     let expiresAt: Int?
+    static let declaredKeys: Set<String> = [
+        "js", "version", "signature", "keyId", "requiredFeatures", "minBridgeProtocol", "expiresAt",
+    ]
 }
 
-struct ScheduleBackgroundRefreshRequest: Codable, Equatable {
+struct ScheduleBackgroundRefreshRequest: InvokeShape {
     /// REQUIRED: a missing value used to default to 0 = wake me now
     let afterMs: Double
     /// echoed back verbatim on the fire event; the app's own JSON
     let userInfo: [String: JSONValue]?
+    static let declaredKeys: Set<String> = ["afterMs", "userInfo"]
 }
 
-struct KeychainSetRequest: Codable, Equatable {
+struct KeychainSetRequest: InvokeShape {
     let key: String
     let value: String
+    static let declaredKeys: Set<String> = ["key", "value"]
 }
 
 /// Shared by keychainGet and keychainDelete.
-struct KeychainKeyRequest: Codable, Equatable {
+struct KeychainKeyRequest: InvokeShape {
     let key: String
+    static let declaredKeys: Set<String> = ["key"]
 }
 
-struct SpeakRequest: Codable, Equatable {
+struct SpeakRequest: InvokeShape {
     let text: String
     let rate: Double?
     let pitch: Double?
     let language: String?
     let volume: Double?
+    static let declaredKeys: Set<String> = ["text", "rate", "pitch", "language", "volume"]
 }
 
-struct PlayAudioRequest: Codable, Equatable {
+struct PlayAudioRequest: InvokeShape {
     let url: String
     let volume: Double?
     let loop: Bool?
+    static let declaredKeys: Set<String> = ["url", "volume", "loop"]
 }
 
-struct GetProductsRequest: Codable, Equatable {
+struct GetProductsRequest: InvokeShape {
     let productIds: [String]
+    static let declaredKeys: Set<String> = ["productIds"]
 }
 
-struct PurchaseRequest: Codable, Equatable {
+struct PurchaseRequest: InvokeShape {
     let productId: String
+    static let declaredKeys: Set<String> = ["productId"]
 }
 
-struct SearchPOIRequest: Codable, Equatable {
+struct SearchPOIRequest: InvokeShape {
     let query: String
     let latitude: Double?
     let longitude: Double?
     let span: Double?
+    static let declaredKeys: Set<String> = ["query", "latitude", "longitude", "span"]
 }
 
-struct DeviceInfo: Codable, Equatable {
+struct DeviceInfo: InvokeShape {
     let batteryLevel: Double
     let batteryState: String
     let wristLocation: String
@@ -112,9 +173,15 @@ struct DeviceInfo: Codable, Equatable {
     let locale: String
     let language: String
     let is24Hour: Bool
+    static let declaredKeys: Set<String> = [
+        "batteryLevel", "batteryState", "wristLocation", "crownOrientation", "screenWidth",
+        "screenHeight", "screenScale", "layoutDirection", "model", "systemVersion", "name",
+        "reduceMotion", "voiceOverRunning", "preferredContentSizeCategory", "locale", "language",
+        "is24Hour",
+    ]
 }
 
-struct UpdateState: Codable, Equatable {
+struct UpdateState: InvokeShape {
     let source: String
     let version: Int?
     let keyId: String?
@@ -123,73 +190,82 @@ struct UpdateState: Codable, Equatable {
     let releaseId: String?
     let healthSignal: String
     let bootAttempts: Int
+    static let declaredKeys: Set<String> = [
+        "source", "version", "keyId", "expiresAt", "highWater", "releaseId", "healthSignal",
+        "bootAttempts",
+    ]
 }
 
-struct SaveUpdateResult: Codable, Equatable {
+struct SaveUpdateResult: InvokeShape {
     let accepted: Bool
     let code: String?
     let message: String?
+    static let declaredKeys: Set<String> = ["accepted", "code", "message"]
 }
 
-struct IAPProduct: Codable, Equatable {
+struct IAPProduct: InvokeShape {
     let id: String
     let displayName: String
     let description: String
     let displayPrice: String
     let price: Double
     let type: String
+    static let declaredKeys: Set<String> = [
+        "id", "displayName", "description", "displayPrice", "price", "type",
+    ]
 }
 
-struct PurchaseResult: Codable, Equatable {
+struct PurchaseResult: InvokeShape {
     let status: String
     let productId: String?
     let transactionId: String?
+    static let declaredKeys: Set<String> = ["status", "productId", "transactionId"]
 }
 
-struct POIResult: Codable, Equatable {
+struct POIResult: InvokeShape {
     let lat: Double
     let lon: Double
     let title: String
     let subtitle: String?
+    static let declaredKeys: Set<String> = ["lat", "lon", "title", "subtitle"]
 }
 
-struct Coordinate: Codable, Equatable {
+struct Coordinate: InvokeShape {
     let lat: Double
     let lon: Double
+    static let declaredKeys: Set<String> = ["lat", "lon"]
 }
 
 enum InvokeShapes {
     /// method -> decode this fixture as the declared REQUEST shape.
     static let requestDecoders: [String: @Sendable (Data) throws -> Void] = [
-        "scheduleNotification": {
-            _ = try JSONDecoder().decode(ScheduleNotificationRequest.self, from: $0)
-        },
-        "bleConnect": { _ = try JSONDecoder().decode(BleConnectRequest.self, from: $0) },
-        "bleWrite": { _ = try JSONDecoder().decode(BleWriteRequest.self, from: $0) },
-        "bleSubscribe": { _ = try JSONDecoder().decode(BleSubscribeRequest.self, from: $0) },
-        "saveUpdate": { _ = try JSONDecoder().decode(SaveUpdateRequest.self, from: $0) },
+        "scheduleNotification": { try decodeStrict(ScheduleNotificationRequest.self, from: $0) },
+        "bleConnect": { try decodeStrict(BleConnectRequest.self, from: $0) },
+        "bleWrite": { try decodeStrict(BleWriteRequest.self, from: $0) },
+        "bleSubscribe": { try decodeStrict(BleSubscribeRequest.self, from: $0) },
+        "saveUpdate": { try decodeStrict(SaveUpdateRequest.self, from: $0) },
         "scheduleBackgroundRefresh": {
-            _ = try JSONDecoder().decode(ScheduleBackgroundRefreshRequest.self, from: $0)
+            try decodeStrict(ScheduleBackgroundRefreshRequest.self, from: $0)
         },
-        "keychainSet": { _ = try JSONDecoder().decode(KeychainSetRequest.self, from: $0) },
-        "keychainGet": { _ = try JSONDecoder().decode(KeychainKeyRequest.self, from: $0) },
-        "keychainDelete": { _ = try JSONDecoder().decode(KeychainKeyRequest.self, from: $0) },
-        "speak": { _ = try JSONDecoder().decode(SpeakRequest.self, from: $0) },
-        "playAudio": { _ = try JSONDecoder().decode(PlayAudioRequest.self, from: $0) },
-        "getProducts": { _ = try JSONDecoder().decode(GetProductsRequest.self, from: $0) },
-        "purchase": { _ = try JSONDecoder().decode(PurchaseRequest.self, from: $0) },
-        "searchPOI": { _ = try JSONDecoder().decode(SearchPOIRequest.self, from: $0) },
+        "keychainSet": { try decodeStrict(KeychainSetRequest.self, from: $0) },
+        "keychainGet": { try decodeStrict(KeychainKeyRequest.self, from: $0) },
+        "keychainDelete": { try decodeStrict(KeychainKeyRequest.self, from: $0) },
+        "speak": { try decodeStrict(SpeakRequest.self, from: $0) },
+        "playAudio": { try decodeStrict(PlayAudioRequest.self, from: $0) },
+        "getProducts": { try decodeStrict(GetProductsRequest.self, from: $0) },
+        "purchase": { try decodeStrict(PurchaseRequest.self, from: $0) },
+        "searchPOI": { try decodeStrict(SearchPOIRequest.self, from: $0) },
     ]
 
     /// method -> decode this fixture as the declared RESULT shape.
     static let responseDecoders: [String: @Sendable (Data) throws -> Void] = [
-        "saveUpdate": { _ = try JSONDecoder().decode(SaveUpdateResult.self, from: $0) },
-        "getUpdateState": { _ = try JSONDecoder().decode(UpdateState.self, from: $0) },
-        "getDeviceInfo": { _ = try JSONDecoder().decode(DeviceInfo.self, from: $0) },
-        "getProducts": { _ = try JSONDecoder().decode([IAPProduct].self, from: $0) },
-        "purchase": { _ = try JSONDecoder().decode(PurchaseResult.self, from: $0) },
-        "searchPOI": { _ = try JSONDecoder().decode([POIResult].self, from: $0) },
-        "getCurrentLocation": { _ = try JSONDecoder().decode(Coordinate.self, from: $0) },
+        "saveUpdate": { try decodeStrict(SaveUpdateResult.self, from: $0) },
+        "getUpdateState": { try decodeStrict(UpdateState.self, from: $0) },
+        "getDeviceInfo": { try decodeStrict(DeviceInfo.self, from: $0) },
+        "getProducts": { try decodeStrict(arrayOf: IAPProduct.self, from: $0) },
+        "purchase": { try decodeStrict(PurchaseResult.self, from: $0) },
+        "searchPOI": { try decodeStrict(arrayOf: POIResult.self, from: $0) },
+        "getCurrentLocation": { try decodeStrict(Coordinate.self, from: $0) },
     ]
 
     /// Payloads that are the consuming app's own JSON by contract — Swift

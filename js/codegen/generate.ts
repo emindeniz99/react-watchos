@@ -525,19 +525,26 @@ function invokeShapesSwift() {
   const struct = (def: StructDef) => {
     const lines = [];
     if (def.doc) lines.push(`/// ${def.doc}`);
-    lines.push(`struct ${def.swift}: Codable, Equatable {`);
+    lines.push(`struct ${def.swift}: InvokeShape {`);
     for (const f of def.fields) {
       if (f.doc) lines.push(`    /// ${f.doc}`);
       lines.push(`    let ${f.name}: ${f.swift}`);
     }
+    lines.push(
+      `    static let declaredKeys: Set<String> = [${def.fields
+        .map((f) => `"${f.name}"`)
+        .join(", ")}]`,
+    );
     lines.push("}");
     return lines.join("\n");
   };
   const entry = (m: HostMethod, ref: string | undefined) => {
     const shape = resolveShape(ref);
     if (!shape) return null;
-    const type = shape.array ? `[${shape.def.swift}]` : shape.def.swift;
-    return `        "${m.name}": { _ = try JSONDecoder().decode(${type}.self, from: $0) },`;
+    const call = shape.array
+      ? `try decodeStrict(arrayOf: ${shape.def.swift}.self, from: $0)`
+      : `try decodeStrict(${shape.def.swift}.self, from: $0)`;
+    return `        "${m.name}": { ${call} },`;
   };
   const requests = invokeMethods
     .map((m) => entry(m, m.request))
@@ -558,6 +565,52 @@ function invokeShapesSwift() {
     "// Fixtures/invoke-*.json with these, so a wrapper that changes its payload",
     "// (or a native result that changes its keys) fails `swift test` instead of",
     "// on a watch. The 31 handlers keep their own decoders by design.",
+    "//",
+    "// The decode is STRICT about undeclared keys, because a synthesized",
+    "// `Codable` init ignores unknown keys AND maps a missing key for an",
+    "// Optional property to nil — so a plain decode is blind to every rename or",
+    "// addition of an OPTIONAL field (the majority of the declared surface), and",
+    "// the JS suite would just rewrite the fixture around the drift. A rename",
+    "// always shows up as (tolerated missing key) + (extra unknown key), so",
+    "// rejecting unknown keys catches renames and additions with one check.",
+    "",
+    "protocol InvokeShape: Codable, Equatable {",
+    "    /// Every key the schema declares for this shape.",
+    "    static var declaredKeys: Set<String> { get }",
+    "}",
+    "",
+    "struct UndeclaredInvokeKeys: Error, CustomStringConvertible {",
+    "    let shape: String",
+    "    let keys: [String]",
+    "    var description: String {",
+    '        "\\(shape) has undeclared payload keys \\(keys.sorted()) — the schema "',
+    '            + "does not declare them, so no handler reads them"',
+    "    }",
+    "}",
+    "",
+    "private func assertDeclared<T: InvokeShape>(",
+    "    _: T.Type, _ object: [String: JSONValue]",
+    ") throws {",
+    "    let extra = Set(object.keys).subtracting(T.declaredKeys)",
+    "    guard extra.isEmpty else {",
+    '        throw UndeclaredInvokeKeys(shape: "\\(T.self)", keys: Array(extra))',
+    "    }",
+    "}",
+    "",
+    "func decodeStrict<T: InvokeShape>(_ type: T.Type, from data: Data) throws {",
+    "    _ = try JSONDecoder().decode(T.self, from: data)",
+    "    try assertDeclared(",
+    "        type, try JSONDecoder().decode([String: JSONValue].self, from: data))",
+    "}",
+    "",
+    "func decodeStrict<T: InvokeShape>(arrayOf type: T.Type, from data: Data) throws {",
+    "    _ = try JSONDecoder().decode([T].self, from: data)",
+    "    for object in try JSONDecoder().decode(",
+    "        [[String: JSONValue]].self, from: data)",
+    "    {",
+    "        try assertDeclared(type, object)",
+    "    }",
+    "}",
     "",
     ...invokeShapes.map(struct).flatMap((s) => [s, ""]),
     "enum InvokeShapes {",
