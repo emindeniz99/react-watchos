@@ -145,6 +145,17 @@ final class ReactWatchModel {
     /// request in the new one. Each async op captures the generation it started
     /// in and drops its result if it no longer matches.
     @ObservationIgnored private var generation = 0
+    /// The one superseded generation whose `js` diagnostics are still wanted:
+    /// the runtime `replaceRuntimeAfterPoisonedOTA()` throws away, plus the
+    /// release id of the bundle that poisoned it. `js.onError` defers to main,
+    /// so the failed bundle's job-throws and unhandled rejections are still
+    /// QUEUED when that swap bumps past them on the same main-thread boot —
+    /// without this the CX-008 guard would drop exactly the OTA-rollback
+    /// forensics the always-on ARCH-13 ring exists for. Never cleared: the
+    /// runtime it names is shut down, so nothing new can emit under it, and a
+    /// later poisoned swap overwrites it.
+    @ObservationIgnored private var poisonedGeneration: Int?
+    @ObservationIgnored private var poisonedGenerationReleaseId: String?
 
     /// The live model, so the package's WKApplicationDelegate can forward a
     /// fired background-refresh task to JS (`deliverBackgroundRefresh`). A watch
@@ -1306,6 +1317,16 @@ final class ReactWatchModel {
         // collision CX-008 exists for. The bump must also precede
         // `makeRuntime()`, because the `js.onError` closure captures the
         // generation at construction time.
+        //
+        // That capture is also why the failed bundle's OWN diagnostics need
+        // rescuing across it: `js.onError` hops to main and we are still ON
+        // main inside `boot()`, so every job-throw / unhandled rejection its
+        // module body queued is undrained right now and the guard would drop
+        // it the instant `generation` moves. Record the outgoing pair first —
+        // the release id is still the dead bundle's here, and `bootedReleaseId`
+        // is cleared a few lines below.
+        poisonedGeneration = generation
+        poisonedGenerationReleaseId = bootedReleaseId
         tearDownGeneration()
         // ...but NOT its BLE carve-out. `tearDownGeneration` leaves the
         // connection up and `BleSession.takeAllPending()` keeps
@@ -1574,12 +1595,27 @@ final class ReactWatchModel {
         let gen = generation
         js.onError = { [weak self] source, message in
             DispatchQueue.main.async { [weak self] in
-                guard let self, gen == self.generation else { return }
+                guard let self else { return }
+                // ...with ONE exception: the runtime a poisoned OTA eval ran
+                // in. `replaceRuntimeAfterPoisonedOTA()` bumps mid-boot while
+                // these blocks are still queued, so a plain generation compare
+                // would silently discard the failed bundle's own async cause
+                // and leave only the sequencer's one-line notice, which names
+                // the rethrow site. Those errors ARE the rollback forensics.
+                // They are stamped with the dead bundle's release id, never the
+                // shipped one that replaced it (ARCH-13).
+                let fromPoisoned = gen == self.poisonedGeneration
+                guard gen == self.generation || fromPoisoned else { return }
                 // subsystem .js is recorded + bannered but NOT pushed back
                 // into JS (echo-loop protection, see report()).
                 self.report(
-                    code: "js.\(source)", severity: .recoverable,
-                    subsystem: .js, details: message)
+                    Diagnostic(
+                        code: "js.\(source)", severity: .recoverable,
+                        subsystem: .js, sessionId: self.sessionId,
+                        releaseId: fromPoisoned
+                            ? self.poisonedGenerationReleaseId
+                            : self.bootedReleaseId,
+                        target: .watch, details: message))
             }
         }
         js.bridge.playHaptic = { type in
