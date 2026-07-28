@@ -351,38 +351,7 @@ final class ReactWatchModel {
     /// Boots a fresh runtime, preferring precompiled bytecode (bundle.qbc)
     /// and falling back to parsing bundle.js.
     private func boot(devCode: String? = nil) {
-        // Tear down the previous generation's in-flight async before the id space
-        // resets (CX-008): cancel outstanding fetches and stop sensor streams so
-        // their callbacks can't settle against — or push stale readings into —
-        // the fresh runtime. The BLE *connection* is intentionally left up (a
-        // stateful link we don't want to drop on a dev hot-reload, and its
-        // state/notify events are name-routed), but its connect/write/subscribe
-        // invoke correlation is id-keyed (CX-022) and ids reset per runtime, so
-        // drop the pending correlation or a late delegate could settle a NEW
-        // promise that happens to reuse an old id.
-        generation += 1
-        for task in fetchTasks.values {
-            task.cancel()
-        }
-        fetchTasks.removeAll()
-        sensors.stopAll()
-        bluetooth.resetPendingForReload()
-        // Stop native media/session resources tied to the outgoing generation so
-        // they can't drain battery or push stale finish/state events into the
-        // fresh runtime (audio download+player+session, in-flight speech, and the
-        // extended-runtime session). `silent:` suppresses the teardown-only
-        // lifecycle event for the two that emit one on cancel/invalidate.
-        audioBridge.stop()
-        speechBridge.stop(silent: true)
-        extendedRuntime.stop(silent: true)
-        // ARCH-08: free QuickJS explicitly, and ORDERED relative to the native
-        // teardown above, instead of leaving it implicit in ARC. boot() is
-        // @MainActor and this runtime's owning queue IS main, so shutdown()
-        // runs inline here — no hop, no deadlock — and any timer the outgoing
-        // bundle armed is cancelled before the next generation's context
-        // exists. `runtime = nil` then drops an already-shut-down object.
-        runtime?.shutdown()
-        runtime = nil
+        tearDownGeneration()
         root = nil
         latestFatal = nil
         latestRecoverable = nil
@@ -419,14 +388,7 @@ final class ReactWatchModel {
         // (a shipped/dev boot has nothing to withhold blessing from).
         commitBlessesHealth = true
         do {
-            let js = try makeRuntime()
-            runtime = js
-            installHostCapabilities(js)
-            #if DEBUG
-            try? js.evaluate(
-                "globalThis.__inspectorUrl='http://127.0.0.1:8099/snapshot'"
-            )
-            #endif
+            let js = try installFreshRuntime()
             if let devCode {
                 try js.evaluate(devCode)
             } else {
@@ -438,6 +400,71 @@ final class ReactWatchModel {
                 code: "boot.startupFailed", severity: .fatal, subsystem: .boot,
                 details: "JS startup failed: \(error)")
         }
+    }
+
+    /// Tears the CURRENT JS generation down: stops every native async path that
+    /// could settle into — or push into — the next runtime, then frees QuickJS
+    /// on its owning queue.
+    ///
+    /// Called by `boot()` for a reload, and by `replaceRuntimeAfterPoisonedOTA()`
+    /// for the fallback boot INSIDE one `boot()`. One implementation on purpose:
+    /// two hand-written teardowns drift, and the half that drifts is the one
+    /// that runs after a hostile bundle.
+    private func tearDownGeneration() {
+        // Tear down the previous generation's in-flight async before the id space
+        // resets (CX-008): cancel outstanding fetches and stop sensor streams so
+        // their callbacks can't settle against — or push stale readings into —
+        // the fresh runtime. The BLE *connection* is intentionally left up (a
+        // stateful link we don't want to drop on a dev hot-reload, and its
+        // state/notify events are name-routed), but its connect/write/subscribe
+        // invoke correlation is id-keyed (CX-022) and ids reset per runtime, so
+        // drop the pending correlation or a late delegate could settle a NEW
+        // promise that happens to reuse an old id.
+        generation += 1
+        for task in fetchTasks.values {
+            task.cancel()
+        }
+        fetchTasks.removeAll()
+        sensors.stopAll()
+        bluetooth.resetPendingForReload()
+        // Stop native media/session resources tied to the outgoing generation so
+        // they can't drain battery or push stale finish/state events into the
+        // fresh runtime (audio download+player+session, in-flight speech, and the
+        // extended-runtime session). `silent:` suppresses the teardown-only
+        // lifecycle event for the two that emit one on cancel/invalidate.
+        audioBridge.stop()
+        speechBridge.stop(silent: true)
+        extendedRuntime.stop(silent: true)
+        // ARCH-08: free QuickJS explicitly, and ORDERED relative to the native
+        // teardown above, instead of leaving it implicit in ARC. Both callers are
+        // @MainActor and this runtime's owning queue IS main, so shutdown()
+        // runs inline here — no hop, no deadlock — and any timer the outgoing
+        // bundle armed is cancelled before the next generation's context
+        // exists. `runtime = nil` then drops an already-shut-down object.
+        runtime?.shutdown()
+        runtime = nil
+    }
+
+    /// Constructs a JSRuntime and performs EVERY post-construction wiring step a
+    /// bundle evaluation depends on — the bridge closures (`makeRuntime`), the
+    /// ARCH-01/ARCH-07 capability publication, the DEBUG inspector URL — then
+    /// installs it as the model's live runtime so settles and native pushes
+    /// reach it.
+    ///
+    /// Extracted because the fallback boot after a poisoned OTA evaluation has
+    /// to do all of it a SECOND time within one `boot()`. A hand-copied second
+    /// sequence would drift the first time a wiring step is added, and the copy
+    /// that silently lost a step would be the one running the recovery bundle.
+    private func installFreshRuntime() throws -> JSRuntime {
+        let js = try makeRuntime()
+        runtime = js
+        installHostCapabilities(js)
+        #if DEBUG
+        try? js.evaluate(
+            "globalThis.__inspectorUrl='http://127.0.0.1:8099/snapshot'"
+        )
+        #endif
+        return js
     }
 
     /// The one write path for every host error/notice (ARCH-13): records the
@@ -1106,20 +1133,40 @@ final class ReactWatchModel {
     /// sequencer (M5); this shell just binds the eval closures to the live
     /// runtime and maps the outcome onto the published UI state.
     private func load(into js: JSRuntime) throws {
+        // Set the moment an OTA artifact starts evaluating into `js`. From then
+        // on this context is no longer pristine: whatever the bundle managed to
+        // run at module scope before it threw is still in there. The sequencer
+        // only ever calls the shipped eval AFTER the OTA evals (pinned by
+        // `testFallbackShippedEvalRunsLastWithTheBudgetAlreadyCleared`), so
+        // reading the flag inside `evalShipped` sees the final answer.
+        var otaEvalStarted = false
         let outcome: BootOutcome
         do {
             outcome = try otaSequencer.boot(
                 evalSource: { source in
                     self.disposeActiveRoot(in: js)
+                    otaEvalStarted = true
                     self.setBundleReleaseId(source, into: js)
                     try js.evaluate(source)
                 },
                 evalBytecode: { bytecode, source in
                     self.disposeActiveRoot(in: js)
+                    otaEvalStarted = true
                     self.setBundleReleaseId(source, into: js)
                     try js.evaluateBytecode(bytecode)
                 },
-                evalShipped: { try self.loadShipped(into: js) }
+                evalShipped: {
+                    // The whole point of ARCH-08's last gap: if an OTA bundle
+                    // ran in `js` and failed, the shipped bundle must NOT be
+                    // evaluated on top of its leftovers.
+                    let target: JSRuntime
+                    if otaEvalStarted {
+                        target = try self.replaceRuntimeAfterPoisonedOTA()
+                    } else {
+                        target = js
+                    }
+                    try self.loadShipped(into: target)
+                }
             )
         } catch let failure as OTABootSequencer.BootFailure {
             // Shipped ALSO failed after an OTA detour: surface why the OTA
@@ -1165,13 +1212,22 @@ final class ReactWatchModel {
         }
         // ARCH-04: resolve the health policy for this boot now that the booted
         // record is known — once, off the commit path (it reads the known-good
-        // record from the App Group to spot an already-blessed bundle).
+        // record from the App Group to spot an already-blessed bundle). This
+        // one line is also what recomputes the policy for a FRESH-runtime
+        // fallback boot: the OTA outcome never landed, so `bootedOTARecord` is
+        // still nil and both health policies self-bless the shipped bundle
+        // (`commitBlesses(bootedRecord: nil)` is pinned true under `.explicit`
+        // by `testExplicitPolicyStillSelfBlessesShippedBoots`). It runs before
+        // any commit can be processed — commits cross `decodeQueue` and this is
+        // the main thread — so no commit is ever judged by a stale policy.
         commitBlessesHealth = otaSequencer.commitBlesses(bootedRecord: bootedOTARecord)
         // A blessing parked by `handleMarkUpdateHealthy` during eval IS the
         // explicit confirmation — apply it now that the record it blesses is
         // known, so it promotes the running bundle to known-good instead of
         // just clearing the counter. Deliberately after `commitBlesses` so the
         // policy for this boot is still decided from the booted record alone.
+        // On the fallback path the flag can only belong to the SHIPPED bundle:
+        // `replaceRuntimeAfterPoisonedOTA` discarded the dead bundle's.
         if pendingMarkHealthy, !markedHealthyThisBoot {
             markedHealthyThisBoot = true
             otaSequencer.markHealthy(bootedRecord: bootedOTARecord)
@@ -1192,23 +1248,90 @@ final class ReactWatchModel {
             filename: "release-id.js")
     }
 
-    /// Disposes whatever root is mounted in `js` before another bundle is
-    /// evaluated into the SAME context (ARCH-08). `runApp`'s single-root guard
-    /// only spans one evaluation — the bundle is an IIFE, so a second `evaluate`
-    /// gets a fresh module scope on a context whose globals survive, and the
-    /// guard cannot see the previous evaluation's root. Without this, the
-    /// OTA→shipped fallback (the path that exists to survive a bad bundle)
-    /// leaves the failed bundle's tree mounted with its sensor streams and
-    /// native listeners still live for the rest of the generation.
+    /// Replaces the runtime a poisoned OTA evaluation ran in, so the shipped
+    /// fallback boots into a context that bundle never touched (ARCH-08's last
+    /// gap, closed).
+    ///
+    /// `disposeActiveRoot` releases the failed bundle's ROOT, but a bundle that
+    /// threw partway through its module body has already run arbitrary code in
+    /// this context, and none of it hangs off the root: `setTimeout`s it armed,
+    /// `registerWidget`/`registerIntent` entries, a started inspector with its
+    /// one-way `console` tee, and every module singleton it initialised. There
+    /// is no hook that could release those — the only complete answer is to
+    /// throw the context away. This path exists to survive a bad bundle, and
+    /// running the shipped bundle on a hostile-or-broken one's leftovers is not
+    /// surviving it.
+    ///
+    /// Throws only if the fresh runtime can't be built (a QuickJS allocation
+    /// failure); the sequencer then wraps it as a `BootFailure` and `boot()`
+    /// reports a fatal startup diagnostic — loud, which is right: there is no
+    /// runtime left to run anything in.
+    private func replaceRuntimeAfterPoisonedOTA() throws -> JSRuntime {
+        // Same teardown, same order, as a reload — the poisoned bundle could
+        // have started native work from its module body (a fetch, a sensor
+        // stream, a BLE connect, speech/audio, an extended-runtime session),
+        // and every one of those settles or pushes into `self.runtime`, which
+        // is about to be the FRESH runtime. This also does the generation bump
+        // the fallback needs (below), and frees QuickJS on its owning queue.
+        //
+        // The generation bump is NOT redundant with the one `boot()` already
+        // did: `boot()` bumps once per boot, and this retry happens INSIDE one
+        // boot call, so without a second bump the dead bundle's parked
+        // callbacks would carry exactly the generation the fresh runtime is
+        // created under and every CX-008 guard would wave them through.
+        // `shutdown()` cancels the old context's timers, but nothing cancels a
+        // URLSession completion, an MKLocalSearch callback, a notification-add
+        // callback or a StoreKit task the poisoned module body kicked off —
+        // those are host closures that outlive the context and settle BY ID.
+        // The fresh bundle's id spaces restart at 1, so an id minted by the
+        // dead bundle can name a live promise in the new one: the exact
+        // collision CX-008 exists for. The bump must also precede
+        // `makeRuntime()`, because the `js.onError` closure captures the
+        // generation at construction time.
+        tearDownGeneration()
+        // The dead bundle's parked `markUpdateHealthy()` must NOT survive into
+        // the shipped boot. `handleMarkUpdateHealthy` parks while `jsReady` is
+        // false, which is the whole of `load()` — so without this reset the
+        // flag `load()` reads at the end would be ambiguous: it could be the
+        // shipped bundle confirming itself, or the poisoned bundle's
+        // confirmation applied to a boot it never survived. Blessing a boot
+        // with a dead bundle's word is a lie even when (as today, the
+        // sequencer having just zeroed the crash-loop counter) the resulting
+        // `markHealthy` is a no-op — and it would additionally latch
+        // `markedHealthyThisBoot`, silently suppressing the shipped bundle's
+        // own blessing on its first healthy commit.
+        pendingMarkHealthy = false
+        // Diagnostics emitted from here on must not be stamped with the
+        // identity of a bundle that is no longer running (ARCH-13); the
+        // caller's `loadShipped` sets the shipped id as its first act.
+        bootedReleaseId = nil
+        // NOT reset here, and each for a reason: `bootedOTARecord` is still nil
+        // (only the `.ranOTA` outcomes populate it, and this boot's OTA threw),
+        // so `commitBlesses` at the end of `load()` recomputes as the
+        // shipped-boot self-bless under BOTH health policies;
+        // `markedHealthyThisBoot`/`reconciledThisBoot`/`root`/`ackedSeq` are
+        // only ever written from the commit handler, which hops through
+        // `decodeQueue` and cannot land while this main-thread boot is still
+        // running — and is dropped by the generation bump above when it does.
+        return try installFreshRuntime()
+    }
+
+    /// Disposes whatever root is mounted in `js` before the SAME bundle is
+    /// re-evaluated into that context (ARCH-08). `runApp`'s single-root guard
+    /// only spans one evaluation — the bundle is an IIFE, so a second
+    /// `evaluate` gets a fresh module scope on a context whose globals survive,
+    /// and the guard cannot see the previous evaluation's root.
+    ///
+    /// What still re-evaluates in place is the bytecode→source retry, in both
+    /// `evalOTA` and `loadShipped`: a `.qbc` that fails to load falls back to
+    /// parsing the source of the very same bundle. The CROSS-bundle case — a
+    /// failed OTA followed by the shipped bundle — no longer reuses a context
+    /// at all (`replaceRuntimeAfterPoisonedOTA`), so on that path this call is
+    /// a no-op against a pristine runtime.
     ///
     /// A no-op when nothing is mounted, and best-effort by design: a bundle
     /// that never reached `runApp` has no hook, and a throwing dispose must not
     /// block the recovery boot this call precedes.
-    ///
-    /// Only ROOT-owned resources are released. Module-scope side effects of the
-    /// half-executed bundle (armed timers, widget/intent registrations, a
-    /// started inspector) survive into the fallback; the complete fix is a
-    /// FRESH runtime for the fallback boot, tracked separately.
     private func disposeActiveRoot(in js: JSRuntime) {
         try? js.evaluate(
             "globalThis.__disposeActiveRoot?.()", filename: "dispose-root.js")

@@ -409,6 +409,74 @@ final class OTABootSequencerTests: XCTestCase {
         XCTAssertEqual(run.shipped, 1)
     }
 
+    /// ARCH-08: after a poisoned OTA evaluation the watch host throws the whole
+    /// QuickJS runtime away and boots shipped into a fresh one, deciding that
+    /// INSIDE its `evalShipped` closure from a "has an OTA artifact already
+    /// evaluated here?" latch the two OTA closures set. That is only sound
+    /// because of three properties of this sequencer that nothing pinned:
+    /// the shipped eval runs strictly AFTER any OTA eval (so the latch is
+    /// final when it is read), it runs at most once (so the host swaps the
+    /// runtime once), and the boot budget the failed candidate spent is
+    /// already back to zero when it runs — meaning the fallback boot must NOT
+    /// touch the counter itself, or it would erase/duplicate the accounting
+    /// the sequencer just did. If the order or the count here ever changes, the
+    /// host swaps a runtime at the wrong moment and the fallback either runs on
+    /// the dead bundle's leftovers or throws away a live one.
+    func testFallbackShippedEvalRunsLastWithTheBudgetAlreadyCleared() throws {
+        storeRecord(signedRecord(), in: active)
+        counters.attempts = 1
+        struct EvalError: Error {}
+        var order: [String] = []
+        var budgetSeenByShipped: [Int] = []
+        let seq = makeSequencer()
+        let outcome = try seq.boot(
+            evalSource: { _ in
+                order.append("ota")
+                throw EvalError()
+            },
+            evalBytecode: { _, _ in order.append("bytecode") },
+            evalShipped: {
+                order.append("shipped")
+                budgetSeenByShipped.append(self.counters.otaBootAttempts())
+            }
+        )
+        guard case .ranShipped = outcome else { return XCTFail("expected shipped") }
+        XCTAssertEqual(order, ["ota", "shipped"])
+        XCTAssertEqual(
+            budgetSeenByShipped, [0],
+            "the failed candidate's boot attempt is already reconciled")
+    }
+
+    /// The same three properties on the OTHER path that ends in a fallback
+    /// shipped eval: the crash-loop rollback whose restored known-good bundle
+    /// also fails. The host sets its latch in the same two closures, so this
+    /// path swaps the runtime too — and the rollback's own `setOTABootAttempts(1)`
+    /// must likewise be back to 0 by the time shipped runs.
+    func testRollbackFailureAlsoLeavesShippedLastWithTheBudgetCleared() throws {
+        storeRecord(signedRecord(js: "bad()", version: 3), in: active)
+        storeRecord(signedRecord(js: "good()", version: 2), in: knownGood)
+        counters.attempts = 3
+        counters.highWater = 2
+        struct EvalError: Error {}
+        var order: [String] = []
+        var budgetSeenByShipped: [Int] = []
+        let seq = makeSequencer()
+        let outcome = try seq.boot(
+            evalSource: { source in
+                order.append("ota:\(source)")
+                throw EvalError()
+            },
+            evalBytecode: { _, _ in order.append("bytecode") },
+            evalShipped: {
+                order.append("shipped")
+                budgetSeenByShipped.append(self.counters.otaBootAttempts())
+            }
+        )
+        guard case .ranShipped = outcome else { return XCTFail("expected shipped") }
+        XCTAssertEqual(order, ["ota:good()", "shipped"], "the rollback runs, then shipped")
+        XCTAssertEqual(budgetSeenByShipped, [0])
+    }
+
     func testBootEnforcedReVerifyFailureDropsPlantedRecord() throws {
         // An App-Group writer plants a record with a bad signature (NF-35).
         storeRecord(

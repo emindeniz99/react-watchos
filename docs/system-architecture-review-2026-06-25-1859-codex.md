@@ -447,6 +447,17 @@ must require an explicit consumer configuration change/native release.
 > calls before every bundle eval to tear the previous root down. Module-scope
 > side effects of the half-executed bundle still survive into the fallback;
 > the complete answer is a fresh `JSRuntime` for the fallback boot.)*
+>
+> *(2026-07-28: **the complete answer shipped.** `load()` latches whether an OTA
+> artifact evaluated into the boot's runtime, and if one did and failed,
+> `replaceRuntimeAfterPoisonedOTA()` tears that generation down
+> (`tearDownGeneration()` — fetches, sensors, BLE correlation, media/session,
+> `JSRuntime.shutdown()`, generation bump) and builds+wires a new runtime via
+> `installFreshRuntime()` for the shipped eval. `__disposeActiveRoot` stays, now
+> covering only the bytecode→source retries, which re-evaluate the SAME bundle.
+> Details, incl. the four traps (parked `markUpdateHealthy`, boot-attempt
+> accounting, `commitBlesses` recompute, the second generation bump) are on the
+> merged backlog's ARCH-08 build-log entry.)*
 
 **Priority:** P1.
 

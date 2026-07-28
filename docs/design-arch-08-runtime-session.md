@@ -26,8 +26,16 @@ work is well-defined when it's picked up.
 >    the old IIFE's table. It is a leak, not double-delivery.) `runApp` now
 >    throws on a second mount within one evaluation; the same-context
 >    RE-evaluation case (the OTA→shipped fallback, where the second `evaluate`
->    gets a fresh module scope) is covered by the `__disposeActiveRoot` global
->    the host calls before each bundle eval;
+>    gets a fresh module scope) was covered *partially* by the
+>    `__disposeActiveRoot` global the host calls before each bundle eval —
+>    partially, because dispose only releases ROOT-owned resources, and a bundle
+>    that threw partway through its module body leaves everything that never
+>    hung off the root (armed `setTimeout`s, `registerWidget`/`registerIntent`
+>    entries, a started inspector with its `console` tee, module singletons)
+>    alive in the context the shipped bundle then boots into. **Closed
+>    2026-07-28:** `ReactWatchHost.replaceRuntimeAfterPoisonedOTA()` shuts the
+>    poisoned runtime down and boots the shipped bundle into a brand-new
+>    `JSRuntime`, so the fallback world shares nothing with the failed bundle;
 > 2. `JSRuntime` was freed on whatever thread dropped the last reference, which
 >    for the OTA validator/compiler and the widget runtime is never the owning
 >    queue — a staged bundle that arms a `setTimeout` at module scope makes that

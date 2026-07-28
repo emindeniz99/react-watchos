@@ -326,6 +326,20 @@ public final class WidgetIntentRuntime {
     }
 
     private func loadBundle(appGroupId: String) throws {
+        // ARCH-08 note (checked when the app host's OTA→shipped fallback was
+        // moved onto a fresh runtime): this extension does NOT have the same
+        // same-context reuse, and deliberately needs no equivalent change. A
+        // `WidgetIntentRuntime` owns exactly one JSRuntime built in `init?`, and
+        // a bundle that throws here fails the whole initialiser (`return nil`)
+        // — the runtime is discarded and `deinit` shuts it down, so there is no
+        // path that evaluates a DIFFERENT bundle into a context a failed one
+        // touched. In particular a failed known-good OTA bundle does not fall
+        // back to shipped in place; the caller gets nil and builds a new
+        // runtime from scratch on the next request. The two bytecode→source
+        // retries below (and in `loadShippedBundle`) re-evaluate the SAME
+        // bundle, exactly like the app host's, and their residue dies with the
+        // runtime moments later either way.
+        //
         // The bundle-selection rule (known-good over the unvetted active record;
         // pinned bytecode only when the hash matches; shipped when there's no
         // known-good) is the pure, Linux-tested WidgetBundleChoice. This shell
