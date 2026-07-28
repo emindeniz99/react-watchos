@@ -6,7 +6,7 @@
 
 # Interface: VStackProps
 
-Defined in: [js/src/components.ts:134](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L134)
+Defined in: [js/src/components.ts:143](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L143)
 
 ## Extends
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/
 
 > `optional` **alignment?**: `"leading"` \| `"center"` \| `"trailing"`
 
-Defined in: [js/src/components.ts:137](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L137)
+Defined in: [js/src/components.ts:146](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L146)
 
 Horizontal alignment of children (SwiftUI VStack(alignment:)).
 
@@ -91,7 +91,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L138)
+Defined in: [js/src/components.ts:147](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L147)
 
 ***
 
@@ -157,9 +157,16 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **glass?**: `boolean`
 
-Defined in: [js/src/components.ts:111](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L111)
+Defined in: [js/src/components.ts:120](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L120)
 
 Apply the watchOS 26 Liquid Glass effect (no-op on older OSes).
+
+**App-only: a no-op in complications and Smart Stack widgets.** It is
+applied in the app interpreter's shared modifier chain, which the widget
+interpreter's `applyLayout` does not mirror — so the same JS that glasses
+a view in the app renders it plain on a watch face. Declared in
+`codegen/schema.ts` `propDegradations` and listed in
+`docs/api/capabilities.md`.
 
 #### Inherited from
 
@@ -283,7 +290,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **spacing?**: `number`
 
-Defined in: [js/src/components.ts:135](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L135)
+Defined in: [js/src/components.ts:144](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L144)
 
 ***
 

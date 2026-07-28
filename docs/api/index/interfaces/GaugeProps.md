@@ -6,7 +6,7 @@
 
 # Interface: GaugeProps
 
-Defined in: [js/src/components.ts:249](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L249)
+Defined in: [js/src/components.ts:264](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L264)
 
 ## Extends
 
@@ -81,7 +81,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:256](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L256)
+Defined in: [js/src/components.ts:271](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L271)
 
 ***
 
@@ -149,7 +149,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:253](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L253)
+Defined in: [js/src/components.ts:268](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L268)
 
 ***
 
@@ -157,7 +157,7 @@ Defined in: [js/src/components.ts:253](https://github.com/emindeniz99/playground
 
 > `optional` **max?**: `number`
 
-Defined in: [js/src/components.ts:252](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L252)
+Defined in: [js/src/components.ts:267](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L267)
 
 ***
 
@@ -165,7 +165,7 @@ Defined in: [js/src/components.ts:252](https://github.com/emindeniz99/playground
 
 > `optional` **min?**: `number`
 
-Defined in: [js/src/components.ts:251](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L251)
+Defined in: [js/src/components.ts:266](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L266)
 
 ***
 
@@ -201,7 +201,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **style?**: `string`
 
-Defined in: [js/src/components.ts:255](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L255)
+Defined in: [js/src/components.ts:270](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L270)
 
 "circular" | "linear"; widgets pick accessory styles by family.
 
@@ -225,4 +225,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:250](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L250)
+Defined in: [js/src/components.ts:265](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L265)

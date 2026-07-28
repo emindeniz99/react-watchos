@@ -6,7 +6,7 @@
 
 # Interface: MapAnnotation
 
-Defined in: [js/src/components.ts:376](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L376)
+Defined in: [js/src/components.ts:391](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L391)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/components.ts:376](https://github.com/emindeniz99/playground
 
 > **lat**: `number`
 
-Defined in: [js/src/components.ts:377](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L377)
+Defined in: [js/src/components.ts:392](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L392)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/components.ts:377](https://github.com/emindeniz99/playground
 
 > **lon**: `number`
 
-Defined in: [js/src/components.ts:378](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L378)
+Defined in: [js/src/components.ts:393](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L393)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/components.ts:378](https://github.com/emindeniz99/playground
 
 > `optional` **systemImage?**: `string`
 
-Defined in: [js/src/components.ts:381](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L381)
+Defined in: [js/src/components.ts:396](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L396)
 
 SF Symbol for the marker.
 
@@ -40,7 +40,7 @@ SF Symbol for the marker.
 
 > `optional` **tint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:382](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L382)
+Defined in: [js/src/components.ts:397](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L397)
 
 ***
 
@@ -48,4 +48,4 @@ Defined in: [js/src/components.ts:382](https://github.com/emindeniz99/playground
 
 > `optional` **title?**: `string`
 
-Defined in: [js/src/components.ts:379](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L379)
+Defined in: [js/src/components.ts:394](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L394)

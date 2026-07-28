@@ -170,6 +170,46 @@ export const components: Component[] = [
   { name: "ToolbarItem", widget: "degraded" },
 ];
 
+/** One prop the app interpreter honors and the widget interpreter ignores. */
+export interface PropDegradation {
+  /** Component the prop lives on, or `"*"` for a prop applied to every node. */
+  component: string;
+  prop: string;
+  /** Why the widget can't honor it, in one line — rendered into the docs. */
+  note: string;
+}
+
+/**
+ * PROP-level degradations (A2). `components[].widget` is component-level: it
+ * says a `Button` renders "degraded" in a complication, but nothing anywhere
+ * said that `glass` and `buttonStyle` are read by the app interpreter and
+ * silently dropped by the widget one. A prop that is quietly ignored is a
+ * quietly skipped feature (rule 12), so the exceptions are declared here, get
+ * a row in the generated capability table, and are cross-checked against the
+ * interpreter-prop-parity golden — the extracted evidence has to agree that
+ * each one really is app-only, so this list can't rot into a comment.
+ *
+ * This is a record of what IS, not an endorsement. Closing a gap means
+ * deleting its row (and updating the golden), which is the point.
+ */
+export const propDegradations: PropDegradation[] = [
+  {
+    component: "*",
+    prop: "glass",
+    note:
+      "Liquid Glass is applied in NodeView's shared modifier chain; the "
+      + "widget's applyLayout mirrors LayoutModifier only, so it is a no-op "
+      + "in complications.",
+  },
+  {
+    component: "Button",
+    prop: "buttonStyle",
+    note:
+      "The widget's interactive Button hard-codes .buttonStyle(.plain); "
+      + "glass/glassProminent/plain are all no-ops in complications.",
+  },
+];
+
 /** Plain structs, rendered for both Swift and TS from `fields`. */
 export const structs: StructDef[] = [
   {

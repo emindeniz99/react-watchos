@@ -58,15 +58,28 @@
     ]
   },
   "TimerText": {
-    "app": [],
-    "widget": []
+    "app": [
+      "milliseconds",
+      "since",
+      "until"
+    ],
+    "widget": [
+      "since",
+      "until"
+    ]
   },
   "FormattedText": {
     "app": [],
     "widget": []
   },
   "Image": {
-    "app": [],
+    "app": [
+      "color",
+      "data",
+      "size",
+      "source",
+      "systemName"
+    ],
     "widget": [
       "color",
       "data",
@@ -75,12 +88,36 @@
     ]
   },
   "Map": {
-    "app": [],
+    "app": [
+      "cameraTrigger",
+      "followsUserLocation",
+      "fullScreen",
+      "height",
+      "latitude",
+      "longitude",
+      "onPress",
+      "showsUserLocation",
+      "span"
+    ],
     "widget": []
   },
   "Gauge": {
-    "app": [],
-    "widget": []
+    "app": [
+      "color",
+      "label",
+      "max",
+      "min",
+      "style",
+      "value"
+    ],
+    "widget": [
+      "color",
+      "label",
+      "max",
+      "min",
+      "style",
+      "value"
+    ]
   },
   "ProgressView": {
     "app": [
@@ -95,12 +132,20 @@
     ]
   },
   "Button": {
-    "app": [],
-    "widget": []
+    "app": [
+      "accessibilityLabel",
+      "buttonStyle",
+      "primaryAction",
+      "text"
+    ],
+    "widget": [
+      "intent"
+    ]
   },
   "Toggle": {
     "app": [
-      "label"
+      "label",
+      "value"
     ],
     "widget": [
       "label"
@@ -110,7 +155,8 @@
     "app": [
       "max",
       "min",
-      "step"
+      "step",
+      "value"
     ],
     "widget": [
       "max",
@@ -123,7 +169,8 @@
       "label",
       "max",
       "min",
-      "step"
+      "step",
+      "value"
     ],
     "widget": [
       "max",
@@ -134,14 +181,20 @@
   "Picker": {
     "app": [
       "label",
-      "options"
+      "options",
+      "value"
     ],
-    "widget": []
+    "widget": [
+      "label",
+      "options",
+      "value"
+    ]
   },
   "DatePicker": {
     "app": [
       "label",
-      "mode"
+      "mode",
+      "value"
     ],
     "widget": [
       "value"
@@ -166,10 +219,16 @@
   },
   "NavigationStack": {
     "app": [],
-    "widget": []
+    "widget": [
+      "accessibilityHint",
+      "accessibilityLabel"
+    ]
   },
   "NavigationLink": {
-    "app": [],
+    "app": [
+      "label",
+      "to"
+    ],
     "widget": [
       "label",
       "to"
@@ -223,6 +282,8 @@
       "verticalSpacing"
     ],
     "widget": [
+      "accessibilityHint",
+      "accessibilityLabel",
       "horizontalSpacing",
       "verticalSpacing"
     ]
@@ -232,12 +293,20 @@
     "widget": []
   },
   "ShareLink": {
-    "app": [],
+    "app": [
+      "item"
+    ],
     "widget": []
   },
   "Chart": {
-    "app": [],
-    "widget": []
+    "app": [
+      "color",
+      "type"
+    ],
+    "widget": [
+      "color",
+      "type"
+    ]
   },
   "LabeledContent": {
     "app": [
@@ -268,5 +337,24 @@
   "ToolbarItem": {
     "app": [],
     "widget": []
+  },
+  "__shared__": {
+    "app": [
+      "accessibilityHint",
+      "accessibilityLabel",
+      "glass",
+      "leadingSwipeActionTint",
+      "onChange",
+      "selection",
+      "swipeActionTint"
+    ],
+    "widget": [
+      "accessibilityHint",
+      "accessibilityLabel",
+      "background",
+      "cornerRadius",
+      "opacity",
+      "tint"
+    ]
   }
 }

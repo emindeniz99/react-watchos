@@ -6,7 +6,7 @@
 
 # Interface: TextProps
 
-Defined in: [js/src/components.ts:148](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L148)
+Defined in: [js/src/components.ts:157](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L157)
 
 ## Extends
 
@@ -81,7 +81,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **bold?**: `boolean`
 
-Defined in: [js/src/components.ts:156](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L156)
+Defined in: [js/src/components.ts:165](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L165)
 
 ***
 
@@ -89,7 +89,7 @@ Defined in: [js/src/components.ts:156](https://github.com/emindeniz99/playground
 
 > `optional` **children?**: `string` \| `number` \| `bigint` \| `boolean` \| (`string` \| `number`)[] \| `ReactElement`\<`unknown`, `string` \| `JSXElementConstructor`\<`any`\>\> \| `Iterable`\<`ReactNode`, `any`, `any`\> \| `ReactPortal` \| `Promise`\<`AwaitedReactNode`\> \| `null`
 
-Defined in: [js/src/components.ts:155](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L155)
+Defined in: [js/src/components.ts:164](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L164)
 
 Strings/numbers fold into one label; nested <Text> elements make RICH
 text — segments concatenate into a single native Text, each styled
@@ -102,7 +102,7 @@ meaningful; other elements are ignored by the interpreter.
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:172](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L172)
+Defined in: [js/src/components.ts:181](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L181)
 
 SwiftUI system color name ("green", "secondary") or "#RRGGBB"/"#RRGGBBAA".
 
@@ -172,7 +172,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **monospacedDigit?**: `boolean`
 
-Defined in: [js/src/components.ts:174](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L174)
+Defined in: [js/src/components.ts:183](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L183)
 
 Use fixed-width digits for counters/timers to avoid layout jitter.
 
@@ -210,7 +210,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **size?**: `number`
 
-Defined in: [js/src/components.ts:158](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L158)
+Defined in: [js/src/components.ts:167](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L167)
 
 Fixed point size. Prefer `textStyle` so text scales with Dynamic Type.
 
@@ -220,7 +220,7 @@ Fixed point size. Prefer `textStyle` so text scales with Dynamic Type.
 
 > `optional` **textStyle?**: `"largeTitle"` \| `"title"` \| `"title2"` \| `"title3"` \| `"headline"` \| `"body"` \| `"callout"` \| `"subheadline"` \| `"footnote"` \| `"caption"`
 
-Defined in: [js/src/components.ts:160](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L160)
+Defined in: [js/src/components.ts:169](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L169)
 
 Semantic font that scales with the user's Dynamic Type setting.
 

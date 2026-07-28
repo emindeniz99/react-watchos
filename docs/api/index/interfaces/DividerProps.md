@@ -6,7 +6,7 @@
 
 # Interface: DividerProps
 
-Defined in: [js/src/components.ts:247](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L247)
+Defined in: [js/src/components.ts:262](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L262)
 
 ## Extends
 

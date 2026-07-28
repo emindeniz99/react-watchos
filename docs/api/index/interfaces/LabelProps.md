@@ -6,7 +6,7 @@
 
 # Interface: LabelProps
 
-Defined in: [js/src/components.ts:574](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L574)
+Defined in: [js/src/components.ts:589](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L589)
 
 Icon + text as one primitive (SwiftUI `Label(_:systemImage:)`).
 
@@ -83,7 +83,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:578](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L578)
+Defined in: [js/src/components.ts:593](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L593)
 
 ***
 
@@ -151,7 +151,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > **label**: `string`
 
-Defined in: [js/src/components.ts:575](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L575)
+Defined in: [js/src/components.ts:590](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L590)
 
 ***
 
@@ -187,7 +187,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > **systemName**: `string`
 
-Defined in: [js/src/components.ts:577](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L577)
+Defined in: [js/src/components.ts:592](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L592)
 
 SF Symbol name.
 

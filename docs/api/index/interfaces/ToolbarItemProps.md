@@ -6,7 +6,7 @@
 
 # Interface: ToolbarItemProps
 
-Defined in: [js/src/components.ts:641](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L641)
+Defined in: [js/src/components.ts:656](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L656)
 
 One toolbar slot; the child is its content (usually a <Button>).
 
@@ -16,7 +16,7 @@ One toolbar slot; the child is its content (usually a <Button>).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L643)
+Defined in: [js/src/components.ts:658](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L658)
 
 ***
 
@@ -24,4 +24,4 @@ Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/playground
 
 > **placement**: `"topBarLeading"` \| `"topBarTrailing"` \| `"bottomBar"`
 
-Defined in: [js/src/components.ts:642](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L642)
+Defined in: [js/src/components.ts:657](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L657)

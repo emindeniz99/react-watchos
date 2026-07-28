@@ -27,7 +27,7 @@ Defined in: [js/src/device.ts:11](https://github.com/emindeniz99/playground/blob
 
 ### batteryState
 
-> **batteryState**: `"full"` \| `"unknown"` \| `"unplugged"` \| `"charging"`
+> **batteryState**: `"unknown"` \| `"unplugged"` \| `"charging"` \| `"full"`
 
 Defined in: [js/src/device.ts:12](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/device.ts#L12)
 

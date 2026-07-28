@@ -5,6 +5,7 @@ import {
   components,
   type HostMethod,
   hostMethods,
+  propDegradations,
 } from "../codegen/schema.ts";
 import { root } from "./config.ts";
 
@@ -17,6 +18,14 @@ import { root } from "./config.ts";
 const componentRows = components
   .map(
     (c) => `| \`${c.name}\` | ${c.widget === "full" ? "full" : "degraded"} |`,
+  )
+  .join("\n");
+
+const degradationRows = propDegradations
+  .map(
+    (d) =>
+      `| ${d.component === "*" ? "*(any)*" : `\`${d.component}\``} | ` +
+      `\`${d.prop}\` | ${d.note} |`,
   )
   .join("\n");
 
@@ -56,6 +65,20 @@ surfaces don't exist in WidgetKit).
 | Component | Widget support |
 |---|---|
 ${componentRows}
+
+### Props the complication interpreter ignores (${propDegradations.length})
+
+The table above is per COMPONENT. These are per PROP: the app interpreter
+reads them, the widget/complication interpreter does not, so setting one has
+no effect on a watch face. Silent no-ops are documented rather than left to
+be discovered — the same JS renders both, so a prop that works in the app
+and does nothing on the face is otherwise invisible. Cross-checked against
+[\`interpreter-prop-parity.golden.json\`](../../js/test/interpreter-prop-parity.golden.json),
+so this list cannot drift from what the interpreters actually read.
+
+| Component | Prop | Why it is a no-op in a widget |
+|---|---|---|
+${degradationRows}
 
 ## Host methods (${hostMethods.length}) by capability feature
 

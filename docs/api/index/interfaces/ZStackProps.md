@@ -6,7 +6,7 @@
 
 # Interface: ZStackProps
 
-Defined in: [js/src/components.ts:224](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L224)
+Defined in: [js/src/components.ts:239](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L239)
 
 ## Extends
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/
 
 > `optional` **alignment?**: `"top"` \| `"leading"` \| `"center"` \| `"trailing"` \| `"bottom"` \| `"topLeading"` \| `"topTrailing"` \| `"bottomLeading"` \| `"bottomTrailing"`
 
-Defined in: [js/src/components.ts:226](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L226)
+Defined in: [js/src/components.ts:241](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L241)
 
 Anchor for stacked children (SwiftUI ZStack(alignment:)).
 
@@ -91,7 +91,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:236](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L236)
+Defined in: [js/src/components.ts:251](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L251)
 
 ***
 

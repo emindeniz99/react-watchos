@@ -6,7 +6,7 @@
 
 # Interface: ProgressViewProps
 
-Defined in: [js/src/components.ts:259](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L259)
+Defined in: [js/src/components.ts:274](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L274)
 
 ## Extends
 
@@ -141,7 +141,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:263](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L263)
+Defined in: [js/src/components.ts:278](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L278)
 
 ***
 
@@ -191,7 +191,7 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **total?**: `number`
 
-Defined in: [js/src/components.ts:262](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L262)
+Defined in: [js/src/components.ts:277](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L277)
 
 ***
 
@@ -199,6 +199,6 @@ Defined in: [js/src/components.ts:262](https://github.com/emindeniz99/playground
 
 > `optional` **value?**: `number`
 
-Defined in: [js/src/components.ts:261](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L261)
+Defined in: [js/src/components.ts:276](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L276)
 
 Fraction 0...1 when total omitted, else value out of total.

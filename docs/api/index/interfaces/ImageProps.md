@@ -6,7 +6,7 @@
 
 # Interface: ImageProps
 
-Defined in: [js/src/components.ts:213](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L213)
+Defined in: [js/src/components.ts:228](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L228)
 
 ## Extends
 
@@ -81,7 +81,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:220](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L220)
+Defined in: [js/src/components.ts:235](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L235)
 
 ***
 
@@ -103,7 +103,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **data?**: `string`
 
-Defined in: [js/src/components.ts:219](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L219)
+Defined in: [js/src/components.ts:234](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L234)
 
 Base64 PNG/JPEG for small inline bitmaps (bloats the tree — avoid for large).
 
@@ -187,7 +187,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **size?**: `number`
 
-Defined in: [js/src/components.ts:221](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L221)
+Defined in: [js/src/components.ts:236](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L236)
 
 ***
 
@@ -195,7 +195,7 @@ Defined in: [js/src/components.ts:221](https://github.com/emindeniz99/playground
 
 > `optional` **source?**: `string`
 
-Defined in: [js/src/components.ts:217](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L217)
+Defined in: [js/src/components.ts:232](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L232)
 
 Remote image URL — native loads & caches (best for photos/posters).
 
@@ -205,7 +205,7 @@ Remote image URL — native loads & caches (best for photos/posters).
 
 > `optional` **systemName?**: `string`
 
-Defined in: [js/src/components.ts:215](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L215)
+Defined in: [js/src/components.ts:230](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L230)
 
 SF Symbol name — vector icons (tiny, themeable).
 

@@ -6,7 +6,7 @@
 
 # Interface: PublishedWidgets
 
-Defined in: [js/src/generated/wire.ts:54](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L54)
+Defined in: [js/src/generated/wire.ts:63](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L63)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/generated/wire.ts:54](https://github.com/emindeniz99/playgro
 
 > **controls**: `Record`\<`string`, `PublishedControl`\>
 
-Defined in: [js/src/generated/wire.ts:60](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L60)
+Defined in: [js/src/generated/wire.ts:69](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L69)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/generated/wire.ts:60](https://github.com/emindeniz99/playgro
 
 > **publishedAt**: `number`
 
-Defined in: [js/src/generated/wire.ts:56](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L56)
+Defined in: [js/src/generated/wire.ts:65](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L65)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/generated/wire.ts:56](https://github.com/emindeniz99/playgro
 
 > `optional` **releaseId?**: `string`
 
-Defined in: [js/src/generated/wire.ts:58](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L58)
+Defined in: [js/src/generated/wire.ts:67](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L67)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [js/src/generated/wire.ts:58](https://github.com/emindeniz99/playgro
 
 > **stateRevision**: `number`
 
-Defined in: [js/src/generated/wire.ts:57](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L57)
+Defined in: [js/src/generated/wire.ts:66](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L66)
 
 ***
 
@@ -46,7 +46,7 @@ Defined in: [js/src/generated/wire.ts:57](https://github.com/emindeniz99/playgro
 
 > **v**: `1`
 
-Defined in: [js/src/generated/wire.ts:55](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L55)
+Defined in: [js/src/generated/wire.ts:64](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L64)
 
 ***
 
@@ -54,4 +54,4 @@ Defined in: [js/src/generated/wire.ts:55](https://github.com/emindeniz99/playgro
 
 > **widgets**: `Record`\<`string`, `Record`\<`string`, `PublishedFamilyTimeline`\>\>
 
-Defined in: [js/src/generated/wire.ts:59](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L59)
+Defined in: [js/src/generated/wire.ts:68](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L68)

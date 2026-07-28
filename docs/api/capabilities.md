@@ -57,6 +57,21 @@ surfaces don't exist in WidgetKit).
 | `Toolbar` | degraded |
 | `ToolbarItem` | degraded |
 
+### Props the complication interpreter ignores (2)
+
+The table above is per COMPONENT. These are per PROP: the app interpreter
+reads them, the widget/complication interpreter does not, so setting one has
+no effect on a watch face. Silent no-ops are documented rather than left to
+be discovered — the same JS renders both, so a prop that works in the app
+and does nothing on the face is otherwise invisible. Cross-checked against
+[`interpreter-prop-parity.golden.json`](../../js/test/interpreter-prop-parity.golden.json),
+so this list cannot drift from what the interpreters actually read.
+
+| Component | Prop | Why it is a no-op in a widget |
+|---|---|---|
+| *(any)* | `glass` | Liquid Glass is applied in NodeView's shared modifier chain; the widget's applyLayout mirrors LayoutModifier only, so it is a no-op in complications. |
+| `Button` | `buttonStyle` | The widget's interactive Button hard-codes .buttonStyle(.plain); glass/glassProminent/plain are all no-ops in complications. |
+
 ## Host methods (49) by capability feature
 
 An OTA bundle's `requiredFeatures` must be a subset of the binary's

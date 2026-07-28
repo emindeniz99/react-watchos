@@ -8,7 +8,7 @@
 
 > **inspectorSnapshot**(): `object`
 
-Defined in: [js/src/inspector.ts:71](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L71)
+Defined in: [js/src/inspector.ts:88](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L88)
 
 Snapshot the inspector sends to the viewer.
 

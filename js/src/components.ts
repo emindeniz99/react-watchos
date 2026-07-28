@@ -107,7 +107,16 @@ export interface GestureProps {
   onDrag?: (translation: { x: number; y: number }) => void;
   /** Make this view Crown/focus-addressable (watchOS focus traversal). */
   focusable?: boolean;
-  /** Apply the watchOS 26 Liquid Glass effect (no-op on older OSes). */
+  /**
+   * Apply the watchOS 26 Liquid Glass effect (no-op on older OSes).
+   *
+   * **App-only: a no-op in complications and Smart Stack widgets.** It is
+   * applied in the app interpreter's shared modifier chain, which the widget
+   * interpreter's `applyLayout` does not mirror — so the same JS that glasses
+   * a view in the app renders it plain on a watch face. Declared in
+   * `codegen/schema.ts` `propDegradations` and listed in
+   * `docs/api/capabilities.md`.
+   */
   glass?: boolean;
 }
 
@@ -197,6 +206,12 @@ export interface ButtonProps
    * fill). "plain" strips all chrome so the content IS the button — use it with
    * your own `background`/`cornerRadius`/`padding` to build a custom control
    * (e.g. a circular icon button). Omit for the standard watchOS button.
+   *
+   * **App-only: a no-op in complications and Smart Stack widgets.** A widget's
+   * interactive button hard-codes `.buttonStyle(.plain)`, so every value here
+   * — including "plain" — has no effect on a watch face. Declared in
+   * `codegen/schema.ts` `propDegradations` and listed in
+   * `docs/api/capabilities.md`.
    */
   buttonStyle?: "glass" | "glassProminent" | "plain";
   children?: ReactNode;

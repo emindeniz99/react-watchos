@@ -6,7 +6,7 @@
 
 # Interface: ToggleProps
 
-Defined in: [js/src/components.ts:205](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L205)
+Defined in: [js/src/components.ts:220](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L220)
 
 ## Extends
 
@@ -141,7 +141,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:208](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L208)
+Defined in: [js/src/components.ts:223](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L223)
 
 ***
 
@@ -149,7 +149,7 @@ Defined in: [js/src/components.ts:208](https://github.com/emindeniz99/playground
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:207](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L207)
+Defined in: [js/src/components.ts:222](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L222)
 
 #### Parameters
 
@@ -209,4 +209,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `boolean`
 
-Defined in: [js/src/components.ts:206](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L206)
+Defined in: [js/src/components.ts:221](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L221)

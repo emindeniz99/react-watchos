@@ -8,7 +8,7 @@
 
 > **renderToTree**(`element`): [`SerializedNode`](../interfaces/SerializedNode.md) \| `null`
 
-Defined in: [js/src/widgets.ts:123](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L123)
+Defined in: [js/src/widgets.ts:316](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L316)
 
 One-shot render: element in, serialized tree out. No host, no events.
 

@@ -6,7 +6,7 @@
 
 # Interface: InspectorError
 
-Defined in: [js/src/inspector.ts:39](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L39)
+Defined in: [js/src/inspector.ts:56](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L56)
 
 A recorded error for the viewer's error panel.
 
@@ -16,7 +16,7 @@ A recorded error for the viewer's error panel.
 
 > `optional` **componentStack?**: `string`
 
-Defined in: [js/src/inspector.ts:45](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L45)
+Defined in: [js/src/inspector.ts:62](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L62)
 
 React's componentStack (which subtree threw), when captured from an
  ErrorBoundary via `onError={captureError}`.
@@ -27,7 +27,7 @@ React's componentStack (which subtree threw), when captured from an
 
 > **message**: `string`
 
-Defined in: [js/src/inspector.ts:40](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L40)
+Defined in: [js/src/inspector.ts:57](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L57)
 
 ***
 
@@ -35,6 +35,6 @@ Defined in: [js/src/inspector.ts:40](https://github.com/emindeniz99/playground/b
 
 > `optional` **stack?**: `string`
 
-Defined in: [js/src/inspector.ts:42](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L42)
+Defined in: [js/src/inspector.ts:59](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/inspector.ts#L59)
 
 The JS Error stack, when the captured value carried one.

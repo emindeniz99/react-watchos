@@ -6,7 +6,7 @@
 
 # Interface: ContentUnavailableProps
 
-Defined in: [js/src/components.ts:627](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L627)
+Defined in: [js/src/components.ts:642](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L642)
 
 Standard empty-state placeholder (SwiftUI `ContentUnavailableView`).
 
@@ -97,7 +97,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **description?**: `string`
 
-Defined in: [js/src/components.ts:631](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L631)
+Defined in: [js/src/components.ts:646](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L646)
 
 ***
 
@@ -179,7 +179,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > **systemName**: `string`
 
-Defined in: [js/src/components.ts:630](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L630)
+Defined in: [js/src/components.ts:645](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L645)
 
 SF Symbol name.
 
@@ -203,4 +203,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **title**: `string`
 
-Defined in: [js/src/components.ts:628](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L628)
+Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L643)

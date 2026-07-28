@@ -6,7 +6,7 @@
 
 # Interface: SwipeActionProps
 
-Defined in: [js/src/components.ts:123](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L123)
+Defined in: [js/src/components.ts:132](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L132)
 
 Swipe actions (SwiftUI `.swipeActions`), the watchOS-idiomatic way to act on
 a row. Only meaningful on a row inside a `<List>`; unlike a raw `onSwipe`
@@ -26,7 +26,7 @@ edge independently:
 
 > `optional` **leadingSwipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:128](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L128)
+Defined in: [js/src/components.ts:137](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L137)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [js/src/components.ts:128](https://github.com/emindeniz99/playground
 
 > `optional` **leadingSwipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:129](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L129)
+Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L138)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:129](https://github.com/emindeniz99/playground
 
 > `optional` **leadingSwipeActionTint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:130](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L130)
+Defined in: [js/src/components.ts:139](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L139)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:130](https://github.com/emindeniz99/playground
 
 > `optional` **onLeadingSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:131](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L131)
+Defined in: [js/src/components.ts:140](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L140)
 
 #### Returns
 
@@ -62,7 +62,7 @@ Defined in: [js/src/components.ts:131](https://github.com/emindeniz99/playground
 
 > `optional` **onSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:127](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L127)
+Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L136)
 
 #### Returns
 
@@ -74,7 +74,7 @@ Defined in: [js/src/components.ts:127](https://github.com/emindeniz99/playground
 
 > `optional` **swipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:124](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L124)
+Defined in: [js/src/components.ts:133](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L133)
 
 ***
 
@@ -82,7 +82,7 @@ Defined in: [js/src/components.ts:124](https://github.com/emindeniz99/playground
 
 > `optional` **swipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:125](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L125)
+Defined in: [js/src/components.ts:134](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L134)
 
 ***
 
@@ -90,4 +90,4 @@ Defined in: [js/src/components.ts:125](https://github.com/emindeniz99/playground
 
 > `optional` **swipeActionTint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:126](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L126)
+Defined in: [js/src/components.ts:135](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L135)

@@ -6,7 +6,7 @@
 
 # Interface: QuickJSHostGlobal
 
-Defined in: [js/src/generated/wire.ts:92](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L92)
+Defined in: [js/src/generated/wire.ts:253](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L253)
 
 Raw globals installed by the host before the bundle is evaluated
  (generated from the schema's direct methods). Strings/numbers cross the C
@@ -19,7 +19,7 @@ Raw globals installed by the host before the bundle is evaluated
 
 > `optional` **abortFetch**(`id`): `void`
 
-Defined in: [js/src/generated/wire.ts:112](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L112)
+Defined in: [js/src/generated/wire.ts:273](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L273)
 
 #### Parameters
 
@@ -37,7 +37,7 @@ Defined in: [js/src/generated/wire.ts:112](https://github.com/emindeniz99/playgr
 
 > `optional` **ble**(`json`): `void`
 
-Defined in: [js/src/generated/wire.ts:114](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L114)
+Defined in: [js/src/generated/wire.ts:275](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L275)
 
 Fire-and-forget BLE op channel — now only `disconnect`; connect/write/subscribe settle via invoke (bleConnect/bleWrite/bleSubscribe).
 
@@ -57,7 +57,7 @@ Fire-and-forget BLE op channel — now only `disconnect`; connect/write/subscrib
 
 > `optional` **cancelNotification**(`id`): `void`
 
-Defined in: [js/src/generated/wire.ts:110](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L110)
+Defined in: [js/src/generated/wire.ts:271](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L271)
 
 #### Parameters
 
@@ -75,7 +75,7 @@ Defined in: [js/src/generated/wire.ts:110](https://github.com/emindeniz99/playgr
 
 > `optional` **clearTimer**(`id`): `void`
 
-Defined in: [js/src/generated/wire.ts:96](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L96)
+Defined in: [js/src/generated/wire.ts:257](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L257)
 
 #### Parameters
 
@@ -93,7 +93,7 @@ Defined in: [js/src/generated/wire.ts:96](https://github.com/emindeniz99/playgro
 
 > **commit**(`treeJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:93](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L93)
+Defined in: [js/src/generated/wire.ts:254](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L254)
 
 #### Parameters
 
@@ -111,7 +111,7 @@ Defined in: [js/src/generated/wire.ts:93](https://github.com/emindeniz99/playgro
 
 > `optional` **counterAdd**(`key`, `delta`, `min`, `max`): `number`
 
-Defined in: [js/src/generated/wire.ts:106](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L106)
+Defined in: [js/src/generated/wire.ts:267](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L267)
 
 #### Parameters
 
@@ -141,7 +141,7 @@ Defined in: [js/src/generated/wire.ts:106](https://github.com/emindeniz99/playgr
 
 > `optional` **counterGet**(`key`): `number`
 
-Defined in: [js/src/generated/wire.ts:105](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L105)
+Defined in: [js/src/generated/wire.ts:266](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L266)
 
 Cross-process-atomic integer counters (ARCH-05): counterAdd does a clamped read-modify-write get/set can't do atomically across processes.
 
@@ -161,7 +161,7 @@ Cross-process-atomic integer counters (ARCH-05): counterAdd does a clamped read-
 
 > `optional` **fetch**(`id`, `requestJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:111](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L111)
+Defined in: [js/src/generated/wire.ts:272](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L272)
 
 #### Parameters
 
@@ -183,7 +183,7 @@ Defined in: [js/src/generated/wire.ts:111](https://github.com/emindeniz99/playgr
 
 > `optional` **generate**(`id`, `requestJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:116](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L116)
+Defined in: [js/src/generated/wire.ts:277](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L277)
 
 #### Parameters
 
@@ -205,7 +205,7 @@ Defined in: [js/src/generated/wire.ts:116](https://github.com/emindeniz99/playgr
 
 > `optional` **getItem**(`key`): `string` \| `null`
 
-Defined in: [js/src/generated/wire.ts:102](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L102)
+Defined in: [js/src/generated/wire.ts:263](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L263)
 
 App Group UserDefaults, shared between app and widget extension.
 
@@ -225,7 +225,7 @@ App Group UserDefaults, shared between app and widget extension.
 
 > `optional` **invoke**(`id`, `method`, `payloadJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:98](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L98)
+Defined in: [js/src/generated/wire.ts:259](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L259)
 
 Generic request/response channel for fallible ops (SD-1); settles via __resolveInvoke(id, resultJson) / __rejectInvoke(id, errorJson).
 
@@ -253,7 +253,7 @@ Generic request/response channel for fallible ops (SD-1); settles via __resolveI
 
 > **log**(`message`): `void`
 
-Defined in: [js/src/generated/wire.ts:94](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L94)
+Defined in: [js/src/generated/wire.ts:255](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L255)
 
 #### Parameters
 
@@ -271,7 +271,7 @@ Defined in: [js/src/generated/wire.ts:94](https://github.com/emindeniz99/playgro
 
 > `optional` **playHaptic**(`type`): `void`
 
-Defined in: [js/src/generated/wire.ts:109](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L109)
+Defined in: [js/src/generated/wire.ts:270](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L270)
 
 #### Parameters
 
@@ -289,7 +289,7 @@ Defined in: [js/src/generated/wire.ts:109](https://github.com/emindeniz99/playgr
 
 > `optional` **publishWidgets**(`payloadJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:100](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L100)
+Defined in: [js/src/generated/wire.ts:261](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L261)
 
 Persists rendered widget timelines and reloads WidgetKit.
 
@@ -309,7 +309,7 @@ Persists rendered widget timelines and reloads WidgetKit.
 
 > `optional` **sensor**(`json`): `void`
 
-Defined in: [js/src/generated/wire.ts:115](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L115)
+Defined in: [js/src/generated/wire.ts:276](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L276)
 
 #### Parameters
 
@@ -327,7 +327,7 @@ Defined in: [js/src/generated/wire.ts:115](https://github.com/emindeniz99/playgr
 
 > `optional` **setItem**(`key`, `value`): `void`
 
-Defined in: [js/src/generated/wire.ts:103](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L103)
+Defined in: [js/src/generated/wire.ts:264](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L264)
 
 #### Parameters
 
@@ -349,7 +349,7 @@ Defined in: [js/src/generated/wire.ts:103](https://github.com/emindeniz99/playgr
 
 > **setTimer**(`id`, `ms`): `void`
 
-Defined in: [js/src/generated/wire.ts:95](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L95)
+Defined in: [js/src/generated/wire.ts:256](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L256)
 
 #### Parameters
 
@@ -371,7 +371,7 @@ Defined in: [js/src/generated/wire.ts:95](https://github.com/emindeniz99/playgro
 
 > `optional` **stateRevision**(): `number`
 
-Defined in: [js/src/generated/wire.ts:108](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L108)
+Defined in: [js/src/generated/wire.ts:269](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L269)
 
 Monotonic App-Group state revision (ARCH-06): sampled at widget render start and stamped into the payload so a consumer can prove the timelines derive from current state.
 

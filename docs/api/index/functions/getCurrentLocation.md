@@ -8,13 +8,14 @@
 
 > **getCurrentLocation**(): `Promise`\<[`Coordinate`](../interfaces/Coordinate.md)\>
 
-Defined in: [js/src/maps.ts:49](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L49)
+Defined in: [js/src/maps.ts:51](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L51)
 
 Resolves the watch's current location as a single `{lat, lon}` fix — for
 centering a map or biasing a [searchPOI](searchPOI.md) call. Prompts for When-In-Use
-location permission the first time; rejects if permission is denied or no fix
-is available (e.g. a simulator with no location set), so callers should catch
-and fall back to a default region.
+location permission the first time; rejects `PERMISSION_DENIED` when the user
+(or a restriction) said no and `UNAVAILABLE` when no fix is obtainable (e.g.
+a simulator with no location set), so callers should catch and fall back to a
+default region. Both codes are in the closed import("./invoke").InvokeErrorCode set — a switch on them is exhaustive.
 
 ## Returns
 

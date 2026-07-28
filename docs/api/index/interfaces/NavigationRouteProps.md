@@ -6,7 +6,7 @@
 
 # Interface: NavigationRouteProps
 
-Defined in: [js/src/components.ts:303](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L303)
+Defined in: [js/src/components.ts:318](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L318)
 
 ## Extends
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:308](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L308)
+Defined in: [js/src/components.ts:323](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L323)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:308](https://github.com/emindeniz99/playground
 
 > **path**: `string`
 
-Defined in: [js/src/components.ts:305](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L305)
+Defined in: [js/src/components.ts:320](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L320)
 
 Stable path for links, deep links, notifications, and tests.
 
@@ -60,6 +60,6 @@ Stable path for links, deep links, notifications, and tests.
 
 > `optional` **title?**: `string`
 
-Defined in: [js/src/components.ts:307](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L307)
+Defined in: [js/src/components.ts:322](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L322)
 
 Native navigation title when this route is displayed.
