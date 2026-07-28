@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   Gauge,
   publishWidgets,
+  type RelevantContext,
   registerControl,
   registerWidget,
   renderToTree,
@@ -294,6 +295,37 @@ describe("widget timelines", () => {
       .relevantContexts as object[];
     expect(Object.keys(contexts[0])).toEqual(["kind", "latitude", "longitude"]);
     expect(Object.keys(contexts[1])).toEqual(["kind", "date"]);
+  });
+
+  // A clue whose `kind` this bundle has no arm for must cost exactly ONE clue.
+  // It must never reach the wire as `null`: Swift decodes the payload as a
+  // whole, so a null element throws `valueNotFound` at
+  // `relevantContexts/Index n`, `loadPublishedWidgets()` returns nil, and EVERY
+  // complication AND control drops to placeholder — over a payload that is
+  // then persisted unconditionally. TypeScript's union makes this unreachable
+  // in typed code, which is why the test erases the types the way a plain-JS or
+  // server/JSON-config consumer does.
+  it("drops a clue whose kind has no arm instead of publishing null", () => {
+    const fromConfig = JSON.parse(
+      '[{"kind":"date","date":1000},{"kind":"geofence","latitude":1},' +
+        '{"kind":"poi","category":"cafe"}]',
+    ) as RelevantContext[];
+    registerWidget({
+      kind: "geo",
+      families: ["accessoryInline"],
+      render: () => ({
+        entries: [{ date: NOW, view: <Text>x</Text> }],
+        relevantContexts: fromConfig,
+      }),
+    });
+    const contexts =
+      renderWidgets(NOW).widgets.geo.accessoryInline.relevantContexts;
+    expect(contexts).toEqual([
+      { kind: "date", date: 1000 },
+      { kind: "poi", category: "cafe" },
+    ]);
+    // The load-bearing assertion: no `null` survived anywhere on the wire.
+    expect(JSON.stringify(renderWidgets(NOW))).not.toContain("null");
   });
 
   it("expands an instances widget into one timeline per id keyed kind/id", () => {

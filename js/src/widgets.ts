@@ -355,10 +355,20 @@ function flooredReloadAfter(value: number | Date, now: number): number {
  * Flattens one clue onto the wire: the discriminant plus only that arm's
  * fields. The Swift side switches on `kind` and reads exactly the fields that
  * arm carries, so an absent field is never ambiguous with a defaulted one.
+ *
+ * `undefined` for a `kind` with no arm here — dropped by the caller. The union
+ * makes that unreachable in TypeScript, but `relevantContexts` is exactly the
+ * field an app builds from server/JSON config, and the types are gone at
+ * runtime. Without this arm the switch falls off its end, and the `undefined`
+ * lands in the array as JSON `null` — which fails the WHOLE
+ * `PublishedWidgets` decode (`valueNotFound` at `relevantContexts/Index n`),
+ * not just that clue, so `loadPublishedWidgets()` returns nil and every
+ * complication drops to `.placeholder`. One bad clue must cost one clue, the
+ * same per-item isolation the widget/control loops below already keep.
  */
 function publishedRelevantContext(
   c: RelevantContext,
-): PublishedRelevantContext {
+): PublishedRelevantContext | undefined {
   switch (c.kind) {
     case "date":
       return {
@@ -391,6 +401,8 @@ function publishedRelevantContext(
     case "sleep":
     case "headphones":
       return { kind: c.kind, condition: c.condition };
+    default:
+      return undefined;
   }
 }
 
@@ -482,9 +494,9 @@ function renderWidgetsInner(
               : {}),
             ...(timeline.relevantContexts
               ? {
-                  relevantContexts: timeline.relevantContexts.map(
-                    publishedRelevantContext,
-                  ),
+                  relevantContexts: timeline.relevantContexts
+                    .map(publishedRelevantContext)
+                    .filter((c) => c !== undefined),
                 }
               : {}),
           };
