@@ -142,13 +142,25 @@ public final class WidgetIntentRuntime {
             // batch is closed: the next mutation must move past it (ARCH-06).
             // Unconditional — it is about what was STORED, not about the wake.
             self?.revisionTracker.closeBatch()
+            // The epoch tracks what was STORED, and `save` above is
+            // unconditional — same rule as `closeBatch()`, and it is NOT
+            // skippable with the wake. The gate below compares the new payload
+            // to what is in the STORE; it says nothing about the payload a
+            // `renderFreshTimelines` already in flight will produce. That
+            // render sampled its state before this save (possibly before a
+            // cross-process publish by the app, which bumps no epoch in this
+            // process) and persists iff `cacheEpoch == startEpoch` — so without
+            // a bump here it would save its older payload over the newer stored
+            // one, and every timeline request after that would find
+            // `.staleRevision` and pay a full QuickJS boot until the app's next
+            // reconcile republishes.
+            WidgetIntentRuntime.supersedeInFlightRenders()
             // An intent that touched Storage without changing what any widget
             // renders (a no-op tap, a re-entrant republish) republishes an
             // identical payload; waking every timeline for it burns the refresh
-            // budget for nothing. Skipping `invalidateCache()` with it is
-            // deliberate and safe: the burst cache and the epoch exist to stop
-            // a render from serving/overwriting payloads that describe DIFFERENT
-            // state, and by construction here they describe the same state.
+            // budget for nothing. What IS skippable with the wake is the burst
+            // cache: dropping it is about SERVING, and here the gate really has
+            // proved the cached payload still describes the stored state.
             guard
                 WidgetPublishGate.shouldReload(previousJSON: previous, newJSON: json)
             else { return }
@@ -591,6 +603,27 @@ public final class WidgetIntentRuntime {
         cacheLock.lock()
         defer { cacheLock.unlock() }
         return freshCache[appGroupId]?.payload
+    }
+
+    /// Tell every in-flight `renderFreshTimelines` its result was superseded,
+    /// WITHOUT dropping the burst cache. Called on every publish, including the
+    /// ones whose reload the gate skips: those still overwrite the store, and a
+    /// render that started earlier must not persist its older payload on top.
+    /// Separate from `invalidateCache()` because the cached payload only goes
+    /// stale when the CONTENT moved, which is the one thing the gate does
+    /// establish.
+    ///
+    /// Accepted cost: a bundle that publishes from MODULE SCOPE now bumps the
+    /// epoch during `renderFreshTimelines`' own load even when it republished
+    /// identical content, so that render no longer populates the burst cache.
+    /// Such a bundle already lost the cache on any content-changing publish,
+    /// and publishing outside an intent handler is documented as wrong
+    /// (`intents.ts`) — the trade is a rare cost to a pathological bundle
+    /// against a stale overwrite that hits correct ones.
+    static func supersedeInFlightRenders() {
+        cacheLock.lock()
+        cacheEpoch += 1
+        cacheLock.unlock()
     }
 
     /// Called when an intent handler publishes a newer payload.
