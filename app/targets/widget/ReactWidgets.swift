@@ -83,9 +83,11 @@ struct AddGlassControl: ControlWidget {
                     metadata?.label ?? "Add Glass",
                     systemImage: metadata?.systemName ?? "drop.fill"
                 )
-            } actionLabel: {
+            } actionLabel: { _ in
                 // Shown while the intent runs. React publishes the string;
                 // the fallback keeps the control usable before a first publish.
+                // WidgetKit passes "is the action running"; discarded, because
+                // React publishes one constant string for both states.
                 Text(metadata?.actionLabel ?? "Adding…")
             }
         }
