@@ -12,6 +12,7 @@ import { Storage } from "../src/index";
  * clamped add under a file-coordination claim instead.
  */
 const KEY = "hydration.glasses";
+const REMINDERS_KEY = "hydration.reminders";
 const GOAL = 8;
 
 export const hydrationStore = {
@@ -19,6 +20,20 @@ export const hydrationStore = {
 
   get glasses(): number {
     return Storage.counterValue(KEY);
+  },
+
+  /**
+   * Whether hydration reminders are on — the state behind the demo's
+   * `ControlWidgetToggle`. A plain boolean, not a counter: unlike the glass
+   * count, nothing does a read-modify-write on it (both writers set an
+   * absolute value), so there is no lost-update race to defend against.
+   */
+  get remindersEnabled(): boolean {
+    return Storage.get<boolean>(REMINDERS_KEY) ?? false;
+  },
+
+  setRemindersEnabled(enabled: boolean): void {
+    Storage.set(REMINDERS_KEY, enabled);
   },
 
   /**

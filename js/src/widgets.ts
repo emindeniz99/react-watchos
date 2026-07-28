@@ -256,6 +256,29 @@ export interface ControlDefinition {
   intent: string;
   label: string;
   systemName?: string;
+  /**
+   * `ControlWidgetButton`'s second label, shown while the action runs
+   * ("Adding…" next to a "Add Glass" label). Ignored by a toggle.
+   */
+  actionLabel?: string;
+  /**
+   * Current on/off state for a `ControlWidgetToggle`. **Presence marks this
+   * control a toggle**: a control that publishes no `value` is a button, and
+   * the native `reactControlToggle` returns nil for it rather than letting a
+   * consumer render a toggle whose `isOn` nobody publishes.
+   *
+   * Prefer the GETTER form. `registerControl` is called once, but a toggle's
+   * state changes every time the user flips it — a literal `boolean` is
+   * captured at registration and would publish that first value forever, so the
+   * control would draw itself as stuck. A `() => boolean` is called on every
+   * publish, exactly like `WidgetDefinition.render`. A literal stays supported
+   * for genuinely constant state.
+   *
+   * This supplies a Swift-declared toggle's STATE; it cannot turn a
+   * `ControlWidgetButton` into a `ControlWidgetToggle` — those are different
+   * types in the consumer's `@main` bundle (see `registerControl`).
+   */
+  value?: boolean | (() => boolean);
 }
 
 const registry = new Map<string, WidgetDefinition>();
@@ -265,6 +288,21 @@ export function registerWidget(definition: WidgetDefinition): void {
   registry.set(definition.kind, definition);
 }
 
+/**
+ * Publishes metadata for a control the consumer has ALREADY declared in Swift.
+ *
+ * `registerControl` **re-labels a control; it cannot create one.** A
+ * `ControlWidget` is a static Swift type inside the widget extension's `@main`
+ * `WidgetBundle`, and its `kind` and `AppIntent` are compiled in — so JS can
+ * supply the label, symbol, action label and toggle state that the Swift side
+ * reads back through `reactControlMetadata`/`reactControlToggle`, but a `kind`
+ * with no matching Swift declaration shows up nowhere. Whether a control is a
+ * button or a toggle is likewise a Swift-side choice of template.
+ *
+ * This is the same inherent constraint as widget `kind`s, not a defect: WidgetKit
+ * discovers controls from the bundle's static type list, which exists before any
+ * JS runs.
+ */
 export function registerControl(definition: ControlDefinition): void {
   controlRegistry.set(definition.kind, definition);
 }
@@ -465,8 +503,22 @@ function renderWidgetsInner(
     }
   }
   const controls: PublishedWidgets["controls"] = {};
-  for (const { kind, ...metadata } of controlRegistry.values()) {
-    controls[kind] = metadata;
+  for (const { kind, value, ...metadata } of controlRegistry.values()) {
+    // Same per-item isolation the widget loop uses, for the same reason: a
+    // `value()` getter runs consumer code (it reads Storage), and one throwing
+    // getter must not drop every OTHER control's label from the payload.
+    try {
+      const resolved = typeof value === "function" ? value() : value;
+      controls[kind] = {
+        ...metadata,
+        ...(resolved !== undefined ? { value: resolved } : {}),
+      };
+    } catch (error) {
+      console.log(
+        `[react-watch-widget] control metadata failed for "${kind}":`,
+        error,
+      );
+    }
   }
   return stamped(now, stateRevision, widgets, controls);
 }

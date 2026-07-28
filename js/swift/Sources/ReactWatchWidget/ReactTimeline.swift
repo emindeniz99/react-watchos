@@ -141,21 +141,49 @@ public func reactPublishedWidgets(appGroupId: String) -> PublishedWidgets? {
     SharedWidgetStore(appGroupId: appGroupId).loadPublishedWidgets()
 }
 
-/// The label/symbol a React-published control should show (the visual is an
-/// OS template; React owns the metadata). nil when nothing's published for
-/// `intent`, so the consumer can supply a static default.
+/// What a React-published `ControlWidgetButton` should show: its label, its SF
+/// Symbol, and the `actionLabel` WidgetKit displays while the action runs. The
+/// visual is an OS template; React owns only the metadata. nil when nothing's
+/// published for `intent`, so the consumer can supply a static default.
 public func reactControlMetadata(
     _ intent: String, appGroupId: String
-) -> (label: String, systemName: String?)? {
+) -> (label: String, systemName: String?, actionLabel: String?)? {
     reactControlMetadata(intent, in: reactPublishedWidgets(appGroupId: appGroupId))
 }
 
 /// Payload-accepting variant — reuse one decoded payload across lookups.
 public func reactControlMetadata(
     _ intent: String, in payload: PublishedWidgets?
-) -> (label: String, systemName: String?)? {
+) -> (label: String, systemName: String?, actionLabel: String?)? {
     guard let control = payload?.controls?[intent] else { return nil }
-    return (control.label, control.systemName)
+    return (control.label, control.systemName, control.actionLabel)
+}
+
+/// What a React-published `ControlWidgetToggle` should show: its label, its SF
+/// Symbol, and the CURRENT on/off state.
+///
+/// nil unless JS actually published a `value` for `intent` — a control with no
+/// published state is a button, and a toggle whose `isOn` nobody owns would
+/// render as permanently-off chrome the user can fight with. A consumer hitting
+/// nil should fall back to a static default or omit the control, exactly as
+/// with `reactControlMetadata`.
+///
+/// Button-vs-toggle is still the CONSUMER's choice: the two are different
+/// SwiftUI types in the `@main` bundle, so `value` supplies a declared toggle's
+/// state rather than switching a button into one (see `registerControl`).
+public func reactControlToggle(
+    _ intent: String, appGroupId: String
+) -> (label: String, systemName: String?, value: Bool)? {
+    reactControlToggle(intent, in: reactPublishedWidgets(appGroupId: appGroupId))
+}
+
+/// Payload-accepting variant — reuse one decoded payload across lookups.
+public func reactControlToggle(
+    _ intent: String, in payload: PublishedWidgets?
+) -> (label: String, systemName: String?, value: Bool)? {
+    guard let control = payload?.controls?[intent], let value = control.value
+    else { return nil }
+    return (control.label, control.systemName, value)
 }
 
 /// The relevance hints published for a widget `kind`, from whichever family

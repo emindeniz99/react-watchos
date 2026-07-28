@@ -29,6 +29,8 @@ export interface PublishedControl {
   intent: string;
   label: string;
   systemName?: string;
+  actionLabel?: string; // ControlWidgetButton's second label, shown while the action runs
+  value?: boolean; // ControlWidgetToggle's isOn; presence marks the control a toggle
 }
 
 export interface PublishedEntry {

@@ -225,13 +225,33 @@ export function registerDemoWidgets(): void {
     }),
   });
 
-  // watchOS 26 Control Center / Action button control. The OS templates
-  // the visual; React owns the metadata and the intent handler
-  // (demo/intents.ts) that runs when it's pressed.
+  // watchOS 26 Control Center / Action button controls. The OS templates the
+  // visual; React owns the metadata and the intent handler (demo/intents.ts)
+  // that runs when it's used. Both controls are DECLARED in Swift
+  // (targets/widget/ReactWidgets.swift) — registerControl re-labels a control,
+  // it cannot create one.
   registerControl({
     kind: "hydration.addGlass",
     intent: "addGlass",
     label: "Add Glass",
     systemName: "drop.fill",
+    // Shown by ControlWidgetButton while the intent runs.
+    actionLabel: "Adding…",
+  });
+
+  // A ControlWidgetToggle: `value` publishes the CURRENT state, which is what
+  // makes its presence the "this is a toggle" marker. The Swift side is a
+  // SetValueIntent that dispatches remindersOn/remindersOff.
+  //
+  // A GETTER, not `value: hydrationStore.remindersEnabled` — registerControl
+  // runs once at startup, so a literal would freeze the very first state and
+  // the toggle would draw itself stuck no matter how often the user flipped it.
+  // The getter is re-read on every publish, like a widget's render().
+  registerControl({
+    kind: "hydration.reminders",
+    intent: "reminders",
+    label: "Hydration Reminders",
+    systemName: "bell.badge.fill",
+    value: () => hydrationStore.remindersEnabled,
   });
 }

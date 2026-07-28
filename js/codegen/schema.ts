@@ -200,6 +200,23 @@ export const structs: StructDef[] = [
       { name: "intent", swift: "String", ts: "string" },
       { name: "label", swift: "String", ts: "string" },
       { name: "systemName", swift: "String?", ts: "string", optional: true },
+      {
+        name: "actionLabel",
+        swift: "String?",
+        ts: "string",
+        optional: true,
+        doc: "ControlWidgetButton's second label, shown while the action runs",
+      },
+      {
+        // Present ⇒ this control publishes TOGGLE state. Absent ⇒ it's a
+        // button, and `reactControlToggle` returns nil so a consumer can't
+        // render a toggle whose `isOn` nobody publishes.
+        name: "value",
+        swift: "Bool?",
+        ts: "boolean",
+        optional: true,
+        doc: "ControlWidgetToggle's isOn; presence marks the control a toggle",
+      },
     ],
   },
   {

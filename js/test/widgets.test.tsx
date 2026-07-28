@@ -337,6 +337,91 @@ describe("widget timelines", () => {
     unregisterAllWidgets();
     expect(renderWidgets(NOW).controls).toEqual({});
   });
+
+  it("carries actionLabel through to the published control", () => {
+    registerControl({
+      kind: "hydration.addGlass",
+      intent: "addGlass",
+      label: "Add Glass",
+      systemName: "drop.fill",
+      actionLabel: "Adding…",
+    });
+    expect(renderWidgets(NOW).controls["hydration.addGlass"]).toEqual({
+      intent: "addGlass",
+      label: "Add Glass",
+      systemName: "drop.fill",
+      actionLabel: "Adding…",
+    });
+  });
+
+  // `value`'s PRESENCE is what marks a control a toggle on the Swift side
+  // (`reactControlToggle` returns nil without it), so a button must not grow
+  // the key just because the field exists in the type.
+  it("omits `value` for a button, marking only toggles as toggles", () => {
+    registerControl({
+      kind: "hydration.addGlass",
+      intent: "addGlass",
+      label: "Add Glass",
+    });
+    expect(
+      "value" in (renderWidgets(NOW).controls["hydration.addGlass"] as object),
+    ).toBe(false);
+  });
+
+  // The load-bearing one. registerControl runs ONCE at startup while a toggle's
+  // state changes every time the user flips it, so a literal `value` publishes
+  // the startup value forever and the control draws itself stuck. The getter is
+  // re-read on every publish — same contract as WidgetDefinition.render.
+  it("re-reads a `value` getter on every publish so a toggle can change", () => {
+    let enabled = false;
+    registerControl({
+      kind: "hydration.reminders",
+      intent: "reminders",
+      label: "Reminders",
+      value: () => enabled,
+    });
+    expect(renderWidgets(NOW).controls["hydration.reminders"]?.value).toBe(
+      false,
+    );
+    enabled = true;
+    expect(renderWidgets(NOW).controls["hydration.reminders"]?.value).toBe(
+      true,
+    );
+  });
+
+  it("a literal `value` is still supported for constant state", () => {
+    registerControl({
+      kind: "c",
+      intent: "i",
+      label: "L",
+      value: true,
+    });
+    expect(renderWidgets(NOW).controls.c?.value).toBe(true);
+  });
+
+  // A `value()` getter runs consumer code (it reads Storage), so it can throw —
+  // and the whole point of publishing controls is the LABELS. One bad getter
+  // must not blank every other control in Control Center.
+  it("one throwing control getter does not drop the healthy controls", () => {
+    registerControl({
+      kind: "broken",
+      intent: "broken",
+      label: "Broken",
+      value: () => {
+        throw new Error("boom");
+      },
+    });
+    registerControl({
+      kind: "healthy",
+      intent: "healthy",
+      label: "Healthy",
+    });
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const { controls } = renderWidgets(NOW);
+    spy.mockRestore();
+    expect(controls.broken).toBeUndefined();
+    expect(controls.healthy).toEqual({ intent: "healthy", label: "Healthy" });
+  });
 });
 
 // ARCH-06: a payload must carry proof of WHICH state and WHICH bundle produced

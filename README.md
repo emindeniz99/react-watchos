@@ -270,7 +270,23 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
   `__entrypoint = "intent"` and dispatches to the handler registered via
   `registerIntent("addGlass", …)` — React updates shared Storage and
   republishes the complications without the app ever opening. Control
-  label/symbol come from `registerControl(...)` metadata in the payload.
+  label/symbol/`actionLabel` come from `registerControl(...)` metadata in
+  the payload. A second demo control, "Hydration Reminders", is a
+  `ControlWidgetToggle`: publishing a `value` is what marks a control a
+  toggle, and it should be a **getter** (`value: () => store.enabled`) —
+  `registerControl` runs once at startup, so a literal boolean would
+  publish the startup state forever and the toggle would draw itself stuck.
+
+  > **`registerControl` re-labels a control; it cannot create one.** A
+  > `ControlWidget` is a static Swift type in the widget extension's
+  > `@main` `WidgetBundle` — its `kind`, its `AppIntent`, and whether it is
+  > a button or a toggle are all compiled in, because WidgetKit discovers
+  > controls from that type list before any JS runs. So JS owns the label,
+  > symbol, action label and toggle state of a control the consumer has
+  > **already declared in Swift**; a `kind` with no matching declaration
+  > shows up nowhere, and no `value` can turn a `ControlWidgetButton` into
+  > a `ControlWidgetToggle`. This is the same inherent constraint as widget
+  > `kind`s, not a limitation of this library.
 - **Self-refreshing timelines**: `getTimeline` prefers a fresh in-process
   React render (`__renderWidgets`) over the stored payload.
 - **Timelines & relevance**: the daypart demo widget publishes

@@ -188,6 +188,13 @@ const intentEpilogue = `
 const handled1 = globalThis.__handleIntent("addGlass");
 const handled2 = globalThis.__handleIntent("addGlass");
 const unknown = globalThis.__handleIntent("doesNotExist");
+// The ControlWidgetToggle path: the OS's SetValueIntent dispatches a
+// direction-specific handler, whose Storage write republishes the payload —
+// so the toggle's published \`value\` must follow, in the real engine.
+const togglePublishesFalse =
+  JSON.parse(__published[__published.length - 1])
+    .controls["hydration.reminders"].value === false;
+const remindersOn = globalThis.__handleIntent("remindersOn");
 const last = JSON.parse(__published[__published.length - 1]);
 const rendered = JSON.parse(globalThis.__renderWidgets(1750000000000));
 print(JSON.stringify({
@@ -196,6 +203,8 @@ print(JSON.stringify({
   storedGlasses: __counterGet("hydration.glasses"),
   gauge: last.widgets.hydration.accessoryCircular.entries[0].tree.props.value,
   control: last.controls["hydration.addGlass"],
+  togglePublishesFalse, remindersOn,
+  toggleControl: last.controls["hydration.reminders"],
   daypartEntryCount: last.widgets.daypart.accessoryRectangular.entries.length,
   daypartRelevance:
     last.widgets.daypart.accessoryRectangular.entries[0].relevance.score > 0,
@@ -237,7 +246,20 @@ describe("quickjs smoke", () => {
     publishCount: number;
     storedGlasses: number;
     gauge: number;
-    control: { intent: string; label: string; systemName: string };
+    control: {
+      intent: string;
+      label: string;
+      systemName: string;
+      actionLabel: string;
+    };
+    togglePublishesFalse: boolean;
+    remindersOn: boolean;
+    toggleControl: {
+      intent: string;
+      label: string;
+      systemName: string;
+      value: boolean;
+    };
     daypartEntryCount: number;
     daypartRelevance: boolean;
     renderedGauge: number;
@@ -326,7 +348,9 @@ describe("quickjs smoke", () => {
     expect(intentResult.handled1).toBe(true);
     expect(intentResult.handled2).toBe(true);
     expect(intentResult.unknown).toBe(false);
-    expect(intentResult.publishCount).toBe(2);
+    // Three dispatches that WROTE (addGlass x2 + remindersOn) -> three
+    // republishes; the unknown intent wrote nothing and published nothing.
+    expect(intentResult.publishCount).toBe(3);
     expect(intentResult.storedGlasses).toBe(2);
     expect(intentResult.gauge).toBe(2);
   });
@@ -336,9 +360,25 @@ describe("quickjs smoke", () => {
       intent: "addGlass",
       label: "Add Glass",
       systemName: "drop.fill",
+      actionLabel: "Adding\u2026",
     });
     expect(intentResult.daypartEntryCount).toBeGreaterThanOrEqual(4);
     expect(intentResult.daypartRelevance).toBe(true);
+  });
+
+  // `value` is what makes a control a toggle rather than a button, so the
+  // round trip that matters is: published state -> the OS draws it -> the
+  // user's SetValueIntent -> a React handler -> a republish carrying the NEW
+  // state. Driven here through the real engine, not a mocked host.
+  it("publishes ControlWidgetToggle state and updates it through the intent", () => {
+    expect(intentResult.togglePublishesFalse).toBe(true);
+    expect(intentResult.remindersOn).toBe(true);
+    expect(intentResult.toggleControl).toEqual({
+      intent: "reminders",
+      label: "Hydration Reminders",
+      systemName: "bell.badge.fill",
+      value: true,
+    });
   });
 
   it("renders fresh timelines on demand via __renderWidgets", () => {

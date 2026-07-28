@@ -89,6 +89,10 @@ public struct PublishedControl: Codable, Equatable, Sendable {
     public let intent: String
     public let label: String
     public let systemName: String?
+    /// ControlWidgetButton's second label, shown while the action runs
+    public let actionLabel: String?
+    /// ControlWidgetToggle's isOn; presence marks the control a toggle
+    public let value: Bool?
 }
 
 public struct PublishedEntry: Codable, Equatable, Sendable {
