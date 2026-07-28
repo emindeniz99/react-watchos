@@ -102,10 +102,21 @@ public struct PublishedEntry: Codable, Equatable, Sendable {
 }
 
 public struct PublishedRelevantContext: Codable, Equatable, Sendable {
+    /// the clue family; every other field belongs to exactly one kind
+    public let kind: String
     public let date: Double?
+    public let from: Double?
+    public let to: Double?
+    /// RelevanceKit DateKind — watchOS 26.0, dropped below it
+    public let dateKind: String?
     public let latitude: Double?
     public let longitude: Double?
     public let radius: Double?
+    /// MKPointOfInterestCategory member NAME — watchOS 26.0
+    public let category: String?
+    public let place: String?
+    /// fitness | sleep | headphones condition case name
+    public let condition: String?
 }
 
 public struct PublishedFamilyTimeline: Codable, Equatable, Sendable {

@@ -223,23 +223,77 @@ describe("widget timelines", () => {
     expect(entries[1].relevance).toBeUndefined();
   });
 
-  it("serializes Smart Stack relevantContexts (date/location)", () => {
+  // The wire contract for the tagged union: each arm flattens to `kind` plus
+  // ONLY its own fields. A leaked field from another arm would be read by the
+  // Swift switch's other case and silently mis-surface the widget.
+  it("serializes every Smart Stack clue family with only its own fields", () => {
     registerWidget({
       kind: "geo",
       families: ["accessoryInline"],
       render: ({ now }) => ({
         entries: [{ date: now, view: <Text>x</Text> }],
         relevantContexts: [
-          { latitude: 37.33, longitude: -122.03, radius: 100 },
-          { date: now + 3_600_000 },
+          {
+            kind: "location",
+            latitude: 37.33,
+            longitude: -122.03,
+            radius: 100,
+          },
+          { kind: "date", date: now + 3_600_000 },
+          { kind: "date", date: new Date(now + 60_000), dateKind: "scheduled" },
+          {
+            kind: "dateRange",
+            from: now,
+            to: now + 7_200_000,
+            dateKind: "informational",
+          },
+          { kind: "poi", category: "cafe" },
+          { kind: "inferredLocation", place: "work" },
+          { kind: "fitness", condition: "workoutActive" },
+          { kind: "sleep", condition: "bedtime" },
+          { kind: "headphones", condition: "connected" },
         ],
       }),
     });
     const timeline = renderWidgets(NOW).widgets.geo.accessoryInline;
     expect(timeline.relevantContexts).toEqual([
-      { latitude: 37.33, longitude: -122.03, radius: 100 },
-      { date: NOW + 3_600_000 },
+      { kind: "location", latitude: 37.33, longitude: -122.03, radius: 100 },
+      { kind: "date", date: NOW + 3_600_000 },
+      { kind: "date", date: NOW + 60_000, dateKind: "scheduled" },
+      {
+        kind: "dateRange",
+        from: NOW,
+        to: NOW + 7_200_000,
+        dateKind: "informational",
+      },
+      { kind: "poi", category: "cafe" },
+      { kind: "inferredLocation", place: "work" },
+      { kind: "fitness", condition: "workoutActive" },
+      { kind: "sleep", condition: "bedtime" },
+      { kind: "headphones", condition: "connected" },
     ]);
+  });
+
+  // `radius`/`dateKind` are the only optional payload fields; omitting them
+  // must leave the key OFF the wire, not send `undefined` — Swift decodes a
+  // missing key as nil and applies its own default (100 m / the kind-less
+  // watchOS 10.0 overload), which is a different thing from "author said 0".
+  it("omits absent optional clue fields entirely", () => {
+    registerWidget({
+      kind: "geo",
+      families: ["accessoryInline"],
+      render: ({ now }) => ({
+        entries: [{ date: now, view: <Text>x</Text> }],
+        relevantContexts: [
+          { kind: "location", latitude: 1, longitude: 2 },
+          { kind: "date", date: now },
+        ],
+      }),
+    });
+    const contexts = renderWidgets(NOW).widgets.geo.accessoryInline
+      .relevantContexts as object[];
+    expect(Object.keys(contexts[0])).toEqual(["kind", "latitude", "longitude"]);
+    expect(Object.keys(contexts[1])).toEqual(["kind", "date"]);
   });
 
   it("expands an instances widget into one timeline per id keyed kind/id", () => {

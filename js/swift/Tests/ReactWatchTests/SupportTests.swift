@@ -1422,6 +1422,109 @@ final class WidgetPublishGateTests: XCTestCase {
     }
 }
 
+// The Smart Stack predictive clue wire format. `relevantContexts` used to be a
+// positional `{date?, latitude?, …}` bag whose only Swift fixture was a literal
+// `null` — the whole predictive path decoded nothing in any test. It is now a
+// TAGGED UNION (`kind` + that arm's fields only), so what has to be pinned on
+// Linux is: every family survives a decode, each arm carries ONLY its own
+// fields, and a clue with no family is rejected rather than guessed at.
+//
+// This is a wire-decode test, deliberately: `reactRelevantContext(from:)` — the
+// switch that turns these into RelevanceKit contexts — is `#if os(watchOS)`, so
+// the mapping itself is ② at the next Xcode build and the actual Smart Stack
+// surfacing is permanently ③.
+final class PublishedRelevantContextTests: XCTestCase {
+    /// One clue of every kind, in the exact shape `js/src/widgets.ts`
+    /// `publishedRelevantContext` emits (absent fields are omitted, not null).
+    private static let json = """
+        [{"kind":"date","date":1000},
+         {"kind":"date","date":2000,"dateKind":"scheduled"},
+         {"kind":"dateRange","from":3000,"to":4000,"dateKind":"informational"},
+         {"kind":"location","latitude":37.33,"longitude":-122.03,"radius":150},
+         {"kind":"location","latitude":1,"longitude":2},
+         {"kind":"poi","category":"cafe"},
+         {"kind":"inferredLocation","place":"home"},
+         {"kind":"fitness","condition":"activityRingsIncomplete"},
+         {"kind":"sleep","condition":"bedtime"},
+         {"kind":"headphones","condition":"connected"}]
+        """
+
+    private func decoded() throws -> [PublishedRelevantContext] {
+        try JSONDecoder().decode(
+            [PublishedRelevantContext].self,
+            from: Data(PublishedRelevantContextTests.json.utf8))
+    }
+
+    func testDecodesOneClueOfEveryKind() throws {
+        let clues = try decoded()
+        XCTAssertEqual(
+            clues.map(\.kind),
+            [
+                "date", "date", "dateRange", "location", "location", "poi",
+                "inferredLocation", "fitness", "sleep", "headphones",
+            ])
+    }
+
+    func testEachArmCarriesOnlyItsOwnFields() throws {
+        let clues = try decoded()
+
+        // date: the kind-less watchOS 10.0 form, then the 26.0 form.
+        XCTAssertEqual(clues[0].date, 1000)
+        XCTAssertNil(clues[0].dateKind)
+        XCTAssertNil(clues[0].latitude)
+        XCTAssertEqual(clues[1].dateKind, "scheduled")
+
+        // dateRange: from/to, never `date` — the arms must not overlap, or the
+        // Swift switch's `date` case would read a range's endpoint as a moment.
+        XCTAssertEqual(clues[2].from, 3000)
+        XCTAssertEqual(clues[2].to, 4000)
+        XCTAssertEqual(clues[2].dateKind, "informational")
+        XCTAssertNil(clues[2].date)
+
+        // location: an omitted radius stays nil so Swift applies its 100 m
+        // default, rather than the author appearing to have asked for 0.
+        XCTAssertEqual(clues[3].radius, 150)
+        XCTAssertNil(clues[4].radius)
+        XCTAssertEqual(clues[4].latitude, 1)
+
+        XCTAssertEqual(clues[5].category, "cafe")
+        XCTAssertNil(clues[5].condition)
+        XCTAssertEqual(clues[6].place, "home")
+        XCTAssertEqual(clues[7].condition, "activityRingsIncomplete")
+        XCTAssertEqual(clues[8].condition, "bedtime")
+        XCTAssertEqual(clues[9].condition, "connected")
+        XCTAssertNil(clues[9].category)
+    }
+
+    /// `kind` is REQUIRED on the wire. A clue with no family can't be mapped to
+    /// any RelevanceKit factory, and the old shape's "infer the family from
+    /// which fields are set" is exactly what the union replaces — so it must
+    /// fail loudly at the decode rather than reach the switch as a shrug.
+    func testAClueWithNoKindIsRejected() {
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(
+                PublishedRelevantContext.self,
+                from: Data(#"{"date":1000}"#.utf8)))
+    }
+
+    /// Positive field list, same reasoning as the publish gate's shape pin: a
+    /// payload field added in `codegen/schema.ts` reaches the wire without the
+    /// compiler saying anything, and an unread field is a clue family that
+    /// silently never surfaces. Adding one here forces the matching arm in
+    /// `reactRelevantContext(from:)`.
+    func testWireFieldsAreAccountedForByTheSwiftSwitch() throws {
+        let clue = try XCTUnwrap(decoded().first)
+        XCTAssertEqual(
+            Set(Mirror(reflecting: clue).children.compactMap(\.label)),
+            [
+                "kind", "date", "from", "to", "dateKind", "latitude",
+                "longitude", "radius", "category", "place", "condition",
+            ],
+            "PublishedRelevantContext gained or lost a field: give it an arm "
+                + "in reactRelevantContext(from:) or record why it has none")
+    }
+}
+
 // ARCH-06: the batching rule that keeps "every mutation moves the revision"
 // from costing one cross-process file claim per Storage.set.
 final class StateRevisionTrackerTests: XCTestCase {

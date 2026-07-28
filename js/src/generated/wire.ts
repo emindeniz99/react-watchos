@@ -39,10 +39,17 @@ export interface PublishedEntry {
 }
 
 export interface PublishedRelevantContext {
+  kind: "date" | "dateRange" | "location" | "poi" | "inferredLocation" | "fitness" | "sleep" | "headphones"; // the clue family; every other field belongs to exactly one kind
   date?: number;
+  from?: number;
+  to?: number;
+  dateKind?: "default" | "informational" | "scheduled"; // RelevanceKit DateKind — watchOS 26.0, dropped below it
   latitude?: number;
   longitude?: number;
   radius?: number;
+  category?: string; // MKPointOfInterestCategory member NAME — watchOS 26.0
+  place?: "home" | "work" | "school" | "commute";
+  condition?: string; // fitness | sleep | headphones condition case name
 }
 
 export interface PublishedFamilyTimeline {

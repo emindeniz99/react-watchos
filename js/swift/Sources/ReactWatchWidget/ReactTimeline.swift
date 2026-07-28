@@ -1,6 +1,7 @@
 #if os(watchOS)
 import CoreLocation
 import Foundation
+import MapKit
 import ReactWatchCore
 import ReactWatchSupport
 import RelevanceKit
@@ -179,15 +180,65 @@ public func reactRelevantContexts(
     return []
 }
 
-/// Maps a React-published relevance hint to a RelevanceKit context: a circular
-/// region when coordinates are present (default 100 m), else a date; both nil
-/// drops the hint. Used by the static (Void) provider and a consumer's
-/// configurable (intent) provider (CX-017).
+/// Maps one React-published Smart Stack clue to a RelevanceKit context. The
+/// wire shape is a tagged union, so this switches on `kind` rather than
+/// guessing a family from which fields happen to be present. Used by the static
+/// (Void) provider and a consumer's configurable (intent) provider (CX-017).
+///
+/// **Availability is per-arm** — the `AddGlassControl` pattern, gates rather
+/// than a deployment-floor raise. `poi`, `dateRange` and any explicit
+/// `dateKind` are watchOS 26.0 and return nil below it; the other six families
+/// are watchOS 10.0, i.e. free at this package's floor.
+///
+/// Two deliberate "return nil" choices:
+/// - An explicit `dateKind` below watchOS 26 DROPS the clue instead of falling
+///   back to the kind-less `date(_:)`. `.informational` means "this is not a
+///   scheduled moment"; degrading it to a plain date would surface the widget
+///   for a clue whose author asked for the opposite.
+/// - An unrecognized `kind`, `category`, `place` or `condition` — a bundle
+///   newer than this binary — drops that clue and keeps the rest. Same
+///   forward-compat posture as the node interpreters' `default:`.
+///
+/// `dateRange` has no sub-26 path at all: `date(range:kind:)` is watchOS 26.0
+/// and the older `date(from:to:)` is deprecated AT 26.0, so there is nothing
+/// below it to fall back to.
 @available(watchOS 11.0, *)
 public func reactRelevantContext(
     from ctx: PublishedRelevantContext
 ) -> RelevantContext? {
-    if let lat = ctx.latitude, let lon = ctx.longitude {
+    switch ctx.kind {
+    case "date":
+        guard let ms = ctx.date else { return nil }
+        let exact = Date(timeIntervalSince1970: ms / 1000)
+        guard let kindName = ctx.dateKind else { return .date(exact) }
+        if #available(watchOS 26.0, *) {
+            if let kind = reactRelevantDateKind(kindName) {
+                return .date(exact, kind: kind)
+            }
+        }
+        return nil
+
+    case "dateRange":
+        guard let from = ctx.from, let to = ctx.to, from <= to else {
+            return nil
+        }
+        if #available(watchOS 26.0, *) {
+            let kind = ctx.dateKind.flatMap(reactRelevantDateKind) ?? .default
+            let start = Date(timeIntervalSince1970: from / 1000)
+            let end = Date(timeIntervalSince1970: to / 1000)
+            return .date(range: start...end, kind: kind)
+        }
+        return nil
+
+    case "location":
+        guard let lat = ctx.latitude, let lon = ctx.longitude else {
+            return nil
+        }
+        // CLCircularRegion is deprecated at watchOS 27.0 in favor of
+        // CLCircularGeographicCondition — which has NO watchOS availability,
+        // and RelevantContext.location(_:) still takes a CLRegion. Recorded,
+        // not acted on: there is no successor to migrate to yet (see the
+        // decline note in the merged backlog).
         return .location(
             CLCircularRegion(
                 center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
@@ -195,11 +246,160 @@ public func reactRelevantContext(
                 identifier: "react-relevance-\(lat),\(lon)"
             )
         )
+
+    case "poi":
+        guard let name = ctx.category else { return nil }
+        if #available(watchOS 26.0, *) {
+            if let category = reactPoiCategory(name) {
+                // The only overload that itself returns an Optional — the
+                // system can refuse a category outright.
+                return .location(category: category)
+            }
+        }
+        return nil
+
+    case "inferredLocation":
+        guard let place = ctx.place else { return nil }
+        switch place {
+        case "home": return .location(inferred: .home)
+        case "work": return .location(inferred: .work)
+        case "school": return .location(inferred: .school)
+        case "commute": return .location(inferred: .commute)
+        default: return nil
+        }
+
+    case "fitness":
+        switch ctx.condition {
+        case "activityRingsIncomplete": return .fitness(.activityRingsIncomplete)
+        case "workoutActive": return .fitness(.workoutActive)
+        default: return nil
+        }
+
+    case "sleep":
+        switch ctx.condition {
+        case "bedtime": return .sleep(.bedtime)
+        case "wakeup": return .sleep(.wakeup)
+        default: return nil
+        }
+
+    case "headphones":
+        switch ctx.condition {
+        case "connected": return .hardware(headphones: .connected)
+        default: return nil
+        }
+
+    default:
+        return nil
     }
-    if let date = ctx.date {
-        return .date(Date(timeIntervalSince1970: date / 1000))
+}
+
+/// RelevanceKit `DateKind` (watchOS 26.0) from its wire case name.
+@available(watchOS 26.0, *)
+private func reactRelevantDateKind(_ name: String) -> RelevantContext.DateKind? {
+    switch name {
+    case "default": .default
+    case "informational": .informational
+    case "scheduled": .scheduled
+    default: nil
     }
-    return nil
+}
+
+/// `MKPointOfInterestCategory` from its Swift MEMBER NAME (not its rawValue —
+/// that is an undocumented Objective-C constant, so a rawValue round-trip would
+/// silently build a category that matches nothing). 73 members; MapKit's 11
+/// "Type Properties" additions (`airportTerminal`, `scenicView`, …) are watchOS
+/// 27.0 beta and are deliberately absent — naming a symbol the current SDK
+/// can't compile is the CX-002/FoundationModels mistake. Gated at 26.0 because
+/// that is the only caller; four members are themselves watchOS 11.0.
+@available(watchOS 26.0, *)
+private func reactPoiCategory(_ name: String) -> MKPointOfInterestCategory? {
+    switch name {
+    // Arts and culture
+    case "museum": .museum
+    case "musicVenue": .musicVenue
+    case "theater": .theater
+    // Education
+    case "library": .library
+    case "planetarium": .planetarium
+    case "school": .school
+    case "university": .university
+    // Entertainment
+    case "movieTheater": .movieTheater
+    case "nightlife": .nightlife
+    // Health and safety
+    case "fireStation": .fireStation
+    case "hospital": .hospital
+    case "pharmacy": .pharmacy
+    case "police": .police
+    // Historical and cultural landmarks
+    case "castle": .castle
+    case "fortress": .fortress
+    case "landmark": .landmark
+    case "nationalMonument": .nationalMonument
+    // Food and drink
+    case "bakery": .bakery
+    case "brewery": .brewery
+    case "cafe": .cafe
+    case "distillery": .distillery
+    case "foodMarket": .foodMarket
+    case "restaurant": .restaurant
+    case "winery": .winery
+    // Personal services
+    case "animalService": .animalService
+    case "atm": .atm
+    case "automotiveRepair": .automotiveRepair
+    case "bank": .bank
+    case "beauty": .beauty
+    case "evCharger": .evCharger
+    case "fitnessCenter": .fitnessCenter
+    case "laundry": .laundry
+    case "mailbox": .mailbox
+    case "postOffice": .postOffice
+    case "restroom": .restroom
+    case "spa": .spa
+    case "store": .store
+    // Parks and recreation
+    case "amusementPark": .amusementPark
+    case "aquarium": .aquarium
+    case "beach": .beach
+    case "campground": .campground
+    case "fairground": .fairground
+    case "marina": .marina
+    case "nationalPark": .nationalPark
+    case "park": .park
+    case "rvPark": .rvPark
+    case "zoo": .zoo
+    // Sports
+    case "baseball": .baseball
+    case "basketball": .basketball
+    case "bowling": .bowling
+    case "goKart": .goKart
+    case "golf": .golf
+    case "hiking": .hiking
+    case "miniGolf": .miniGolf
+    case "rockClimbing": .rockClimbing
+    case "skatePark": .skatePark
+    case "skating": .skating
+    case "skiing": .skiing
+    case "soccer": .soccer
+    case "stadium": .stadium
+    case "tennis": .tennis
+    case "volleyball": .volleyball
+    // Travel
+    case "airport": .airport
+    case "carRental": .carRental
+    case "conventionCenter": .conventionCenter
+    case "gasStation": .gasStation
+    case "hotel": .hotel
+    case "parking": .parking
+    case "publicTransport": .publicTransport
+    // Water sports
+    case "fishing": .fishing
+    case "kayaking": .kayaking
+    case "surfing": .surfing
+    case "swimming": .swimming
+    default: nil
+    }
 }
 
 func reactEntry(from published: PublishedEntry) -> ReactEntry {

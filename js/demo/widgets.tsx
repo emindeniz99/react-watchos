@@ -184,12 +184,24 @@ export function registerDemoWidgets(): void {
     families: ["accessoryRectangular", "accessoryInline"],
     render: ({ family, now }) => ({
       // Surface near each upcoming daypart boundary (the moment the face is
-      // about to change), and near the demo's "gym" geofence.
+      // about to change) and near the demo's "gym" geofence — plus the clue
+      // families that need no coordinates at all. `poi` and `dateKind` are
+      // watchOS 26.0 and are dropped natively below it; the rest are watchOS
+      // 10.0, i.e. free at this package's floor.
       relevantContexts: [
         ...daypartEntries(now)
           .slice(1)
-          .map(({ date }) => ({ date })),
-        { latitude: 37.3349, longitude: -122.009, radius: 150 },
+          .map(({ date }) => ({ kind: "date" as const, date })),
+        {
+          kind: "location" as const,
+          latitude: 37.3349,
+          longitude: -122.009,
+          radius: 150,
+        },
+        { kind: "poi" as const, category: "fitnessCenter" as const },
+        { kind: "inferredLocation" as const, place: "home" as const },
+        { kind: "fitness" as const, condition: "activityRingsIncomplete" },
+        { kind: "sleep" as const, condition: "bedtime" as const },
       ],
       entries: daypartEntries(now).map(({ date, part }) => ({
         date,

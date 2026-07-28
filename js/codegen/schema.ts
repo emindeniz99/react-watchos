@@ -227,14 +227,55 @@ export const structs: StructDef[] = [
     ],
   },
   {
+    // One Smart Stack predictive clue, as a TAGGED UNION on the wire: `kind` is
+    // the discriminant and every payload field is optional, because the eight
+    // RelevanceKit clue families share no fields. `kind` is REQUIRED — a clue
+    // with no family is not a clue, and Swift's `switch` has a `default: nil`
+    // so an unknown/newer family drops the hint rather than mis-reading it as
+    // another one (the same forward-compat posture as the interpreters).
     swift: "PublishedRelevantContext",
     ts: "PublishedRelevantContext",
     targets: ["widget"],
     fields: [
+      {
+        name: "kind",
+        swift: "String",
+        ts: '"date" | "dateRange" | "location" | "poi" | "inferredLocation" | "fitness" | "sleep" | "headphones"',
+        doc: "the clue family; every other field belongs to exactly one kind",
+      },
       { name: "date", swift: "Double?", ts: "number", optional: true },
+      { name: "from", swift: "Double?", ts: "number", optional: true },
+      { name: "to", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "dateKind",
+        swift: "String?",
+        ts: '"default" | "informational" | "scheduled"',
+        optional: true,
+        doc: "RelevanceKit DateKind — watchOS 26.0, dropped below it",
+      },
       { name: "latitude", swift: "Double?", ts: "number", optional: true },
       { name: "longitude", swift: "Double?", ts: "number", optional: true },
       { name: "radius", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "category",
+        swift: "String?",
+        ts: "string",
+        optional: true,
+        doc: "MKPointOfInterestCategory member NAME — watchOS 26.0",
+      },
+      {
+        name: "place",
+        swift: "String?",
+        ts: '"home" | "work" | "school" | "commute"',
+        optional: true,
+      },
+      {
+        name: "condition",
+        swift: "String?",
+        ts: "string",
+        optional: true,
+        doc: "fitness | sleep | headphones condition case name",
+      },
     ],
   },
   {

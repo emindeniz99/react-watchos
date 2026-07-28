@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type {
   PublishedFamilyTimeline,
+  PublishedRelevantContext,
   PublishedWidgets,
 } from "./generated/wire";
 import type { SerializedNode } from "./host";
@@ -56,20 +57,174 @@ export interface WidgetTimelineEntry {
   relevance?: EntryRelevance;
 }
 
-/** A Smart Stack relevance hint: surface near this time and/or place. */
-export interface RelevantContext {
-  date?: number | Date;
-  latitude?: number;
-  longitude?: number;
-  /** Geofence radius in meters. */
-  radius?: number;
-}
+/**
+ * How the system should treat a date clue (RelevanceKit `DateKind`,
+ * watchOS 26.0). Omit to let RelevanceKit pick — the older, kind-less
+ * `date(_:)` overload (watchOS 10.0) is used then, so a watch below 26 still
+ * gets the hint.
+ */
+export type RelevantDateKind = "default" | "informational" | "scheduled";
+
+/** RelevanceKit `InferredLocation` (watchOS 10.0) — a place the system infers
+ *  for the user, no coordinates or geofence needed. */
+export type InferredLocation = "home" | "work" | "school" | "commute";
+
+/** RelevanceKit `FitnessCondition` (watchOS 10.0). */
+export type FitnessCondition = "activityRingsIncomplete" | "workoutActive";
+
+/** RelevanceKit `SleepCondition` (watchOS 10.0). */
+export type SleepCondition = "bedtime" | "wakeup";
+
+/** RelevanceKit `HeadphonesCondition` (watchOS 10.0). Single-member today;
+ *  a union so a future condition is additive, not breaking. */
+export type HeadphonesCondition = "connected";
+
+/**
+ * A MapKit point-of-interest category, mirroring the Swift member names of
+ * `MKPointOfInterestCategory` (watchOS 6.0+ for the oldest members; the
+ * `poi` clue that consumes them is watchOS 26.0). 73 of the 84 documented
+ * members: the 11 in MapKit's "Type Properties" group (`airportTerminal`,
+ * `scenicView`, `visitorCenter`, …) are watchOS 27.0 **beta** and are
+ * deliberately excluded — declaring a value the current SDK can't compile is
+ * the CX-002/FoundationModels mistake.
+ *
+ * Member NAMES, not raw values: `MKPointOfInterestCategory`'s rawValue is an
+ * undocumented Objective-C constant (`MKPOICategory…`), so the Swift side maps
+ * these names to the static members explicitly rather than round-tripping
+ * through `MKPointOfInterestCategory(rawValue:)`. A name this library doesn't
+ * know drops the hint instead of fabricating a category.
+ */
+export type PoiCategory =
+  // Arts and culture
+  | "museum"
+  | "musicVenue"
+  | "theater"
+  // Education
+  | "library"
+  | "planetarium"
+  | "school"
+  | "university"
+  // Entertainment
+  | "movieTheater"
+  | "nightlife"
+  // Health and safety
+  | "fireStation"
+  | "hospital"
+  | "pharmacy"
+  | "police"
+  // Historical and cultural landmarks
+  | "castle"
+  | "fortress"
+  | "landmark"
+  | "nationalMonument"
+  // Food and drink
+  | "bakery"
+  | "brewery"
+  | "cafe"
+  | "distillery"
+  | "foodMarket"
+  | "restaurant"
+  | "winery"
+  // Personal services
+  | "animalService"
+  | "atm"
+  | "automotiveRepair"
+  | "bank"
+  | "beauty"
+  | "evCharger"
+  | "fitnessCenter"
+  | "laundry"
+  | "mailbox"
+  | "postOffice"
+  | "restroom"
+  | "spa"
+  | "store"
+  // Parks and recreation
+  | "amusementPark"
+  | "aquarium"
+  | "beach"
+  | "campground"
+  | "fairground"
+  | "marina"
+  | "nationalPark"
+  | "park"
+  | "rvPark"
+  | "zoo"
+  // Sports
+  | "baseball"
+  | "basketball"
+  | "bowling"
+  | "goKart"
+  | "golf"
+  | "hiking"
+  | "miniGolf"
+  | "rockClimbing"
+  | "skatePark"
+  | "skating"
+  | "skiing"
+  | "soccer"
+  | "stadium"
+  | "tennis"
+  | "volleyball"
+  // Travel
+  | "airport"
+  | "carRental"
+  | "conventionCenter"
+  | "gasStation"
+  | "hotel"
+  | "parking"
+  | "publicTransport"
+  // Water sports
+  | "fishing"
+  | "kayaking"
+  | "surfing"
+  | "swimming";
+
+/**
+ * A Smart Stack **predictive** clue: when/where the system should surface this
+ * widget at all. Distinct from {@link EntryRelevance}, which ranks a widget the
+ * stack is already showing.
+ *
+ * Clues are metadata for the on-device ranker — publishing one costs a few
+ * bytes at render time and zero wakeups, CPU or radio at surface time, which is
+ * why this is the one relevance surface worth widening on a battery-first
+ * library.
+ *
+ * A tagged union, not the old positional `{date?, latitude?, …}` bag: the
+ * RelevanceKit surface has eight clue families that share no fields, and a
+ * discriminant is the only shape that can carry a POI category, an inferred
+ * place, or a fitness/sleep/headphones condition at all.
+ *
+ * Availability is per-arm and handled natively: `poi` and any `dateKind` need
+ * watchOS 26.0 and are dropped below it (`@available` gate in
+ * `reactRelevantContext`); the other six families are watchOS 10.0 — the
+ * package's own floor — so they work on every supported watch.
+ */
+export type RelevantContext =
+  /** Surface near an exact moment. */
+  | { kind: "date"; date: number | Date; dateKind?: RelevantDateKind }
+  /** Surface across a closed date range. */
+  | {
+      kind: "dateRange";
+      from: number | Date;
+      to: number | Date;
+      dateKind?: RelevantDateKind;
+    }
+  /** Surface inside a geofence (radius in meters, default 100). */
+  | { kind: "location"; latitude: number; longitude: number; radius?: number }
+  /** Surface near any point of interest of this category (watchOS 26.0). */
+  | { kind: "poi"; category: PoiCategory }
+  /** Surface at a place the system infers, with no coordinates of our own. */
+  | { kind: "inferredLocation"; place: InferredLocation }
+  | { kind: "fitness"; condition: FitnessCondition }
+  | { kind: "sleep"; condition: SleepCondition }
+  | { kind: "headphones"; condition: HeadphonesCondition };
 
 export interface WidgetTimeline {
   entries: WidgetTimelineEntry[];
   /** Ask WidgetKit to re-publish after this time (ms or Date). */
   reloadAfter?: number | Date;
-  /** Smart Stack date/location relevance hints. */
+  /** Smart Stack predictive clues — when/where to surface this widget. */
   relevantContexts?: RelevantContext[];
 }
 
@@ -156,6 +311,49 @@ function flooredReloadAfter(value: number | Date, now: number): number {
     return floor;
   }
   return requested;
+}
+
+/**
+ * Flattens one clue onto the wire: the discriminant plus only that arm's
+ * fields. The Swift side switches on `kind` and reads exactly the fields that
+ * arm carries, so an absent field is never ambiguous with a defaulted one.
+ */
+function publishedRelevantContext(
+  c: RelevantContext,
+): PublishedRelevantContext {
+  switch (c.kind) {
+    case "date":
+      return {
+        kind: c.kind,
+        date: toMs(c.date),
+        ...(c.dateKind !== undefined ? { dateKind: c.dateKind } : {}),
+      };
+    case "dateRange":
+      return {
+        kind: c.kind,
+        from: toMs(c.from),
+        to: toMs(c.to),
+        ...(c.dateKind !== undefined ? { dateKind: c.dateKind } : {}),
+      };
+    case "location":
+      return {
+        kind: c.kind,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        ...(c.radius !== undefined ? { radius: c.radius } : {}),
+      };
+    case "poi":
+      return { kind: c.kind, category: c.category };
+    case "inferredLocation":
+      return { kind: c.kind, place: c.place };
+    // One `condition` slot for the three condition families — `kind` already
+    // says which enum it names, so three near-identical fields would only give
+    // the wire a way to disagree with itself.
+    case "fitness":
+    case "sleep":
+    case "headphones":
+      return { kind: c.kind, condition: c.condition };
+  }
 }
 
 let renderingWidgets = false;
@@ -246,16 +444,9 @@ function renderWidgetsInner(
               : {}),
             ...(timeline.relevantContexts
               ? {
-                  relevantContexts: timeline.relevantContexts.map((c) => ({
-                    ...(c.date !== undefined ? { date: toMs(c.date) } : {}),
-                    ...(c.latitude !== undefined
-                      ? { latitude: c.latitude }
-                      : {}),
-                    ...(c.longitude !== undefined
-                      ? { longitude: c.longitude }
-                      : {}),
-                    ...(c.radius !== undefined ? { radius: c.radius } : {}),
-                  })),
+                  relevantContexts: timeline.relevantContexts.map(
+                    publishedRelevantContext,
+                  ),
                 }
               : {}),
           };

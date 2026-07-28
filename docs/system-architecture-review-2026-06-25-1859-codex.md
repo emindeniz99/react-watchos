@@ -589,9 +589,22 @@ rather than the current Boolean result that Swift discards.
 > built — the shipped shape is two types over a shared kernel), box 2 is met by
 > `components[].widget: "full" | "degraded"` + the contract test, box 3 is met
 > by the module graph (`ReactWatchWidget` never depends on `ReactWatchHost`;
-> MapKit/HealthKit are host-only) and is what Phase B would most likely break,
+> HealthKit is host-only; **MapKit is no longer — amended below**) and is what
+> Phase B would most likely break,
 > box 4 is met at the prop-read level and its remaining half — a watchOS render
 > snapshot harness — is independent of Phase B.
+> **Amendment (2026-07-28, with the RelevanceKit clue reshape):** box 3's
+> claim used to read "MapKit/HealthKit are host-only". `ReactWatchWidget` now
+> imports **MapKit**, for one enum: `RelevantContext.location(category:)`
+> (watchOS 26.0) takes an `MKPointOfInterestCategory`, and the Smart Stack POI
+> clue cannot be expressed without it. Taken deliberately, and the claim is
+> amended in the SAME commit rather than left to go stale: the dependency is
+> direction-correct (widget → framework, never widget → host, which is the
+> property box 3 actually protects), MapKit is watchOS 2.0 so it costs no
+> availability, and the alternative — shipping a raw category string and
+> rebuilding it with `MKPointOfInterestCategory(rawValue:)` — imports MapKit
+> anyway *and* relies on an undocumented Objective-C constant. **HealthKit
+> remains host-only**, and that is still the load-bearing half of the claim.
 > Residual duplication, if anyone is already in these files with a watchOS build
 > green: the layout-modifier leaves (~41 lines/side, byte-identical), the
 > once-per-type unsupported-node logger (~9/side), route-path normalization
