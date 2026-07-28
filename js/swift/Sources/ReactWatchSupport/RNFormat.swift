@@ -68,9 +68,9 @@ public enum RNFormat {
     /// Known trade: cached instances pin the locale prefs read at first use
     /// (a mid-session 12/24-hour toggle shows up after process relaunch) —
     /// accepted for killing the per-render ICU construction.
-    nonisolated(unsafe) private static let dateFormatters =
+    nonisolated(unsafe) private static let dateCache =
         NSCache<NSString, DateFormatter>()
-    nonisolated(unsafe) private static let numberFormatters =
+    nonisolated(unsafe) private static let numberCache =
         NSCache<NSString, NumberFormatter>()
 
     /// Epoch-ms → localized date/time. Defaults: a bare `date` renders
@@ -91,7 +91,7 @@ public enum RNFormat {
             "\(locale.identifier)|\(timeZone.identifier)"
             + "|\(resolvedDate.rawValue)|\(resolvedTime.rawValue)" as NSString
         let formatter: DateFormatter
-        if let cached = dateFormatters.object(forKey: key) {
+        if let cached = dateCache.object(forKey: key) {
             formatter = cached
         } else {
             let built = DateFormatter()
@@ -99,7 +99,7 @@ public enum RNFormat {
             built.timeZone = timeZone
             built.dateStyle = resolvedDate
             built.timeStyle = resolvedTime
-            dateFormatters.setObject(built, forKey: key)
+            dateCache.setObject(built, forKey: key)
             formatter = built
         }
         return formatter.string(from: Date(timeIntervalSince1970: ms / 1000))
@@ -140,7 +140,7 @@ public enum RNFormat {
                 field(maxDigits.map(String.init)),
             ].joined(separator: "|") as NSString
         let formatter: NumberFormatter
-        if let cached = numberFormatters.object(forKey: key) {
+        if let cached = numberCache.object(forKey: key) {
             formatter = cached
         } else {
             let built = NumberFormatter()
@@ -155,7 +155,7 @@ public enum RNFormat {
             }
             if let minDigits { built.minimumFractionDigits = minDigits }
             if let maxDigits { built.maximumFractionDigits = maxDigits }
-            numberFormatters.setObject(built, forKey: key)
+            numberCache.setObject(built, forKey: key)
             formatter = built
         }
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"

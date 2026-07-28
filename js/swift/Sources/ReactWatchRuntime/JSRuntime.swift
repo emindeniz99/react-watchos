@@ -507,7 +507,7 @@ public final class JSRuntime {
     private func evaluateReportingErrors(_ code: String, filename: String) {
         do {
             try evaluate(code, filename: filename)
-        } catch let JSError.exception(message) {
+        } catch JSError.exception(let message) {
             onError?("eval", message)
         } catch {
             onError?("eval", String(describing: error))

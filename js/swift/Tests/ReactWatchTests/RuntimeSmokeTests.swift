@@ -499,12 +499,13 @@ final class RuntimeSmokeTests: XCTestCase {
             if source == "shutdown" { refusals.append(message) }
         }
         r.bridge.log = { _ in r.shutdown() }
-        try r.evaluate(#"""
-            __host.log("x");
-            let s = null;
-            for (let i = 0; i < 20000; i++) { s = { i, s: String(i) }; }
-            globalThis.after = s.i;
-        """#)
+        try r.evaluate(
+            #"""
+                __host.log("x");
+                let s = null;
+                for (let i = 0; i < 20000; i++) { s = { i, s: String(i) }; }
+                globalThis.after = s.i;
+            """#)
         // The entry that requested the shutdown ran to completion...
         XCTAssertEqual(refusals, [])
         // ...and the free happened on the way out, so the next entry refuses.
@@ -522,14 +523,15 @@ final class RuntimeSmokeTests: XCTestCase {
         let runtime = try JSRuntime(queue: DispatchQueue(label: "t.drain"))
         nonisolated(unsafe) let r = runtime
         r.bridge.log = { _ in r.shutdown() }
-        try r.evaluate(#"""
-            Promise.resolve().then(() => {
-              __host.log("m");
-              let s = null;
-              for (let i = 0; i < 20000; i++) { s = { i, s: String(i) }; }
-              globalThis.after = s.i;
-            });
-        """#)
+        try r.evaluate(
+            #"""
+                Promise.resolve().then(() => {
+                  __host.log("m");
+                  let s = null;
+                  for (let i = 0; i < 20000; i++) { s = { i, s: String(i) }; }
+                  globalThis.after = s.i;
+                });
+            """#)
         XCTAssertFalse(r.evaluateBool("true"), "runtime must be shut down by now")
         r.shutdown()
     }
@@ -544,11 +546,12 @@ final class RuntimeSmokeTests: XCTestCase {
         r.bridge.log = { message in
             if message == "shutdown-now" { r.shutdown() } else { fires += 1 }
         }
-        try r.evaluate(#"""
-            globalThis.__fireTimer = (id) => { __host.log("fired " + id); };
-            __host.setTimer(1, 20);
-            __host.log("shutdown-now");
-        """#)
+        try r.evaluate(
+            #"""
+                globalThis.__fireTimer = (id) => { __host.log("fired " + id); };
+                __host.setTimer(1, 20);
+                __host.log("shutdown-now");
+            """#)
         let settled = expectation(description: "deadline passed")
         queue.asyncAfter(deadline: .now() + 0.2) { settled.fulfill() }
         wait(for: [settled], timeout: 5)

@@ -95,7 +95,7 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
     func updateApplicationContext(_ json: String) -> SendError? {
         switch validatedSession(json) {
         case .failure(let error): return error
-        case .success(let (session, object)):
+        case .success((let session, let object)):
             do {
                 try session.updateApplicationContext(object)
                 return nil
@@ -114,7 +114,7 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
     func transferUserInfo(_ json: String) -> SendError? {
         switch validatedSession(json) {
         case .failure(let error): return error
-        case .success(let (session, object)):
+        case .success((let session, let object)):
             session.transferUserInfo(object)
             return nil
         }

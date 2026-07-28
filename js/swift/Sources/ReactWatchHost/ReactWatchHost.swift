@@ -701,7 +701,8 @@ final class ReactWatchModel {
                 if let locality = item.placemark.locality { d["subtitle"] = locality }
                 return d
             }
-            let json = (try? JSONSerialization.data(withJSONObject: items))
+            let json =
+                (try? JSONSerialization.data(withJSONObject: items))
                 .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
             self.runtime?.resolveInvoke(id: id, resultJson: json)
         }

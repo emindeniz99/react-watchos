@@ -52,31 +52,34 @@ public struct BudgetPolicy: Sendable {
         var crossed: [(code: String, details: String)] = []
         if let nodeCount {
             if breach(.nodes, isOver: nodeCount > maxNodes) {
-                crossed.append((
-                    "budget.maxNodes",
-                    "tree has \(nodeCount) nodes — over the maxNodes "
-                        + "budget (\(maxNodes))"
-                ))
+                crossed.append(
+                    (
+                        "budget.maxNodes",
+                        "tree has \(nodeCount) nodes — over the maxNodes "
+                            + "budget (\(maxNodes))"
+                    ))
             }
         }
         if let commitJSONBytes {
             if breach(.commitJSONBytes, isOver: commitJSONBytes > maxCommitJSONBytes) {
-                crossed.append((
-                    "budget.maxCommitJSONBytes",
-                    "commit JSON is \(commitJSONBytes) bytes — over the "
-                        + "maxCommitJSONBytes budget (\(maxCommitJSONBytes))"
-                ))
+                crossed.append(
+                    (
+                        "budget.maxCommitJSONBytes",
+                        "commit JSON is \(commitJSONBytes) bytes — over the "
+                            + "maxCommitJSONBytes budget (\(maxCommitJSONBytes))"
+                    ))
             }
         }
         if let widgetRenderMs {
             if breach(.widgetRenderMs, isOver: widgetRenderMs > maxWidgetRenderMs) {
-                crossed.append((
-                    "budget.maxWidgetRenderMs",
-                    String(
-                        format: "widget render took %.1f ms — over the "
-                            + "maxWidgetRenderMs budget (%.0f)",
-                        widgetRenderMs, maxWidgetRenderMs)
-                ))
+                crossed.append(
+                    (
+                        "budget.maxWidgetRenderMs",
+                        String(
+                            format: "widget render took %.1f ms — over the "
+                                + "maxWidgetRenderMs budget (%.0f)",
+                            widgetRenderMs, maxWidgetRenderMs)
+                    ))
             }
         }
         return crossed.map { breach in
