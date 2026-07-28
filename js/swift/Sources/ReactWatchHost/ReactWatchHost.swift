@@ -1346,20 +1346,33 @@ final class ReactWatchModel {
             }
         }
         js.bridge.publishWidgets = { [weak self, store] json in
+            // Read the outgoing payload BEFORE the save overwrites it: the
+            // reload gate below compares against what the extension would
+            // currently decode.
+            let previous = store.publishedWidgetsJSON()
             // The save is immediate — published data must never be lost — but
             // the extension wake is coalesced (P1-3): a burst of publishes (a
             // tap streak, a subscription firing) collapses to ONE
             // reloadAllTimelines instead of waking the widget extension per
             // call and burning the WidgetKit refresh budget.
             store.save(json)
+            // ARCH-06 follow-up 3: a republish whose only difference is
+            // `publishedAt` (an unchanged reconcile, a write that no widget
+            // reads) would spend a refresh-budget wake to hand the extension a
+            // payload it already has. The SAVE still happened — freshness
+            // bookkeeping must stay current — only the wake is skipped.
+            let changed = WidgetPublishGate.shouldReload(
+                previousJSON: previous, newJSON: json)
             guard let self else {
-                WidgetCenter.shared.reloadAllTimelines()
+                if changed { WidgetCenter.shared.reloadAllTimelines() }
                 return
             }
             // The payload just went to the store carrying the revision it was
             // rendered against, so the batch is closed: the NEXT mutation must
-            // move the revision past it (ARCH-06).
+            // move the revision past it (ARCH-06). Unconditional — it is about
+            // what was STORED, not about who gets woken.
             self.revisionTracker.closeBatch()
+            guard changed else { return }
             self.scheduleWidgetReload()
         }
         js.bridge.getItem = { [store] in store.getItem($0) }

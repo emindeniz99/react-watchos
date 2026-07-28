@@ -251,7 +251,11 @@ publishWidgets();
 
 `publishWidgets()` renders every (kind × family) timeline to serialized
 trees and hands them to `__host.publishWidgets`, which writes App Group
-storage and calls `WidgetCenter.reloadAllTimelines()`. The
+storage and calls `WidgetCenter.reloadAllTimelines()`. The store is
+always written, but the reload is skipped when the new payload matches
+the stored one in everything except its timestamp — the extension
+already holds that payload, and WidgetKit's refresh budget is the
+scarcest thing a publish spends. The
 `targets/widget` extension decodes the stored payload in its
 `TimelineProvider` and renders it with a static interpreter
 (`WidgetNodeView.swift`). The demo hydration tracker drives a circular

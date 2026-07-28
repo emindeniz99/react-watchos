@@ -134,10 +134,24 @@ public final class WidgetIntentRuntime {
         }
         js.bridge.clearTimer = { _ in }
         js.bridge.publishWidgets = { [weak self, store] json in
+            // Read what the store holds before overwriting it — same reload
+            // gate as the app host (ARCH-06 follow-up 3).
+            let previous = store.publishedWidgetsJSON()
             store.save(json)
             // The payload carries the revision it was rendered against, so the
             // batch is closed: the next mutation must move past it (ARCH-06).
+            // Unconditional — it is about what was STORED, not about the wake.
             self?.revisionTracker.closeBatch()
+            // An intent that touched Storage without changing what any widget
+            // renders (a no-op tap, a re-entrant republish) republishes an
+            // identical payload; waking every timeline for it burns the refresh
+            // budget for nothing. Skipping `invalidateCache()` with it is
+            // deliberate and safe: the burst cache and the epoch exist to stop
+            // a render from serving/overwriting payloads that describe DIFFERENT
+            // state, and by construction here they describe the same state.
+            guard
+                WidgetPublishGate.shouldReload(previousJSON: previous, newJSON: json)
+            else { return }
             WidgetIntentRuntime.invalidateCache()
             WidgetCenter.shared.reloadAllTimelines()
         }

@@ -29,13 +29,21 @@ public struct SharedWidgetStore: Sendable {
         defaults?.set(payloadJson, forKey: Self.payloadKey)
     }
 
+    /// The raw payload JSON last saved, undecoded. nil before the first
+    /// publication. Both publish sites read this BEFORE overwriting it, so
+    /// `WidgetPublishGate` can decide whether the new payload is worth a
+    /// `WidgetCenter` reload; everything else wants `loadPublishedWidgets`.
+    public func publishedWidgetsJSON() -> String? {
+        defaults?.string(forKey: Self.payloadKey)
+    }
+
     /// Decode the React-published widget timelines the app last saved (the
     /// inverse of `save`). The widget extension's TimelineProviders read this to
     /// render without a process running. nil if nothing's been published yet or
     /// the stored JSON doesn't decode. Foundation+Core only, so it's
     /// unit-tested on Linux alongside `save`.
     public func loadPublishedWidgets() -> PublishedWidgets? {
-        guard let json = defaults?.string(forKey: Self.payloadKey) else {
+        guard let json = publishedWidgetsJSON() else {
             return nil
         }
         return try? JSONDecoder().decode(

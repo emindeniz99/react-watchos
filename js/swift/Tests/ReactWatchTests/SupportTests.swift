@@ -1218,6 +1218,134 @@ final class NewestPayloadTests: XCTestCase {
     }
 }
 
+// ARCH-06 follow-up 3: a WidgetCenter reload wakes the extension and spends
+// from the watch's refresh budget, so a republish that lands a payload byte-for-
+// byte identical to the stored one except for `publishedAt` — an unchanged
+// foreground reconcile, a Storage write no widget reads — must not pay for one.
+// Everything else, including any doubt about what the store holds, still does.
+final class WidgetPublishGateTests: XCTestCase {
+    private static let widgets = """
+        {"hydration":{"accessoryCircular":{
+          "entries":[{"date":2000,"tree":null,"url":null,"relevance":null}],
+          "reloadAfter":null,"relevantContexts":null}}}
+        """
+    private static let controls = """
+        {"hydration.addGlass":
+          {"intent":"addGlass","label":"Add Glass","systemName":"drop.fill"}}
+        """
+
+    /// The exact wire shape js/src/widgets.ts publishes.
+    private func payload(
+        v: Int = 1, publishedAt: Double = 1_000, stateRevision: Int = 7,
+        releaseId: String = "\"abc123\"",
+        widgets: String = WidgetPublishGateTests.widgets,
+        controls: String = WidgetPublishGateTests.controls
+    ) -> String {
+        """
+        {"v":\(v),"publishedAt":\(publishedAt),"stateRevision":\(stateRevision),
+         "releaseId":\(releaseId),"widgets":\(widgets),"controls":\(controls)}
+        """
+    }
+
+    func testRepublishThatOnlyRestampsPublishedAtSkipsTheReload() {
+        XCTAssertFalse(
+            WidgetPublishGate.shouldReload(
+                previousJSON: payload(publishedAt: 1_000),
+                newJSON: payload(publishedAt: 9_999)),
+            "same revision, release, trees and controls — the extension already "
+                + "holds this payload")
+    }
+
+    func testMovedStateRevisionReloads() {
+        // The load-bearing one: the revision is what tells a provider its
+        // payload describes state the user has since changed.
+        XCTAssertTrue(
+            WidgetPublishGate.shouldReload(
+                previousJSON: payload(stateRevision: 7),
+                newJSON: payload(publishedAt: 2_000, stateRevision: 8)))
+    }
+
+    func testChangedReleaseIdReloads() {
+        // A new producing bundle can render the same tree DIFFERENTLY once its
+        // components are interpreted by the release that made it.
+        XCTAssertTrue(
+            WidgetPublishGate.shouldReload(
+                previousJSON: payload(releaseId: "\"abc123\""),
+                newJSON: payload(releaseId: "\"def456\"")))
+        // nil on one side is a change too — "producer unknown" is not "same
+        // producer" (it is the shipped-bytecode path, ARCH-06).
+        XCTAssertTrue(
+            WidgetPublishGate.shouldReload(
+                previousJSON: payload(releaseId: "null"),
+                newJSON: payload(releaseId: "\"abc123\"")))
+    }
+
+    func testChangedTimelinesReload() {
+        XCTAssertTrue(
+            WidgetPublishGate.shouldReload(
+                previousJSON: payload(),
+                newJSON: payload(
+                    widgets: """
+                        {"hydration":{"accessoryCircular":{
+                          "entries":[{"date":5000,"tree":null,"url":null,"relevance":null}],
+                          "reloadAfter":null,"relevantContexts":null}}}
+                        """)),
+            "a re-dated entry is what the widget draws")
+    }
+
+    func testChangedControlsReload() {
+        // Controls are metadata, not a timeline — but the Control Center label
+        // comes from this map, so a rename that never reloads is a stale label.
+        XCTAssertTrue(
+            WidgetPublishGate.shouldReload(
+                previousJSON: payload(),
+                newJSON: payload(
+                    controls: """
+                        {"hydration.addGlass":
+                          {"intent":"addGlass","label":"Add Water","systemName":"drop.fill"}}
+                        """)))
+    }
+
+    func testChangedWireVersionReloads() {
+        XCTAssertTrue(
+            WidgetPublishGate.shouldReload(
+                previousJSON: payload(v: 1), newJSON: payload(v: 2)))
+    }
+
+    func testAnyDoubtReloads() {
+        // Fail open toward freshness: a skipped reload leaves a complication
+        // showing a number the user already changed; a spurious one costs
+        // budget once.
+        XCTAssertTrue(
+            WidgetPublishGate.shouldReload(previousJSON: nil, newJSON: payload()),
+            "nothing published yet")
+        XCTAssertTrue(
+            WidgetPublishGate.shouldReload(
+                previousJSON: "not json", newJSON: payload()),
+            "an undecodable stored payload proves nothing about what is shown")
+        XCTAssertTrue(
+            WidgetPublishGate.shouldReload(
+                previousJSON: payload(), newJSON: "not json"),
+            "an undecodable new payload is not provably the same publication")
+    }
+
+    func testComparesDecodedValuesNotSerializedText() {
+        // Two encodings of ONE payload: different key order, different
+        // whitespace, a different `publishedAt`. A string compare would call
+        // these a change and reload on every publish, which is the whole saving.
+        let previous = """
+            {"v":1,"publishedAt":1000,"stateRevision":7,"releaseId":"abc123",
+             "widgets":{},"controls":{}}
+            """
+        let new = """
+            {"controls":{},"widgets":{},"releaseId":"abc123",
+              "stateRevision":7,   "publishedAt":1000.5,  "v":1}
+            """
+        XCTAssertFalse(
+            WidgetPublishGate.shouldReload(previousJSON: previous, newJSON: new))
+    }
+}
+
 // ARCH-06: the batching rule that keeps "every mutation moves the revision"
 // from costing one cross-process file claim per Storage.set.
 final class StateRevisionTrackerTests: XCTestCase {
