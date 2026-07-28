@@ -8,7 +8,7 @@
 
 > **registerControl**(`definition`): `void`
 
-Defined in: [js/src/widgets.ts:306](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L306)
+Defined in: [js/src/widgets.ts:309](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L309)
 
 Publishes metadata for a control the consumer has ALREADY declared in Swift.
 
