@@ -22,5 +22,10 @@ describe("minimal watch app", () => {
     const next = host.lastCommit?.root;
     if (!next) throw new Error("no commit after press");
     expect(findByText(next, "Count: 1")).toHaveLength(1);
+
+    // One root at a time (ARCH-08): dispose unmounts the tree and runs every
+    // effect cleanup, so a later test in this file can mount its own root
+    // instead of hitting "a root is already mounted".
+    root.dispose();
   });
 });

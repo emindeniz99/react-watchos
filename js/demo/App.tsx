@@ -30,13 +30,16 @@ import {
   Image,
   List,
   MapView,
+  markUpdateHealthy,
   NavigationLink,
   NavigationProvider,
   NavigationRoute,
   NavigationStack,
+  onApplicationContext,
   onBleNotify,
   onBleState,
   onPhoneMessage,
+  onUserInfo,
   Picker,
   ProgressView,
   playHaptic,
@@ -53,6 +56,8 @@ import {
   TextField,
   TimerText,
   Toggle,
+  transferUserInfo,
+  updateApplicationContext,
   useFocusEffect,
   useNavigation,
   useParams,
@@ -721,19 +726,43 @@ function UpdatesScreen() {
   );
 }
 
-/** Phone <-> watch: shows the last phone message, pings the phone. */
+/**
+ * Phone <-> watch, all three WatchConnectivity channels (ARCH-12) — they are
+ * split because their delivery guarantees differ, and picking the wrong one is
+ * the classic bug:
+ *  - `sendToPhone` — interactive: needs the phone reachable NOW, resolves its
+ *    reply. Use for request/reply.
+ *  - `updateApplicationContext` — latest-wins background state: each call
+ *    overwrites the last, the phone reads it when it next wakes. Use for
+ *    "current state" (settings, a dashboard snapshot).
+ *  - `transferUserInfo` — FIFO queue: every item delivered in order, and the
+ *    queue survives suspension. Use for must-not-drop events.
+ * Each has its inbound twin (onPhoneMessage / onApplicationContext / onUserInfo).
+ */
 function ConnectivityScreen() {
   const [last, setLast] = useState("none yet");
   const [sent, setSent] = useState("");
-  useEffect(() => onPhoneMessage((p) => setLast(JSON.stringify(p))), []);
-  // sendToPhone rejects when the phone isn't reachable (CX-022) — handle it so a
-  // ping with no phone shows a status instead of an unhandled rejection.
-  const ping = async () => {
+  useEffect(
+    () => onPhoneMessage((p) => setLast(`message ${JSON.stringify(p)}`)),
+    [],
+  );
+  useEffect(
+    () => onApplicationContext((p) => setLast(`context ${JSON.stringify(p)}`)),
+    [],
+  );
+  useEffect(
+    () => onUserInfo((p) => setLast(`userInfo ${JSON.stringify(p)}`)),
+    [],
+  );
+  // Every one of the three rejects when the session can't take the payload
+  // (CX-022) — handle it so a tap with no phone shows a status instead of an
+  // unhandled rejection.
+  const send = (label: string, run: () => Promise<unknown>) => async () => {
     try {
-      await sendToPhone({ kind: "ping", at: Date.now() });
-      setSent("sent ✓");
-    } catch {
-      setSent("phone unreachable");
+      await run();
+      setSent(`${label} ✓`);
+    } catch (e) {
+      setSent(`${label}: ${(e as { code?: string }).code ?? "failed"}`);
     }
   };
   return (
@@ -742,8 +771,26 @@ function ConnectivityScreen() {
       <Text size={12} color="secondary">
         {last}
       </Text>
-      <Button onPress={ping}>
-        <Text>Ping phone</Text>
+      <Button
+        onPress={send("ping", () =>
+          sendToPhone({ kind: "ping", at: Date.now() }),
+        )}
+      >
+        <Text size={13}>Ping phone (reachable now)</Text>
+      </Button>
+      <Button
+        onPress={send("context", () =>
+          updateApplicationContext({ screen: "phone", at: Date.now() }),
+        )}
+      >
+        <Text size={13}>Sync state (latest wins)</Text>
+      </Button>
+      <Button
+        onPress={send("userInfo", () =>
+          transferUserInfo({ kind: "tap", at: Date.now() }),
+        )}
+      >
+        <Text size={13}>Queue event (in order)</Text>
       </Button>
       {sent ? (
         <Text size={12} color="secondary">
@@ -1004,6 +1051,18 @@ export function App() {
 }
 
 function AppScreens() {
+  // ARCH-04's explicit health signal: confirms that THIS launch of THIS bundle
+  // works, which clears the device's OTA crash-loop counter. Deliberately
+  // INSIDE the ErrorBoundary — if the first render throws, this effect never
+  // runs, the counter is never cleared, and the watch rolls the bundle back
+  // after 3 launches. Confirming from the entry (right after runApp) would
+  // instead bless a bundle whose only rendered screen is the error fallback,
+  // which is exactly the failure the explicit signal exists to catch.
+  // A no-op unless the app opted into `OTAConfig(healthSignal: .explicit)`;
+  // it never rejects, so no catch is needed.
+  useEffect(() => {
+    markUpdateHealthy();
+  }, []);
   return (
     <NavigationProvider>
       <DemoNavigation />

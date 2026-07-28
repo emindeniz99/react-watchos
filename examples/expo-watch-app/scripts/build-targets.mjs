@@ -29,11 +29,25 @@ await buildBundles(
         ),
       },
       // OTA compatibility version — bump only on a breaking change; a
-      // same-version release with a new releaseId is a hot fix. This UI uses
-      // WatchConnectivity (connectivity) and OTA (network + ota).
+      // same-version release with a new releaseId is a hot fix.
+      //
+      // requiredFeatures is the bundle's capability contract, and it must name
+      // EVERY feature the UI actually calls — the watch refuses to stage a
+      // bundle whose contract the host can't back (or whose HostPolicy doesn't
+      // authorize), and an under-declared feature slips past that gate only to
+      // fail at the call site. This UI uses WatchConnectivity (`connectivity`),
+      // OTA (`network` + `ota`), the shared tap counter (`storage`) and
+      // publishWidgets (`widgets`). Keep it in sync with the allowlist in
+      // targets/watch/WatchApp.swift.
       manifest: {
         version: 1,
-        requiredFeatures: ["connectivity", "network", "ota"],
+        requiredFeatures: [
+          "connectivity",
+          "network",
+          "ota",
+          "storage",
+          "widgets",
+        ],
       },
     },
     {

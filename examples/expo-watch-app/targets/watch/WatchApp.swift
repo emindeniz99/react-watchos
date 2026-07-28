@@ -17,7 +17,18 @@ struct ExpoWatchApp: App {
             // default). `npm run build:targets` prints your dev key's line on
             // first build (persisted at .ota-dev-key.json, gitignored):
             //   ota: .init(signerPublicKeys: ["<keyId>": "<publicKeyBase64>"])
-            ReactWatchRootView(appGroupId: "group.com.example.expowatch")
+            //
+            // `policy` is least privilege for OTA bundles (ARCH-07): a signed
+            // bundle is arbitrary code with every capability this binary
+            // installs, so the APP decides which of them are authorized.
+            // This allowlist mirrors the bundle's declared contract
+            // (`requiredFeatures` in scripts/build-targets.mjs) — no health, no
+            // BLE, no AI, no push, even though the package can back them.
+            // Turning one on takes a native release, never just a new bundle.
+            ReactWatchRootView(
+                appGroupId: "group.com.example.expowatch",
+                policy: .allow(["connectivity", "network", "ota", "storage", "widgets"])
+            )
         }
     }
 }

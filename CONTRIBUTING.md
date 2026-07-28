@@ -48,9 +48,16 @@ feature-set model supersedes the earlier scalar capability gate).
 ## Verifying changes
 
 - **JS + pure Swift logic — works anywhere (incl. Linux/CI):**
-  `pnpm test` (renderer + examples), `pnpm typecheck`, `pnpm lint`, and
-  `swift test` (the host is `#if os(watchOS)`-guarded so the package builds and
-  tests on macOS/Linux without the watch UI).
+  `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `swift test` (the host is
+  `#if os(watchOS)`-guarded so the package builds and tests on macOS/Linux
+  without the watch UI).
+  **Run `pnpm test` / `pnpm typecheck` from the workspace ROOT, not from
+  `js/`** — the root scripts are `pnpm --recursive`, so they cover
+  `examples/*` too; from `js/` they cover only the renderer. That gap is not
+  theoretical: the expo example's test asserted `dispatchEvent(...) === true`
+  and stayed red from ARCH-09 (2026-07-16) until 2026-07-28, because every
+  local loop ran the renderer's gates from `js/` while only CI ran the
+  examples.
 - **The Darwin bridges (`BluetoothBridge` et al.) — macOS, on the watch sim:**
   `pnpm test:swift:watch` runs the Swift suite via `xcodebuild test` on a
   watchOS simulator, where the `#if os(watchOS)` code actually compiles, so the

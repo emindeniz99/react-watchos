@@ -14,10 +14,23 @@ describe("watch UI", () => {
     expect(findByText(tree, "waiting for phone…")).toHaveLength(1);
 
     // Pressing the button calls sendToPhone, which no-ops without a native
-    // host — it must not throw, and the screen stays mounted.
+    // host — it must not throw, and the screen stays mounted. dispatchEvent
+    // returns a structured DispatchResult (ARCH-09), not a bool: `handled` is
+    // "a listener ran", `accepted` is the navigation transaction's verdict
+    // (always true for a non-navigation event).
     const button = findByType(tree, "Button")[0];
     if (!button) throw new Error("no button");
-    expect(root.dispatchEvent({ nodeId: button.id, event: "press" })).toBe(true);
+    expect(root.dispatchEvent({ nodeId: button.id, event: "press" })).toEqual({
+      handled: true,
+      accepted: true,
+    });
+
+    // One root at a time (ARCH-08): dispose unmounts the tree, runs every
+    // effect cleanup and uninstalls the globals, so the next test that mounts
+    // doesn't hit "a root is already mounted". On the watch a reload never
+    // needs it (a fresh QuickJS context resets everything); in tests it is what
+    // keeps sequential mounts from leaking into each other.
+    root.dispose();
   });
 });
 
