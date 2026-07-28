@@ -37,15 +37,12 @@ const fixturesDir = join(__dirname, "../swift/Tests/ReactWatchTests/Fixtures");
  * splitting, and percent-decoding — each with its matching AND its
  * non-matching side, since "returns null when it should" is half the contract.
  *
- * Deliberately excluded: the UNNAMED bracket forms `[]`, `[...]` and `[[...]]`.
- * The two implementations genuinely disagree there (JS's anchored `(.+)` regexes
- * need a non-empty name and fall through — `[]` becomes a literal, `[...]` a
- * param named "..."; Swift's prefix/suffix parse accepts an empty name and
- * makes them a param/catch-all named ""). Neither side is documented as
- * correct: every documented form is named, and Next.js — the syntax this
- * mirrors — rejects an unnamed segment at build time. Pinning JS's accident as
- * the contract would be inventing an answer, so this is reported as an open
- * divergence instead of silently frozen.
+ * The UNNAMED bracket forms `[]`, `[...]` and `[[...]]` were an open divergence
+ * (Swift's prefix/suffix parse accepted an empty name and made them a
+ * param/catch-all called ""), aligned on 2026-07-28: JS is the authority — its
+ * anchored `(.+)` regexes need a non-empty name, and Next.js, the syntax this
+ * mirrors, rejects unnamed segments at build time — so Swift now falls through
+ * the same way and the cases below are pinned here like any other.
  */
 const CASES: readonly (readonly [pattern: string, route: string])[] = [
   // --- literals + segment splitting
@@ -106,6 +103,15 @@ const CASES: readonly (readonly [pattern: string, route: string])[] = [
   ["/list/[id]", "/list/100%"],
   // "+" is not a space in a path segment — neither decoder may touch it.
   ["/list/[id]", "/list/a+b"],
+  // --- unnamed bracket forms: never a wildcard on either side (2026-07-28)
+  // A capture with no name to read it back under isn't one. `[]` is a literal
+  // here, `[...]` a param named "...", `[[...]]` a param named "[...]" — so
+  // none of these routes matches, where Swift used to match all of them with
+  // an empty param name.
+  ["/[]", "/x"],
+  ["/[...]", "/a/b"],
+  ["/[[...]]", "/"],
+  ["/[[...]]", "/a/b"],
 ];
 
 interface FixtureCase {

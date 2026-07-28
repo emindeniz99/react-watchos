@@ -251,6 +251,32 @@ final class RouteMatcherTests: XCTestCase {
         )
     }
 
+    // An UNNAMED bracket segment is not a wildcard (aligned with js
+    // matchRoute, 2026-07-28). `RouteMatcher` used to accept an empty name and
+    // make `[]`/`[...]`/`[[...]]` a param/catch-all called "" — so `/[]`
+    // swallowed any one segment and `/[[...]]` matched literally anything,
+    // while js (three regexes anchored on `(.+)`) matched none of them and
+    // Next.js rejects unnamed segments at build time. A capture nothing can
+    // read back is not a route: the destination would render with an empty
+    // `useParams()`.
+    func testUnnamedBracketSegmentsAreNotWildcards() {
+        XCTAssertNil(RouteMatcher.match(pattern: "/[]", route: "/x"))
+        XCTAssertNil(RouteMatcher.match(pattern: "/[...]", route: "/a/b"))
+        XCTAssertNil(RouteMatcher.match(pattern: "/[[...]]", route: "/"))
+        XCTAssertNil(RouteMatcher.match(pattern: "/[[...]]", route: "/a/b"))
+        // It doesn't become "never matches" either: each form falls through to
+        // the next one exactly as js does, so `[]` is a LITERAL and `[...]` a
+        // param whose name really is "...". Pinned here because the fixture
+        // table only carries the four rejections.
+        XCTAssertEqual(RouteMatcher.match(pattern: "/[]", route: "/[]")?.params, [:])
+        XCTAssertEqual(RouteMatcher.match(pattern: "/[]", route: "/[]")?.score, 2)
+        XCTAssertEqual(
+            RouteMatcher.match(pattern: "/[...]", route: "/a")?.params, ["...": ["a"]])
+        XCTAssertEqual(
+            RouteMatcher.match(pattern: "/[[...]]", route: "/a")?.params,
+            ["[...]": ["a"]])
+    }
+
     func testBestPicksMostSpecificMatch() {
         // Both patterns match /shop/nike; the concrete one must win.
         let winner = RouteMatcher.best(

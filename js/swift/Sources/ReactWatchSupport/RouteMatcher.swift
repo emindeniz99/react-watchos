@@ -82,20 +82,32 @@ public struct RouteMatcher {
         route.split(separator: "/").map(String.init)
     }
 
+    /// A bracket form only becomes a param or a catch-all when it NAMES one —
+    /// an UNNAMED segment (`[]`, `[...]`, `[[...]]`) falls through to the next
+    /// form and ultimately to a literal, exactly as js `parsePattern` does.
+    ///
+    /// This used to accept an empty name and produce a param/catch-all called
+    /// `""`, so `/[]` matched any one segment and `/[[...]]` matched anything
+    /// at all — patterns js rejects (its three regexes are anchored on `(.+)`,
+    /// which needs a non-empty name, so `[]` reads as a literal and `[...]` as
+    /// a param named `...`). Next.js, the syntax this mirrors, rejects unnamed
+    /// segments at build time, and every documented form here is named, so js
+    /// is the authority: a capture with no name to read it back under is not a
+    /// wildcard, and a route matching one would render a screen whose
+    /// `useParams()` returns nothing.
     private static func parse(_ pattern: String) -> [Segment] {
         segments(of: pattern).map { raw in
             if raw.hasPrefix("[[..."), raw.hasSuffix("]]") {
-                return .catchAll(
-                    name: String(raw.dropFirst(5).dropLast(2)), optional: true
-                )
+                let name = String(raw.dropFirst(5).dropLast(2))
+                if !name.isEmpty { return .catchAll(name: name, optional: true) }
             }
             if raw.hasPrefix("[..."), raw.hasSuffix("]") {
-                return .catchAll(
-                    name: String(raw.dropFirst(4).dropLast(1)), optional: false
-                )
+                let name = String(raw.dropFirst(4).dropLast(1))
+                if !name.isEmpty { return .catchAll(name: name, optional: false) }
             }
             if raw.hasPrefix("["), raw.hasSuffix("]") {
-                return .param(String(raw.dropFirst().dropLast()))
+                let name = String(raw.dropFirst().dropLast())
+                if !name.isEmpty { return .param(name) }
             }
             return .literal(raw)
         }

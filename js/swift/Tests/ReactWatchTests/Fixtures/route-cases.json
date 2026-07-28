@@ -431,6 +431,26 @@
         },
         "score": 3
       }
+    },
+    {
+      "pattern": "/[]",
+      "route": "/x",
+      "match": null
+    },
+    {
+      "pattern": "/[...]",
+      "route": "/a/b",
+      "match": null
+    },
+    {
+      "pattern": "/[[...]]",
+      "route": "/",
+      "match": null
+    },
+    {
+      "pattern": "/[[...]]",
+      "route": "/a/b",
+      "match": null
     }
   ]
 }
