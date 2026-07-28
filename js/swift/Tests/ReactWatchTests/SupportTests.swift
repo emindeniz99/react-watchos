@@ -1355,6 +1355,28 @@ final class WidgetPublishGateTests: XCTestCase {
             "an undecodable new payload is not provably the same publication")
     }
 
+    /// The gate's field list is POSITIVE, so a field added to the codegen-owned
+    /// `PublishedWidgets` joins the wire format WITHOUT joining `sameContent` —
+    /// and the compiler says nothing (proven: adding one builds clean and every
+    /// other test still passes). That silent default is the fail-CLOSED
+    /// direction: the new field's changes get classified "publishedAt-only" and
+    /// the reload is skipped, leaving the complication showing a number the user
+    /// already changed. Pin the shape so the decision is FORCED here — either add
+    /// the field to `sameContent` or record why its changes need no wake, then
+    /// update this set.
+    func testEveryWireFieldIsAccountedForByTheGate() throws {
+        let decoded = try JSONDecoder().decode(
+            PublishedWidgets.self, from: Data(payload().utf8))
+        XCTAssertEqual(
+            Set(Mirror(reflecting: decoded).children.compactMap(\.label)),
+            [
+                "publishedAt",  // deliberately excluded — the whole point
+                "v", "stateRevision", "releaseId", "widgets", "controls",
+            ],
+            "PublishedWidgets gained or lost a field: decide which side of the "
+                + "reload question it falls on in WidgetPublishGate.sameContent")
+    }
+
     func testComparesDecodedValuesNotSerializedText() {
         // Two encodings of ONE payload: different key order, different
         // whitespace, a different `publishedAt`. A string compare would call
