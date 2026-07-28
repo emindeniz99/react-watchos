@@ -170,12 +170,27 @@ export function registerDemoWidgets(): void {
   });
 
   // Multi-entry timeline: WidgetKit swaps to the pre-rendered future
-  // entries on schedule, with no app involvement. Relevance scores hint
-  // the Smart Stack when to surface it.
+  // entries on schedule, with no app involvement.
+  //
+  // Two DIFFERENT Smart Stack signals are in play here, and they are easy to
+  // confuse:
+  //  - per-entry `relevance` = the RANKING score, "how prominent is this
+  //    widget once the stack is already showing it".
+  //  - `relevantContexts` = the PREDICTIVE hint, "when/where should the system
+  //    surface it at all". These are clues for the on-device ranker, not a
+  //    schedule: publishing one costs a few bytes and no wakeups.
   registerWidget({
     kind: "daypart",
     families: ["accessoryRectangular", "accessoryInline"],
     render: ({ family, now }) => ({
+      // Surface near each upcoming daypart boundary (the moment the face is
+      // about to change), and near the demo's "gym" geofence.
+      relevantContexts: [
+        ...daypartEntries(now)
+          .slice(1)
+          .map(({ date }) => ({ date })),
+        { latitude: 37.3349, longitude: -122.009, radius: 150 },
+      ],
       entries: daypartEntries(now).map(({ date, part }) => ({
         date,
         relevance: { score: part.score, durationMs: 6 * 3_600_000 },
