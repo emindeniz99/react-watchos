@@ -1446,7 +1446,8 @@ final class PublishedRelevantContextTests: XCTestCase {
          {"kind":"inferredLocation","place":"home"},
          {"kind":"fitness","condition":"activityRingsIncomplete"},
          {"kind":"sleep","condition":"bedtime"},
-         {"kind":"headphones","condition":"connected"}]
+         {"kind":"headphones","condition":"connected"},
+         {"kind":"dateRange","from":5000,"to":6000,"dateKind":"urgent"}]
         """
 
     private func decoded() throws -> [PublishedRelevantContext] {
@@ -1462,7 +1463,29 @@ final class PublishedRelevantContextTests: XCTestCase {
             [
                 "date", "date", "dateRange", "location", "location", "poi",
                 "inferredLocation", "fitness", "sleep", "headphones",
+                "dateRange",
             ])
+    }
+
+    /// `dateKind` is a plain `String?` on the wire and NOTHING on the path
+    /// validates it: `publishedRelevantContext` spreads the value through
+    /// untouched and TypeScript's `"default"|"informational"|"scheduled"` union
+    /// is erased at runtime. So a case typo, an untyped JS caller, or an OTA
+    /// bundle newer than this binary reaches Swift with a name it can't map —
+    /// which is why `reactRelevantContext`'s `dateRange` arm must DROP such a
+    /// clue rather than substitute `.default`. Substituting would re-create the
+    /// exact ambiguity the tagged union removed: "field absent" and "field
+    /// present but unrecognized" are different statements, and the sibling
+    /// `date` arm already separates them.
+    ///
+    /// Only the wire half is ① here — the mapping itself is `#if os(watchOS)`,
+    /// so "urgent" -> nil is ② at the next Xcode build (C6).
+    func testAnUnrecognizedDateKindSurvivesTheWireForTheSwitchToDrop() throws {
+        let clue = try XCTUnwrap(decoded().last)
+        XCTAssertEqual(clue.kind, "dateRange")
+        XCTAssertEqual(clue.dateKind, "urgent")
+        XCTAssertEqual(clue.from, 5000)
+        XCTAssertEqual(clue.to, 6000)
     }
 
     func testEachArmCarriesOnlyItsOwnFields() throws {

@@ -223,9 +223,9 @@ public func reactRelevantContexts(
 ///   back to the kind-less `date(_:)`. `.informational` means "this is not a
 ///   scheduled moment"; degrading it to a plain date would surface the widget
 ///   for a clue whose author asked for the opposite.
-/// - An unrecognized `kind`, `category`, `place` or `condition` — a bundle
-///   newer than this binary — drops that clue and keeps the rest. Same
-///   forward-compat posture as the node interpreters' `default:`.
+/// - An unrecognized `kind`, `dateKind`, `category`, `place` or `condition` —
+///   a bundle newer than this binary — drops that clue and keeps the rest.
+///   Same forward-compat posture as the node interpreters' `default:`.
 ///
 /// `dateRange` has no sub-26 path at all: `date(range:kind:)` is watchOS 26.0
 /// and the older `date(from:to:)` is deprecated AT 26.0, so there is nothing
@@ -251,9 +251,16 @@ public func reactRelevantContext(
             return nil
         }
         if #available(watchOS 26.0, *) {
-            let kind = ctx.dateKind.flatMap(reactRelevantDateKind) ?? .default
             let start = Date(timeIntervalSince1970: from / 1000)
             let end = Date(timeIntervalSince1970: to / 1000)
+            // An ABSENT dateKind defaults (`date(range:kind:)` has no kindless
+            // overload to fall back to); an UNRECOGNIZED one drops the clue,
+            // exactly as the `date` arm does. A kind this binary can't name is
+            // not a kind it may silently substitute `.default` for.
+            guard let name = ctx.dateKind else {
+                return .date(range: start...end, kind: .default)
+            }
+            guard let kind = reactRelevantDateKind(name) else { return nil }
             return .date(range: start...end, kind: kind)
         }
         return nil
