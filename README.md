@@ -417,6 +417,11 @@ refuses bundles that require it — "requires an app configuration change",
 i.e. enabling a sensitive feature (health, BLE, network, notifications, AI)
 always takes a native release, never just a new bundle.
 
+[`docs/ota-signing.md`](./docs/ota-signing.md) covers the rest of the update
+channel: key generation and rotation, the health signal, and how this
+JS-only, signed, capability-bounded design maps to **App Store Guideline
+3.3.1(B)** — what an OTA update may and may not change.
+
 Two worked examples (each its own workspace member, both verified on Linux):
 
 - [`examples/minimal-watch-app`](./examples/minimal-watch-app) — the smallest

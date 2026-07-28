@@ -178,6 +178,64 @@ for the precedents this shape follows.
 CryptoKit over `UpdatePlan.signedMessage`, so the signer and the verifier can't
 silently drift apart.
 
+## App Store compliance (Guideline 3.3.1(B))
+
+Shipping JavaScript over the air is **explicitly permitted** by Apple, and has
+been for years — but the permission is conditional, and the conditions are what
+this library's design is shaped around.
+
+**Where the clause lives.** Before June 2022 it was **§3.3.2** of the Apple
+Developer Program License Agreement; it then moved to **§3.3.1(B)**, where it is
+today (the App Review Guidelines point at it from 2.5.2), and the wording was
+revised again in **October 2025**. Same permission each time, renumbered and
+re-worded — which is itself the reason for the caveat at the end of this
+section.
+
+**The three conditions**, in the order they matter for a watch app:
+
+1. **It must not transform the app's purpose.** Downloaded code may not change
+   the app into something other than what was reviewed.
+2. **No store-within-a-store.** It may not create a storefront for other code,
+   or distribute someone else's code to the user.
+3. **It must not compromise user security.** It may not circumvent signing, the
+   sandbox, or the platform's other protections.
+
+### How this design maps to each
+
+| Condition | What the library does |
+|---|---|
+| Purpose unchanged | An OTA update carries **JavaScript only** — one `bundle.js` plus a small manifest. No native code, no dylibs, no downloaded bytecode. Entitlements, `Info.plist`, the target set, and every native capability stay in the code-signed binary, so a bundle can only re-arrange behavior the reviewed app already had. |
+| Purpose unchanged (enforced, not promised) | **`CapabilityGate`** (ARCH-01) refuses any bundle whose required feature set isn't a subset of the binary's — the answer is "update the app from the App Store", not "download more". **`HostPolicy`** (ARCH-07) lets the consumer narrow that further; a feature the app didn't authorize is absent from `__host` and rejects with `POLICY_DENIED`. Turning a sensitive feature (health, BLE, network, notifications, AI) on is **always a native release**. |
+| No store-within-a-store | One app, one bundle, one publisher: the update channel is a manifest URL **you** control, resolved against **your** trusted signer keys. There is no bundle marketplace, no third-party code distribution, and no purchase surface outside StoreKit (the `iap` capability is native). |
+| Security not compromised | Every bundle is **Ed25519-signed** over `v2:<keyId>:<version>:<expiresAt>:<bundle-js>`, with the `keyId` bound **inside** the signed bytes and the trust anchor (`signerPublicKeys`) shipping in the code-signed binary; an unknown `keyId` fails closed, empty keys refuse saves entirely, records are **re-verified at every boot** (app and widget), and the anti-rollback high-water mark plus the optional signed expiry stop replays. The bundle runs inside the app's own sandbox in an interpreter — it cannot reach anything the binary doesn't hand it. |
+| Security not compromised (availability side) | The **health gate**: `otaBootAttempts` rolls a bundle back to the last known-good after 3 un-blessed launches, and `OTAConfig.healthSignal = .explicit` makes the bundle prove itself with `markUpdateHealthy()` after your own checks. A bad update degrades to the reviewed, shipped bundle instead of stranding the user. |
+
+**On the bytecode.** The `.qbc` blob is **compiled on the device**, by the
+embedded engine, from the JavaScript you downloaded (`compileToBytecode` →
+`ota-bundle.qbc`) — it never crosses the network, and when signer keys are
+enforced the boot doesn't even use it: it runs the re-verified **source**
+instead ([`OTABootSequencer.swift`](../js/swift/Sources/ReactWatchSupport/OTABootSequencer.swift)).
+That is the same class of artifact as the Hermes bytecode every React Native app
+runs, and strictly more conservative than CodePush / Expo Updates, which ship
+that bytecode over the wire in the update itself — a long-accepted industry
+precedent for this clause.
+
+### The honest caveat
+
+Guidelines are applied **at review time, by a reviewer**, and they change: this
+one has been renumbered once and re-worded again in the last three years. Nothing
+here is legal advice, and none of it is a guarantee of approval. What the design
+gives you is the **argument** — a signed, capability-bounded, JS-only update
+channel that provably cannot exceed what the reviewed binary already declares —
+not the verdict. And the argument only covers the transport: if the update you
+want to ship would change *what your app is for*, that is a native release no
+matter what the channel technically allows.
+
+Sources:
+[Bitrise — what app stores allow with OTA updates](https://bitrise.io/blog/post/what-app-stores-allow-with-ota-updates-apple-and-google-policy-explained),
+[Capgo — Capacitor OTA updates & App Store approval](https://capgo.app/blog/capacitor-ota-updates-app-store-approval-guide/),
+[Codemagic — React Native OTA: what can be deployed](https://blog.codemagic.io/react-native-ota-what-can-be-deployed/).
+
 ## Threat-model note: the manifest itself is NOT signed (freeze exposure)
 
 The signature covers `v2:<keyId>:<version>:<expiresAt>:<bundle-js>` — the
