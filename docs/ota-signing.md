@@ -185,11 +185,22 @@ been for years — but the permission is conditional, and the conditions are wha
 this library's design is shaped around.
 
 **Where the clause lives.** Before June 2022 it was **§3.3.2** of the Apple
-Developer Program License Agreement; it then moved to **§3.3.1(B)**, where it is
-today (the App Review Guidelines point at it from 2.5.2), and the wording was
-revised again in **October 2025**. Same permission each time, renumbered and
-re-worded — which is itself the reason for the caveat at the end of this
-section.
+Developer Program License Agreement; it then moved to **§3.3.1(B)**
+("Executable Code"), where it is today, and the wording was revised again in
+**October 2025**. Same permission each time, renumbered and re-worded — which is
+itself the reason for the caveat at the end of this section.
+
+**The permission is in the license agreement only — don't expect to find it in
+the Guidelines.** The App Review Guidelines neither repeat §3.3.1(B) nor cite
+it, and **Guideline 2.5.2** — the rule a rejection is actually written against —
+is a standalone prohibition: "Apps should be self-contained in their bundles,
+and may not read or write data outside the designated container area, nor may
+they download, install, or execute code which introduces or changes features or
+functionality of the app, including other apps." Its one carve-out is for
+educational apps; there is none for interpreted code. So don't argue to a
+reviewer that 2.5.2 points at §3.3.1(B); it doesn't. What reconciles the two is
+the mapping below — an update that cannot exceed what the reviewed binary
+already declares isn't the kind of change 2.5.2 is aimed at.
 
 **The three conditions**, in the order they matter for a watch app:
 
