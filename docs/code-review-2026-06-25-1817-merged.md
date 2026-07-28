@@ -218,8 +218,16 @@ needs it.
   Saying so beats claiming it.
 
 Gate counts at the end of the session: `swift test` **307** (was 303),
-`pnpm test` **481** (was 472), typecheck + biome + codegen-drift +
+`pnpm test` **481** (was 472), typecheck + codegen-drift +
 `format:swift:check` (exit 0) + embed-smoke all clean.
+
+**Correction (2026-07-28):** the line above originally also claimed **biome**
+clean. It was not. `pnpm lint` exited 1 from c93f231 through c66f0c7 with
+`src/widgets.ts lint/complexity/noExcessiveCognitiveComplexity — Excessive
+complexity of 31 detected (max: 25)` on `renderWidgetsInner`; the same false
+"biome clean" claim appears in c93f231's and 4160775's commit bodies (unfixable
+in place, both are pushed). The gate was restored to exit 0 by splitting
+`renderControls` out of `renderWidgetsInner`.
 
 ### Verdict legend
 

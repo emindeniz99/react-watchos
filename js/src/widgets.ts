@@ -502,6 +502,13 @@ function renderWidgetsInner(
       );
     }
   }
+  return stamped(now, stateRevision, widgets, renderControls());
+}
+
+/** Resolves every registered control's publishable metadata. Split out of
+ *  `renderWidgetsInner` to keep that function under the cognitive-complexity
+ *  budget; the behaviour is unchanged. */
+function renderControls(): PublishedWidgets["controls"] {
   const controls: PublishedWidgets["controls"] = {};
   for (const { kind, value, ...metadata } of controlRegistry.values()) {
     // Same per-item isolation the widget loop uses, for the same reason: a
@@ -520,7 +527,7 @@ function renderWidgetsInner(
       );
     }
   }
-  return stamped(now, stateRevision, widgets, controls);
+  return controls;
 }
 
 /** Assembles a payload with its ARCH-06 provenance stamps. Every payload the
