@@ -112,6 +112,13 @@ const CASES: readonly (readonly [pattern: string, route: string])[] = [
   ["/[...]", "/a/b"],
   ["/[[...]]", "/"],
   ["/[[...]]", "/a/b"],
+  // ...and the fall-through itself: `[]` matches the LITERAL "[]", `[...]`
+  // captures under the name "...". Without these the four rejections above
+  // hold for a matcher that simply refuses every unnamed form, so the fixture
+  // could not tell the shared fall-through from a one-sided blanket reject.
+  ["/[]", "/[]"],
+  ["/[...]", "/a"],
+  ["/[[...]]", "/a"],
 ];
 
 interface FixtureCase {

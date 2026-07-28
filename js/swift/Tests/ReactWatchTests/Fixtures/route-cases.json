@@ -451,6 +451,38 @@
       "pattern": "/[[...]]",
       "route": "/a/b",
       "match": null
+    },
+    {
+      "pattern": "/[]",
+      "route": "/[]",
+      "match": {
+        "params": {},
+        "score": 2
+      }
+    },
+    {
+      "pattern": "/[...]",
+      "route": "/a",
+      "match": {
+        "params": {
+          "...": [
+            "a"
+          ]
+        },
+        "score": 1
+      }
+    },
+    {
+      "pattern": "/[[...]]",
+      "route": "/a",
+      "match": {
+        "params": {
+          "[...]": [
+            "a"
+          ]
+        },
+        "score": 1
+      }
     }
   ]
 }
