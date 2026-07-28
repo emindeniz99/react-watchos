@@ -294,6 +294,71 @@ final class RouteMatcherTests: XCTestCase {
     }
 }
 
+/// The cross-language half of the route contract. `RouteMatcher` and js
+/// `matchRoute` are two hand-kept implementations of one syntax: a deep link
+/// they disagree about renders one screen with another's params, and until this
+/// fixture existed each side was only ever checked against its OWN hand-written
+/// expectations — the arrangement that lets two implementations drift while
+/// both stay green.
+///
+/// `js/test/route-contract.test.ts` runs the REAL `matchRoute` over a case table
+/// spanning literals, `[param]`, `[...catchAll]`, `[[...optional]]`, segment
+/// splitting and percent-decoding, and writes its ACTUAL output here. This
+/// decodes that output and requires `RouteMatcher` to reproduce it exactly —
+/// params and specificity score, matches and non-matches alike.
+final class RouteMatcherConformanceTests: XCTestCase {
+    private struct Expected: Decodable {
+        /// JS captures a `[id]` param as a bare string and a catch-all as an
+        /// array; the fixture normalizes both to arrays, which is Swift's own
+        /// representation.
+        let params: [String: [String]]
+        let score: Int
+    }
+
+    private struct Case: Decodable {
+        let pattern: String
+        let route: String
+        /// nil = `matchRoute` rejected this route for this pattern.
+        let match: Expected?
+    }
+
+    private struct Fixture: Decodable {
+        let cases: [Case]
+    }
+
+    func testMatchesTheJSMatcherOnEveryCase() throws {
+        let url = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "route-cases", withExtension: "json",
+                subdirectory: "Fixtures"
+            ),
+            "missing fixture route-cases.json — run the JS suite to regenerate"
+        )
+        let fixture = try JSONDecoder().decode(
+            Fixture.self, from: try Data(contentsOf: url))
+
+        // A truncated fixture must not read as a pass: the JS side asserts the
+        // same floors before writing, so a table that lost its matching or its
+        // rejecting half fails on both sides.
+        XCTAssertGreaterThan(fixture.cases.count, 30)
+        XCTAssertGreaterThan(fixture.cases.filter { $0.match != nil }.count, 20)
+        XCTAssertGreaterThan(fixture.cases.filter { $0.match == nil }.count, 8)
+
+        for testCase in fixture.cases {
+            let label = "pattern \(testCase.pattern) route \(testCase.route)"
+            let actual = RouteMatcher.match(
+                pattern: testCase.pattern, route: testCase.route)
+            guard let expected = testCase.match else {
+                XCTAssertNil(actual, "\(label): js rejects it, Swift matched")
+                continue
+            }
+            let match = try XCTUnwrap(actual, "\(label): js matches it, Swift did not")
+            XCTAssertEqual(match.params, expected.params, "\(label): params differ")
+            XCTAssertEqual(match.score, expected.score, "\(label): score differs")
+        }
+    }
+}
+
 // ARCH-09: the structured `__dispatchEvent` verdict. parse() must map a
 // missing/undecodable result — no bundle global, or a thrown JS handler —
 // to a rollback, never to an accepted navigation.

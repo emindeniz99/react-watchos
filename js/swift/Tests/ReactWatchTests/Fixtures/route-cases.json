@@ -1,0 +1,436 @@
+{
+  "cases": [
+    {
+      "pattern": "/lists",
+      "route": "/lists",
+      "match": {
+        "params": {},
+        "score": 2
+      }
+    },
+    {
+      "pattern": "/lists",
+      "route": "/list",
+      "match": null
+    },
+    {
+      "pattern": "/lists",
+      "route": "/lists/1",
+      "match": null
+    },
+    {
+      "pattern": "/lists",
+      "route": "/",
+      "match": null
+    },
+    {
+      "pattern": "/Lists",
+      "route": "/lists",
+      "match": null
+    },
+    {
+      "pattern": "/",
+      "route": "/",
+      "match": {
+        "params": {},
+        "score": 0
+      }
+    },
+    {
+      "pattern": "",
+      "route": "",
+      "match": {
+        "params": {},
+        "score": 0
+      }
+    },
+    {
+      "pattern": "/",
+      "route": "/a",
+      "match": null
+    },
+    {
+      "pattern": "/a/b",
+      "route": "/a/b",
+      "match": {
+        "params": {},
+        "score": 4
+      }
+    },
+    {
+      "pattern": "/a/b",
+      "route": "/a",
+      "match": null
+    },
+    {
+      "pattern": "/a/b",
+      "route": "/a/b/",
+      "match": {
+        "params": {},
+        "score": 4
+      }
+    },
+    {
+      "pattern": "/a/b",
+      "route": "//a//b//",
+      "match": {
+        "params": {},
+        "score": 4
+      }
+    },
+    {
+      "pattern": "//a//b//",
+      "route": "/a/b",
+      "match": {
+        "params": {},
+        "score": 4
+      }
+    },
+    {
+      "pattern": "/list/[id]",
+      "route": "/list/42",
+      "match": {
+        "params": {
+          "id": [
+            "42"
+          ]
+        },
+        "score": 3
+      }
+    },
+    {
+      "pattern": "/list/[id]",
+      "route": "/list",
+      "match": null
+    },
+    {
+      "pattern": "/list/[id]",
+      "route": "/list/42/items",
+      "match": null
+    },
+    {
+      "pattern": "/list/[id]/edit",
+      "route": "/list/42/edit",
+      "match": {
+        "params": {
+          "id": [
+            "42"
+          ]
+        },
+        "score": 5
+      }
+    },
+    {
+      "pattern": "/list/[id]/edit",
+      "route": "/list/42/delete",
+      "match": null
+    },
+    {
+      "pattern": "/[a]/[b]",
+      "route": "/x/y",
+      "match": {
+        "params": {
+          "a": [
+            "x"
+          ],
+          "b": [
+            "y"
+          ]
+        },
+        "score": 2
+      }
+    },
+    {
+      "pattern": "/[a][b]",
+      "route": "/x",
+      "match": {
+        "params": {
+          "a][b": [
+            "x"
+          ]
+        },
+        "score": 1
+      }
+    },
+    {
+      "pattern": "/shop/[...rest]",
+      "route": "/shop/a",
+      "match": {
+        "params": {
+          "rest": [
+            "a"
+          ]
+        },
+        "score": 1
+      }
+    },
+    {
+      "pattern": "/shop/[...rest]",
+      "route": "/shop/a/b/c",
+      "match": {
+        "params": {
+          "rest": [
+            "a",
+            "b",
+            "c"
+          ]
+        },
+        "score": 1
+      }
+    },
+    {
+      "pattern": "/shop/[...rest]",
+      "route": "/shop",
+      "match": null
+    },
+    {
+      "pattern": "/[...all]",
+      "route": "/a/b",
+      "match": {
+        "params": {
+          "all": [
+            "a",
+            "b"
+          ]
+        },
+        "score": -1
+      }
+    },
+    {
+      "pattern": "/[...all]",
+      "route": "/",
+      "match": null
+    },
+    {
+      "pattern": "/shop/[name]/[...rest]",
+      "route": "/shop/nike/a/b",
+      "match": {
+        "params": {
+          "name": [
+            "nike"
+          ],
+          "rest": [
+            "a",
+            "b"
+          ]
+        },
+        "score": 2
+      }
+    },
+    {
+      "pattern": "/shop/[name]/[...rest]",
+      "route": "/shop/nike",
+      "match": null
+    },
+    {
+      "pattern": "/shop/[[...rest]]",
+      "route": "/shop",
+      "match": {
+        "params": {
+          "rest": []
+        },
+        "score": 1
+      }
+    },
+    {
+      "pattern": "/shop/[[...rest]]",
+      "route": "/shop/a/b",
+      "match": {
+        "params": {
+          "rest": [
+            "a",
+            "b"
+          ]
+        },
+        "score": 1
+      }
+    },
+    {
+      "pattern": "/[[...all]]",
+      "route": "/",
+      "match": {
+        "params": {
+          "all": []
+        },
+        "score": -1
+      }
+    },
+    {
+      "pattern": "/shop/[name]/[[...rest]]",
+      "route": "/shop/nike",
+      "match": {
+        "params": {
+          "name": [
+            "nike"
+          ],
+          "rest": []
+        },
+        "score": 2
+      }
+    },
+    {
+      "pattern": "/shop/[name]/[[...rest]]",
+      "route": "/shop/nike/shoes/running",
+      "match": {
+        "params": {
+          "name": [
+            "nike"
+          ],
+          "rest": [
+            "shoes",
+            "running"
+          ]
+        },
+        "score": 2
+      }
+    },
+    {
+      "pattern": "/shop/[name]/[[...rest]]",
+      "route": "/shop",
+      "match": null
+    },
+    {
+      "pattern": "/[[...rest]]x",
+      "route": "/[[...rest]]x",
+      "match": {
+        "params": {},
+        "score": 2
+      }
+    },
+    {
+      "pattern": "/[[...rest]]x",
+      "route": "/y",
+      "match": null
+    },
+    {
+      "pattern": "/a/[...rest]/b",
+      "route": "/a/x/y",
+      "match": {
+        "params": {
+          "rest": [
+            "x",
+            "y"
+          ]
+        },
+        "score": 1
+      }
+    },
+    {
+      "pattern": "/list/[id]",
+      "route": "/list/a%2Fb%20100%25",
+      "match": {
+        "params": {
+          "id": [
+            "a/b 100%"
+          ]
+        },
+        "score": 3
+      }
+    },
+    {
+      "pattern": "/shop/[name]/[...rest]",
+      "route": "/shop/caf%C3%A9/a%2Fb/c",
+      "match": {
+        "params": {
+          "name": [
+            "café"
+          ],
+          "rest": [
+            "a/b",
+            "c"
+          ]
+        },
+        "score": 2
+      }
+    },
+    {
+      "pattern": "/café/[id]",
+      "route": "/caf%C3%A9/7",
+      "match": {
+        "params": {
+          "id": [
+            "7"
+          ]
+        },
+        "score": 3
+      }
+    },
+    {
+      "pattern": "/café/[id]",
+      "route": "/café/7",
+      "match": {
+        "params": {
+          "id": [
+            "7"
+          ]
+        },
+        "score": 3
+      }
+    },
+    {
+      "pattern": "/café/[id]",
+      "route": "/tea/7",
+      "match": null
+    },
+    {
+      "pattern": "/a b/[id]",
+      "route": "/a%20b/7",
+      "match": {
+        "params": {
+          "id": [
+            "7"
+          ]
+        },
+        "score": 3
+      }
+    },
+    {
+      "pattern": "/list/[id]",
+      "route": "/list/a%zz",
+      "match": {
+        "params": {
+          "id": [
+            "a%zz"
+          ]
+        },
+        "score": 3
+      }
+    },
+    {
+      "pattern": "/list/[id]",
+      "route": "/list/%FF",
+      "match": {
+        "params": {
+          "id": [
+            "%FF"
+          ]
+        },
+        "score": 3
+      }
+    },
+    {
+      "pattern": "/list/[id]",
+      "route": "/list/100%",
+      "match": {
+        "params": {
+          "id": [
+            "100%"
+          ]
+        },
+        "score": 3
+      }
+    },
+    {
+      "pattern": "/list/[id]",
+      "route": "/list/a+b",
+      "match": {
+        "params": {
+          "id": [
+            "a+b"
+          ]
+        },
+        "score": 3
+      }
+    }
+  ]
+}
