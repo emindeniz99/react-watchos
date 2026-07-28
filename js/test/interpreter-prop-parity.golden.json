@@ -342,11 +342,20 @@
     "app": [
       "accessibilityHint",
       "accessibilityLabel",
+      "background",
+      "cornerRadius",
+      "focusable",
       "glass",
+      "ignoresSafeArea",
       "leadingSwipeActionTint",
       "onChange",
+      "onDrag",
+      "onLongPress",
+      "onSwipe",
+      "opacity",
       "selection",
-      "swipeActionTint"
+      "swipeActionTint",
+      "tint"
     ],
     "widget": [
       "accessibilityHint",

@@ -45,7 +45,28 @@ import { components, propDegradations } from "../codegen/schema";
 //      `__shared__` key rather than copied into all 41 components;
 //   2. NAMED HELPERS — a case body that delegates to a helper declared in the
 //      same file has that helper's reads folded in (transitively), so a
-//      delegating case is no longer an empty set.
+//      delegating case is no longer an empty set;
+//   3. VIEWMODIFIER STRUCTS — the app applies most of its shared chain by TYPE
+//      (`.modifier(LayoutModifier(node: node))`), not by calling a named
+//      helper, so following only funcs/vars stopped the walk dead at
+//      NodeView.body.
+//
+// (3) was itself a 2026-07-28 correction: as first written, this widening
+// claimed to cover "the app's LayoutModifier/GlassModifier/A11y/Gesture/
+// SwipeActions chain" but reached only the reads spelled out AT the call site
+// (glass, accessibilityLabel/Hint, the swipe tints). Deleting
+// `.opacity(node.double("opacity") ?? 1)` from LayoutModifier — a silent
+// no-op for every app node — left the gate 5/5 green and the golden
+// byte-identical. Nine props were unguarded (background, cornerRadius,
+// opacity, tint, ignoresSafeArea, focusable, onLongPress, onSwipe, onDrag) and
+// the golden asserted the INVERSE of reality, listing four of them widget-only
+// while the app read them too.
+//
+// Known and deliberate limitation, symmetric across both interpreters so it
+// hides no drift: `node.props["padding"]`-style reads (padding, frame,
+// animation) match no `readsIn` pattern on EITHER side, as do reads through a
+// variable key (`node.string(labelKey)` in EdgeSwipeActionModifier). Widening
+// `readsIn` for those is a separate change.
 //
 // The dispatch member itself (`rendered` / `render`) is deliberately NOT
 // expanded from `body`: it contains the whole switch, so following it would
@@ -94,17 +115,31 @@ function readsIn(body: string): Set<string> {
 }
 
 /**
- * Every `func`/`var` in the file whose declaration is immediately followed by a
- * brace, mapped to its balanced-brace body. Stored properties (`let node:
- * RNNode`, `@ScaledMetric private var pickerMinHeight: CGFloat = 90`) have no
- * brace and are skipped, so a helper name can't accidentally bind to the next
- * declaration's body.
+ * Every `func`/`var`/`ViewModifier struct` in the file whose declaration is
+ * immediately followed by a brace, mapped to its balanced-brace body. Stored
+ * properties (`let node: RNNode`, `@ScaledMetric private var pickerMinHeight:
+ * CGFloat = 90`) have no brace and are skipped, so a helper name can't
+ * accidentally bind to the next declaration's body.
+ *
+ * `ViewModifier` structs are included because the shared chain applies them by
+ * TYPE — `.modifier(LayoutModifier(node: node))` — not by calling a named
+ * helper. Without them the walk stops at NodeView.body and nine props applied
+ * to every app node (background, cornerRadius, opacity, tint, ignoresSafeArea,
+ * focusable, onLongPress, onSwipe, onDrag) are invisible to the gate.
  */
 function declarationBodies(src: string): Map<string, string> {
   const out = new Map<string, string>();
   const decl =
-    /\b(?:func|var)\s+(\w+)\s*(?:\([^)]*\))?\s*(?::[^={\n]+?)?\s*(?:->[^{\n]+?)?\s*\{/g;
+    /\b(?:func|var|struct)\s+(\w+)\s*(?:\([^)]*\))?\s*(?::[^={\n]+?)?\s*(?:->[^{\n]+?)?\s*\{/g;
   for (const m of src.matchAll(decl)) {
+    // Only ViewModifier structs — expanding `View` structs would fold
+    // NodeView itself (i.e. every case) into whatever names it.
+    if (
+      (m[0] as string).startsWith("struct") &&
+      !/\bViewModifier\b/.test(m[0] as string)
+    ) {
+      continue;
+    }
     const open = (m.index as number) + (m[0] as string).length - 1;
     let depth = 0;
     for (let i = open; i < src.length; i++) {
@@ -176,7 +211,14 @@ function propReads(file: string, dispatch: string): Record<string, string[]> {
     // Fold in the reads of any same-file helper this case delegates to — the
     // `case "Button": buttonView` -> `glassStyled` -> `buttonStyle` chain that
     // used to leave a delegating case looking like it read nothing.
-    const reads = readsWithHelpers(body, decls, new Set([dispatch]));
+    // `body` joins the skip set with the dispatch member: now that
+    // ViewModifier structs are followable, a case applying one (e.g.
+    // `case "Grid":` -> `.modifier(A11yModifier(...))`) would resolve that
+    // struct's `func body(content:)` token to NodeView's own top-level `body`
+    // (first-declaration-wins) and fold the WHOLE shared chain into that one
+    // component. `body` is a member of whatever type, never a helper, and the
+    // shared walk below already starts from it.
+    const reads = readsWithHelpers(body, decls, new Set([dispatch, "body"]));
     for (const name of site.names) {
       const merged = new Set([...(out[name] ?? []), ...reads]);
       out[name] = [...merged].sort();
@@ -187,7 +229,7 @@ function propReads(file: string, dispatch: string): Record<string, string[]> {
   // applyLayout/applyA11y), minus the switch it dispatches through.
   const bodySrc = decls.get("body");
   out[SHARED_KEY] = bodySrc
-    ? [...readsWithHelpers(bodySrc, decls, new Set([dispatch]))].sort()
+    ? [...readsWithHelpers(bodySrc, decls, new Set([dispatch, "body"]))].sort()
     : [];
   return out;
 }
@@ -258,6 +300,25 @@ describe("interpreter per-prop parity (M6-interim golden)", () => {
       "`buttonStyle` is read in the glassStyled helper — the scan must " +
         "follow a case's delegation",
     ).toContain("buttonStyle");
+  });
+
+  // Same reasoning as above, for the third widening: these two props exist
+  // ONLY inside a ViewModifier struct's `func body(content:)` — `opacity` in
+  // LayoutModifier, `onLongPress` in GestureModifier — never at NodeView.body's
+  // call site. Pinned by NAME because the golden is regenerated wholesale: if a
+  // refactor put the shared chain back out of the scan's reach, the golden
+  // would be rewritten quietly and the gate would go down with it. Deleting
+  // `.opacity(node.double("opacity") ?? 1)` from LayoutModifier is exactly the
+  // silent app-side no-op that used to pass 5/5 green.
+  it("sees props read only inside a ViewModifier struct's body", () => {
+    for (const prop of ["opacity", "onLongPress"]) {
+      expect(
+        extracted[SHARED_KEY]?.app,
+        `\`${prop}\` is read only inside a ViewModifier applied by ` +
+          "NodeView.body — the scan must follow `.modifier(T(...))` by type, " +
+          "not just named helpers",
+      ).toContain(prop);
+    }
   });
 
   // A2: close the loop between the DECLARED prop degradations (schema.ts ->
