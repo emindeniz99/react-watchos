@@ -57,6 +57,22 @@ once in Xcode: Add Package Dependencies ▸ Add Local ▸ this folder). The wire
 models are generated from `js/codegen/schema.ts` — run `npm run codegen`; never
 edit `Sources/ReactWatchCore/WireModel.swift` by hand.
 
+## Breaking changes
+
+Pre-release, this package breaks freely (project rule 1: no shims, no
+compat overloads). Breaks in `public` API of a shipped product are recorded
+here, because the Swift API ships inside the npm package (`files` includes
+`swift/Package.swift`, `swift/Sources`, `swift/Tests`) and the JS changelog
+does not otherwise describe it.
+
+- **`reactControlMetadata` returns a 3-tuple.**
+  `reactControlMetadata(_:appGroupId:)` and `reactControlMetadata(_:in:)` now
+  return `(label: String, systemName: String?, actionLabel: String?)?` instead
+  of `(label: String, systemName: String?)?`. A consumer destructuring the pair
+  — `if let (label, symbol) = reactControlMetadata(…)` — or annotating the
+  2-tuple no longer compiles. Read `.actionLabel`, or widen the pattern to
+  three elements.
+
 ## Notes
 
 - Built in Swift 6 language mode. `-warnings-as-errors` is applied to the
