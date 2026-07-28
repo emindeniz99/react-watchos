@@ -9,9 +9,11 @@ import XCTest
 /// the REAL wrappers (the payload `invoke()` actually serialized) — never a
 /// hand-authored copy, the same discipline as `WireContractTests`. The RESPONSE
 /// fixtures are the result each wrapper resolved from a TS-literal mock reply,
-/// bound to the declared shape by the `Exact<>` compile-time assertion — honest
-/// but weaker: they pin the JS consumer side, not the native producers (a
-/// native→wire producer-key gate is a recorded follow-up in the backlog).
+/// bound to the declared shape by the `Exact<>` compile-time assertion: that
+/// pins the JS consumer side. The native PRODUCERS — the hand-built
+/// `[String: Any]` each handler resolves with — are pinned separately by
+/// `js/test/invoke-producer-keys.test.ts`, which scans those Swift functions
+/// textually (they are watchOS-only, so they cannot be compiled here).
 /// Here each fixture is decoded with the schema-generated strict decoder
 /// (`Generated/InvokeShapes.swift`, undeclared keys reject), and the two
 /// payloads that have a real shipped decoder are additionally run through it.
@@ -30,16 +32,41 @@ final class InvokeContractTests: XCTestCase {
         try fixture("invoke-\(method)-request")
     }
 
+    /// Every request fixture for `method`: the canonical
+    /// `invoke-<method>-request.json` plus any `invoke-<method>--<variant>-`
+    /// one the JS suite wrote. Discovered from the bundle rather than listed
+    /// here, so a variant added on the JS side is decoded without a Swift edit
+    /// — a fixture nobody reads would be worse than no fixture.
+    private func requestFixtures(_ method: String) throws -> [Data] {
+        let base = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "invoke-\(method)-request", withExtension: "json",
+                subdirectory: "Fixtures"
+            ),
+            "missing fixture invoke-\(method)-request.json"
+        )
+        let directory = base.deletingLastPathComponent()
+        var all = [try Data(contentsOf: base)]
+        let names = try FileManager.default.contentsOfDirectory(
+            atPath: directory.path)
+        for name in names.sorted()
+        where name.hasPrefix("invoke-\(method)--") && name.hasSuffix("-request.json") {
+            all.append(try Data(contentsOf: directory.appendingPathComponent(name)))
+        }
+        return all
+    }
+
     /// Every declared REQUEST shape decodes the payload the JS wrapper really
     /// sends. A renamed or dropped required field (the `afterMs` class of bug)
     /// throws here instead of degrading to a default on a watch.
     func testDeclaredRequestShapesDecodeRealPayloads() throws {
         XCTAssertFalse(InvokeShapes.requestDecoders.isEmpty)
         for (method, decode) in InvokeShapes.requestDecoders {
-            let data = try requestFixture(method)
-            XCTAssertNoThrow(
-                try decode(data),
-                "\(method)'s payload no longer matches its schema request shape")
+            for data in try requestFixtures(method) {
+                XCTAssertNoThrow(
+                    try decode(data),
+                    "\(method)'s payload no longer matches its schema request shape")
+            }
         }
     }
 

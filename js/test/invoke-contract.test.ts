@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { invokeShapes } from "../codegen/schema";
 import { isOnDeviceAIAvailable } from "../src/ai";
 import { playAudio } from "../src/audio";
 import { scheduleBackgroundRefresh } from "../src/background";
@@ -59,18 +60,33 @@ const fixturesDir = join(__dirname, "../swift/Tests/ReactWatchTests/Fixtures");
  *  a stale file left on disk from a method that has since been removed. */
 const wroteRequest = new Set<string>();
 const wroteResponse = new Set<string>();
+/** Every request field any fixture written this run actually carried, per
+ *  method — unioned across a method's variants. The field-coverage assertion
+ *  below reads it. */
+const requestFields = new Map<string, Set<string>>();
 
+/** `variant` writes a SECOND fixture for the same method
+ *  (`invoke-<method>--<variant>-request.json`); the Swift side decodes every
+ *  variant it finds with that method's decoder, so the extra file is not
+ *  inert. Used where one payload cannot exercise the whole declared shape. */
 function writeFixture(
   method: string,
   kind: "request" | "response",
   json: string,
+  variant?: string,
 ): void {
   mkdirSync(fixturesDir, { recursive: true });
+  const stem = variant ? `${method}--${variant}` : method;
   writeFileSync(
-    join(fixturesDir, `invoke-${method}-${kind}.json`),
+    join(fixturesDir, `invoke-${stem}-${kind}.json`),
     `${JSON.stringify(JSON.parse(json), null, 2)}\n`,
   );
   (kind === "request" ? wroteRequest : wroteResponse).add(method);
+  if (kind === "request") {
+    const seen = requestFields.get(method) ?? new Set<string>();
+    for (const key of Object.keys(JSON.parse(json) as object)) seen.add(key);
+    requestFields.set(method, seen);
+  }
 }
 
 /**
@@ -244,6 +260,27 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       expect(payloadJson, `${method} sent no payload`).not.toBe("");
       writeFixture(method, "request", payloadJson);
     }
+
+    // `at` and `afterMs` are the one mutually EXCLUSIVE pair in the declared
+    // request surface (`at` wins over `afterMs`), so no single payload can
+    // carry both the way a caller would write them — and the field-coverage
+    // assertion below would have to except one of them, which is exactly the
+    // hole it exists to close. A second fixture exercises the other half; the
+    // Swift side decodes it with the same strict decoder. Written after the
+    // loop because it reuses the method's recording slot.
+    await scheduleNotification({
+      id: "fixture-notification-at",
+      title: "Stand up",
+      body: "You have been sitting for an hour",
+      at: new Date(1_800_000_000_000),
+      sound: false,
+    });
+    writeFixture(
+      "scheduleNotification",
+      "request",
+      payloads.get("scheduleNotification") as string,
+      "at",
+    );
   });
 
   it("writes the result shape every shape-returning wrapper resolves", async () => {
@@ -298,6 +335,34 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       }
       if ("response" in shape && !wroteResponse.has(method)) {
         missing.push(`${method} response`);
+      }
+    }
+    expect(missing).toEqual([]);
+  });
+
+  it("carries every declared request field in at least one fixture", () => {
+    // The gap the strict Swift decoder cannot see: it rejects an UNDECLARED
+    // key and a missing REQUIRED one, but a pure DROP of an optional field
+    // (removed from the wrapper with nothing put in its place) just makes the
+    // fixture one key smaller, and it still decodes. Nothing then connects the
+    // schema's `at?`/`confirm?`/`span?` to any traffic at all.
+    //
+    // Requiring every declared field — optional included — to appear in some
+    // fixture written THIS RUN makes the fixtures the evidence they claim to
+    // be: a dropped optional leaves its field un-exercised and fails here.
+    // There is deliberately no exception list; the one field pair that cannot
+    // share a payload (`at`/`afterMs`) gets a second fixture above instead.
+    const missing: string[] = [];
+    for (const [method, shape] of Object.entries(INVOKE_SHAPES)) {
+      if (!("request" in shape) || shape.request === "opaque") continue;
+      const declared = invokeShapes.find((s) => s.ts === shape.request);
+      expect(
+        declared,
+        `no invokeShapes entry for ${shape.request}`,
+      ).toBeDefined();
+      const seen = requestFields.get(method) ?? new Set<string>();
+      for (const field of declared?.fields ?? []) {
+        if (!seen.has(field.name)) missing.push(`${method}.${field.name}`);
       }
     }
     expect(missing).toEqual([]);
