@@ -178,7 +178,7 @@ for the precedents this shape follows.
 CryptoKit over `UpdatePlan.signedMessage`, so the signer and the verifier can't
 silently drift apart.
 
-## App Store compliance (Guideline 3.3.1(B))
+## App Store compliance (Developer Program License Agreement §3.3.1(B))
 
 Shipping JavaScript over the air is **explicitly permitted** by Apple, and has
 been for years — but the permission is conditional, and the conditions are what
