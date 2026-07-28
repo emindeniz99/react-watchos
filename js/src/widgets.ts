@@ -195,15 +195,18 @@ export type PoiCategory =
  * discriminant is the only shape that can carry a POI category, an inferred
  * place, or a fitness/sleep/headphones condition at all.
  *
- * Availability is per-arm and handled natively: `poi` and any `dateKind` need
- * watchOS 26.0 and are dropped below it (`@available` gate in
- * `reactRelevantContext`); the other six families are watchOS 10.0 — the
- * package's own floor — so they work on every supported watch.
+ * Availability is per-arm and handled natively: `poi`, `dateRange` and any
+ * explicit `dateKind` need watchOS 26.0 and are dropped below it (`@available`
+ * gate in `reactRelevantContext`); the other six families are watchOS 10.0 —
+ * the package's own floor — so they work on every supported watch.
  */
 export type RelevantContext =
   /** Surface near an exact moment. */
   | { kind: "date"; date: number | Date; dateKind?: RelevantDateKind }
-  /** Surface across a closed date range. */
+  /**
+   * Surface across a closed date range (watchOS 26.0 — `date(range:kind:)` has
+   * no sub-26 overload, so this clue is dropped entirely below it).
+   */
   | {
       kind: "dateRange";
       from: number | Date;
