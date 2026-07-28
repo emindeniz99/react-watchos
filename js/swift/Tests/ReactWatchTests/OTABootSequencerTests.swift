@@ -477,6 +477,70 @@ final class OTABootSequencerTests: XCTestCase {
         XCTAssertEqual(budgetSeenByShipped, [0])
     }
 
+    /// The fourth property, and the one an `evalShipped`-only runtime swap
+    /// MISSES: an OTA eval poisons the host's context the moment it runs, but
+    /// `evalShipped` is not the only way out of `boot()` afterwards. Under a
+    /// hard gate whose shipped bundle sits below the high-water mark, dropping
+    /// the failed candidate makes the re-decision return `.blockForUpdate` and
+    /// `boot()` returns from THERE — zero shipped evals — so a host that swaps
+    /// only inside `evalShipped` leaves the half-executed bundle installed as
+    /// its live runtime for the rest of the session while the UI says "update
+    /// required". Both fallback routes reach that outcome, so the host cannot
+    /// special-case one of them; the soft-gate row is the control that isolates
+    /// the GATE, not the throw, as what decides whether a swap happens at all.
+    /// Pinned as an enumeration: a new no-shipped-eval exit, or one of these
+    /// starting to route through `evalShipped`, fails here instead of silently
+    /// changing where the host has to swap.
+    func testPoisonedOTAEvalCanEndInBlockForUpdateWithNoShippedEval() throws {
+        // Route 1 — the candidate satisfies the gate, evaluates, and throws.
+        counters.highWater = 5
+        storeRecord(signedRecord(version: 5), in: active)
+        let blocked = try runBoot(
+            makeSequencer(gate: .hard, shippedVersion: 1), sourceThrows: true)
+        guard case .blockForUpdate = blocked.outcome else {
+            return XCTFail("expected block, got \(blocked.outcome)")
+        }
+        XCTAssertEqual(
+            blocked.sources.count, 1,
+            "the candidate DID evaluate — the host's context is poisoned here")
+        XCTAssertEqual(
+            blocked.shipped, 0,
+            "and evalShipped — the only other place a host can notice — never runs")
+
+        // Route 2 — the crash-loop rollback whose restored known-good bundle
+        // also throws. Same poisoned context, same outcome, different branch.
+        active = MemorySlot()
+        knownGood = MemorySlot()
+        counters = MemoryCounters()
+        counters.highWater = 5
+        counters.attempts = 3
+        storeRecord(signedRecord(js: "bad()", version: 5), in: active)
+        storeRecord(signedRecord(js: "good()", version: 5), in: knownGood)
+        let rolledBack = try runBoot(
+            makeSequencer(gate: .hard, shippedVersion: 1), sourceThrows: true)
+        guard case .blockForUpdate = rolledBack.outcome else {
+            return XCTFail("expected block, got \(rolledBack.outcome)")
+        }
+        XCTAssertEqual(rolledBack.sources, ["good()"], "the rollback bundle ran")
+        XCTAssertEqual(rolledBack.shipped, 0)
+
+        // Control — identical inputs, soft gate. The re-decision now allows the
+        // stale shipped bundle, so `evalShipped` does run and the swap inside it
+        // covers this one.
+        active = MemorySlot()
+        knownGood = MemorySlot()
+        counters = MemoryCounters()
+        counters.highWater = 5
+        storeRecord(signedRecord(version: 5), in: active)
+        let fellBack = try runBoot(
+            makeSequencer(gate: .soft, shippedVersion: 1), sourceThrows: true)
+        guard case .ranShipped = fellBack.outcome else {
+            return XCTFail("expected shipped, got \(fellBack.outcome)")
+        }
+        XCTAssertEqual(fellBack.sources.count, 1)
+        XCTAssertEqual(fellBack.shipped, 1)
+    }
+
     func testBootEnforcedReVerifyFailureDropsPlantedRecord() throws {
         // An App-Group writer plants a record with a bad signature (NF-35).
         storeRecord(

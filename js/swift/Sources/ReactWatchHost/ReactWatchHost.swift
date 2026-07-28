@@ -1198,6 +1198,24 @@ final class ReactWatchModel {
                     subsystem: .ota, details: notice)
             }
         case .blockForUpdate(let notice):
+            // A poisoned OTA eval reaches this outcome too, and `evalShipped`
+            // — the only other caller of the swap — is NOT called on the way:
+            // when the failed candidate is dropped, the sequencer re-runs the
+            // policy with no candidate, and a shipped bundle below the
+            // high-water mark returns `.blockForUpdate` BEFORE `evalShipped`
+            // (pinned by `testBootFailedCandidateReRunsPolicyAndHardGateBlocks`,
+            // whose shipped-eval count is 0). Without this the half-executed
+            // bundle would stay the app's live runtime for the whole session
+            // while the UI says "update required": its armed timers keep
+            // firing, `pushNativeEvent` (scenePhase/sensors/connectivity/push)
+            // keeps feeding it, and every foreground `reconcileWidgets()`
+            // evaluates its `__republishWidgets` into the App Group — the
+            // opposite of what blocking is for. `try?`, not `try`: the throw
+            // means only that a REPLACEMENT runtime couldn't be built; the
+            // poisoned one is already down and `runtime` nil by then, which is
+            // the right end state for a boot that runs no JS, and it must not
+            // turn the update-required screen into a fatal startup error.
+            if otaEvalStarted { _ = try? replaceRuntimeAfterPoisonedOTA() }
             // Hard gate: every available bundle is older than one already
             // applied — refuse to boot stale JS so it can't write to a
             // newer-schema db; show the native "update required" screen.
