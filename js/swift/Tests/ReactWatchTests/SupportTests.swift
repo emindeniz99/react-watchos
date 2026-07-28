@@ -753,6 +753,34 @@ final class BleSessionTests: XCTestCase {
         XCTAssertNil(s.takeSubscribeSettle(characteristic: "HR"))
     }
 
+    /// The asymmetry the poisoned-OTA fallback boot turns on. `takeAllPending()`
+    /// is ALL the session work `BluetoothBridge.resetPendingForReload()` does,
+    /// and it deliberately keeps the subscription INTENT and the auto-reconnect
+    /// latch, because on a dev hot-reload the same app's next bundle wants its
+    /// link back. That carve-out must not be the whole story after a poisoned
+    /// OTA eval, where the bundle that asked for those subscriptions is dead and
+    /// rejected: left alone, `finishDiscovery` re-applies them on any
+    /// rediscovery and the RECOVERY bundle starts receiving ble.notify for
+    /// characteristics it never subscribed to, over a link it never opened.
+    /// `endByUser()` — what `disconnect()` calls — is the only thing here that
+    /// ends both, which is why that path cannot reuse the reload teardown alone.
+    func testDrainingPendingForAReloadKeepsSubscriptionIntentThatOnlyEndByUserDrops() {
+        var s = BleSession()
+        s.beginConnect()
+        s.wantSubscription("HR")
+        _ = s.awaitSubscribe(characteristic: "HR", id: 9)
+
+        XCTAssertEqual(s.takeAllPending(), [9], "only the id correlation is dropped")
+        XCTAssertEqual(
+            s.desiredSubscriptions, ["HR"],
+            "the hot-reload carve-out: the NEXT bundle inherits these")
+        XCTAssertTrue(s.shouldAutoReconnect, "and the link is still expected back")
+
+        s.endByUser()
+        XCTAssertTrue(s.desiredSubscriptions.isEmpty)
+        XCTAssertFalse(s.shouldAutoReconnect)
+    }
+
     // P0-1: bounded auto-reconnect. Without a cap, a peripheral that never
     // re-advertises leaves the central active-scanning forever. These pin the
     // pure attempt accounting; the bridge owns the per-attempt scan-window timer.

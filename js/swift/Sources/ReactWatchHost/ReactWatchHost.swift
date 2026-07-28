@@ -1307,6 +1307,23 @@ final class ReactWatchModel {
         // `makeRuntime()`, because the `js.onError` closure captures the
         // generation at construction time.
         tearDownGeneration()
+        // ...but NOT its BLE carve-out. `tearDownGeneration` leaves the
+        // connection up and `BleSession.takeAllPending()` keeps
+        // `desiredSubscriptions`, because on a dev hot-reload the SAME app's
+        // next bundle wants the link back. Here there is no such consumer: the
+        // bundle that called bleConnect/bleSubscribe from its module body is
+        // dead and rejected. Left up, `finishDiscovery` re-applies ITS
+        // subscriptions on any rediscovery, and `onNotify`/`onState` — wired
+        // once in `start()` and name-routed through `self.runtime` with no
+        // generation capture, so the CX-008 bump does not stop them — deliver
+        // ble.notify/ble.state into the recovery bundle, which asked for
+        // neither. AFTER the teardown on purpose: `runtime` is nil by then, so
+        // the drain's rejects and the synchronous "disconnected" push are
+        // no-ops instead of settling into a dying context. `endByUser()` also
+        // latches `userInitiatedDisconnect`, which neutralizes the reconnect
+        // window `resetPendingForReload` may have just re-armed; a recovery
+        // bundle's own `bleConnect` clears the latch, so BLE stays usable.
+        bluetooth.disconnect()
         // The dead bundle's parked `markUpdateHealthy()` must NOT survive into
         // the shipped boot. `handleMarkUpdateHealthy` parks while `jsReady` is
         // false, which is the whole of `load()` — so without this reset the

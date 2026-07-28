@@ -322,7 +322,11 @@ final class BluetoothBridge: NSObject, CBCentralManagerDelegate, CBPeripheralDel
         central.scanForPeripherals(withServices: [serviceUUID])
     }
 
-    private func disconnect() {
+    /// Internal (not private) so the host can drop the link on the ONE path
+    /// where the hot-reload carve-out below does NOT apply: the fallback boot
+    /// after a poisoned OTA eval, where the bundle that opened this connection
+    /// is dead and rejected.
+    func disconnect() {
         // Stop any in-flight auto-reconnect scan first: when the drop happened
         // while scanning (peripheral == nil), nothing else here stops it, so the
         // BLE radio would keep active-scanning after the user disconnected.
