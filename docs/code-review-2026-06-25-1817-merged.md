@@ -125,6 +125,102 @@ Held deliberately:
 - [x] **Remote push (APNs) — registration + delivery (2026-07-17).** The watch gets its own APNs token and remote payloads reach JS (`6b3bbdb`/`9e45d9d`/`a199faf`): `registerForRemoteNotifications()` resolves the lowercase-hex device token over invoke (call every launch — tokens are variable length and rotate; default 30 s watchdog, not user-mediated), `onRemotePush`/`onRemotePushToken`/`onRemotePushRegistrationError` are typed wrappers over the push channel, and the schema declares the method under a NEW **`"push"` feature** — a distinct HostPolicy authorization unit (local `notifications` must not implicitly grant remote push, which hands out a routable token), so POLICY_DENIED comes free from ARCH-07's generic gate and the widget's typed invoke rejecter auto-rejects it (zero special cases). Host side: WatchKit has no registration completion handler, so pending register invokes are parked `(id, generation)` and the ONE `didRegister`/`didFail` delegate callback settles them all (stale generations drop, CX-008; failures reject `UNAVAILABLE` — the fix is entitlement/environment, not the user); `remotePushDidReceive` sanitizes the userInfo (`RemotePushWire.sanitize`: non-String keys stringified, non-JSON leaves DROPPED not stringified) and maps the new `JSRuntime.pushNativeEventReturning` Bool (both bridge modes, CR-5) to `.newData`/`.noData` — no runtime / mid-boot (cold-launch background push, documented v1 drop) / no listener → `.noData`, synchronous so the 30 s completion budget is trivial. `ReactWatchAppDelegate` grows the three `WKApplicationDelegate` methods; `ReactWatchRemotePush` is the same forwarding surface for consumers with their own delegate. Expo plugin: `push: true` (default false, least privilege like healthKit) adds `"aps-environment": "development"` to the watch target + its EAS entry. Verify: swift test 246 (+8: hex/sanitize, Bool round-trip across both bridge modes, missing-global → false), JS 426 (+8: invoke routing, UNAVAILABLE/native-reason rejections, typed unwrapping + unsubscribe, live runApp UI update off `__pushNativeEvent`'s Bool, pinned event names, plugin entitlement on/off + EAS propagation), codegen regenerates byte-identically (HOST_METHODS/HOST_FEATURES + WireModel maps only), typecheck/biome clean, embed-smoke green; the host/delegate halves are watchOS-only → compile-verified at the next Mac build (`swiftc -parse` clean here), and real APNs delivery is the ③ device slice (`xcrun simctl push` can exercise `didReceiveRemoteNotification` on a Mac sim).
 - [x] **CX-017** — both halves now wired. (1) per-entry `TimelineEntryRelevance(score:duration:)` = the Smart Stack **ranking** signal (was already done). (2) **predictive `relevantContexts` → surfacing DONE**: `ReactTimelineProvider.relevance()` (watchOS 11+) maps each published hint to a RelevanceKit `RelevantContext` — `.location(CLCircularRegion)` when coords are present, else `.date` — wrapped in `WidgetRelevance([WidgetRelevanceAttribute<Void>(context:)])`. Both the static `ReactTimelineProvider` (`WidgetRelevance<Void>`) and the configurable `ShoppingTimelineProvider` (per-list `WidgetRelevance<SelectShoppingListIntent>`) implement it, via a shared `reactRelevantContext`/`reactRelevantContexts` helper. **Widget Xcode build (`React Watch Widgets`) SUCCEEDED** against the watchOS-26 SDK, so the API/shape is verified; only the actual Smart-Stack *surfacing behavior* is device-only.
 
+### Session 2026-07-28 — watchOS 26 adoption pass (C > B > A)
+
+Scope came from a read-only Apple-docs research pass; the owner's call was
+**ship C in full, B's cheap half, A's two correctness fixes; decline D1/D4/D5
+with triggers**. The ranking inverts the order the areas were proposed in,
+and the inversion is the finding: **the item framed as *the* watchOS 26
+headline (Liquid Glass) is the one to deliberately not buy more of** — watchOS
+gets the reskin without an SDK rebuild, Apple calls the watch delta "minimal",
+and the custom APIs carry two rendering-performance warnings. Meanwhile the
+item framed as a watchOS-26 adoption gap (relevance/POI) turned out to be
+**mostly a watchOS 10.0 backlog miss shippable at our floor since day one**,
+and it is the only one of the three that is strictly battery-POSITIVE:
+relevance clues are metadata for the on-device ranker — a few bytes at render
+time, zero wakeups/CPU/radio at surface time, and better surfacing *removes*
+the expensive "raise wrist, don't find it, open the app" path.
+
+Shipped (each its own commit, all suites green):
+
+- **C1-C5 — `RelevantContext` is now a tagged union.** Eight clue families
+  (date, dateRange, location, poi, inferredLocation, fitness, sleep,
+  headphones) replacing a closed positional `{date?, latitude?, longitude?,
+  radius?}` bag with no discriminant. Breaking JS + wire change, no compat
+  shim (project rule 1). `reactRelevantContext(from:)` is a `switch` on
+  `kind`; `poi`/`dateRange`/any explicit `dateKind` sit behind
+  `@available(watchOS 26.0, *)` and return nil below — **gates, not a floor
+  raise** (raising it would drop Series 4-8 for two clue families). The other
+  six families are watchOS 10.0. Condition enumerations read from the docs
+  JSON, not guessed: `FitnessCondition` = activityRingsIncomplete|
+  workoutActive, `SleepCondition` = bedtime|wakeup, `HeadphonesCondition` =
+  connected, `InferredLocation` = home|work|school|commute (all watchOS
+  10.0); `DateKind` = default|informational|scheduled (26.0).
+  **C1 first, deliberately:** a demo `relevantContexts` usage was authored
+  against the CURRENT shape before the reshape, because `grep -rn
+  relevantContexts js/demo examples/` returned nothing and the only Swift
+  fixture was a literal `null` — the whole predictive path was unexercised,
+  and expanding an unexercised surface is how you ship an API nobody has
+  used. C5 replaced that `null` with a fixture decoding one clue of every
+  kind (`swift test` 303 -> 307).
+- **D3 (taken) — `ReactWatchWidget` imports MapKit** for
+  `location(category:)`'s `MKPointOfInterestCategory`, and the ARCH-10 note's
+  box-3 claim "MapKit/HealthKit are host-only" was amended **in the same
+  commit** rather than left to go stale silently. Direction-correct (widget ->
+  framework, never widget -> host, which is what box 3 protects); HealthKit
+  remains host-only. `PoiCategory` mirrors 73 of the 84 documented member
+  NAMES — the 11 "Type Properties" additions are watchOS 27.0 **beta** and
+  are excluded (CX-002 precedent) — and Swift maps them with an explicit
+  switch, because `MKPointOfInterestCategory`'s rawValue is an undocumented
+  Objective-C constant a name round-trip would silently mismatch.
+- **B1/B2/B3-code/B4 — control `actionLabel` + `ControlWidgetToggle` state.**
+  `reactControlMetadata` widened to the button triple, `reactControlToggle`
+  added for the toggle triple; `value`'s PRESENCE is the toggle marker. Demo
+  gained a "Hydration Reminders" toggle + `SetRemindersIntent`.
+  **A defect was found and fixed rather than shipped:** a literal `value` is
+  captured at registration, and `registerControl` runs once at startup — so a
+  toggle would have published its startup state forever and drawn itself
+  stuck. `value` accepts `boolean | (() => boolean)`; the getter is re-read
+  every publish, like `WidgetDefinition.render`. qjs-smoke now drives the
+  whole round trip through the real engine. README states outright that
+  `registerControl` **re-labels** a Swift-declared control and cannot create
+  one (WidgetKit discovers controls from the `@main` bundle's static type
+  list before any JS runs).
+- **A1/A2 — the prop-parity gate could not see the props it was supposed to
+  defend.** It scanned only `case "X":` bodies, so `glass` (read in
+  NodeView's shared `body` chain) and `buttonStyle` (read in the
+  `glassStyled` helper) never reached the golden — and both had already
+  diverged, being silent no-ops in complications. The scan now covers the
+  shared chain (recorded once under `__shared__`) and expands named helpers
+  transitively; the regenerated golden also filled in `Image`, `Map`,
+  `Gauge`, `Chart`, `TimerText`, `Button`, `NavigationLink`, `ShareLink`,
+  which were empty for the same reason. The no-ops are now DECLARED in
+  `codegen/schema.ts` `propDegradations`, rendered into
+  `docs/api/capabilities.md`, and cross-checked against the golden in both
+  directions, so declaration and reality can't drift.
+
+Declined with triggers (full notes below): **WA26-D1** glass containers/morph,
+**WA26-D4** configurable + push controls, **WA26-D5** the `CLCircularRegion`
+watchOS-27 deprecation (record-only — no watchOS successor API exists).
+**D2** (raise the floor to watchOS 26) declined outright: nothing in this pass
+needs it.
+
+**Mac-owed (no code, stated rather than claimed):**
+- **A3** — rebuild the watch scheme against the Xcode-26 SDK and eyeball
+  `List`/`Button`/`NavigationStack`/`TabView` plus anything using
+  `theme.radius`/`theme.space`, per Apple's "don't hard-code layout metrics"
+  caveat (we do hard-code them: `defaultTheme.radius`/`space` in `theme.ts`).
+- **B3 behavior** — the new `ControlWidgetToggle` on-sim (② `test:swift:watch`).
+- **C6** — the watchOS build is the real gate for anything touching
+  RelevanceKit/MapKit; `reactRelevantContext`'s switch is `swiftc -parse` +
+  review only on Linux.
+- **C7** — actual Smart Stack surfacing is **permanently ③**, device-only.
+  Saying so beats claiming it.
+
+Gate counts at the end of the session: `swift test` **307** (was 303),
+`pnpm test` **481** (was 472), typecheck + biome + codegen-drift +
+`format:swift:check` (exit 0) + embed-smoke all clean.
+
 ### Verdict legend
 
 | Badge | Meaning |
@@ -368,6 +464,103 @@ Assert main-thread on the JS settle calls (OP-2) + generation token on reload (C
 |---|---------|---------|-----|
 | CX-013 | macOS/Swift native build is `workflow_dispatch`-only, not a PR gate | ⛔ SKIP | Real ([react-native-watchos-build.yml:13](../../../.github/workflows/react-native-watchos-build.yml)), but you don't rely on Actions for native; stays manual. (Linux `ci.yml` already gates JS.) |
 | CX-028 | OTA signing scripts needed integration | ✔️ DONE | CR-17 work: tracked, Biome-clean, `ota:keygen`/`ota:sign` in [package.json:66](../js/package.json), `OTASigningTests.swift`, secret handling in [ota-signing.md](./ota-signing.md). Repo tooling (not in npm `files`). |
+
+## Declined with a revive trigger — watchOS 26 adoption pass (2026-07-28)
+
+Same template as the ARCH-10 Phase B note: **measured, declined, revive
+trigger named**, so a later reader can tell "we looked and said no" from
+"nobody got to it". Every Apple claim below was read from the docs JSON
+(`platforms[].introducedAt` / `.beta` / `.deprecatedAt`), not from prose.
+
+### [~] WA26-D1 — `GlassEffectContainer` and the Liquid Glass morph APIs → **declined**
+
+*What was measured.* All of `GlassEffectContainer`, `glassEffectID(_:in:)`,
+`glassEffectUnion(id:namespace:)`, `GlassEffectTransition`, `Glass.tint/
+.interactive`, `DefaultGlassEffectShape` and `backgroundExtensionEffect()` are
+watchOS **26.0, `beta: false`** — availability is not the blocker. Three
+things decided it:
+
+1. **The reskin is already free, and not even SDK-gated.**
+   `technologyoverviews/adopting-liquid-glass` states verbatim: *"In watchOS,
+   adopt standard button styles and toolbar APIs. Liquid Glass changes are
+   minimal in watchOS, so they appear automatically when you open your app on
+   the latest release **even if you don't build against the latest SDK**."*
+   The recommended adoption path is the watchOS 10 toolbar/button APIs we
+   already emit. There is an opt-OUT (`UIDesignRequiresCompatibility`) and no
+   opt-in.
+2. **Apple's own docs carry two rendering-performance warnings**, on the
+   modifier itself: *"Use `GlassEffectContainer` … to achieve the best
+   rendering performance"*, *"Combine custom Liquid Glass effects to improve
+   rendering performance"*, and *"**Avoid overusing Liquid Glass effects.** If
+   you apply Liquid Glass effects to a custom control, do so sparingly."* The
+   container exists specifically to claw back performance the effects spend.
+3. For a battery-first watch library that is per-frame GPU work with an
+   Apple-acknowledged "minimal" visual delta — and we get the visual anyway.
+   **A reskin that costs battery is a net negative; buying more of one we
+   already have for free is strictly downside.**
+
+*Revive trigger (both, not either):* a consumer ships a custom control that
+visibly clashes with system chrome on watchOS 26, **and** an on-wrist energy
+measurement (per [performance-measurement.md](./performance-measurement.md))
+puts `.glassEffect()` at or below noise. Design container + `glassEffectID` +
+`glassEffectUnion` together at that point, not piecemeal — the container is
+the thing that makes the others cheap.
+
+*Not declined, and shipped in this pass:* the two correctness defects found
+while measuring this — the prop-parity gate's blind spot and the
+undocumented complication no-op (A1/A2). Declining an ENHANCEMENT is not
+declining the bug it uncovered.
+
+### [~] WA26-D4 — configurable controls (`AppIntentControlConfiguration`) + push (`ControlPushHandler`) → **declined**
+
+*What was measured.* Both are watchOS **26.0, `beta: false`**, so this is a
+cost judgement, not an availability one — the same gate `AddGlassControl`
+already passes.
+
+- **Configurable controls** need a `ControlConfigurationIntent` **per
+  control** — a consumer-owned Swift type, exactly like
+  `SelectShoppingListIntent`. The library can therefore only supply helpers,
+  and the demo would need a second entity type to configure a single repeated
+  control. That is the widget `instances` story again, at a surface with one
+  demo control.
+- **Push** (`ControlPushHandler`/`ControlCenter`) costs a **wakeup per
+  update**, against a control whose state this pass just made publishable
+  through the ordinary publish path (`value`), which costs none.
+
+*Revive trigger:* a consumer ships **more than three controls of the same
+shape** — the point where per-control Swift types become the pain
+configurability actually solves — **or** asks for remotely-updated control
+state (which is what push, and only push, buys).
+
+### [~] WA26-D5 — `CLCircularRegion` deprecated at watchOS 27.0 → **record only, do not act**
+
+*The finding.* `corelocation/clcircularregion` is `introducedAt: "2.0"`,
+`deprecatedAt: "27.0"`, `deprecationSummary`: *"Use
+`CLCircularGeographicCondition` instead."* We construct exactly that type in
+`reactRelevantContext(from:)`'s `location` arm.
+
+*Why nothing is done.* `corelocation/clcirculargeographiccondition` has **no
+watchOS entry at all** (iOS/iPadOS/Mac Catalyst 17.0, macOS 14.0 only), and
+`RelevantContext.location(_:)` still takes a `CLRegion`. So this is a
+deprecation with **no documented watchOS successor and no API to migrate
+to** — the migration does not exist yet. Expect a warning on an Xcode-27
+build; a warning is the correct outcome.
+
+*Why not gate it now.* This is precisely the CX-002/FoundationModels failure
+mode this project already has scar tissue for: gating on a version before the
+symbol exists produced code that could never run. The same reasoning excluded
+MapKit's 11 watchOS-27-beta POI categories from `PoiCategory` in this pass.
+
+*Revive trigger:* the toolchain moves to **Xcode 27**. Re-check then,
+together with the two watchOS-27-beta toolbar symbols
+(`swiftui/view/toolbarminimizationbehavior(_:for:)` and
+`swiftui/toolbaritemvisibilitypriority`), which are blocked for the same
+reason. If `location(_:)` has gained a `CLCircularGeographicCondition`
+overload with watchOS availability by then, that is the moment to switch.
+
+*Also recorded, not a gap:* `ToolbarSpacer` and `SpacerSizing` have **no
+watchOS entry** at all — confirming the existing note in
+[status.md](./status.md). Not blocked; absent.
 
 ---
 
