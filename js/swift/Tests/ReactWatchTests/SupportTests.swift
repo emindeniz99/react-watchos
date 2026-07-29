@@ -3079,6 +3079,56 @@ final class WorkoutPlanSpecTests: XCTestCase {
             "the message must name the path, got: \(error.message)")
     }
 
+    func testAWrongTypeIsNamedByPathNotBlamedOnTheEnvelope() {
+        // The path contract must survive a WRONG TYPE, not just a wrong value.
+        // Decoding with `try?` dropped the DecodingError's codingPath, so a
+        // string in any leaf came back as "needs a { plan, atMs } object" — a
+        // message that is FALSE (the envelope is well-formed) and points at the
+        // wrong level of the payload. A text field wired straight into `meters`
+        // is the commonest real mistake and never reaches `positive()`.
+        for (json, expected) in [
+            (
+                #"""
+                {"plan":{"kind":"singleGoal","activityType":"running",
+                 "goal":{"kind":"distance","meters":"400"}},
+                 "atMs":1768476600000}
+                """#, "plan.goal.meters"
+            ),
+            (
+                customJSON(
+                    blocks: #"""
+                        [{"steps":[{"purpose":"work"}]},{"steps":[{"purpose":"work"}]},
+                         {"steps":[{"purpose":"work","alert":{"kind":"heartRateRange",
+                          "lowerBpm":120,"upperBpm":"180"}}]}]
+                        """#), "plan.blocks[2].steps[0].alert.upperBpm"
+            ),
+            (
+                #"""
+                {"plan":{"kind":"custom","activityType":"running","blocks":{}},
+                 "atMs":1768476600000}
+                """#, "plan.blocks"
+            ),
+        ] {
+            guard case .failure(let error) = WorkoutPlanScheduleSpec.decode(json: json)
+            else { return XCTFail("a wrong type must be refused") }
+            XCTAssertTrue(
+                error.message.contains(expected),
+                "expected \(expected) in: \(error.message)")
+            XCTAssertFalse(
+                error.message.contains("needs a { plan, atMs } object"),
+                "a well-formed envelope must not be blamed: \(error.message)")
+        }
+        // A body that genuinely is NOT a { plan, atMs } object still gets the
+        // envelope message — the path renderer must not swallow that case.
+        for json in ["[1,2,3]", "{}", "not json"] {
+            guard case .failure(let error) = WorkoutPlanScheduleSpec.decode(json: json)
+            else { return XCTFail("\(json) must be refused") }
+            XCTAssertTrue(
+                error.message.contains("needs a { plan, atMs } object"),
+                "expected the envelope message for \(json), got: \(error.message)")
+        }
+    }
+
     func testRefusesAFieldThatBelongsToAnotherKind() {
         // The flat wire shape has a `kind` discriminator and optional
         // siblings, so nothing structural stops a caller sending `goal` on a

@@ -236,6 +236,58 @@ private struct RefPayload: Decodable {
     let atMs: Double?
 }
 
+/// A wrong-typed leaf named by PATH — the contract every other refusal in this
+/// file keeps (`plan.blocks[2].steps[0].alert.upperBpm`), extended to the one
+/// class of error that used to escape it.
+///
+/// Decoding with `try?` discards the `DecodingError`, so EVERY wrong type
+/// anywhere in the tree came back wearing the ENVELOPE's message ("needs a
+/// { plan, atMs } object"). That is not merely unhelpful, it is false: the
+/// envelope is well-formed and one leaf is a string. Wiring a text field
+/// straight into `meters` is the commonest real mistake and `positive()` below
+/// can never see it — the decode fails first.
+///
+/// `nil` when the error carries no path (a malformed or non-object body), where
+/// the envelope message IS the correct answer.
+///
+/// Known gap: a fractional number in an `Int` field (`iterations: 1.5`) is
+/// reported by Foundation as `.dataCorrupted` with an EMPTY `codingPath` and
+/// "The given data was not valid JSON", indistinguishable from real garbage —
+/// so that one still falls back to the envelope message.
+private func mistypedField(_ error: Error) -> String? {
+    guard let error = error as? DecodingError else { return nil }
+    let keys: [CodingKey]
+    let expected: Any.Type
+    switch error {
+    case .typeMismatch(let type, let context), .valueNotFound(let type, let context):
+        keys = context.codingPath
+        expected = type
+    default:
+        return nil
+    }
+    guard !keys.isEmpty else { return nil }
+    let path = keys.reduce(into: "") { path, key in
+        if let index = key.intValue {
+            path += "[\(index)]"
+        } else {
+            path += path.isEmpty ? key.stringValue : ".\(key.stringValue)"
+        }
+    }
+    return "\(path) is the wrong JSON type — expected \(jsonTypeName(expected))"
+}
+
+/// The caller writes JSON, not Swift, so a refusal names the JSON type.
+/// Foundation reports container mismatches as `Array<Any>` /
+/// `Dictionary<String, Any>`, never the private payload structs, so nothing
+/// internal leaks into a caller-facing message.
+private func jsonTypeName(_ type: Any.Type) -> String {
+    if type == Double.self || type == Int.self { return "a number" }
+    if type == String.self { return "a string" }
+    if type == Bool.self { return "a boolean" }
+    if type == [Any].self { return "an array" }
+    return "an object"
+}
+
 /// A finite, positive magnitude — the rule every goal value shares. A zero
 /// distance goal is a workout that is complete before it starts, which Apple
 /// would accept silently.
@@ -611,10 +663,15 @@ extension WorkoutPlanSpec {
     public static func decodeOpen(
         json: String
     ) -> Result<WorkoutPlanSpec, HealthRequestError> {
-        guard
-            let payload = try? JSONDecoder().decode(
-                OpenPayload.self, from: Data(json.utf8)), let plan = payload.plan
-        else {
+        let payload: OpenPayload
+        do {
+            payload = try JSONDecoder().decode(OpenPayload.self, from: Data(json.utf8))
+        } catch {
+            return invalid(
+                mistypedField(error)
+                    ?? "openWorkoutPlanInWorkoutApp needs a { plan } object")
+        }
+        guard let plan = payload.plan else {
             return invalid("openWorkoutPlanInWorkoutApp needs a { plan } object")
         }
         return decode(plan, "plan")
@@ -632,10 +689,16 @@ public struct WorkoutPlanScheduleSpec: Equatable, Sendable {
     public static func decode(
         json: String
     ) -> Result<WorkoutPlanScheduleSpec, HealthRequestError> {
-        guard
-            let payload = try? JSONDecoder().decode(
-                SchedulePayload.self, from: Data(json.utf8)), let plan = payload.plan
-        else {
+        let payload: SchedulePayload
+        do {
+            payload = try JSONDecoder().decode(
+                SchedulePayload.self, from: Data(json.utf8))
+        } catch {
+            return invalid(
+                mistypedField(error)
+                    ?? "scheduleWorkoutPlan needs a { plan, atMs } object")
+        }
+        guard let plan = payload.plan else {
             return invalid("scheduleWorkoutPlan needs a { plan, atMs } object")
         }
         return WorkoutPlanSchedule.validate(atMs: payload.atMs).flatMap { atMs in
@@ -657,11 +720,13 @@ public struct ScheduledWorkoutRefSpec: Equatable, Sendable {
     public static func decode(
         json: String
     ) -> Result<ScheduledWorkoutRefSpec, HealthRequestError> {
-        guard
-            let payload = try? JSONDecoder().decode(
-                RefPayload.self, from: Data(json.utf8))
-        else {
-            return invalid("removeScheduledWorkoutPlan needs an { id, atMs } object")
+        let payload: RefPayload
+        do {
+            payload = try JSONDecoder().decode(RefPayload.self, from: Data(json.utf8))
+        } catch {
+            return invalid(
+                mistypedField(error)
+                    ?? "removeScheduledWorkoutPlan needs an { id, atMs } object")
         }
         guard let raw = payload.id, let id = UUID(uuidString: raw) else {
             return invalid(
