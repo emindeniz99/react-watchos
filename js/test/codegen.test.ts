@@ -6,6 +6,7 @@ import {
   healthQuantityTypes,
   hostMethods,
   invokeShapes,
+  workoutActivityTypes,
 } from "../codegen/schema";
 
 const jsRoot = join(__dirname, "..");
@@ -171,6 +172,48 @@ describe("codegen", () => {
 // name list), so they are pinned against each other here — the same textual
 // technique as the invoke-router check, and for the same reason: a divergence
 // would surface as a request that type-checks in JS and rejects on a watch.
+// HKWorkoutActivityType is an ObjC NS_ENUM whose UInt raw values Apple does
+// not document, so JS sends the case NAME and Swift resolves it with a
+// generated switch. Both halves come from `workoutActivityTypes`, which is
+// what makes name-vs-case drift impossible — this proves the generator
+// actually emitted every one, in a file no Linux build compiles.
+describe("workout activity names", () => {
+  const generated = readFileSync(
+    join(
+      swiftRoot,
+      "Sources/ReactWatchHost/Generated/WorkoutActivityName.swift",
+    ),
+    "utf8",
+  );
+
+  it("maps exactly the schema's activity types, name to case", () => {
+    const mapped = [...generated.matchAll(/case "(\w+)": \.(\w+)$/gm)];
+    expect(mapped.map((m) => m[1])).toEqual(workoutActivityTypes);
+    // Name and case must be the SAME identifier: a `case "running": .rowing`
+    // typo would compile and silently record the wrong activity.
+    expect(mapped.filter((m) => m[1] !== m[2])).toEqual([]);
+  });
+
+  it("keeps a nil default so an unknown name is refused, not defaulted", () => {
+    // Falling back to `.other` would record a workout the user never did.
+    expect(generated).toContain("default: nil");
+  });
+
+  it("excludes the three deprecated spellings", () => {
+    // dance (deprecated watchOS 7.0), danceInspiredTraining (3.0) and
+    // mixedMetabolicCardioTraining (4.0). Project rule 1 (pre-release, prefer
+    // the clean shape) gives no compat argument for shipping them.
+    for (const deprecated of [
+      "dance",
+      "danceInspiredTraining",
+      "mixedMetabolicCardioTraining",
+    ]) {
+      expect(workoutActivityTypes).not.toContain(deprecated);
+      expect(generated).not.toContain(`case "${deprecated}"`);
+    }
+  });
+});
+
 describe("health vocabularies match the Swift enums", () => {
   const support = readFileSync(
     join(swiftRoot, "Sources/ReactWatchSupport/HealthQueryPlan.swift"),
@@ -202,5 +245,30 @@ describe("health vocabularies match the Swift enums", () => {
         "public enum SleepStage: String, CaseIterable, Sendable {",
       ),
     ).toEqual(schemaUnion("SleepSample", "stage"));
+  });
+
+  it("the workout state + end-reason unions match their Swift enums", () => {
+    const workout = readFileSync(
+      join(swiftRoot, "Sources/ReactWatchSupport/WorkoutPlan.swift"),
+      "utf8",
+    );
+    expect(
+      swiftEnumCases(
+        workout,
+        "public enum WorkoutStateName: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("WorkoutState", "state"));
+    expect(
+      swiftEnumCases(
+        workout,
+        "public enum WorkoutEndReason: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("WorkoutState", "endedReason"));
+    expect(
+      swiftEnumCases(
+        workout,
+        "public enum WorkoutLocation: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("StartWorkoutRequest", "location"));
   });
 });

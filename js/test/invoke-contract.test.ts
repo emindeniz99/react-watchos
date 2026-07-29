@@ -24,6 +24,7 @@ import type {
   SaveUpdateResult as WireSaveUpdateResult,
   SleepSample as WireSleepSample,
   UpdateState as WireUpdateState,
+  WorkoutState as WireWorkoutState,
 } from "../src/generated/wire";
 import { INVOKE_SHAPES } from "../src/generated/wire";
 import type {
@@ -46,6 +47,8 @@ import { scheduleNotification } from "../src/notifications";
 import { speak } from "../src/speech";
 import type { SaveUpdateResult, UpdateState } from "../src/update";
 import { applyUpdate, getUpdateState, markUpdateHealthy } from "../src/update";
+import type { WorkoutState } from "../src/workout";
+import { endWorkout, getWorkoutState, startWorkout } from "../src/workout";
 
 /**
  * ARCH-11: the invoke channel's shape contract, checked against REAL traffic
@@ -180,6 +183,17 @@ const healthSamples: HealthSample[] = [
     unit: "count/min",
   },
 ];
+const workoutState: WorkoutState = {
+  state: "ended",
+  elapsedMs: 1_845_000,
+  activityType: "running",
+  location: "outdoor",
+  endedReason: "requested",
+  endedDurationMs: 1_845_000,
+  endedWorkoutId: "6C7F1B0E-6C3E-4B0A-9F1D-2A9E4F1B7C10",
+  endedTotalEnergyKcal: 312.5,
+  endedDistanceMeters: 5_412.75,
+};
 const sleepSamples: SleepSample[] = [
   {
     startMs: 1_768_432_800_000,
@@ -200,6 +214,8 @@ const RESULTS: Record<string, unknown> = {
   queryHealthStatistics: healthStatistics,
   queryHealthSamples: healthSamples,
   querySleepSamples: sleepSamples,
+  endWorkout: workoutState,
+  getWorkoutState: workoutState,
 };
 
 /**
@@ -305,6 +321,12 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       endMs: 1_768_483_200_000,
       limit: 50,
     });
+    await startWorkout("running", {
+      location: "outdoor",
+      metricsIntervalMs: 2000,
+      collectRoute: true,
+    });
+    await endWorkout({ discard: false });
     // Opaque (the three connectivity channels): the payload is the app's own
     // JSON. Swift never reads a field — it only requires a JSON OBJECT, which
     // is exactly what the Swift side asserts about these fixtures.
@@ -380,6 +402,12 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       "getCurrentLocation",
       "response",
       JSON.stringify(await getCurrentLocation()),
+    );
+    writeFixture("endWorkout", "response", JSON.stringify(await endWorkout()));
+    writeFixture(
+      "getWorkoutState",
+      "response",
+      JSON.stringify(await getWorkoutState()),
     );
     writeFixture(
       "queryHealthStatistics",
@@ -507,8 +535,9 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
   it("binds each schema result shape to the interface callers already use", () => {
     // These are COMPILE-time assertions: `true` is not assignable to `never`,
     // so a field added to `DeviceInfo` in device.ts without the schema (or the
-    // reverse) fails `npm run typecheck`. The runtime expects only keep the
-    // bindings from being elided as unused.
+    // reverse) fails `npm run typecheck`. The runtime expect only keeps the
+    // bindings from being elided as unused — hence `Array(n).fill(true)`
+    // rather than a hand-counted literal, which only ever drifts.
     const deviceInfoExact: Exact<DeviceInfo, WireDeviceInfo> = true;
     const updateStateExact: Exact<UpdateState, WireUpdateState> = true;
     const saveUpdateExact: Exact<SaveUpdateResult, WireSaveUpdateResult> = true;
@@ -522,6 +551,7 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
     > = true;
     const healthSampleExact: Exact<HealthSample, WireHealthSample> = true;
     const sleepSampleExact: Exact<SleepSample, WireSleepSample> = true;
+    const workoutStateExact: Exact<WorkoutState, WireWorkoutState> = true;
     expect([
       deviceInfoExact,
       updateStateExact,
@@ -533,6 +563,7 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       healthStatisticsExact,
       healthSampleExact,
       sleepSampleExact,
-    ]).toEqual([true, true, true, true, true, true, true, true, true, true]);
+      workoutStateExact,
+    ]).toEqual(Array(11).fill(true));
   });
 });

@@ -51,6 +51,7 @@ interface Producer {
 const HOST = "ReactWatchHost/ReactWatchHost.swift";
 const BRIDGES = "ReactWatchHost/CapabilityBridges.swift";
 const HEALTH = "ReactWatchHost/HealthQueryBridge.swift";
+const WORKOUT = "ReactWatchHost/WorkoutBridge.swift";
 
 /** Every `via:"invoke"` method the schema gives a `response` shape, and the
  *  Swift function(s) that build that response's JSON. */
@@ -141,6 +142,26 @@ const PRODUCERS: Record<string, Producer> = {
     delegates: {
       decl: "private func handleQueryHealthSamples(id: Int, payload: String) {",
       calls: "bridge.samples(plan)",
+    },
+  },
+  endWorkout: {
+    sites: [
+      { file: WORKOUT, decl: "func stateSnapshot() -> [String: Any] {" },
+      { file: WORKOUT, decl: "    private func recordEnded(" },
+    ],
+    delegates: {
+      decl: "private func handleEndWorkout(id: Int, payload: String) {",
+      calls: "workout.endWorkout(discard: discard)",
+    },
+  },
+  getWorkoutState: {
+    sites: [
+      { file: WORKOUT, decl: "func stateSnapshot() -> [String: Any] {" },
+      { file: WORKOUT, decl: "    private func recordEnded(" },
+    ],
+    delegates: {
+      decl: "private func handleGetWorkoutState(id: Int) {",
+      calls: "workout.stateSnapshot()",
     },
   },
   querySleepSamples: {

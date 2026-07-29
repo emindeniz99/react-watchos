@@ -22,6 +22,7 @@ export interface ResolvedOptions {
   widget: boolean;
   healthKit: boolean;
   push: boolean;
+  workouts: boolean;
   deploymentTarget: string;
   appleTeamId: string | undefined;
   scheme: string;
@@ -39,8 +40,11 @@ function watchTargetConfig(opts: ResolvedOptions) {
   const entitlements: Record<string, unknown> = {
     "com.apple.security.application-groups": [opts.appGroup],
   };
-  if (opts.healthKit) {
-    // Live heart rate via a HealthKit workout (SensorBridge).
+  if (opts.healthKit || opts.workouts) {
+    // The single HealthKit capability. Read/share granularity is per-type at
+    // RUNTIME via requestAuthorization, not per-entitlement, so reads and the
+    // workout save need this one key and nothing more
+    // (`com.apple.developer.healthkit.access` is clinical records only).
     entitlements["com.apple.developer.healthkit"] = true;
   }
   if (opts.push) {
@@ -74,6 +78,37 @@ function watchTargetConfig(opts: ResolvedOptions) {
       "Fetch development OTA bundles from your Mac on the local network.",
     ...opts.infoPlist,
   };
+  if (opts.workouts) {
+    // THE BUG THIS OPTION FIXES: `startHeartRate(cb, { keepAliveInBackground:
+    // true })` has been documented since the sensors API shipped, and the
+    // plugin emitted no WKBackgroundModes at all — so it was structurally
+    // unbacked. Apple, "Running workout sessions": "Apps with an active workout
+    // session can run in the background, so you need to add the background
+    // modes capability... Workout sessions require the Workout processing
+    // background mode." Without it the session ends the moment the app
+    // backgrounds, whatever the JS options say.
+    //
+    // Composes with the extended-runtime modes rather than replacing them —
+    // Apple: "you can enable both an extended runtime session mode and the
+    // workout-processing mode" — so a consumer that already set
+    // WKBackgroundModes keeps their value (the ?? below).
+    infoPlist.WKBackgroundModes = infoPlist.WKBackgroundModes ?? [
+      "workout-processing",
+    ];
+    // Route recording (startWorkout({ collectRoute: true })) reads location.
+    // NOTE, not silently fixed (rule 3): the plugin still does not emit this
+    // for the pre-existing `startLocation` stream — app/app.json supplies it
+    // through the `infoPlist` escape hatch. That gap predates this option.
+    infoPlist.NSLocationWhenInUseUsageDescription =
+      infoPlist.NSLocationWhenInUseUsageDescription ??
+      "Record the route of your workout.";
+    infoPlist.NSHealthUpdateUsageDescription =
+      infoPlist.NSHealthUpdateUsageDescription ??
+      "Save your workouts to Health.";
+    infoPlist.NSHealthShareUsageDescription =
+      infoPlist.NSHealthShareUsageDescription ??
+      "Read your heart rate while a workout is active.";
+  }
   if (opts.healthKit) {
     // Reads are no longer heart-rate-only (js/src/health.ts adds steps, active
     // energy, distance, SpO2 and sleep), and this string is what the user is

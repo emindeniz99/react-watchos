@@ -22,6 +22,91 @@ export type HealthQuantityType =
   | "oxygenSaturation"
   ;
 
+/** Every live HKWorkoutActivityType member (the 3 deprecated spellings excluded). Swift maps the NAME to the case; raw values are undocumented. */
+export type WorkoutActivityType =
+  | "americanFootball"
+  | "archery"
+  | "australianFootball"
+  | "badminton"
+  | "barre"
+  | "baseball"
+  | "basketball"
+  | "bowling"
+  | "boxing"
+  | "cardioDance"
+  | "climbing"
+  | "cooldown"
+  | "coreTraining"
+  | "cricket"
+  | "crossCountrySkiing"
+  | "crossTraining"
+  | "curling"
+  | "cycling"
+  | "discSports"
+  | "downhillSkiing"
+  | "elliptical"
+  | "equestrianSports"
+  | "fencing"
+  | "fishing"
+  | "fitnessGaming"
+  | "flexibility"
+  | "functionalStrengthTraining"
+  | "golf"
+  | "gymnastics"
+  | "handCycling"
+  | "handball"
+  | "highIntensityIntervalTraining"
+  | "hiking"
+  | "hockey"
+  | "hunting"
+  | "jumpRope"
+  | "kickboxing"
+  | "lacrosse"
+  | "martialArts"
+  | "mindAndBody"
+  | "mixedCardio"
+  | "other"
+  | "paddleSports"
+  | "pickleball"
+  | "pilates"
+  | "play"
+  | "preparationAndRecovery"
+  | "racquetball"
+  | "rowing"
+  | "rugby"
+  | "running"
+  | "sailing"
+  | "skatingSports"
+  | "snowSports"
+  | "snowboarding"
+  | "soccer"
+  | "socialDance"
+  | "softball"
+  | "squash"
+  | "stairClimbing"
+  | "stairs"
+  | "stepTraining"
+  | "surfingSports"
+  | "swimBikeRun"
+  | "swimming"
+  | "tableTennis"
+  | "taiChi"
+  | "tennis"
+  | "trackAndField"
+  | "traditionalStrengthTraining"
+  | "transition"
+  | "underwaterDiving"
+  | "volleyball"
+  | "walking"
+  | "waterFitness"
+  | "waterPolo"
+  | "waterSports"
+  | "wheelchairRunPace"
+  | "wheelchairWalkPace"
+  | "wrestling"
+  | "yoga"
+  ;
+
 /** A committed UI tree. `seq` acks the highest processed event. */
 export interface SerializedTree {
   v: 1;
@@ -193,6 +278,18 @@ export interface SleepSamplesRequest {
   limit?: number;
 }
 
+/** js/src/workout.ts startWorkout -> HKWorkoutConfiguration + the metrics knob. */
+export interface StartWorkoutRequest {
+  activityType: WorkoutActivityType;
+  location?: "indoor" | "outdoor";
+  metricsIntervalMs?: number; // coalescing period for workout.metrics; default 1000
+  collectRoute?: boolean; // record an HKWorkoutRoute — ALSO needs the `location` feature
+}
+
+export interface EndWorkoutRequest {
+  discard?: boolean; // throw the workout away instead of saving it (default: save)
+}
+
 export interface DeviceInfo {
   batteryLevel: number;
   batteryState: "unknown" | "unplugged" | "charging" | "full";
@@ -278,9 +375,22 @@ export interface SleepSample {
   stage: "inBed" | "awake" | "asleepCore" | "asleepDeep" | "asleepREM" | "asleepUnspecified";
 }
 
+/** The live workout, plus the LAST ended one — see getWorkoutState's JSDoc. */
+export interface WorkoutState {
+  state: "notStarted" | "running" | "paused" | "ended";
+  elapsedMs: number;
+  activityType?: WorkoutActivityType;
+  location?: "indoor" | "outdoor";
+  endedReason?: "requested" | "discarded" | "runtimeReload" | "failed";
+  endedDurationMs?: number;
+  endedWorkoutId?: string; // the saved HKWorkout's UUID; absent when discarded or unsaved
+  endedTotalEnergyKcal?: number;
+  endedDistanceMeters?: number;
+}
+
 /** Native bridge methods: which runtime installs each, the capability
  *  `feature` an OTA bundle gates on, and the bridgeProtocol it shipped in. */
-export const HOST_METHODS = [{"name":"commit","targets":["watch","widget"],"feature":"core","since":1},{"name":"log","targets":["watch","widget"],"feature":"core","since":1},{"name":"setTimer","targets":["watch","widget"],"feature":"core","since":1},{"name":"clearTimer","targets":["watch","widget"],"feature":"core","since":1},{"name":"invoke","targets":["watch","widget"],"feature":"core","since":1},{"name":"publishWidgets","targets":["watch","widget"],"feature":"widgets","since":1},{"name":"getItem","targets":["watch","widget"],"feature":"storage","since":1},{"name":"setItem","targets":["watch","widget"],"feature":"storage","since":1},{"name":"counterGet","targets":["watch","widget"],"feature":"storage","since":1},{"name":"counterAdd","targets":["watch","widget"],"feature":"storage","since":1},{"name":"stateRevision","targets":["watch","widget"],"feature":"core","since":1},{"name":"playHaptic","targets":["watch"],"feature":"haptics","since":1},{"name":"requestNotificationPermission","targets":["watch"],"feature":"notifications","since":1,"via":"invoke"},{"name":"scheduleNotification","targets":["watch"],"feature":"notifications","since":1,"via":"invoke"},{"name":"cancelNotification","targets":["watch"],"feature":"notifications","since":1},{"name":"registerForRemoteNotifications","targets":["watch"],"feature":"push","since":1,"via":"invoke"},{"name":"sendToPhone","targets":["watch"],"feature":"connectivity","since":1,"via":"invoke"},{"name":"updateApplicationContext","targets":["watch"],"feature":"connectivity","since":1,"via":"invoke"},{"name":"transferUserInfo","targets":["watch"],"feature":"connectivity","since":1,"via":"invoke"},{"name":"fetch","targets":["watch"],"feature":"network","since":1},{"name":"abortFetch","targets":["watch"],"feature":"network","since":1},{"name":"ble","targets":["watch"],"feature":"bluetooth","since":1},{"name":"bleConnect","targets":["watch"],"feature":"bluetooth","since":1,"via":"invoke"},{"name":"bleWrite","targets":["watch"],"feature":"bluetooth","since":1,"via":"invoke"},{"name":"bleSubscribe","targets":["watch"],"feature":"bluetooth","since":1,"via":"invoke"},{"name":"sensor","targets":["watch"],"feature":"sensors","since":1},{"name":"requestHealthAuthorization","targets":["watch"],"feature":"health","since":1,"via":"invoke"},{"name":"queryHealthStatistics","targets":["watch"],"feature":"health","since":1,"via":"invoke"},{"name":"queryHealthSamples","targets":["watch"],"feature":"health","since":1,"via":"invoke"},{"name":"querySleepSamples","targets":["watch"],"feature":"health","since":1,"via":"invoke"},{"name":"saveUpdate","targets":["watch"],"feature":"ota","since":1,"via":"invoke"},{"name":"getUpdateState","targets":["watch"],"feature":"ota","since":1,"via":"invoke"},{"name":"markUpdateHealthy","targets":["watch"],"feature":"ota","since":1,"via":"invoke"},{"name":"generate","targets":["watch"],"feature":"ai","since":1},{"name":"aiAvailability","targets":["watch"],"feature":"ai","since":1,"via":"invoke"},{"name":"getDeviceInfo","targets":["watch"],"feature":"device","since":1,"via":"invoke"},{"name":"enableWaterLock","targets":["watch"],"feature":"device","since":1,"via":"invoke"},{"name":"scheduleBackgroundRefresh","targets":["watch"],"feature":"background","since":1,"via":"invoke"},{"name":"startExtendedRuntimeSession","targets":["watch"],"feature":"runtime","since":1,"via":"invoke"},{"name":"stopExtendedRuntimeSession","targets":["watch"],"feature":"runtime","since":1,"via":"invoke"},{"name":"keychainSet","targets":["watch"],"feature":"keychain","since":1,"via":"invoke"},{"name":"keychainGet","targets":["watch"],"feature":"keychain","since":1,"via":"invoke"},{"name":"keychainDelete","targets":["watch"],"feature":"keychain","since":1,"via":"invoke"},{"name":"speak","targets":["watch"],"feature":"speech","since":1,"via":"invoke"},{"name":"stopSpeaking","targets":["watch"],"feature":"speech","since":1,"via":"invoke"},{"name":"playAudio","targets":["watch"],"feature":"audio","since":1,"via":"invoke"},{"name":"stopAudio","targets":["watch"],"feature":"audio","since":1,"via":"invoke"},{"name":"getProducts","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"purchase","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"currentEntitlements","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"restorePurchases","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"searchPOI","targets":["watch"],"feature":"location","since":1,"via":"invoke"},{"name":"getCurrentLocation","targets":["watch"],"feature":"location","since":1,"via":"invoke"}] as const;
+export const HOST_METHODS = [{"name":"commit","targets":["watch","widget"],"feature":"core","since":1},{"name":"log","targets":["watch","widget"],"feature":"core","since":1},{"name":"setTimer","targets":["watch","widget"],"feature":"core","since":1},{"name":"clearTimer","targets":["watch","widget"],"feature":"core","since":1},{"name":"invoke","targets":["watch","widget"],"feature":"core","since":1},{"name":"publishWidgets","targets":["watch","widget"],"feature":"widgets","since":1},{"name":"getItem","targets":["watch","widget"],"feature":"storage","since":1},{"name":"setItem","targets":["watch","widget"],"feature":"storage","since":1},{"name":"counterGet","targets":["watch","widget"],"feature":"storage","since":1},{"name":"counterAdd","targets":["watch","widget"],"feature":"storage","since":1},{"name":"stateRevision","targets":["watch","widget"],"feature":"core","since":1},{"name":"playHaptic","targets":["watch"],"feature":"haptics","since":1},{"name":"requestNotificationPermission","targets":["watch"],"feature":"notifications","since":1,"via":"invoke"},{"name":"scheduleNotification","targets":["watch"],"feature":"notifications","since":1,"via":"invoke"},{"name":"cancelNotification","targets":["watch"],"feature":"notifications","since":1},{"name":"registerForRemoteNotifications","targets":["watch"],"feature":"push","since":1,"via":"invoke"},{"name":"sendToPhone","targets":["watch"],"feature":"connectivity","since":1,"via":"invoke"},{"name":"updateApplicationContext","targets":["watch"],"feature":"connectivity","since":1,"via":"invoke"},{"name":"transferUserInfo","targets":["watch"],"feature":"connectivity","since":1,"via":"invoke"},{"name":"fetch","targets":["watch"],"feature":"network","since":1},{"name":"abortFetch","targets":["watch"],"feature":"network","since":1},{"name":"ble","targets":["watch"],"feature":"bluetooth","since":1},{"name":"bleConnect","targets":["watch"],"feature":"bluetooth","since":1,"via":"invoke"},{"name":"bleWrite","targets":["watch"],"feature":"bluetooth","since":1,"via":"invoke"},{"name":"bleSubscribe","targets":["watch"],"feature":"bluetooth","since":1,"via":"invoke"},{"name":"sensor","targets":["watch"],"feature":"sensors","since":1},{"name":"requestHealthAuthorization","targets":["watch"],"feature":"health","since":1,"via":"invoke"},{"name":"queryHealthStatistics","targets":["watch"],"feature":"health","since":1,"via":"invoke"},{"name":"queryHealthSamples","targets":["watch"],"feature":"health","since":1,"via":"invoke"},{"name":"querySleepSamples","targets":["watch"],"feature":"health","since":1,"via":"invoke"},{"name":"startWorkout","targets":["watch"],"feature":"workouts","since":1,"via":"invoke"},{"name":"pauseWorkout","targets":["watch"],"feature":"workouts","since":1,"via":"invoke"},{"name":"resumeWorkout","targets":["watch"],"feature":"workouts","since":1,"via":"invoke"},{"name":"endWorkout","targets":["watch"],"feature":"workouts","since":1,"via":"invoke"},{"name":"getWorkoutState","targets":["watch"],"feature":"workouts","since":1,"via":"invoke"},{"name":"saveUpdate","targets":["watch"],"feature":"ota","since":1,"via":"invoke"},{"name":"getUpdateState","targets":["watch"],"feature":"ota","since":1,"via":"invoke"},{"name":"markUpdateHealthy","targets":["watch"],"feature":"ota","since":1,"via":"invoke"},{"name":"generate","targets":["watch"],"feature":"ai","since":1},{"name":"aiAvailability","targets":["watch"],"feature":"ai","since":1,"via":"invoke"},{"name":"getDeviceInfo","targets":["watch"],"feature":"device","since":1,"via":"invoke"},{"name":"enableWaterLock","targets":["watch"],"feature":"device","since":1,"via":"invoke"},{"name":"scheduleBackgroundRefresh","targets":["watch"],"feature":"background","since":1,"via":"invoke"},{"name":"startExtendedRuntimeSession","targets":["watch"],"feature":"runtime","since":1,"via":"invoke"},{"name":"stopExtendedRuntimeSession","targets":["watch"],"feature":"runtime","since":1,"via":"invoke"},{"name":"keychainSet","targets":["watch"],"feature":"keychain","since":1,"via":"invoke"},{"name":"keychainGet","targets":["watch"],"feature":"keychain","since":1,"via":"invoke"},{"name":"keychainDelete","targets":["watch"],"feature":"keychain","since":1,"via":"invoke"},{"name":"speak","targets":["watch"],"feature":"speech","since":1,"via":"invoke"},{"name":"stopSpeaking","targets":["watch"],"feature":"speech","since":1,"via":"invoke"},{"name":"playAudio","targets":["watch"],"feature":"audio","since":1,"via":"invoke"},{"name":"stopAudio","targets":["watch"],"feature":"audio","since":1,"via":"invoke"},{"name":"getProducts","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"purchase","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"currentEntitlements","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"restorePurchases","targets":["watch"],"feature":"iap","since":1,"via":"invoke"},{"name":"searchPOI","targets":["watch"],"feature":"location","since":1,"via":"invoke"},{"name":"getCurrentLocation","targets":["watch"],"feature":"location","since":1,"via":"invoke"}] as const;
 
 /** Committed-tree wire version (SerializedTree.v). Bump on shape changes. */
 export const WIRE_VERSION = 1 as const;
@@ -289,7 +399,7 @@ export const WIRE_VERSION = 1 as const;
 export const BRIDGE_PROTOCOL = 1 as const;
 
 /** Capability features each native target provides (ARCH-01). */
-export const HOST_FEATURES = {"watch":["ai","audio","background","bluetooth","connectivity","core","device","haptics","health","iap","keychain","location","network","notifications","ota","push","runtime","sensors","speech","storage","widgets"],"widget":["core","storage","widgets"]} as const;
+export const HOST_FEATURES = {"watch":["ai","audio","background","bluetooth","connectivity","core","device","haptics","health","iap","keychain","location","network","notifications","ota","push","runtime","sensors","speech","storage","widgets","workouts"],"widget":["core","storage","widgets"]} as const;
 
 /** The component contract (CX-024): every primitive the tree can emit and
  *  how the widget interpreter supports it (full | degraded). Both Swift
@@ -301,7 +411,7 @@ export const COMPONENTS = [{"name":"VStack","widget":"full"},{"name":"HStack","w
  *  consuming app's own JSON by contract (the connectivity channels), not an
  *  undeclared shape. Methods absent from this table send no payload and
  *  return void/null, a bare string, `string[]`, or a boolean. */
-export const INVOKE_SHAPES = {"scheduleNotification":{"request":"ScheduleNotificationRequest"},"sendToPhone":{"request":"opaque"},"updateApplicationContext":{"request":"opaque"},"transferUserInfo":{"request":"opaque"},"bleConnect":{"request":"BleConnectRequest"},"bleWrite":{"request":"BleWriteRequest"},"bleSubscribe":{"request":"BleSubscribeRequest"},"requestHealthAuthorization":{"request":"HealthAuthorizationRequest"},"queryHealthStatistics":{"request":"HealthStatisticsRequest","response":"HealthStatisticsResult"},"queryHealthSamples":{"request":"HealthSamplesRequest","response":"HealthSample[]"},"querySleepSamples":{"request":"SleepSamplesRequest","response":"SleepSample[]"},"saveUpdate":{"request":"SaveUpdateRequest","response":"SaveUpdateResult"},"getUpdateState":{"response":"UpdateState"},"getDeviceInfo":{"response":"DeviceInfo"},"scheduleBackgroundRefresh":{"request":"ScheduleBackgroundRefreshRequest"},"keychainSet":{"request":"KeychainSetRequest"},"keychainGet":{"request":"KeychainKeyRequest"},"keychainDelete":{"request":"KeychainKeyRequest"},"speak":{"request":"SpeakRequest"},"playAudio":{"request":"PlayAudioRequest"},"getProducts":{"request":"GetProductsRequest","response":"IAPProduct[]"},"purchase":{"request":"PurchaseRequest","response":"PurchaseResult"},"searchPOI":{"request":"SearchPOIRequest","response":"POIResult[]"},"getCurrentLocation":{"response":"Coordinate"}} as const;
+export const INVOKE_SHAPES = {"scheduleNotification":{"request":"ScheduleNotificationRequest"},"sendToPhone":{"request":"opaque"},"updateApplicationContext":{"request":"opaque"},"transferUserInfo":{"request":"opaque"},"bleConnect":{"request":"BleConnectRequest"},"bleWrite":{"request":"BleWriteRequest"},"bleSubscribe":{"request":"BleSubscribeRequest"},"requestHealthAuthorization":{"request":"HealthAuthorizationRequest"},"queryHealthStatistics":{"request":"HealthStatisticsRequest","response":"HealthStatisticsResult"},"queryHealthSamples":{"request":"HealthSamplesRequest","response":"HealthSample[]"},"querySleepSamples":{"request":"SleepSamplesRequest","response":"SleepSample[]"},"startWorkout":{"request":"StartWorkoutRequest"},"endWorkout":{"request":"EndWorkoutRequest","response":"WorkoutState"},"getWorkoutState":{"response":"WorkoutState"},"saveUpdate":{"request":"SaveUpdateRequest","response":"SaveUpdateResult"},"getUpdateState":{"response":"UpdateState"},"getDeviceInfo":{"response":"DeviceInfo"},"scheduleBackgroundRefresh":{"request":"ScheduleBackgroundRefreshRequest"},"keychainSet":{"request":"KeychainSetRequest"},"keychainGet":{"request":"KeychainKeyRequest"},"keychainDelete":{"request":"KeychainKeyRequest"},"speak":{"request":"SpeakRequest"},"playAudio":{"request":"PlayAudioRequest"},"getProducts":{"request":"GetProductsRequest","response":"IAPProduct[]"},"purchase":{"request":"PurchaseRequest","response":"PurchaseResult"},"searchPOI":{"request":"SearchPOIRequest","response":"POIResult[]"},"getCurrentLocation":{"response":"Coordinate"}} as const;
 
 /** Raw globals installed by the host before the bundle is evaluated
  *  (generated from the schema's direct methods). Strings/numbers cross the C

@@ -187,6 +187,25 @@ struct SleepSamplesRequest: InvokeShape {
     static let declaredKeys: Set<String> = ["startMs", "endMs", "limit"]
 }
 
+/// js/src/workout.ts startWorkout -> HKWorkoutConfiguration + the metrics knob.
+struct StartWorkoutRequest: InvokeShape {
+    let activityType: String
+    let location: String?
+    /// coalescing period for workout.metrics; default 1000
+    let metricsIntervalMs: Double?
+    /// record an HKWorkoutRoute — ALSO needs the `location` feature
+    let collectRoute: Bool?
+    static let declaredKeys: Set<String> = [
+        "activityType", "location", "metricsIntervalMs", "collectRoute",
+    ]
+}
+
+struct EndWorkoutRequest: InvokeShape {
+    /// throw the workout away instead of saving it (default: save)
+    let discard: Bool?
+    static let declaredKeys: Set<String> = ["discard"]
+}
+
 struct DeviceInfo: InvokeShape {
     let batteryLevel: Double
     let batteryState: String
@@ -293,6 +312,24 @@ struct SleepSample: InvokeShape {
     static let declaredKeys: Set<String> = ["startMs", "endMs", "stage"]
 }
 
+/// The live workout, plus the LAST ended one — see getWorkoutState's JSDoc.
+struct WorkoutState: InvokeShape {
+    let state: String
+    let elapsedMs: Double
+    let activityType: String?
+    let location: String?
+    let endedReason: String?
+    let endedDurationMs: Double?
+    /// the saved HKWorkout's UUID; absent when discarded or unsaved
+    let endedWorkoutId: String?
+    let endedTotalEnergyKcal: Double?
+    let endedDistanceMeters: Double?
+    static let declaredKeys: Set<String> = [
+        "state", "elapsedMs", "activityType", "location", "endedReason", "endedDurationMs",
+        "endedWorkoutId", "endedTotalEnergyKcal", "endedDistanceMeters",
+    ]
+}
+
 enum InvokeShapes {
     /// method -> decode this fixture as the declared REQUEST shape.
     static let requestDecoders: [String: @Sendable (Data) throws -> Void] = [
@@ -306,6 +343,8 @@ enum InvokeShapes {
         "queryHealthStatistics": { try decodeStrict(HealthStatisticsRequest.self, from: $0) },
         "queryHealthSamples": { try decodeStrict(HealthSamplesRequest.self, from: $0) },
         "querySleepSamples": { try decodeStrict(SleepSamplesRequest.self, from: $0) },
+        "startWorkout": { try decodeStrict(StartWorkoutRequest.self, from: $0) },
+        "endWorkout": { try decodeStrict(EndWorkoutRequest.self, from: $0) },
         "saveUpdate": { try decodeStrict(SaveUpdateRequest.self, from: $0) },
         "scheduleBackgroundRefresh": {
             try decodeStrict(ScheduleBackgroundRefreshRequest.self, from: $0)
@@ -325,6 +364,8 @@ enum InvokeShapes {
         "queryHealthStatistics": { try decodeStrict(HealthStatisticsResult.self, from: $0) },
         "queryHealthSamples": { try decodeStrict(arrayOf: HealthSample.self, from: $0) },
         "querySleepSamples": { try decodeStrict(arrayOf: SleepSample.self, from: $0) },
+        "endWorkout": { try decodeStrict(WorkoutState.self, from: $0) },
+        "getWorkoutState": { try decodeStrict(WorkoutState.self, from: $0) },
         "saveUpdate": { try decodeStrict(SaveUpdateResult.self, from: $0) },
         "getUpdateState": { try decodeStrict(UpdateState.self, from: $0) },
         "getDeviceInfo": { try decodeStrict(DeviceInfo.self, from: $0) },

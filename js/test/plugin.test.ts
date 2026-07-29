@@ -252,6 +252,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     appGroup: "group.com.emindeniz99.reactwatch",
     widget: true,
     healthKit: true,
+    workouts: false,
     deploymentTarget: "10.0",
     scheme: "com.emindeniz99.reactwatch",
     watchBundleSuffix: ".watch",
@@ -288,6 +289,47 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(c.entitlements["com.apple.developer.healthkit"]).toBeUndefined();
     expect(c.infoPlist.NSHealthShareUsageDescription).toBeUndefined();
     expect(c.infoPlist.NSHealthUpdateUsageDescription).toBeUndefined();
+  });
+
+  it("workouts emits the workout-processing background mode", () => {
+    // THE BUG THIS CLOSES: keepAliveInBackground has been documented since the
+    // sensors API shipped and the plugin emitted no WKBackgroundModes at all,
+    // so it was structurally unbacked — Apple requires the Workout processing
+    // background mode for a session to run while the app is backgrounded.
+    const on = watchTargetConfig({ ...demoOpts, workouts: true });
+    expect(on.infoPlist.WKBackgroundModes).toEqual(["workout-processing"]);
+    // Saving an HKWorkout needs the HealthKit entitlement, so `workouts` turns
+    // it on by itself — a consumer must not have to know that pairing.
+    expect(
+      watchTargetConfig({ ...demoOpts, healthKit: false, workouts: true })
+        .entitlements["com.apple.developer.healthkit"],
+    ).toBe(true);
+    // Route recording reads location.
+    expect(on.infoPlist.NSLocationWhenInUseUsageDescription).toBeTruthy();
+    expect(on.infoPlist.NSHealthUpdateUsageDescription).toBeTruthy();
+  });
+
+  it("omits the background mode when workouts is off", () => {
+    // Least privilege: background execution is a capability an app that never
+    // starts a workout must not carry.
+    const off = watchTargetConfig(demoOpts);
+    expect(off.infoPlist.WKBackgroundModes).toBeUndefined();
+    expect(off.infoPlist.NSLocationWhenInUseUsageDescription).toBeUndefined();
+  });
+
+  it("lets a consumer's own WKBackgroundModes win", () => {
+    // Apple allows one extended-runtime mode AND workout-processing together,
+    // so a consumer that already declared a self-care session must keep it —
+    // clobbering the key would silently drop their session type.
+    const c = watchTargetConfig({
+      ...demoOpts,
+      workouts: true,
+      infoPlist: { WKBackgroundModes: ["self-care", "workout-processing"] },
+    });
+    expect(c.infoPlist.WKBackgroundModes).toEqual([
+      "self-care",
+      "workout-processing",
+    ]);
   });
 
   it("push adds the aps-environment entitlement; off omits it", () => {
@@ -374,6 +416,15 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
   it("healthKit is an explicit opt-in", () => {
     const o = resolveOptions(config, { healthKit: true });
     expect(o.healthKit).toBe(true);
+  });
+
+  it("workouts is an explicit opt-in", () => {
+    expect(resolveOptions(config, {}).workouts).toBe(false);
+    const o = resolveOptions(config, { workouts: true });
+    expect(o.workouts).toBe(true);
+    expect(watchTargetConfig(o).infoPlist.WKBackgroundModes).toEqual([
+      "workout-processing",
+    ]);
   });
 
   it("push is an explicit opt-in", () => {

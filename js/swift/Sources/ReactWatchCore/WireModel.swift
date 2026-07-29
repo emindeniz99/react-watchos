@@ -153,7 +153,7 @@ public enum HostFeatures {
     public static let watch: Set<String> = [
         "ai", "audio", "background", "bluetooth", "connectivity", "core", "device", "haptics",
         "health", "iap", "keychain", "location", "network", "notifications", "ota", "push",
-        "runtime", "sensors", "speech", "storage", "widgets",
+        "runtime", "sensors", "speech", "storage", "widgets", "workouts",
     ]
     public static let widget: Set<String> = ["core", "storage", "widgets"]
 }
@@ -170,14 +170,17 @@ public enum HostInvokeFeatures {
         "bleWrite": "bluetooth",
         "currentEntitlements": "iap",
         "enableWaterLock": "device",
+        "endWorkout": "workouts",
         "getCurrentLocation": "location",
         "getDeviceInfo": "device",
         "getProducts": "iap",
         "getUpdateState": "ota",
+        "getWorkoutState": "workouts",
         "keychainDelete": "keychain",
         "keychainGet": "keychain",
         "keychainSet": "keychain",
         "markUpdateHealthy": "ota",
+        "pauseWorkout": "workouts",
         "playAudio": "audio",
         "purchase": "iap",
         "queryHealthSamples": "health",
@@ -187,6 +190,7 @@ public enum HostInvokeFeatures {
         "requestHealthAuthorization": "health",
         "requestNotificationPermission": "notifications",
         "restorePurchases": "iap",
+        "resumeWorkout": "workouts",
         "saveUpdate": "ota",
         "scheduleBackgroundRefresh": "background",
         "scheduleNotification": "notifications",
@@ -194,6 +198,7 @@ public enum HostInvokeFeatures {
         "sendToPhone": "connectivity",
         "speak": "speech",
         "startExtendedRuntimeSession": "runtime",
+        "startWorkout": "workouts",
         "stopAudio": "audio",
         "stopExtendedRuntimeSession": "runtime",
         "stopSpeaking": "speech",

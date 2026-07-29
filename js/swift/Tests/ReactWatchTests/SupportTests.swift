@@ -2680,3 +2680,68 @@ final class HealthQueryPlanTests: XCTestCase {
             ])
     }
 }
+
+/// The workout-control contract's decidable half (js/src/workout.ts). The
+/// session owner is `#if os(watchOS)` and unreachable here, so what is proven
+/// on Linux is the request validation + the metrics-interval battery knob.
+/// The activity NAME is deliberately not validated here: the only truthful
+/// check is "does this binary's HKWorkoutActivityType have that case", which
+/// lives in the generated switch (pinned by codegen.test.ts).
+final class WorkoutPlanTests: XCTestCase {
+    func testDecodesAFullRequest() {
+        let plan = try? WorkoutStartPlan.decode(
+            json: #"""
+                {"activityType":"running","location":"outdoor",
+                 "metricsIntervalMs":2000,"collectRoute":true}
+                """#
+        ).get()
+        XCTAssertEqual(plan?.activityType, "running")
+        XCTAssertEqual(plan?.location, .outdoor)
+        XCTAssertEqual(plan?.metricsIntervalMs, 2000)
+        XCTAssertEqual(plan?.collectRoute, true)
+    }
+
+    func testDefaultsAreTheBatterySafeOnes() {
+        let plan = try? WorkoutStartPlan.decode(
+            json: #"{"activityType":"yoga"}"#
+        ).get()
+        // No location = HealthKit's own default (unknown), no route = no GPS,
+        // and a 1 s metrics period rather than one push per collected sample.
+        XCTAssertNil(plan?.location)
+        XCTAssertEqual(plan?.collectRoute, false)
+        XCTAssertEqual(
+            plan?.metricsIntervalMs, WorkoutStartPlan.defaultMetricsIntervalMs)
+    }
+
+    func testMetricsIntervalHasAFloor() {
+        // Every push crosses the bridge and can commit a render; a 0 would ask
+        // for one per collected sample for the whole workout.
+        let plan = try? WorkoutStartPlan.decode(
+            json: #"{"activityType":"running","metricsIntervalMs":0}"#
+        ).get()
+        XCTAssertEqual(
+            plan?.metricsIntervalMs, WorkoutStartPlan.minMetricsIntervalMs)
+    }
+
+    func testRejectsAMissingActivityAndAnUnknownLocation() {
+        XCTAssertNil(try? WorkoutStartPlan.decode(json: "{}").get())
+        XCTAssertNil(
+            try? WorkoutStartPlan.decode(
+                json: #"{"activityType":""}"#
+            ).get())
+        guard
+            case .failure(let error) = WorkoutStartPlan.decode(
+                json: #"{"activityType":"running","location":"poolside"}"#)
+        else { return XCTFail("an unknown location must be rejected") }
+        XCTAssertTrue(error.message.contains("indoor"))
+    }
+
+    func testEndReasonsIncludeTheOneNoCallerCanCause() {
+        // `runtimeReload` is what a dev reload / OTA apply reports: the fresh
+        // runtime never started that workout, and this is how it finds out the
+        // previous one was ended AND saved for it.
+        XCTAssertEqual(
+            WorkoutEndReason.allCases.map(\.rawValue),
+            ["requested", "discarded", "runtimeReload", "failed"])
+    }
+}

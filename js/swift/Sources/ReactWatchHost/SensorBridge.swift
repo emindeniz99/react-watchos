@@ -10,12 +10,30 @@ import HealthKit
 /// live workout, motion/gyroscope via CoreMotion, location via CoreLocation.
 /// Readings are pushed back through onReading (wired to the native-event
 /// channel in WatchApp).
+///
+/// Heart rate no longer OWNS a workout session: watchOS allows one per process
+/// and a second start kills the first, so `WorkoutSessionOwner` is the single
+/// construction site and this bridge takes a `.heartRate` claim on it (see
+/// WorkoutBridge.swift). From JS's side `startHeartRate` is unchanged — the
+/// desired-state latch, the auth-window guard and the background backstop all
+/// still live here; only the session moved.
 /// NOTE: untested until built with Xcode on macOS; needs HealthKit +
 /// motion + location usage entitlements.
 final class SensorBridge: NSObject, CLLocationManagerDelegate {
     /// (kind, payload) — payload is JSON-safe (numbers).
     var onReading: ((_ kind: String, _ payload: [String: Any]) -> Void)?
+    /// The RAW fixes, for the workout owner's HKWorkoutRouteBuilder. A second
+    /// CLLocationManager would double the GPS duty cycle for the same data, so
+    /// the route rides this stream (Apple discourages a direct route-builder
+    /// init for the same "use the one you have" reason).
+    var onLocationFix: (([CLLocation]) -> Void)?
+    /// The single owner of this process's HKWorkoutSession. Injected rather
+    /// than constructed here: the explicit workout API holds the same object.
+    var workoutOwner: WorkoutSessionOwner?
 
+    /// Only ever used to run the heart-rate READ authorization sheet. The
+    /// session itself belongs to the owner, which has its own store (and asks
+    /// for the SHARE grant this one must never want).
     private let healthStore = HKHealthStore()
     private let motion = CMMotionManager()
     private lazy var location: CLLocationManager = {
@@ -24,8 +42,6 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         return m
     }()
 
-    private var workoutSession: HKWorkoutSession?
-    private var workoutBuilder: HKLiveWorkoutBuilder?
     /// Desired-state latch for heart rate. requestAuthorization resolves
     /// asynchronously; if a stop/unmount (or reload via stopAll) lands during
     /// that window, this flips false so the completion doesn't start an orphaned
@@ -42,9 +58,17 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     private var isBackgrounded = false
     /// Set when the background pause ended a live session, or when an auth
     /// completion was deferred by backgrounding. Resume restarts only what
-    /// this flags — never a blind beginWorkout while auth is still pending
-    /// (a session begun pre-authorization can occupy the slot dead).
+    /// this flags — never a blind claim while auth is still pending (a session
+    /// begun pre-authorization can occupy the slot dead). A pause that ended
+    /// NOTHING (because an explicit workout pinned the session) leaves it
+    /// false, so the resume can't restart over a live workout.
     private var heartRatePendingRestart = false
+    /// Whether JS asked for the location stream, kept apart from route
+    /// tracking so ending a workout can't stop a `startLocation` subscription
+    /// the app still holds (and vice versa).
+    private var jsWantsLocation = false
+    /// Whether the live workout is recording a route through this stream.
+    private var routeTracking = false
 
     private struct Op: Decodable {
         let op: String
@@ -67,10 +91,13 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         case ("start", "gyroscope"): startGyroscope(intervalMs: op.updateIntervalMs)
         case ("stop", "gyroscope"): motion.stopGyroUpdates()
         case ("start", "location"):
+            jsWantsLocation = true
             startLocation(
                 accuracy: op.accuracy,
                 distanceFilterMeters: op.distanceFilterMeters)
-        case ("stop", "location"): location.stopUpdatingLocation()
+        case ("stop", "location"):
+            jsWantsLocation = false
+            stopLocationIfIdle()
         default: break
         }
     }
@@ -82,42 +109,39 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         stopHeartRate()
         stopMotion()
         motion.stopGyroUpdates()
+        jsWantsLocation = false
+        routeTracking = false
         location.stopUpdatingLocation()
     }
 
-    /// scenePhase -> .background backstop (P0-3). The HealthKit live-workout
-    /// session is what keeps the app alive (and the HR sensor sampling) after
-    /// backgrounding; end it unless the app opted into background HR, so the app
-    /// can suspend normally. Motion/gyro/location don't keep the app alive and
-    /// stop on suspension on their own, so they're left running. A backgrounded
-    /// app isn't unmounted, so JS effect cleanups never fire — native owns this.
+    /// scenePhase -> .background backstop (P0-3). The workout session is what
+    /// keeps the app alive (and the HR sensor sampling) after backgrounding.
+    /// Motion/gyro/location don't keep the app alive and stop on suspension on
+    /// their own, so they're left running. A backgrounded app isn't unmounted,
+    /// so JS effect cleanups never fire — native owns this.
+    ///
+    /// The decision itself belongs to the OWNER, which is the only place that
+    /// can see both claims: it ends the session only when the sole claim is the
+    /// heart-rate pump and `keepAliveInBackground` is false. An explicit workout
+    /// PINS it — that is the entire point of a workout — so this reads as one
+    /// rule rather than a second flag parallel to `keepAlive`. The returned
+    /// bool says whether anything was actually ended, which is exactly what the
+    /// resume needs: a pause that ended nothing must not "restore" a pump over
+    /// a live workout.
     func pauseForBackground() {
         isBackgrounded = true
-        guard !heartRateKeepAlive else { return }
-        // Keeps wantHeartRate; the flag tells resume there is a live stream to
-        // restore (vs. an auth still pending, which must not be blind-begun).
-        if workoutSession != nil { heartRatePendingRestart = true }
-        endWorkoutSession()
+        heartRatePendingRestart =
+            workoutOwner?.pauseForBackground(keepAlive: heartRateKeepAlive)
+            ?? false
     }
 
     /// scenePhase -> .active: restart exactly what the background pause (or a
     /// background-deferred auth completion) put on hold.
     func resumeFromForeground() {
         isBackgrounded = false
-        if wantHeartRate, heartRatePendingRestart, workoutSession == nil {
-            heartRatePendingRestart = false
-            beginWorkout()
-        }
-    }
-
-    deinit {
-        // A discarded bridge must not leak the daemon-owned HKWorkoutSession —
-        // the ONE stream that outlives its manager (CMMotionManager and
-        // CLLocationManager stop on dealloc by themselves). Deliberately NOT
-        // stopAll(): `location` is a lazy var, and touching it here would
-        // instantiate a CLLocationManager mid-deinit and hand it a deallocating
-        // delegate.
-        endWorkoutSession()
+        guard wantHeartRate, heartRatePendingRestart else { return }
+        heartRatePendingRestart = false
+        workoutOwner?.claimHeartRate()
     }
 
     // MARK: - Gyroscope / location
@@ -137,6 +161,31 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
             guard let r = data?.rotationRate else { return }
             self?.onReading?("gyroscope", ["x": r.x, "y": r.y, "z": r.z])
         }
+    }
+
+    /// Route recording rides the SAME manager the JS stream uses. Called by the
+    /// workout owner's start/end, never by JS.
+    func startRouteTracking() {
+        routeTracking = true
+        // Best accuracy for a route: a 10 m filter (the JS default) would draw
+        // a route out of a dozen points. A JS `startLocation` already running
+        // keeps its own tuning — this only raises it for the workout.
+        location.requestWhenInUseAuthorization()
+        location.desiredAccuracy = kCLLocationAccuracyBest
+        location.distanceFilter = kCLDistanceFilterNone
+        location.startUpdatingLocation()
+    }
+
+    func stopRouteTracking() {
+        routeTracking = false
+        stopLocationIfIdle()
+    }
+
+    /// Stops the GPS only when neither carrier wants it — a workout ending must
+    /// not silently kill an app's own `startLocation` subscription.
+    private func stopLocationIfIdle() {
+        guard !jsWantsLocation, !routeTracking else { return }
+        location.stopUpdatingLocation()
     }
 
     private func startLocation(
@@ -166,6 +215,7 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     func locationManager(
         _: CLLocationManager, didUpdateLocations locations: [CLLocation]
     ) {
+        if routeTracking { onLocationFix?(locations) }
         guard let loc = locations.last else { return }
         onReading?(
             "location",
@@ -177,7 +227,7 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
             ])
     }
 
-    // MARK: - Heart rate (HealthKit live workout)
+    // MARK: - Heart rate (a claim on the shared workout session)
 
     private func startHeartRate(keepAliveInBackground: Bool = false) {
         guard HKHealthStore.isHealthDataAvailable() else { return }
@@ -200,49 +250,17 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
                     this.heartRatePendingRestart = true
                     return
                 }
-                this.beginWorkout()
+                this.workoutOwner?.claimHeartRate()
             }
-        }
-    }
-
-    private func beginWorkout() {
-        // Idempotent: a second auth completion (e.g. start→reload→start) must not
-        // start a second session and leak the first.
-        guard workoutSession == nil else { return }
-        let config = HKWorkoutConfiguration()
-        config.activityType = .other
-        do {
-            let session = try HKWorkoutSession(
-                healthStore: healthStore, configuration: config
-            )
-            let builder = session.associatedWorkoutBuilder()
-            builder.dataSource = HKLiveWorkoutDataSource(
-                healthStore: healthStore, workoutConfiguration: config
-            )
-            builder.delegate = self
-            workoutSession = session
-            workoutBuilder = builder
-            session.startActivity(with: Date())
-            builder.beginCollection(withStart: Date()) { _, _ in }
-        } catch {
-            // Heart rate unavailable; silently no-op.
         }
     }
 
     private func stopHeartRate() {
         wantHeartRate = false
         heartRatePendingRestart = false
-        endWorkoutSession()
-    }
-
-    /// End the live workout session (releasing its background keep-alive and the
-    /// HR sensor) without touching `wantHeartRate` — shared by `stopHeartRate`
-    /// and the background pause, which keeps the intent so it can resume.
-    private func endWorkoutSession() {
-        workoutSession?.end()
-        workoutBuilder?.endCollection(withEnd: Date()) { _, _ in }
-        workoutSession = nil
-        workoutBuilder = nil
+        // Releases the claim; the owner keeps the session alive if an explicit
+        // workout still claims it.
+        workoutOwner?.releaseHeartRate()
     }
 
     // MARK: - Motion (CoreMotion)
@@ -259,24 +277,5 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     private func stopMotion() {
         motion.stopDeviceMotionUpdates()
     }
-}
-
-extension SensorBridge: HKLiveWorkoutBuilderDelegate {
-    func workoutBuilder(
-        _ builder: HKLiveWorkoutBuilder,
-        didCollectDataOf collectedTypes: Set<HKSampleType>
-    ) {
-        guard collectedTypes.contains(HKQuantityType(.heartRate)),
-            let stats = builder.statistics(for: HKQuantityType(.heartRate)),
-            let bpm = stats.mostRecentQuantity()?
-                .doubleValue(for: HKUnit.count().unitDivided(by: .minute()))
-        else { return }
-        // Workout-builder callbacks arrive off the main queue; hop to main
-        // without sending `self` (Swift 6 strict concurrency).
-        nonisolated(unsafe) let handler = onReading
-        DispatchQueue.main.async { handler?("heartRate", ["bpm": bpm]) }
-    }
-
-    func workoutBuilderDidCollectEvent(_: HKLiveWorkoutBuilder) {}
 }
 #endif

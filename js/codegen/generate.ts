@@ -23,6 +23,7 @@ import {
   tsOnly,
   wireVersion,
   type WireTarget,
+  workoutActivityTypes,
 } from "./schema.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -682,6 +683,14 @@ function tsModel() {
       "The HealthKit quantity types this bridge reads. Closed: an unbound " +
         "type would type-check and resolve null forever.",
     ),
+    "",
+    tsUnion(
+      "WorkoutActivityType",
+      workoutActivityTypes,
+      "Every live HKWorkoutActivityType member (the 3 deprecated spellings " +
+        "excluded). Swift maps the NAME to the case; raw values are " +
+        "undocumented.",
+    ),
   ];
   for (const def of [...structs, ...tsOnly, ...invokeShapes])
     parts.push("", tsInterface(def));
@@ -724,6 +733,38 @@ function tsModel() {
   return `${parts.join("\n")}\n`;
 }
 
+// --- Workout activity names (watchOS host) ---------------------------------
+// The other half of the `workoutActivityTypes` vocabulary: JS sends the case
+// NAME and Swift needs an HKWorkoutActivityType. `HKWorkoutActivityType` is an
+// ObjC NS_ENUM with UInt raw values that Apple does NOT document, so a numeric
+// round trip could silently land on a different activity — the mapping has to
+// be a name switch, and generating it from the same list the TS union comes
+// from is what makes name-vs-case drift impossible. Lives in ReactWatchHost
+// (it imports HealthKit) and compiles out off-watchOS like the rest of it.
+
+function workoutActivityNameSwift() {
+  return `${[
+    banner(),
+    "#if os(watchOS)",
+    "import HealthKit",
+    "",
+    "/// Maps a wire `WorkoutActivityType` name to its HKWorkoutActivityType",
+    "/// case. `nil` = a name this binary doesn't know, which the workout",
+    "/// handler rejects INVALID_REQUEST rather than silently starting `.other`.",
+    "enum WorkoutActivityName {",
+    "    static func type(for name: String) -> HKWorkoutActivityType? {",
+    "        switch name {",
+    ...workoutActivityTypes.map((n) => `        case "${n}": .${n}`),
+    "        default: nil",
+    "        }",
+    "    }",
+    "}",
+    "#endif",
+  ]
+    .join("\n")
+    .trimEnd()}\n`;
+}
+
 // --- Outputs ---------------------------------------------------------------
 
 const outputs = [
@@ -731,6 +772,10 @@ const outputs = [
   [
     "swift/Sources/ReactWatchRuntime/Generated/HostBridge.swift",
     hostBridgeSwift(),
+  ],
+  [
+    "swift/Sources/ReactWatchHost/Generated/WorkoutActivityName.swift",
+    workoutActivityNameSwift(),
   ],
   [
     "swift/Tests/ReactWatchTests/Generated/InvokeShapes.swift",

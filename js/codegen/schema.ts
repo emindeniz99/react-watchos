@@ -190,6 +190,44 @@ export const healthQuantityTypes: string[] = [
   "oxygenSaturation",
 ];
 
+/**
+ * Every LIVE `HKWorkoutActivityType` member, as its Swift case NAME.
+ *
+ * Swept from Apple's docs JSON (`healthkit/hkworkoutactivitytype.json` +
+ * one fetch per member): 84 cases, watchOS `introducedAt` maxing out at
+ * exactly **10.0** (`underwaterDiving`) — our package floor — so not one of
+ * them needs an `@available` gate. The three DEPRECATED spellings are excluded
+ * (`dance` deprecated watchOS 7.0, `danceInspiredTraining` 3.0,
+ * `mixedMetabolicCardioTraining` 4.0): project rule 1 is "pre-release, prefer
+ * the clean shape", which gives no compat argument for shipping them. 84 - 3 =
+ * the 81 below.
+ *
+ * Name-keyed, never rawValue-keyed: `HKWorkoutActivityType` is an ObjC
+ * `NS_ENUM` whose raw values Apple does not document, so a numeric round trip
+ * could silently land on a different activity. `generate.ts` renders this into
+ * the TS `WorkoutActivityType` union AND the Swift `WorkoutActivityName`
+ * switch, which is what makes name-vs-case drift structurally impossible.
+ */
+export const workoutActivityTypes: string[] = [
+  "americanFootball", "archery", "australianFootball", "badminton", "barre",
+  "baseball", "basketball", "bowling", "boxing", "cardioDance", "climbing",
+  "cooldown", "coreTraining", "cricket", "crossCountrySkiing",
+  "crossTraining", "curling", "cycling", "discSports", "downhillSkiing",
+  "elliptical", "equestrianSports", "fencing", "fishing", "fitnessGaming",
+  "flexibility", "functionalStrengthTraining", "golf", "gymnastics",
+  "handCycling", "handball", "highIntensityIntervalTraining", "hiking",
+  "hockey", "hunting", "jumpRope", "kickboxing", "lacrosse", "martialArts",
+  "mindAndBody", "mixedCardio", "other", "paddleSports", "pickleball",
+  "pilates", "play", "preparationAndRecovery", "racquetball", "rowing",
+  "rugby", "running", "sailing", "skatingSports", "snowSports",
+  "snowboarding", "soccer", "socialDance", "softball", "squash",
+  "stairClimbing", "stairs", "stepTraining", "surfingSports", "swimBikeRun",
+  "swimming", "tableTennis", "taiChi", "tennis", "trackAndField",
+  "traditionalStrengthTraining", "transition", "underwaterDiving",
+  "volleyball", "walking", "waterFitness", "waterPolo", "waterSports",
+  "wheelchairRunPace", "wheelchairWalkPace", "wrestling", "yoga",
+];
+
 /** One prop the app interpreter honors and the widget interpreter ignores. */
 export interface PropDegradation {
   /** Component the prop lives on, or `"*"` for a prop applied to every node. */
@@ -639,6 +677,50 @@ export const invokeShapes: StructDef[] = [
       { name: "limit", swift: "Int?", ts: "number", optional: true },
     ],
   },
+  {
+    swift: "StartWorkoutRequest",
+    ts: "StartWorkoutRequest",
+    doc: "js/src/workout.ts startWorkout -> HKWorkoutConfiguration + the metrics knob.",
+    fields: [
+      { name: "activityType", swift: "String", ts: "WorkoutActivityType" },
+      {
+        // HKWorkoutSessionLocationType (watchOS 2.0). Not cosmetic: Apple
+        // states outdoor cycling generates accurate location data (indoor does
+        // not) and that calorimetry differs by location.
+        name: "location",
+        swift: "String?",
+        ts: '"indoor" | "outdoor"',
+        optional: true,
+      },
+      {
+        name: "metricsIntervalMs",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+        doc: "coalescing period for workout.metrics; default 1000",
+      },
+      {
+        name: "collectRoute",
+        swift: "Bool?",
+        ts: "boolean",
+        optional: true,
+        doc: "record an HKWorkoutRoute — ALSO needs the `location` feature",
+      },
+    ],
+  },
+  {
+    swift: "EndWorkoutRequest",
+    ts: "EndWorkoutRequest",
+    fields: [
+      {
+        name: "discard",
+        swift: "Bool?",
+        ts: "boolean",
+        optional: true,
+        doc: "throw the workout away instead of saving it (default: save)",
+      },
+    ],
+  },
   // --- results. Type-identical to the public interfaces in js/src (device.ts,
   //     update.ts, iap.ts, maps.ts); `invoke-contract.test.ts` asserts that
   //     identity at COMPILE time in both directions, so the two can't drift.
@@ -792,6 +874,61 @@ export const invokeShapes: StructDef[] = [
         name: "stage",
         swift: "String",
         ts: '"inBed" | "awake" | "asleepCore" | "asleepDeep" | "asleepREM" | "asleepUnspecified"',
+      },
+    ],
+  },
+  {
+    swift: "WorkoutState",
+    ts: "WorkoutState",
+    doc: "The live workout, plus the LAST ended one — see getWorkoutState's JSDoc.",
+    fields: [
+      {
+        name: "state",
+        swift: "String",
+        ts: '"notStarted" | "running" | "paused" | "ended"',
+      },
+      { name: "elapsedMs", swift: "Double", ts: "number" },
+      {
+        name: "activityType",
+        swift: "String?",
+        ts: "WorkoutActivityType",
+        optional: true,
+      },
+      {
+        name: "location",
+        swift: "String?",
+        ts: '"indoor" | "outdoor"',
+        optional: true,
+      },
+      {
+        // The v1 answer to "a workout does not survive a runtime reload": the
+        // owner ends + saves it deterministically and parks THIS snapshot, and
+        // the fresh runtime reads it from its first getWorkoutState(). Pushing
+        // an event into a dying context reaches nobody.
+        name: "endedReason",
+        swift: "String?",
+        ts: '"requested" | "discarded" | "runtimeReload" | "failed"',
+        optional: true,
+      },
+      { name: "endedDurationMs", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "endedWorkoutId",
+        swift: "String?",
+        ts: "string",
+        optional: true,
+        doc: "the saved HKWorkout's UUID; absent when discarded or unsaved",
+      },
+      {
+        name: "endedTotalEnergyKcal",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+      {
+        name: "endedDistanceMeters",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
       },
     ],
   },
@@ -1121,6 +1258,54 @@ export const hostMethods: HostMethod[] = [
     via: "invoke",
     request: "SleepSamplesRequest",
     response: "SleepSample[]",
+  },
+  // --- Workout control (feature "workouts"), SEPARATE from "health" on the
+  //     ARCH-07 authorization-unit rule the `push` split established: this
+  //     WRITES a permanent HKWorkout into the user's health record (it surfaces
+  //     in Fitness/Activity rings), occupies the ONE workout slot watchOS
+  //     allows a process, and grants background execution. Write + background +
+  //     a single-occupancy system resource is a different decision from
+  //     reading. `startHeartRate` stays under "sensors": it already implies a
+  //     hidden workout session today, so keeping it there changes no grant. ---
+  {
+    name: "startWorkout",
+    targets: ["watch"],
+    feature: "workouts",
+    since: 1,
+    via: "invoke",
+    doc: "Starts a real HKWorkoutSession; resolves when it is actually RUNNING (parked on the session delegate, like startExtendedRuntimeSession).",
+    request: "StartWorkoutRequest",
+  },
+  {
+    name: "pauseWorkout",
+    targets: ["watch"],
+    feature: "workouts",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "resumeWorkout",
+    targets: ["watch"],
+    feature: "workouts",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "endWorkout",
+    targets: ["watch"],
+    feature: "workouts",
+    since: 1,
+    via: "invoke",
+    request: "EndWorkoutRequest",
+    response: "WorkoutState",
+  },
+  {
+    name: "getWorkoutState",
+    targets: ["watch"],
+    feature: "workouts",
+    since: 1,
+    via: "invoke",
+    response: "WorkoutState",
   },
   {
     name: "saveUpdate",

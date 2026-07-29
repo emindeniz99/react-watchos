@@ -40,6 +40,7 @@ interface ReactWatchOptions {
   widget?: boolean;
   healthKit?: boolean;
   push?: boolean;
+  workouts?: boolean;
   deploymentTarget?: string;
   appleTeamId?: string;
   scheme?: string;
@@ -83,6 +84,11 @@ function resolveOptions(
     // entitlement breaks provisioning on App IDs without the Push
     // Notifications capability, so remote push is an explicit opt-in.
     push: o.push ?? false,
+    // Same least-privilege shape (M13): `workout-processing` lets the app keep
+    // running in the background, which is a capability an app that never starts
+    // a workout must not carry. Turning it on also turns on the HealthKit
+    // entitlement, because saving an HKWorkout needs it.
+    workouts: o.workouts ?? false,
     deploymentTarget: o.deploymentTarget ?? "10.0",
     appleTeamId: o.appleTeamId ?? config.ios?.appleTeamId,
     // Deep-link scheme, defaulted to the consumer's own bundle id (like the App
@@ -213,7 +219,9 @@ function withEasAppExtensions(
     bundleIdentifier: bundleIdFor(opts.watchBundleSuffix),
     entitlements: {
       "com.apple.security.application-groups": [opts.appGroup],
-      ...(opts.healthKit ? { "com.apple.developer.healthkit": true } : {}),
+      ...(opts.healthKit || opts.workouts
+        ? { "com.apple.developer.healthkit": true }
+        : {}),
       ...(opts.push ? { "aps-environment": "development" } : {}),
     },
   });

@@ -1,0 +1,11 @@
+{
+  "state": "ended",
+  "elapsedMs": 1845000,
+  "activityType": "running",
+  "location": "outdoor",
+  "endedReason": "requested",
+  "endedDurationMs": 1845000,
+  "endedWorkoutId": "6C7F1B0E-6C3E-4B0A-9F1D-2A9E4F1B7C10",
+  "endedTotalEnergyKcal": 312.5,
+  "endedDistanceMeters": 5412.75
+}

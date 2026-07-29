@@ -1,0 +1,6 @@
+{
+  "activityType": "running",
+  "location": "outdoor",
+  "metricsIntervalMs": 2000,
+  "collectRoute": true
+}

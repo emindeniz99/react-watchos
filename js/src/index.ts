@@ -337,6 +337,23 @@ export {
   renderWidgets,
   unregisterAllWidgets,
 } from "./widgets";
+export type {
+  StartWorkoutOptions,
+  WorkoutActivityType,
+  WorkoutMetrics,
+  WorkoutState,
+} from "./workout";
+export {
+  endWorkout,
+  getWorkoutState,
+  onWorkoutMetrics,
+  onWorkoutState,
+  pauseWorkout,
+  resumeWorkout,
+  startWorkout,
+  WORKOUT_METRICS_EVENT,
+  WORKOUT_STATE_EVENT,
+} from "./workout";
 
 /**
  * ARCH-08: the one root `runApp` has mounted and not yet disposed. A second

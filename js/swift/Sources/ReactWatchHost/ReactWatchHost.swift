@@ -142,6 +142,11 @@ final class ReactWatchModel {
     /// per-launch authorization cache; deliberately NOT the same store as the
     /// workout side, which asks for a SHARE grant this one never wants.
     private let health = HealthQueryBridge()
+    /// The SINGLE owner of this process's HKWorkoutSession — watchOS runs one
+    /// at a time and a second start kills the first, so the hidden heart-rate
+    /// pump (`sensors`) and the explicit workout API (`workouts`) both take a
+    /// claim on this one object rather than each constructing a session.
+    private let workout = WorkoutSessionOwner()
     @ObservationIgnored private var fetchTasks: [Int: URLSessionDataTask] = [:]
     /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
     /// the JS-assigned id of a request whose id space resets with the runtime, so
@@ -338,6 +343,29 @@ final class ReactWatchModel {
         sensors.onReading = { [weak self] kind, payload in
             self?.pushNativeEvent("sensor.\(kind)", payload: payload)
         }
+        sensors.workoutOwner = workout
+        sensors.onLocationFix = { [weak self] locations in
+            self?.workout.insertRoute(locations)
+        }
+        // Heart rate reaches JS through the owner's builder now, but on the
+        // SAME `sensor.heartRate` event with the same payload — startHeartRate
+        // is unchanged from JS's side whether the session behind it is the
+        // hidden pump or an explicit workout.
+        workout.onHeartRate = { [weak self] bpm in
+            self?.pushNativeEvent("sensor.heartRate", payload: ["bpm": bpm])
+        }
+        workout.onState = { [weak self] state, reason, epoch in
+            // Settle the parked starts from the REAL lifecycle before
+            // publishing, so `await startWorkout()` means "running" rather than
+            // "the request was submitted" — the extended-runtime precedent.
+            self?.settleWorkoutStarts(state: state, reason: reason, epoch: epoch)
+            var payload: [String: Any] = ["state": state]
+            if let reason { payload["reason"] = reason }
+            self?.pushNativeEvent("workout.state", payload: payload)
+        }
+        workout.onMetrics = { [weak self] payload in
+            self?.pushNativeEvent("workout.metrics", payload: payload)
+        }
         speechBridge.onFinished = { [weak self] text in
             self?.pushNativeEvent("speech.finished", payload: ["text": text])
         }
@@ -450,6 +478,15 @@ final class ReactWatchModel {
         audioBridge.stop()
         speechBridge.stop(silent: true)
         extendedRuntime.stop(silent: true)
+        // ARCH-08: the workout slot is a single-occupancy SYSTEM resource, so
+        // the outgoing generation must not leave one running for a runtime that
+        // never started it. `tearDownForReload` ends AND saves it, parking the
+        // summary for the fresh runtime's first getWorkoutState() — pushing an
+        // event into a dying context would reach nobody. Ordered after
+        // sensors.stopAll() (which releases the heart-rate claim) and before
+        // the QuickJS shutdown below.
+        workout.tearDownForReload()
+        pendingWorkoutStarts.removeAll()
         // ARCH-08: free QuickJS explicitly, and ORDERED relative to the native
         // teardown above, instead of leaving it implicit in ARC. Both callers are
         // @MainActor and this runtime's owning queue IS main, so shutdown()
@@ -647,6 +684,16 @@ final class ReactWatchModel {
             handleQueryHealthSamples(id: id, payload: payload)
         case "querySleepSamples":
             handleQuerySleepSamples(id: id, payload: payload)
+        case "startWorkout":
+            handleStartWorkout(id: id, payload: payload)
+        case "pauseWorkout":
+            handlePauseWorkout(id: id)
+        case "resumeWorkout":
+            handleResumeWorkout(id: id)
+        case "endWorkout":
+            handleEndWorkout(id: id, payload: payload)
+        case "getWorkoutState":
+            handleGetWorkoutState(id: id)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -907,6 +954,17 @@ final class ReactWatchModel {
     /// settling the fresh runtime's reused id space (CX-008).
     @ObservationIgnored
     private var pendingRuntimeSessionStarts: [(id: Int, generation: Int, epoch: Int)] = []
+
+    /// The same parking for `startWorkout`, and for the same reason:
+    /// `HKWorkoutSession.startActivity(with:)` is asynchronous with no
+    /// completion handler — the outcome arrives on
+    /// `workoutSession(_:didChangeTo:from:date:)` (-> .running) or
+    /// `workoutSession(_:didFailWithError:)`. `generation` is the CX-008
+    /// dev-reload guard; `epoch` is per-SESSION identity, so a previous
+    /// session's late terminal callback cannot reject a start parked for a new,
+    /// still-healthy one.
+    @ObservationIgnored
+    private var pendingWorkoutStarts: [(id: Int, generation: Int, epoch: Int)] = []
 
     /// Registers this launch with APNs and parks the invoke until the
     /// delegate reports the token (`remotePushDidRegister`) or the failure
@@ -2705,6 +2763,133 @@ extension ReactWatchModel {
             runtime?.rejectInvoke(
                 id: id,
                 errorJson: Self.errorJSON(code: .internal, message: message))
+        }
+    }
+
+    // MARK: - Workout control (js/src/workout.ts)
+
+    /// Starts an explicit workout and PARKS the invoke on the session's real
+    /// lifecycle, so `await startWorkout()` means "running".
+    ///
+    /// The refusals below are returned synchronously by the owner because each
+    /// produces no delegate callback at all — an already-running workout, an
+    /// unknown activity name, a watch with no HealthKit. Resolving them later
+    /// would leave the promise hanging to its 30 s watchdog (the
+    /// `ExtendedRuntimeBridge.start() -> Bool` lesson).
+    private func handleStartWorkout(id: Int, payload: String) {
+        switch WorkoutStartPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            // The ONE cross-feature check. ARCH-07 gates one feature per method
+            // by design, but a route is location data: it needs `location` as
+            // well as `workouts`, and a second method whose only job is to flip
+            // a bool would be worse than this in-body check.
+            if plan.collectRoute, !effectiveFeatures.contains("location") {
+                runtime?.rejectInvoke(
+                    id: id,
+                    errorJson: Self.errorJSON(
+                        code: .policyDenied,
+                        message: "startWorkout({ collectRoute: true }) also "
+                            + "requires the 'location' feature, which this app's "
+                            + "host policy doesn't authorize"))
+                return
+            }
+            if let refusal = workout.startWorkout(plan) {
+                runtime?.rejectInvoke(
+                    id: id,
+                    errorJson: Self.errorJSON(
+                        code: .unavailable, message: refusal))
+                return
+            }
+            if plan.collectRoute { sensors.startRouteTracking() }
+            pendingWorkoutStarts.append(
+                (id: id, generation: generation, epoch: workout.epoch))
+        }
+    }
+
+    /// Settles the parked `startWorkout`s belonging to the session this callback
+    /// came from. `running` resolves; `ended` rejects UNAVAILABLE with the
+    /// system's reason — which is what a consumer whose session was killed by
+    /// another app's workout actually hits, and what used to look like success.
+    /// Stale generations drop (CX-008); `tearDownForReload` detaches the
+    /// delegate, so a reload produces no callback here at all.
+    private func settleWorkoutStarts(
+        state: String, reason: String?, epoch: Int
+    ) {
+        guard state == "running" || state == "ended" else { return }
+        let pending = pendingWorkoutStarts
+        pendingWorkoutStarts = pending.filter {
+            $0.generation == generation && $0.epoch != epoch
+        }
+        for entry in pending
+        where entry.generation == generation && entry.epoch == epoch {
+            if state == "running" {
+                runtime?.resolveInvoke(id: entry.id, resultJson: "null")
+            } else {
+                runtime?.rejectInvoke(
+                    id: entry.id,
+                    errorJson: Self.errorJSON(
+                        code: .unavailable,
+                        message: "the workout session ended before it started: "
+                            + (reason ?? "unknown reason")))
+            }
+        }
+    }
+
+    private func handlePauseWorkout(id: Int) {
+        settleWorkoutCommand(
+            id: id, ok: workout.pauseWorkout(),
+            message: "no running workout to pause")
+    }
+
+    private func handleResumeWorkout(id: Int) {
+        settleWorkoutCommand(
+            id: id, ok: workout.resumeWorkout(),
+            message: "no paused workout to resume")
+    }
+
+    /// Ends + (by default) SAVES the workout, resolving with the same
+    /// `WorkoutState` snapshot `getWorkoutState` reports — so the caller gets
+    /// the saved workout's id, duration, energy and distance without a second
+    /// round trip. `discard: true` throws it away instead; Apple's HIG requires
+    /// an app to either save automatically or offer an explicit save/discard
+    /// choice, and defaulting to save is the half that can't lose data.
+    private func handleEndWorkout(id: Int, payload: String) {
+        let discard = Self.decodeObject(payload)["discard"] as? Bool ?? false
+        let gen = generation
+        let ended = workout.endWorkout(discard: discard) { [weak self] snapshot in
+            guard let self, gen == self.generation else { return }
+            self.sensors.stopRouteTracking()
+            self.runtime?.resolveInvoke(
+                id: id, resultJson: Self.jsonObject(snapshot))
+        }
+        if !ended {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(
+                    code: .unavailable, message: "no workout is running"))
+        }
+    }
+
+    /// The live workout plus the LAST ended one. The second half is how a
+    /// workout ended by a dev reload / OTA apply reaches the runtime that never
+    /// started it (ARCH-08 deterministic teardown): the owner saves it and
+    /// parks the summary, and this is where the fresh runtime reads it.
+    private func handleGetWorkoutState(id: Int) {
+        runtime?.resolveInvoke(
+            id: id, resultJson: Self.jsonObject(workout.stateSnapshot()))
+    }
+
+    /// pause/resume are synchronous state changes on a session that must exist;
+    /// "no workout is running" is a refusal, not a silent success (rule 12).
+    private func settleWorkoutCommand(id: Int, ok: Bool, message: String) {
+        if ok {
+            runtime?.resolveInvoke(id: id, resultJson: "null")
+        } else {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: .unavailable, message: message))
         }
     }
 
