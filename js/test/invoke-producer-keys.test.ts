@@ -50,6 +50,7 @@ interface Producer {
 
 const HOST = "ReactWatchHost/ReactWatchHost.swift";
 const BRIDGES = "ReactWatchHost/CapabilityBridges.swift";
+const CONNECTIVITY = "ReactWatchHost/PhoneConnectivity.swift";
 const HEALTH = "ReactWatchHost/HealthQueryBridge.swift";
 const WORKOUT = "ReactWatchHost/WorkoutBridge.swift";
 // The pedometer payload is assembled in ReactWatchSupport, not the watchOS
@@ -175,6 +176,38 @@ const PRODUCERS: Record<string, Producer> = {
     delegates: {
       decl: "private func handleQueryPedometer(id: Int, payload: String) {",
       calls: "sensors.pedometer.query(plan)",
+    },
+  },
+  transferFile: {
+    sites: [
+      {
+        file: HOST,
+        decl: "private func handleTransferFile(id: Int, payload: String) {",
+      },
+    ],
+  },
+  outstandingFileTransfers: {
+    sites: [
+      {
+        file: CONNECTIVITY,
+        decl: "func outstandingTransfers() -> [[String: Any]] {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleOutstandingFileTransfers(id: Int) {",
+      calls: "connectivity.outstandingTransfers()",
+    },
+  },
+  getConnectivityState: {
+    sites: [
+      {
+        file: CONNECTIVITY,
+        decl: "func connectivityState() -> [String: Any] {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleGetConnectivityState(id: Int) {",
+      calls: "connectivity.connectivityState()",
     },
   },
   querySleepSamples: {

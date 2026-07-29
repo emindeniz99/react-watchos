@@ -21,9 +21,18 @@ public struct BudgetPolicy: Sendable {
     public var maxCommitJSONBytes: Int
     /// Max wall-clock for one widget timeline render pass.
     public var maxWidgetRenderMs: Double
+    /// Soft cap on one `transferFile` payload. OURS, provisional, unmeasured —
+    /// Apple publishes no byte cap for `WCSession.transferFile`; what Apple
+    /// does document is that it throttles delivery "to accommodate performance
+    /// and power concerns" and that oversize/space failures surface as
+    /// `WCError` (`.payloadTooLarge`, `.insufficientSpace`). So this is a
+    /// tripwire like the rest: crossing it WARNS and the file still transfers,
+    /// because WCError — not this number — is the authority on what is
+    /// actually too large.
+    public var maxTransferFileBytes: Int
 
     private enum Budget: Hashable {
-        case nodes, commitJSONBytes, widgetRenderMs
+        case nodes, commitJSONBytes, widgetRenderMs, transferFileBytes
     }
 
     /// Budgets currently in breach — the hysteresis state.
@@ -32,11 +41,13 @@ public struct BudgetPolicy: Sendable {
     public init(
         maxNodes: Int = 1000,
         maxCommitJSONBytes: Int = 262_144,
-        maxWidgetRenderMs: Double = 500
+        maxWidgetRenderMs: Double = 500,
+        maxTransferFileBytes: Int = 1_048_576
     ) {
         self.maxNodes = maxNodes
         self.maxCommitJSONBytes = maxCommitJSONBytes
         self.maxWidgetRenderMs = maxWidgetRenderMs
+        self.maxTransferFileBytes = maxTransferFileBytes
     }
 
     /// Checks the given measurements against their budgets and returns one
@@ -47,6 +58,7 @@ public struct BudgetPolicy: Sendable {
         nodeCount: Int? = nil,
         commitJSONBytes: Int? = nil,
         widgetRenderMs: Double? = nil,
+        transferFileBytes: Int? = nil,
         sessionId: String, releaseId: String? = nil, target: Diagnostic.Target
     ) -> [Diagnostic] {
         var crossed: [(code: String, details: String)] = []
@@ -79,6 +91,20 @@ public struct BudgetPolicy: Sendable {
                             format: "widget render took %.1f ms — over the "
                                 + "maxWidgetRenderMs budget (%.0f)",
                             widgetRenderMs, maxWidgetRenderMs)
+                    ))
+            }
+        }
+        if let transferFileBytes {
+            if breach(
+                .transferFileBytes, isOver: transferFileBytes > maxTransferFileBytes)
+            {
+                crossed.append(
+                    (
+                        "budget.maxTransferFileBytes",
+                        "transferring a \(transferFileBytes)-byte file — over the "
+                            + "maxTransferFileBytes budget (\(maxTransferFileBytes)); "
+                            + "the watch radio is the dominant cost and WCSession "
+                            + "throttles delivery"
                     ))
             }
         }

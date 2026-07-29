@@ -2568,6 +2568,36 @@ final class BudgetPolicyTests: XCTestCase {
         XCTAssertEqual(policy.maxNodes, 1000)
         XCTAssertEqual(policy.maxCommitJSONBytes, 262_144)
         XCTAssertEqual(policy.maxWidgetRenderMs, 500)
+        XCTAssertEqual(policy.maxTransferFileBytes, 1_048_576)
+    }
+
+    func testTransferFileBudgetWarnsAndNamesTheCost() throws {
+        // The soft cap on WCSession.transferFile is OURS and provisional —
+        // Apple publishes no byte cap — so it must behave like every other
+        // ARCH-13 budget: warn, never reject (the handler transfers either
+        // way), and warn once per crossing.
+        var policy = BudgetPolicy(maxTransferFileBytes: 1000)
+        let crossed = policy.check(
+            transferFileBytes: 4096, sessionId: "s", target: .watch)
+        let diagnostic = try XCTUnwrap(crossed.first)
+        XCTAssertEqual(diagnostic.code, "budget.maxTransferFileBytes")
+        XCTAssertEqual(diagnostic.severity, .recoverable)
+        XCTAssertEqual(diagnostic.subsystem, .budget)
+        XCTAssertTrue(
+            diagnostic.details?.contains("4096-byte file") == true,
+            diagnostic.details ?? "nil")
+        // Hysteresis, like every other budget: a second oversize transfer in a
+        // row is the same crossing, and a small one re-arms it.
+        XCTAssertTrue(
+            policy.check(transferFileBytes: 9000, sessionId: "s", target: .watch)
+                .isEmpty)
+        XCTAssertTrue(
+            policy.check(transferFileBytes: 10, sessionId: "s", target: .watch)
+                .isEmpty)
+        XCTAssertEqual(
+            policy.check(transferFileBytes: 4096, sessionId: "s", target: .watch)
+                .map(\.code),
+            ["budget.maxTransferFileBytes"])
     }
 
     func testExactLimitIsNotABreach() {
@@ -2835,5 +2865,168 @@ final class PedometerReadingTests: XCTestCase {
             ).get())
         XCTAssertNil(try? PedometerQueryPlan.decode(json: #"{"startMs":1000}"#).get())
         XCTAssertNil(try? PedometerQueryPlan.decode(json: "not json").get())
+    }
+}
+
+/// The WatchConnectivity file inbox. `session(_:didReceive:)` is `#if
+/// os(watchOS)` and no Linux job compiles it, so every rule that can go wrong
+/// on the receive path — an untrusted sender-supplied file name, the retention
+/// bound, and the containment check `deleteReceivedFile` rests on — is decided
+/// in `FileInbox` and proven here, against a real temporary directory.
+final class FileInboxTests: XCTestCase {
+    private var root: URL!
+
+    override func setUpWithError() throws {
+        root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("inbox-\(UUID().uuidString)")
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    private func inbox() -> FileInbox { FileInbox(root: root) }
+
+    private func makeFile(_ name: String, bytes: String = "x") throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("src-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: dir, withIntermediateDirectories: true)
+        let url = dir.appendingPathComponent(name)
+        try Data(bytes.utf8).write(to: url)
+        return url
+    }
+
+    func testSanitizeRefusesTraversalAndSeparators() {
+        // The name comes from the SENDING app — an iPhone app this watch app
+        // may not own — and goes straight into a filesystem path.
+        XCTAssertEqual(FileInbox.sanitize("../../etc/passwd"), "....etcpasswd")
+        XCTAssertEqual(FileInbox.sanitize(".."), "file")
+        XCTAssertEqual(FileInbox.sanitize("."), "file")
+        XCTAssertEqual(FileInbox.sanitize(""), "file")
+        XCTAssertEqual(FileInbox.sanitize("   "), "file")
+        XCTAssertEqual(FileInbox.sanitize("a/b:c\\d"), "abcd")
+        XCTAssertFalse(FileInbox.sanitize("a\u{0}b").contains("\u{0}"))
+        XCTAssertEqual(
+            FileInbox.sanitize(String(repeating: "n", count: 500)).count,
+            FileInbox.maxNameLength)
+        XCTAssertEqual(FileInbox.sanitize("run 2026.gpx"), "run 2026.gpx")
+    }
+
+    func testAdoptMovesTheFileAndNamesItUniquely() throws {
+        let box = inbox()
+        let source = try makeFile("export.json", bytes: "hello")
+        let landed = try box.adopt(
+            source, receivedAtMs: 1_768_483_200_000, sequence: 1,
+            name: "export.json")
+        // Moved, not copied: the system deletes the source directory's file
+        // right after the delegate returns, so a copy would be a race.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: landed.path))
+        XCTAssertEqual(
+            try Data(contentsOf: landed), Data("hello".utf8))
+        XCTAssertEqual(
+            landed.lastPathComponent, "1768483200000-1-export.json")
+        // The sequence resets with the process, so the TIMESTAMP is what keeps
+        // a later launch from overwriting a file the app still holds.
+        let second = try box.adopt(
+            try makeFile("export.json", bytes: "later"),
+            receivedAtMs: 1_768_483_300_000, sequence: 1, name: "export.json")
+        XCTAssertNotEqual(second, landed)
+        XCTAssertEqual(try Data(contentsOf: landed), Data("hello".utf8))
+    }
+
+    func testAdoptRefusesToLoseTheNewFileOnAnExactCollision() throws {
+        // Only reachable on an identical ms + sequence. Letting `moveItem`
+        // throw would drop the INCOMING file (the system deletes the source
+        // regardless) to preserve a stale one with the same name.
+        let box = inbox()
+        _ = try box.adopt(
+            try makeFile("a.txt", bytes: "old"), receivedAtMs: 1, sequence: 1,
+            name: "a.txt")
+        let landed = try box.adopt(
+            try makeFile("a.txt", bytes: "new"), receivedAtMs: 1, sequence: 1,
+            name: "a.txt")
+        XCTAssertEqual(try Data(contentsOf: landed), Data("new".utf8))
+    }
+
+    func testRetentionDropsTheOldestPastTheCountAndAnythingStale() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let entries = (0..<5).map { index in
+            FileInbox.Entry(
+                url: URL(fileURLWithPath: "/inbox/\(index)"),
+                modified: now.addingTimeInterval(Double(-index)))
+        }
+        // Count rule: newest 3 survive, the two oldest go.
+        XCTAssertEqual(
+            FileInbox.victims(entries, now: now, maxFiles: 3, maxAge: 10_000)
+                .map(\.lastPathComponent),
+            ["3", "4"])
+        // Age rule bites independently of the count.
+        let stale = [
+            FileInbox.Entry(url: URL(fileURLWithPath: "/inbox/fresh"), modified: now),
+            FileInbox.Entry(
+                url: URL(fileURLWithPath: "/inbox/stale"),
+                modified: now.addingTimeInterval(-100)),
+        ]
+        XCTAssertEqual(
+            FileInbox.victims(stale, now: now, maxFiles: 32, maxAge: 50)
+                .map(\.lastPathComponent),
+            ["stale"])
+        // Exactly at the age limit is not stale (the > in the rule).
+        XCTAssertTrue(
+            FileInbox.victims(stale, now: now, maxFiles: 32, maxAge: 100).isEmpty)
+    }
+
+    func testPruneDeletesOnDiskAndSurvivesAMissingInbox() throws {
+        let box = inbox()
+        var landed: [URL] = []
+        for index in 0..<4 {
+            landed.append(
+                try box.adopt(
+                    try makeFile("f\(index).txt"), receivedAtMs: 1000 + index,
+                    sequence: index, name: "f\(index).txt"))
+        }
+        // Age is what four files trip (the count bound is 32), so pin the
+        // modification dates rather than depending on the filesystem clock:
+        // the two oldest sit just past `maxAge`, the two newest just inside.
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        for (index, url) in landed.enumerated() {
+            let age = index < 2 ? FileInbox.maxAge + 60 : FileInbox.maxAge - 60
+            try FileManager.default.setAttributes(
+                [.modificationDate: now.addingTimeInterval(-age)],
+                ofItemAtPath: url.path)
+        }
+        let removed = box.prune(now: now)
+        XCTAssertEqual(Set(removed), Set(landed.prefix(2)))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: landed[0].path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: landed[3].path))
+        // Housekeeping must never fail a delivery: an inbox that doesn't exist
+        // prunes nothing instead of throwing.
+        XCTAssertTrue(
+            FileInbox(root: root.appendingPathComponent("nope")).prune().isEmpty)
+    }
+
+    func testResolveRefusesEverythingOutsideTheInbox() throws {
+        let box = inbox()
+        let landed = try box.adopt(
+            try makeFile("ok.txt"), receivedAtMs: 1, sequence: 1, name: "ok.txt")
+        // The two forms JS can hand back: the `file://` URL the event carried,
+        // and a bare absolute path.
+        XCTAssertEqual(box.resolve(path: landed.absoluteString)?.path, landed.path)
+        XCTAssertEqual(box.resolve(path: landed.path)?.path, landed.path)
+        // THE check this whole method exists for: `..` is standardized away
+        // BEFORE the prefix compare, so it cannot be walked around.
+        XCTAssertNil(
+            box.resolve(
+                path: root.appendingPathComponent("../../etc/passwd").path))
+        XCTAssertNil(box.resolve(path: "/etc/passwd"))
+        XCTAssertNil(box.resolve(path: "relative/file.txt"))
+        XCTAssertNil(box.resolve(path: ""))
+        // A prefix match on the STRING is not containment: a sibling directory
+        // whose name starts with the inbox's must not resolve.
+        XCTAssertNil(box.resolve(path: root.path + "-evil/file.txt"))
+        // The inbox directory itself is not a file in the inbox.
+        XCTAssertNil(box.resolve(path: root.path))
     }
 }

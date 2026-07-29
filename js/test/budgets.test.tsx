@@ -65,6 +65,7 @@ describe("createCommitBudgetCheck (hysteresis)", () => {
       maxNodes: 1000,
       maxCommitJSONBytes: 262_144,
       maxWidgetRenderMs: 500,
+      maxTransferFileBytes: 1_048_576,
     });
   });
 });

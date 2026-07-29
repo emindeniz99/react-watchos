@@ -6,16 +6,29 @@ import { isOnDeviceAIAvailable } from "../src/ai";
 import { playAudio } from "../src/audio";
 import { scheduleBackgroundRefresh } from "../src/background";
 import { bleConnect, bleSubscribe, bleWrite } from "../src/bluetooth";
+import type {
+  ConnectivityState,
+  FileTransferHandle,
+  FileTransferStatus,
+} from "../src/connectivity";
 import {
+  cancelFileTransfer,
+  deleteReceivedFile,
+  getConnectivityState,
+  outstandingFileTransfers,
   sendToPhone,
+  transferFile,
   transferUserInfo,
   updateApplicationContext,
 } from "../src/connectivity";
 import type { DeviceInfo } from "../src/device";
 import { getDeviceInfo } from "../src/device";
 import type {
+  ConnectivityState as WireConnectivityState,
   Coordinate as WireCoordinate,
   DeviceInfo as WireDeviceInfo,
+  FileTransferHandle as WireFileTransferHandle,
+  FileTransferStatus as WireFileTransferStatus,
   HealthSample as WireHealthSample,
   HealthStatisticsResult as WireHealthStatisticsResult,
   IAPProduct as WireIAPProduct,
@@ -216,6 +229,25 @@ const sleepSamples: SleepSample[] = [
     stage: "asleepDeep",
   },
 ];
+const fileTransferHandle: FileTransferHandle = { id: 3 };
+const fileTransfers: FileTransferStatus[] = [
+  // Two entries on purpose: the id-bearing one (queued by this launch) and the
+  // `id`-less one (queued by a PREVIOUS launch), which is the whole reason the
+  // field is optional.
+  {
+    id: 3,
+    name: "run-2026-07-29.gpx",
+    transferring: true,
+    fractionCompleted: 0.42,
+  },
+  { name: "export.json", transferring: false, fractionCompleted: 1 },
+];
+const connectivityState: ConnectivityState = {
+  activationState: "activated",
+  reachable: true,
+  companionAppInstalled: true,
+  hasContentPending: false,
+};
 
 /** What the mock host resolves each method with (empty string = void). */
 const RESULTS: Record<string, unknown> = {
@@ -232,6 +264,9 @@ const RESULTS: Record<string, unknown> = {
   endWorkout: workoutState,
   getWorkoutState: workoutState,
   queryPedometer: pedometerData,
+  transferFile: fileTransferHandle,
+  outstandingFileTransfers: fileTransfers,
+  getConnectivityState: connectivityState,
 };
 
 /**
@@ -353,6 +388,15 @@ describe("invoke contract fixtures (ARCH-11)", () => {
     await sendToPhone({ type: "sync", payload: { steps: 4210 } });
     await updateApplicationContext({ theme: "dark", units: "metric" });
     await transferUserInfo({ workoutId: "w-42", endedAt: 1_768_483_200_000 });
+    // NOT opaque, unlike its three siblings: Swift reads `path` (and validates
+    // it) before WCSession sees anything, so the shape is declared.
+    await transferFile("file:///var/tmp/run-2026-07-29.gpx", {
+      workoutId: "w-42",
+    });
+    await cancelFileTransfer(3);
+    await deleteReceivedFile(
+      "file:///var/tmp/inbox/1768483200000-1-export.json",
+    );
 
     for (const [method, payloadJson] of payloads) {
       if (!(method in INVOKE_SHAPES)) continue;
@@ -461,6 +505,21 @@ describe("invoke contract fixtures (ARCH-11)", () => {
           endMs: 1_768_483_200_000,
         }),
       ),
+    );
+    writeFixture(
+      "transferFile",
+      "response",
+      JSON.stringify(await transferFile("file:///var/tmp/run.gpx")),
+    );
+    writeFixture(
+      "outstandingFileTransfers",
+      "response",
+      JSON.stringify(await outstandingFileTransfers()),
+    );
+    writeFixture(
+      "getConnectivityState",
+      "response",
+      JSON.stringify(await getConnectivityState()),
     );
     writeFixture(
       "querySleepSamples",
@@ -582,6 +641,18 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
     const healthSampleExact: Exact<HealthSample, WireHealthSample> = true;
     const sleepSampleExact: Exact<SleepSample, WireSleepSample> = true;
     const workoutStateExact: Exact<WorkoutState, WireWorkoutState> = true;
+    const fileTransferHandleExact: Exact<
+      FileTransferHandle,
+      WireFileTransferHandle
+    > = true;
+    const fileTransferStatusExact: Exact<
+      FileTransferStatus,
+      WireFileTransferStatus
+    > = true;
+    const connectivityStateExact: Exact<
+      ConnectivityState,
+      WireConnectivityState
+    > = true;
     expect([
       deviceInfoExact,
       updateStateExact,
@@ -594,6 +665,9 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       healthSampleExact,
       sleepSampleExact,
       workoutStateExact,
-    ]).toEqual(Array(11).fill(true));
+      fileTransferHandleExact,
+      fileTransferStatusExact,
+      connectivityStateExact,
+    ]).toEqual(Array(14).fill(true));
   });
 });

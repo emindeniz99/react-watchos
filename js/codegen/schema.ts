@@ -730,6 +730,44 @@ export const invokeShapes: StructDef[] = [
       { name: "endMs", swift: "Double", ts: "number" },
     ],
   },
+  {
+    // NOT "opaque", unlike the three sibling connectivity channels: Swift
+    // actually READS `path` and validates it before handing anything to
+    // WCSession, so declaring it opaque would contradict the sentinel's own
+    // documented meaning ("the app's arbitrary JSON, no field is read").
+    swift: "TransferFileRequest",
+    ts: "TransferFileRequest",
+    doc: "js/src/connectivity.ts transferFile -> WCSession.transferFile(_:metadata:).",
+    fields: [
+      {
+        name: "path",
+        swift: "String",
+        ts: "string",
+        doc: "file:// URL or absolute container path; must be readable by this app",
+      },
+      {
+        // Same idiom as ScheduleBackgroundRefreshRequest.userInfo — the app's
+        // own JSON, carried verbatim.
+        name: "metadata",
+        swift: "[String: JSONValue]?",
+        ts: "Record<string, unknown>",
+        optional: true,
+        doc: "property-list values only; WCSession fails the transfer otherwise",
+      },
+    ],
+  },
+  {
+    swift: "FileTransferIdRequest",
+    ts: "FileTransferIdRequest",
+    doc: "cancelFileTransfer — the id transferFile resolved.",
+    fields: [{ name: "id", swift: "Int", ts: "number" }],
+  },
+  {
+    swift: "ReceivedFileRequest",
+    ts: "ReceivedFileRequest",
+    doc: "deleteReceivedFile — the inbox path a watchConnectivity.file event carried.",
+    fields: [{ name: "path", swift: "String", ts: "string" }],
+  },
   // --- results. Type-identical to the public interfaces in js/src (device.ts,
   //     update.ts, iap.ts, maps.ts); `invoke-contract.test.ts` asserts that
   //     identity at COMPILE time in both directions, so the two can't drift.
@@ -984,6 +1022,59 @@ export const invokeShapes: StructDef[] = [
       },
     ],
   },
+  {
+    swift: "FileTransferHandle",
+    ts: "FileTransferHandle",
+    doc: "What transferFile resolves: the id the bridge minted for this transfer.",
+    fields: [{ name: "id", swift: "Int", ts: "number" }],
+  },
+  {
+    swift: "FileTransferStatus",
+    ts: "FileTransferStatus",
+    doc: "One entry of WCSession.outstandingFileTransfers.",
+    fields: [
+      {
+        // WCSessionFileTransfer has no identity property, so the id is OURS.
+        // A transfer queued by a previous LAUNCH survives in
+        // `outstandingFileTransfers` with no id we ever minted — reporting
+        // `null` is the honest encoding; inventing one would let a caller
+        // cancel-by-id something this launch never handed out.
+        name: "id",
+        swift: "Int?",
+        ts: "number",
+        optional: true,
+        doc: "null for a transfer queued by a PREVIOUS launch (no id was minted)",
+      },
+      { name: "name", swift: "String", ts: "string" },
+      { name: "transferring", swift: "Bool", ts: "boolean" },
+      {
+        name: "fractionCompleted",
+        swift: "Double",
+        ts: "number",
+        doc: "WCSessionFileTransfer.progress.fractionCompleted (watchOS 5.0+)",
+      },
+    ],
+  },
+  {
+    swift: "ConnectivityState",
+    ts: "ConnectivityState",
+    doc: "WCSession observability — a snapshot, NOT a send gate (see connectivity.ts).",
+    fields: [
+      {
+        name: "activationState",
+        swift: "String",
+        ts: '"notActivated" | "inactive" | "activated"',
+      },
+      {
+        name: "reachable",
+        swift: "Bool",
+        ts: "boolean",
+        doc: "meaningful only while activationState is 'activated'",
+      },
+      { name: "companionAppInstalled", swift: "Bool", ts: "boolean" },
+      { name: "hasContentPending", swift: "Bool", ts: "boolean" },
+    ],
+  },
 ];
 
 /** TS-only wire type (Swift sends events as JS calls, never decodes them). */
@@ -1210,6 +1301,57 @@ export const hostMethods: HostMethod[] = [
     via: "invoke",
     request: "opaque",
   },
+  // File transfer + session observability stay under `connectivity` rather than
+  // becoming their own ARCH-07 feature: this is the same KIND of privilege as
+  // transferUserInfo (move app data to the paired phone), just a larger payload
+  // — unlike the push-vs-notifications split, whose justification was a routable
+  // token issued with no user prompt. The one real counter-argument (inbound
+  // receive WRITES files into the app container, which no other `connectivity`
+  // op does) is recorded in docs/design-platform-data-package.md; it did not tip
+  // the decision because the write target is a package-owned inbox the app can
+  // only read back through paths native handed it.
+  {
+    name: "transferFile",
+    targets: ["watch"],
+    feature: "connectivity",
+    since: 1,
+    via: "invoke",
+    doc: "Queues a file for the paired iPhone; resolves the bridge-minted transfer id once QUEUED (completion arrives on watchConnectivity.fileTransfer, possibly in a later launch).",
+    request: "TransferFileRequest",
+    response: "FileTransferHandle",
+  },
+  {
+    name: "cancelFileTransfer",
+    targets: ["watch"],
+    feature: "connectivity",
+    since: 1,
+    via: "invoke",
+    request: "FileTransferIdRequest",
+  },
+  {
+    name: "outstandingFileTransfers",
+    targets: ["watch"],
+    feature: "connectivity",
+    since: 1,
+    via: "invoke",
+    response: "FileTransferStatus[]",
+  },
+  {
+    name: "getConnectivityState",
+    targets: ["watch"],
+    feature: "connectivity",
+    since: 1,
+    via: "invoke",
+    response: "ConnectivityState",
+  },
+  {
+    name: "deleteReceivedFile",
+    targets: ["watch"],
+    feature: "connectivity",
+    since: 1,
+    via: "invoke",
+    request: "ReceivedFileRequest",
+  },
   {
     name: "fetch",
     targets: ["watch"],
@@ -1431,8 +1573,10 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     via: "invoke",
   },
-  // --- Device info (WKInterfaceDevice): a snapshot query; battery + wrist
-  //     changes stream on the push channel (device.battery / device.wrist). ---
+  // --- Device info (WKInterfaceDevice): a snapshot query, and only that.
+  //     There is no `device.battery` / `device.wrist` push channel — watchOS
+  //     publishes no battery- or wrist-change notification, so a caller polls
+  //     (js/src/device.ts says the same). ---
   {
     name: "getDeviceInfo",
     targets: ["watch"],

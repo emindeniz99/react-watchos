@@ -316,6 +316,14 @@ final class ReactWatchModel {
         connectivity.onPush = { [weak self] event, payload in
             self?.pushNativeEvent(event, payload: payload)
         }
+        // A received file that could not be landed has no invoke to reject and
+        // no event shape to carry a failure — without this it would vanish
+        // (rule 12). Recoverable, so it also reaches the developer banner.
+        connectivity.onError = { [weak self] code, details in
+            self?.report(
+                code: code, severity: .recoverable, subsystem: .connectivity,
+                details: details)
+        }
         connectivity.activate()
         bluetooth.onState = { [weak self] state in
             self?.pushNativeEvent("ble.state", payload: ["state": state])
@@ -660,6 +668,16 @@ final class ReactWatchModel {
             settleConnectivity(id: id, connectivity.updateApplicationContext(payload))
         case "transferUserInfo":
             settleConnectivity(id: id, connectivity.transferUserInfo(payload))
+        case "transferFile":
+            handleTransferFile(id: id, payload: payload)
+        case "cancelFileTransfer":
+            settleConnectivity(id: id, connectivity.cancelFileTransfer(payload))
+        case "outstandingFileTransfers":
+            handleOutstandingFileTransfers(id: id)
+        case "getConnectivityState":
+            handleGetConnectivityState(id: id)
+        case "deleteReceivedFile":
+            settleConnectivity(id: id, connectivity.deleteReceivedFile(payload))
         case "scheduleNotification":
             scheduleNotification(id: id, payload: payload)
         case "aiAvailability":
@@ -1042,6 +1060,46 @@ final class ReactWatchModel {
                 }
             }
         }
+    }
+
+    /// Queues a file for the paired iPhone and resolves the bridge-minted id
+    /// ONCE QUEUED — the transfer itself is throttled by the system, survives
+    /// suspension, and can complete in a later launch, so parking the invoke on
+    /// delivery (the `startExtendedRuntimeSession` shape) would blow the 30 s
+    /// watchdog on every call. Completion rides `watchConnectivity.fileTransfer`.
+    ///
+    /// The soft size budget WARNS and still transfers, the ARCH-13 posture:
+    /// WCError — not our unmeasured number — is the authority on what is
+    /// actually too large for WatchConnectivity.
+    private func handleTransferFile(id: Int, payload: String) {
+        switch connectivity.transferFile(payload) {
+        case .failure(let error):
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: error.code, message: error.message))
+        case .success(let queued):
+            for diagnostic in budgets.check(
+                transferFileBytes: queued.bytes, sessionId: sessionId,
+                releaseId: bootedReleaseId, target: .watch)
+            {
+                report(diagnostic)
+            }
+            runtime?.resolveInvoke(
+                id: id, resultJson: Self.jsonObject(["id": queued.id]))
+        }
+    }
+
+    private func handleOutstandingFileTransfers(id: Int) {
+        let entries = connectivity.outstandingTransfers()
+        let json =
+            (try? JSONSerialization.data(withJSONObject: entries))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        runtime?.resolveInvoke(id: id, resultJson: json)
+    }
+
+    private func handleGetConnectivityState(id: Int) {
+        runtime?.resolveInvoke(
+            id: id, resultJson: Self.jsonObject(connectivity.connectivityState()))
     }
 
     /// Maps UNAuthorizationStatus to the JS NotificationPermission string

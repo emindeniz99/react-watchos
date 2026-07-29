@@ -167,7 +167,9 @@ export function installMockHost() {
         method === "bleWrite" ||
         method === "bleSubscribe" ||
         method === "updateApplicationContext" ||
-        method === "transferUserInfo"
+        method === "transferUserInfo" ||
+        method === "cancelFileTransfer" ||
+        method === "deleteReceivedFile"
       ) {
         g.__resolveInvoke?.(id, ""); // success → resolves void
       } else {

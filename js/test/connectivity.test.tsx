@@ -1,13 +1,26 @@
 import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
+import type {
+  ConnectivityState,
+  FileTransferResult,
+  ReceivedFile,
+} from "../src/index";
 import {
+  cancelFileTransfer,
   defineMessages,
+  deleteReceivedFile,
+  getConnectivityState,
   MemoryHost,
   onApplicationContext,
+  onConnectivityState,
+  onFileTransfer,
   onPhoneMessage,
+  onReceivedFile,
   onUserInfo,
+  outstandingFileTransfers,
   sendToPhone,
   Text,
+  transferFile,
   transferUserInfo,
   updateApplicationContext,
 } from "../src/index";
@@ -136,5 +149,170 @@ describe("WatchConnectivity bridge", () => {
       JSON.stringify({ type: "sync", payload: { status: "done" } }),
     );
     expect(host.lastCommit!.root!.props.text).toBe("done");
+  });
+});
+
+describe("file transfer", () => {
+  it("omits `metadata` entirely when the caller passed none", async () => {
+    // Not `metadata: undefined`: the payload is JSON.stringify'd, and an
+    // explicit undefined would be dropped there anyway — but a `null` or `{}`
+    // would reach WCSession as a metadata dictionary the caller never asked
+    // for, and a non-plist value in it fails the whole transfer.
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number, _m: string) => {
+      (
+        globalThis as { __resolveInvoke?: (i: number, j: string) => void }
+      ).__resolveInvoke?.(id, JSON.stringify({ id: 7 }));
+    });
+    const handle = await transferFile("file:///var/tmp/run.gpx");
+    expect(JSON.parse(host.invoke.mock.calls[0]?.[2] as string)).toEqual({
+      path: "file:///var/tmp/run.gpx",
+    });
+    expect(handle).toEqual({ id: 7 });
+
+    await transferFile("file:///var/tmp/run.gpx", { workoutId: "w-42" });
+    expect(JSON.parse(host.invoke.mock.calls[1]?.[2] as string)).toEqual({
+      path: "file:///var/tmp/run.gpx",
+      metadata: { workoutId: "w-42" },
+    });
+  });
+
+  it("cancel and delete address the transfer by id and the file by path", async () => {
+    const host = installMockHost();
+    await cancelFileTransfer(7);
+    await deleteReceivedFile("file:///inbox/1-1-export.json");
+    expect(
+      host.invoke.mock.calls.map((c) => [c[1], JSON.parse(c[2] as string)]),
+    ).toEqual([
+      ["cancelFileTransfer", { id: 7 }],
+      ["deleteReceivedFile", { path: "file:///inbox/1-1-export.json" }],
+    ]);
+  });
+
+  it("outstandingFileTransfers surfaces the id-less previous-launch entry", async () => {
+    // The case the optional `id` exists for: WCSession's queue survives the
+    // process, so a transfer can outlive the launch that minted its id.
+    const host = installMockHost();
+    host.invoke.mockImplementation((id: number) => {
+      (
+        globalThis as { __resolveInvoke?: (i: number, j: string) => void }
+      ).__resolveInvoke?.(
+        id,
+        JSON.stringify([
+          { id: 3, name: "a.gpx", transferring: true, fractionCompleted: 0.5 },
+          { name: "b.json", transferring: false, fractionCompleted: 1 },
+        ]),
+      );
+    });
+    const transfers = await outstandingFileTransfers();
+    expect(transfers[1]?.id).toBeUndefined();
+    expect(transfers[0]?.id).toBe(3);
+  });
+
+  it("onReceivedFile hands the handler a complete, defaulted ReceivedFile", () => {
+    mountApp(<Text>x</Text>, new MemoryHost());
+    const seen: ReceivedFile[] = [];
+    onReceivedFile((file) => seen.push(file));
+    const push = (globalThis as { __pushNativeEvent?: PushFn })
+      .__pushNativeEvent!;
+    push(
+      "watchConnectivity.file",
+      JSON.stringify({
+        path: "file:///inbox/1-1-run.gpx",
+        name: "run.gpx",
+        size: 2048,
+        metadata: { workoutId: "w-42" },
+        receivedAt: 1_768_483_200_000,
+      }),
+    );
+    // A sender that passed no metadata: `{}`, never undefined, so a consumer
+    // can read `file.metadata.x` without a guard.
+    push(
+      "watchConnectivity.file",
+      JSON.stringify({ path: "file:///inbox/2-1-x", name: "x", size: 1 }),
+    );
+    expect(seen[0]).toEqual({
+      path: "file:///inbox/1-1-run.gpx",
+      name: "run.gpx",
+      size: 2048,
+      metadata: { workoutId: "w-42" },
+      receivedAt: 1_768_483_200_000,
+    });
+    expect(seen[1]?.metadata).toEqual({});
+    expect(seen[1]?.receivedAt).toBe(0);
+  });
+
+  it("onFileTransfer reports a previous launch's completion as id: null", () => {
+    mountApp(<Text>x</Text>, new MemoryHost());
+    const seen: FileTransferResult[] = [];
+    onFileTransfer((result) => seen.push(result));
+    const push = (globalThis as { __pushNativeEvent?: PushFn })
+      .__pushNativeEvent!;
+    push(
+      "watchConnectivity.fileTransfer",
+      JSON.stringify({ id: 3, state: "finished" }),
+    );
+    push(
+      "watchConnectivity.fileTransfer",
+      JSON.stringify({
+        state: "failed",
+        error: "not enough space",
+        code: "insufficientSpace",
+      }),
+    );
+    expect(seen[0]).toEqual({ id: 3, state: "finished" });
+    expect(seen[1]).toEqual({
+      id: null,
+      state: "failed",
+      error: "not enough space",
+      code: "insufficientSpace",
+    });
+  });
+});
+
+describe("session state is observability, not a gate", () => {
+  it("getConnectivityState returns the snapshot verbatim", async () => {
+    const host = installMockHost();
+    const state: ConnectivityState = {
+      activationState: "activated",
+      reachable: false,
+      companionAppInstalled: true,
+      hasContentPending: true,
+    };
+    host.invoke.mockImplementation((id: number) => {
+      (
+        globalThis as { __resolveInvoke?: (i: number, j: string) => void }
+      ).__resolveInvoke?.(id, JSON.stringify(state));
+    });
+    expect(await getConnectivityState()).toEqual(state);
+  });
+
+  it("onConnectivityState degrades an unknown activation state to notActivated", () => {
+    // `activationState` is a closed union on the wire. A value from a newer or
+    // broken binary must land on the SAFE member — "not activated" is the one
+    // that makes a consumer show "disconnected" rather than claim a live link.
+    mountApp(<Text>x</Text>, new MemoryHost());
+    const seen: ConnectivityState[] = [];
+    onConnectivityState((state) => seen.push(state));
+    const push = (globalThis as { __pushNativeEvent?: PushFn })
+      .__pushNativeEvent!;
+    push(
+      "watchConnectivity.state",
+      JSON.stringify({
+        activationState: "somethingNew",
+        reachable: true,
+        companionAppInstalled: true,
+        hasContentPending: false,
+      }),
+    );
+    push("watchConnectivity.state", JSON.stringify({}));
+    expect(seen[0]?.activationState).toBe("notActivated");
+    expect(seen[0]?.reachable).toBe(true);
+    expect(seen[1]).toEqual({
+      activationState: "notActivated",
+      reachable: false,
+      companionAppInstalled: false,
+      hasContentPending: false,
+    });
   });
 });

@@ -14,8 +14,14 @@ export const BUDGETS = {
    *  true UTF-8 byte count for free on its decode path. */
   maxCommitJSONBytes: 262_144,
   /** Max wall-clock for one widget timeline render pass (checked natively —
-   *  documented here so all three numbers live together). */
+   *  documented here so all four numbers live together). */
   maxWidgetRenderMs: 500,
+  /** Soft cap on one `transferFile` payload, checked natively. OURS and
+   *  provisional — Apple publishes no byte cap for `WCSession.transferFile`,
+   *  only that it throttles for "performance and power concerns". Crossing it
+   *  warns; the file still transfers, because `WCError` is the authority on
+   *  what is actually too large. */
+  maxTransferFileBytes: 1_048_576,
 } as const;
 
 /**

@@ -213,6 +213,27 @@ struct PedometerQueryRequest: InvokeShape {
     static let declaredKeys: Set<String> = ["startMs", "endMs"]
 }
 
+/// js/src/connectivity.ts transferFile -> WCSession.transferFile(_:metadata:).
+struct TransferFileRequest: InvokeShape {
+    /// file:// URL or absolute container path; must be readable by this app
+    let path: String
+    /// property-list values only; WCSession fails the transfer otherwise
+    let metadata: [String: JSONValue]?
+    static let declaredKeys: Set<String> = ["path", "metadata"]
+}
+
+/// cancelFileTransfer — the id transferFile resolved.
+struct FileTransferIdRequest: InvokeShape {
+    let id: Int
+    static let declaredKeys: Set<String> = ["id"]
+}
+
+/// deleteReceivedFile — the inbox path a watchConnectivity.file event carried.
+struct ReceivedFileRequest: InvokeShape {
+    let path: String
+    static let declaredKeys: Set<String> = ["path"]
+}
+
 struct DeviceInfo: InvokeShape {
     let batteryLevel: Double
     let batteryState: String
@@ -356,10 +377,42 @@ struct PedometerData: InvokeShape {
     ]
 }
 
+/// What transferFile resolves: the id the bridge minted for this transfer.
+struct FileTransferHandle: InvokeShape {
+    let id: Int
+    static let declaredKeys: Set<String> = ["id"]
+}
+
+/// One entry of WCSession.outstandingFileTransfers.
+struct FileTransferStatus: InvokeShape {
+    /// null for a transfer queued by a PREVIOUS launch (no id was minted)
+    let id: Int?
+    let name: String
+    let transferring: Bool
+    /// WCSessionFileTransfer.progress.fractionCompleted (watchOS 5.0+)
+    let fractionCompleted: Double
+    static let declaredKeys: Set<String> = ["id", "name", "transferring", "fractionCompleted"]
+}
+
+/// WCSession observability — a snapshot, NOT a send gate (see connectivity.ts).
+struct ConnectivityState: InvokeShape {
+    let activationState: String
+    /// meaningful only while activationState is 'activated'
+    let reachable: Bool
+    let companionAppInstalled: Bool
+    let hasContentPending: Bool
+    static let declaredKeys: Set<String> = [
+        "activationState", "reachable", "companionAppInstalled", "hasContentPending",
+    ]
+}
+
 enum InvokeShapes {
     /// method -> decode this fixture as the declared REQUEST shape.
     static let requestDecoders: [String: @Sendable (Data) throws -> Void] = [
         "scheduleNotification": { try decodeStrict(ScheduleNotificationRequest.self, from: $0) },
+        "transferFile": { try decodeStrict(TransferFileRequest.self, from: $0) },
+        "cancelFileTransfer": { try decodeStrict(FileTransferIdRequest.self, from: $0) },
+        "deleteReceivedFile": { try decodeStrict(ReceivedFileRequest.self, from: $0) },
         "bleConnect": { try decodeStrict(BleConnectRequest.self, from: $0) },
         "bleWrite": { try decodeStrict(BleWriteRequest.self, from: $0) },
         "bleSubscribe": { try decodeStrict(BleSubscribeRequest.self, from: $0) },
@@ -388,6 +441,11 @@ enum InvokeShapes {
 
     /// method -> decode this fixture as the declared RESULT shape.
     static let responseDecoders: [String: @Sendable (Data) throws -> Void] = [
+        "transferFile": { try decodeStrict(FileTransferHandle.self, from: $0) },
+        "outstandingFileTransfers": {
+            try decodeStrict(arrayOf: FileTransferStatus.self, from: $0)
+        },
+        "getConnectivityState": { try decodeStrict(ConnectivityState.self, from: $0) },
         "queryPedometer": { try decodeStrict(PedometerData.self, from: $0) },
         "queryHealthStatistics": { try decodeStrict(HealthStatisticsResult.self, from: $0) },
         "queryHealthSamples": { try decodeStrict(arrayOf: HealthSample.self, from: $0) },

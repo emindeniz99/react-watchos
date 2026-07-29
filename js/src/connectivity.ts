@@ -17,14 +17,22 @@ import {
  * | {@link onPhoneMessage} | the phone's reply                                      |
  * | {@link updateApplicationContext} / {@link onApplicationContext} | latest-wins state: the counterpart gets the MOST RECENT context when it next wakes |
  * | {@link transferUserInfo} / {@link onUserInfo} | FIFO queue: every item delivered in order, queue survives suspension |
+ * | {@link transferFile} / {@link onReceivedFile} | FIFO queue of FILES: the payload is a file on disk, not a plist — see {@link transferFile} |
  *
  * Rule of thumb: request/reply → sendToPhone; "current state" sync (settings,
  * dashboard data) → updateApplicationContext; must-not-drop event streams
- * (logged workouts, purchases) → transferUserInfo.
+ * (logged workouts, purchases) → transferUserInfo; bytes that aren't a
+ * property list (an audio clip, an export, an image) → transferFile.
  */
 export const PHONE_MESSAGE_EVENT = "watchConnectivity";
 export const APPLICATION_CONTEXT_EVENT = "watchConnectivity.applicationContext";
 export const USER_INFO_EVENT = "watchConnectivity.userInfo";
+/** A file the iPhone sent, already moved into this app's inbox. */
+export const RECEIVED_FILE_EVENT = "watchConnectivity.file";
+/** An outbound {@link transferFile} finished or failed. */
+export const FILE_TRANSFER_EVENT = "watchConnectivity.fileTransfer";
+/** WCSession activation / reachability / companion-install changed. */
+export const CONNECTIVITY_STATE_EVENT = "watchConnectivity.state";
 
 /**
  * Sends a message to the paired iPhone and resolves its reply (CX-022). Rejects
@@ -81,6 +89,210 @@ export function onApplicationContext(handler: NativeEventHandler): Unsubscribe {
  *  `transferUserInfo`). Returns an unsubscribe. */
 export function onUserInfo(handler: NativeEventHandler): Unsubscribe {
   return registerNativeListener(USER_INFO_EVENT, handler);
+}
+
+/** What {@link transferFile} resolves: the id this bridge minted for the
+ *  queued transfer. Pass it to {@link cancelFileTransfer}, and match it
+ *  against {@link onFileTransfer}'s `id`. */
+export interface FileTransferHandle {
+  id: number;
+}
+
+/** One entry of {@link outstandingFileTransfers}. */
+export interface FileTransferStatus {
+  /** `null` for a transfer queued by a PREVIOUS launch: the id space is this
+   *  launch's, and `WCSessionFileTransfer` carries no identity of its own, so
+   *  there is nothing honest to report. Such a transfer still completes and
+   *  still fires {@link onFileTransfer} — with `id: null`. */
+  id?: number;
+  /** Last path component of the file being sent. */
+  name: string;
+  transferring: boolean;
+  /** 0–1 (`WCSessionFileTransfer.progress`). Poll this; there is deliberately
+   *  no progress push channel — a KVO observer per transfer pushing at an
+   *  unbounded rate is the wakeup anti-pattern
+   *  `docs/perf-battery-audit-2026-07-08.md` §P1-1 measures. */
+  fractionCompleted: number;
+}
+
+/** A snapshot of the WCSession, for **observability only** — see
+ *  {@link getConnectivityState}. */
+export interface ConnectivityState {
+  activationState: "notActivated" | "inactive" | "activated";
+  /** Apple: valid **only** for a session that activated successfully; ignore
+   *  it while `activationState` is anything but `"activated"`. */
+  reachable: boolean;
+  companionAppInstalled: boolean;
+  hasContentPending: boolean;
+}
+
+/** A file received from the iPhone, as delivered to {@link onReceivedFile}. */
+export interface ReceivedFile {
+  /** Absolute `file://`-readable path inside this app's inbox. Read it with
+   *  `fetch(path)` → `arrayBuffer()`, then {@link deleteReceivedFile} it. */
+  path: string;
+  /** The name the sender gave the file. */
+  name: string;
+  size: number;
+  /** Whatever the sender passed as `metadata`; `{}` when it sent none. */
+  metadata: Record<string, unknown>;
+  /** ms since epoch, stamped when the file landed. */
+  receivedAt: number;
+}
+
+/** The terminal state of one outbound {@link transferFile}. */
+export interface FileTransferResult {
+  /** The id {@link transferFile} resolved, or `null` for a transfer queued by
+   *  a previous launch (see {@link FileTransferStatus.id}). */
+  id: number | null;
+  state: "finished" | "failed";
+  /** Native failure message; absent when `state` is `"finished"`. */
+  error?: string;
+  /** The `WCError.Code` case name (e.g. `"insufficientSpace"`), when the
+   *  failure was one — so a caller can branch without parsing `error`. */
+  code?: string;
+}
+
+/**
+ * Queues a FILE for the paired iPhone (`WCSession.transferFile`) and resolves
+ * **once queued**, with the id to track it by — not once delivered.
+ *
+ * Delivery is deliberately not awaited. Apple throttles file transfers "to
+ * accommodate performance and power concerns", the queue survives app
+ * suspension, and a transfer can finish in a **later launch** — so an invoke
+ * that waited for completion would blow its watchdog rather than report
+ * anything useful. Completion arrives on {@link onFileTransfer} instead, and
+ * may arrive in a process that never called this function.
+ *
+ * `path` is a `file://` URL or an absolute container path this app can read.
+ * `metadata` must contain property-list values only; a non-plist value fails
+ * the transfer *later*, on the delegate, not here.
+ *
+ * ### Size and battery
+ *
+ * Apple publishes no byte cap, but the radio is the dominant cost and the
+ * system throttles. Ours, provisional and unmeasured: keep watch → phone
+ * transfers **under ~1 MB**, never transfer from a render or sensor path, and
+ * batch to an explicit user action or a background-refresh wake. Crossing the
+ * soft cap emits a WARN `budget` diagnostic and still transfers — `WCError` is
+ * the authority on what is actually too large. See
+ * `docs/budgets-and-limits.md`.
+ */
+export function transferFile(
+  path: string,
+  metadata?: Record<string, unknown>,
+): Promise<FileTransferHandle> {
+  return invoke<FileTransferHandle>("transferFile", {
+    path,
+    ...(metadata === undefined ? {} : { metadata }),
+  });
+}
+
+/**
+ * Cancels a queued/in-flight transfer by the id {@link transferFile} resolved.
+ * Rejects `INVALID_REQUEST` when this launch never minted that id — including
+ * for a transfer queued by a previous launch, which has no id to cancel by.
+ */
+export function cancelFileTransfer(id: number): Promise<void> {
+  return invoke("cancelFileTransfer", { id });
+}
+
+/** Every transfer WCSession still has queued, including ones this launch did
+ *  not queue (`id: null`). The polling counterpart to {@link onFileTransfer}. */
+export function outstandingFileTransfers(): Promise<FileTransferStatus[]> {
+  return invoke<FileTransferStatus[]>("outstandingFileTransfers");
+}
+
+/**
+ * A snapshot of the session: activation, reachability, whether the companion
+ * iPhone app is installed, and whether WCSession still has content queued.
+ *
+ * **Observability, not a gate.** Do not branch "can I send now" on
+ * `reachable`: the field lesson recorded in
+ * `notes/watchconnectivity-reliability.md` is that `isReachable` returns
+ * `true` while delivery is failing ("a random bool generator with a confidence
+ * problem"). Send and await an ack instead. This exists so a UI can *show* a
+ * connection state and so a bug report can carry one — nothing more.
+ */
+export function getConnectivityState(): Promise<ConnectivityState> {
+  return invoke<ConnectivityState>("getConnectivityState");
+}
+
+/**
+ * Deletes a file this app received, by the `path` its
+ * {@link onReceivedFile} event carried. Call it once you've read the bytes.
+ *
+ * The inbox is also pruned natively on each receive (newest 32 files / 7 days),
+ * but pruning alone would delete files an app is still holding a path to —
+ * hence an explicit release. Rejects `INVALID_REQUEST` for a path outside the
+ * inbox; resolves for a path that is already gone (deleting twice is not an
+ * error).
+ */
+export function deleteReceivedFile(path: string): Promise<void> {
+  return invoke("deleteReceivedFile", { path });
+}
+
+/**
+ * Runs `handler` for each file the iPhone sends. The file has already been
+ * moved out of the system's temporary directory into this app's inbox (native
+ * must do that synchronously or the system deletes it), so `path` is readable
+ * for as long as you keep it. Returns an unsubscribe.
+ */
+export function onReceivedFile(
+  handler: (file: ReceivedFile) => void,
+): Unsubscribe {
+  return registerNativeListener(RECEIVED_FILE_EVENT, (payload) => {
+    handler({
+      path: String(payload?.path ?? ""),
+      name: String(payload?.name ?? ""),
+      size: Number(payload?.size ?? 0),
+      metadata: (payload?.metadata as Record<string, unknown>) ?? {},
+      receivedAt: Number(payload?.receivedAt ?? 0),
+    });
+  });
+}
+
+/**
+ * Runs `handler` when an outbound {@link transferFile} finishes or fails —
+ * possibly in a launch that never queued it (`id: null`). Returns an
+ * unsubscribe.
+ */
+export function onFileTransfer(
+  handler: (result: FileTransferResult) => void,
+): Unsubscribe {
+  return registerNativeListener(FILE_TRANSFER_EVENT, (payload) => {
+    const id = payload?.id;
+    handler({
+      id: typeof id === "number" ? id : null,
+      state: payload?.state === "failed" ? "failed" : "finished",
+      ...(typeof payload?.error === "string" ? { error: payload.error } : {}),
+      ...(typeof payload?.code === "string" ? { code: payload.code } : {}),
+    });
+  });
+}
+
+/**
+ * Runs `handler` whenever the session state changes — activation completing,
+ * reachability flipping, or the companion app being installed/removed. Those
+ * three are the *complete* set of state callbacks watchOS delivers (there is
+ * no watch-side `sessionWatchStateDidChange`), so one event covers them all.
+ * Same caveat as {@link getConnectivityState}: observe, don't gate.
+ */
+export function onConnectivityState(
+  handler: (state: ConnectivityState) => void,
+): Unsubscribe {
+  return registerNativeListener(CONNECTIVITY_STATE_EVENT, (payload) => {
+    const activationState = payload?.activationState;
+    handler({
+      activationState:
+        activationState === "activated" || activationState === "inactive"
+          ? activationState
+          : "notActivated",
+      reachable: Boolean(payload?.reachable),
+      companionAppInstalled: Boolean(payload?.companionAppInstalled),
+      hasContentPending: Boolean(payload?.hasContentPending),
+    });
+  });
 }
 
 /**
