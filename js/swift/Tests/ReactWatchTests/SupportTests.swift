@@ -2868,6 +2868,121 @@ final class PedometerReadingTests: XCTestCase {
     }
 }
 
+/// The EventKit read contract's decidable half (js/src/calendar.ts). The
+/// queries are `#if os(watchOS)` and unreachable here, so everything a
+/// malformed request has to trip lives in `CalendarPlan` and is proven on
+/// Linux: the entity vocabulary, the window rules, the result cap, and the
+/// authorization vocabulary's one load-bearing property — that exactly one
+/// status can read.
+final class CalendarPlanTests: XCTestCase {
+    func testOnlyFullAccessCanRead() {
+        // Apple: "Your app can't request read-only access to either events or
+        // reminders. To read events or reminders from the event store, your app
+        // needs full access." `writeOnly` is a REAL watchOS 10 state that also
+        // cannot read — and is deliberately NOT collapsed into `denied`,
+        // because the two mean opposite things to the person who chose them.
+        XCTAssertEqual(CalendarAccess.allCases.filter(\.canRead), [.granted])
+        XCTAssertNotEqual(CalendarAccess.writeOnly, .denied)
+        XCTAssertFalse(CalendarAccess.writeOnly.canRead)
+    }
+
+    func testAccessRejectsAnUnknownEntity() throws {
+        XCTAssertEqual(
+            try CalendarAccessPlan.decode(json: #"{"entity":"events"}"#).get().entity,
+            .events)
+        XCTAssertEqual(
+            try CalendarAccessPlan.decode(json: #"{"entity":"reminders"}"#).get()
+                .entity,
+            .reminders)
+        // An unbound entity would prompt for nothing and resolve empty forever
+        // (the SensorKind lesson), so it is refused with the legal values named.
+        let message = try XCTUnwrap(
+            CalendarAccessPlan.decode(json: #"{"entity":"contacts"}"#).failureMessage)
+        XCTAssertTrue(message.contains("events"), message)
+        XCTAssertTrue(message.contains("reminders"), message)
+        XCTAssertNotNil(CalendarAccessPlan.decode(json: "{}").failureMessage)
+        XCTAssertNotNil(CalendarAccessPlan.decode(json: "not json").failureMessage)
+    }
+
+    func testEventsWindowMustBeOrderedAndFinite() throws {
+        let plan = try CalendarEventsPlan.decode(
+            json: #"{"startMs":1000,"endMs":2000,"limit":5}"#
+        ).get()
+        XCTAssertEqual(plan.limit, 5)
+        XCTAssertEqual(plan.start, Date(timeIntervalSince1970: 1))
+        XCTAssertEqual(plan.end, Date(timeIntervalSince1970: 2))
+        // Inverted/empty windows REJECT rather than resolving `[]`: an empty
+        // list a caller cannot tell from "nothing scheduled" is the one answer
+        // this API must not fake.
+        XCTAssertNotNil(
+            CalendarEventsPlan.decode(json: #"{"startMs":2000,"endMs":1000}"#)
+                .failureMessage)
+        XCTAssertNotNil(
+            CalendarEventsPlan.decode(json: #"{"startMs":1000,"endMs":1000}"#)
+                .failureMessage)
+        XCTAssertNotNil(
+            CalendarEventsPlan.decode(json: #"{"startMs":1000}"#).failureMessage)
+        XCTAssertNotNil(
+            CalendarEventsPlan.decode(json: #"{"startMs":1000,"endMs":2000,"limit":0}"#)
+                .failureMessage)
+    }
+
+    func testEventLimitIsClampedToTheCeiling() throws {
+        let plan = try CalendarEventsPlan.decode(
+            json: #"{"startMs":1000,"endMs":2000,"limit":100000}"#
+        ).get()
+        XCTAssertEqual(plan.limit, CalendarLimits.maxLimit)
+        // No limit means the ceiling too — the bridge applies it — so an
+        // un-capped "every event this decade" cannot cross the bridge.
+        XCTAssertNil(
+            try CalendarEventsPlan.decode(json: #"{"startMs":1,"endMs":2}"#).get()
+                .limit)
+    }
+
+    func testRemindersDefaultToABoundedWindow() throws {
+        // An argument-less call is legal: invoke sends "" for it and `{}` for
+        // an empty options object, and BOTH must mean the defaults rather than
+        // "reject" or "every incomplete reminder ever".
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        for json in ["", "{}"] {
+            let plan = try RemindersPlan.decode(json: json, now: now).get()
+            XCTAssertEqual(
+                plan.dueBefore.timeIntervalSince1970,
+                now.addingTimeInterval(CalendarLimits.defaultReminderWindow)
+                    .timeIntervalSince1970,
+                accuracy: 0.001)
+            XCTAssertNil(plan.limit)
+        }
+        let explicit = try RemindersPlan.decode(
+            json: #"{"dueBeforeMs":5000,"limit":3}"#, now: now
+        ).get()
+        XCTAssertEqual(explicit.dueBefore, Date(timeIntervalSince1970: 5))
+        XCTAssertEqual(explicit.limit, 3)
+        XCTAssertEqual(
+            try RemindersPlan.decode(json: #"{"limit":100000}"#, now: now).get()
+                .limit,
+            CalendarLimits.maxLimit)
+        XCTAssertNotNil(
+            RemindersPlan.decode(json: #"{"limit":0}"#, now: now).failureMessage)
+        XCTAssertNotNil(
+            RemindersPlan.decode(json: "not json", now: now).failureMessage)
+        // An explicit null is "I didn't pass one", not a rejection — JS omits
+        // an absent option, but a caller building the object by hand may not.
+        XCTAssertNil(
+            RemindersPlan.decode(json: #"{"dueBeforeMs":null}"#, now: now)
+                .failureMessage)
+    }
+}
+
+/// `Result.failure`'s message, or nil when the decode succeeded — so a
+/// rejection assertion reads as one line.
+extension Result where Failure == CalendarRequestError {
+    fileprivate var failureMessage: String? {
+        if case .failure(let error) = self { return error.message }
+        return nil
+    }
+}
+
 /// The WatchConnectivity file inbox. `session(_:didReceive:)` is `#if
 /// os(watchOS)` and no Linux job compiles it, so every rule that can go wrong
 /// on the receive path — an untrusted sender-supplied file name, the retention

@@ -768,6 +768,38 @@ export const invokeShapes: StructDef[] = [
     doc: "deleteReceivedFile — the inbox path a watchConnectivity.file event carried.",
     fields: [{ name: "path", swift: "String", ts: "string" }],
   },
+  {
+    swift: "CalendarAccessRequest",
+    ts: "CalendarAccessRequest",
+    doc: "js/src/calendar.ts requestCalendarAccess — which EKEntityType to ask for.",
+    fields: [
+      {
+        // Two entities, two OS-level TCC prompts, one ARCH-07 feature — the
+        // OS already gates per entity, so `calendar` only has to answer "may
+        // this bundle read the user's schedule at all".
+        name: "entity",
+        swift: "String",
+        ts: '"events" | "reminders"',
+      },
+    ],
+  },
+  {
+    swift: "CalendarEventsRequest",
+    ts: "CalendarEventsRequest",
+    fields: [
+      { name: "startMs", swift: "Double", ts: "number", doc: "window start, ms since epoch" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      { name: "limit", swift: "Int?", ts: "number", optional: true },
+    ],
+  },
+  {
+    swift: "RemindersRequest",
+    ts: "RemindersRequest",
+    fields: [
+      { name: "dueBeforeMs", swift: "Double?", ts: "number", optional: true },
+      { name: "limit", swift: "Int?", ts: "number", optional: true },
+    ],
+  },
   // --- results. Type-identical to the public interfaces in js/src (device.ts,
   //     update.ts, iap.ts, maps.ts); `invoke-contract.test.ts` asserts that
   //     identity at COMPILE time in both directions, so the two can't drift.
@@ -1073,6 +1105,48 @@ export const invokeShapes: StructDef[] = [
       },
       { name: "companionAppInstalled", swift: "Bool", ts: "boolean" },
       { name: "hasContentPending", swift: "Bool", ts: "boolean" },
+    ],
+  },
+  {
+    swift: "CalendarEvent",
+    ts: "CalendarEvent",
+    doc: "One EKEvent occurrence in the requested window.",
+    fields: [
+      {
+        name: "id",
+        swift: "String",
+        ts: "string",
+        doc: "EKEvent.eventIdentifier — SHARED by every occurrence of a recurring series",
+      },
+      { name: "title", swift: "String", ts: "string" },
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      { name: "allDay", swift: "Bool", ts: "boolean" },
+      { name: "location", swift: "String?", ts: "string", optional: true },
+      { name: "calendarTitle", swift: "String", ts: "string" },
+    ],
+  },
+  {
+    swift: "Reminder",
+    ts: "Reminder",
+    doc: "One incomplete EKReminder.",
+    fields: [
+      {
+        name: "id",
+        swift: "String",
+        ts: "string",
+        doc: "EKCalendarItem.calendarItemIdentifier",
+      },
+      { name: "title", swift: "String", ts: "string" },
+      {
+        name: "dueMs",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+        doc: "absent when the reminder has no due date at all",
+      },
+      { name: "completed", swift: "Bool", ts: "boolean" },
+      { name: "calendarTitle", swift: "String", ts: "string" },
     ],
   },
 ];
@@ -1518,6 +1592,42 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     via: "invoke",
     response: "WorkoutState",
+  },
+  // --- EventKit READS (feature "calendar"): its own authorization unit, and
+  //     ONE feature for both entities. events and reminders each carry their
+  //     own OS-level TCC prompt, so the OS already gates them per entity and
+  //     ARCH-07 only has to answer the coarse "may this bundle touch the
+  //     user's schedule at all" — the inverse of the `push`-vs-`notifications`
+  //     split, where the grant genuinely differed (a routable token issued
+  //     with no user prompt). Read-only in v1: nothing here writes an event.
+  //     watch-only; a widget extension doing EventKit I/O inside getTimeline
+  //     would meter it against the WidgetKit refresh budget. ---
+  {
+    name: "requestCalendarAccess",
+    targets: ["watch"],
+    feature: "calendar",
+    since: 1,
+    via: "invoke",
+    doc: "Runs the EventKit permission sheet for one entity; resolves \"granted\" | \"denied\" | \"restricted\" | \"notDetermined\" | \"writeOnly\" | \"unavailable\". Reading needs FULL access — Apple exposes no read-only grant.",
+    request: "CalendarAccessRequest",
+  },
+  {
+    name: "getCalendarEvents",
+    targets: ["watch"],
+    feature: "calendar",
+    since: 1,
+    via: "invoke",
+    request: "CalendarEventsRequest",
+    response: "CalendarEvent[]",
+  },
+  {
+    name: "getReminders",
+    targets: ["watch"],
+    feature: "calendar",
+    since: 1,
+    via: "invoke",
+    request: "RemindersRequest",
+    response: "Reminder[]",
   },
   {
     name: "saveUpdate",

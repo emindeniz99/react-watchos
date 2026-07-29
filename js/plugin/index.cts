@@ -42,6 +42,7 @@ interface ReactWatchOptions {
   push?: boolean;
   workouts?: boolean;
   motion?: boolean;
+  calendar?: boolean;
   deploymentTarget?: string;
   appleTeamId?: string;
   scheme?: string;
@@ -96,6 +97,12 @@ function resolveOptions(
     // PedometerBridge checks the key and refuses with an actionable
     // UNAVAILABLE rather than hitting Apple's documented crash.
     motion: o.motion ?? false,
+    // NSCalendarsFullAccessUsageDescription + NSRemindersFullAccessUsageDescription
+    // for js/src/calendar.ts. Same least-privilege default as the others (M13):
+    // an unused usage string draws App Review scrutiny, and EventKit needs NO
+    // entitlement on watchOS — the `com.apple.security.personal-information.calendars`
+    // one Apple documents is for SANDBOXED macOS apps.
+    calendar: o.calendar ?? false,
     deploymentTarget: o.deploymentTarget ?? "10.0",
     appleTeamId: o.appleTeamId ?? config.ios?.appleTeamId,
     // Deep-link scheme, defaulted to the consumer's own bundle id (like the App

@@ -142,6 +142,11 @@ final class ReactWatchModel {
     /// per-launch authorization cache; deliberately NOT the same store as the
     /// workout side, which asks for a SHARE grant this one never wants.
     private let health = HealthQueryBridge()
+    /// EventKit reads (js/src/calendar.ts). Owns the process's one long-lived
+    /// `EKEventStore` — Apple warns that releasing a store before the objects
+    /// it vended is an error, so a per-call store would free itself while the
+    /// events it returned were still being read.
+    private let calendar = CalendarBridge()
     /// The SINGLE owner of this process's HKWorkoutSession — watchOS runs one
     /// at a time and a second start kills the first, so the hidden heart-rate
     /// pump (`sensors`) and the explicit workout API (`workouts`) both take a
@@ -733,6 +738,12 @@ final class ReactWatchModel {
             handleQueryHealthSamples(id: id, payload: payload)
         case "querySleepSamples":
             handleQuerySleepSamples(id: id, payload: payload)
+        case "requestCalendarAccess":
+            handleRequestCalendarAccess(id: id, payload: payload)
+        case "getCalendarEvents":
+            handleGetCalendarEvents(id: id, payload: payload)
+        case "getReminders":
+            handleGetReminders(id: id, payload: payload)
         case "startWorkout":
             handleStartWorkout(id: id, payload: payload)
         case "pauseWorkout":
@@ -2850,6 +2861,83 @@ extension ReactWatchModel {
         switch outcome {
         case .ok(let json):
             runtime?.resolveInvoke(id: id, resultJson: json)
+        case .error(let message):
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: .internal, message: message))
+        }
+    }
+
+    // MARK: - EventKit reads (js/src/calendar.ts)
+
+    /// Runs the EventKit TCC sheet for one entity and resolves the resulting
+    /// status as a bare string — the `requestNotificationPermission` /
+    /// `requestHealthAuthorization` precedent, and the reason the schema
+    /// declares no `response` shape for it.
+    ///
+    /// User-mediated: the sheet blocks on a person, so JS raises the watchdog
+    /// to `USER_MEDIATED_INVOKE_TIMEOUT_MS` for this call.
+    private func handleRequestCalendarAccess(id: Int, payload: String) {
+        switch CalendarAccessPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.calendar else { return }
+                let status = await bridge.requestAccess(plan)
+                guard let self, gen == self.generation else { return }
+                self.runtime?.resolveInvoke(
+                    id: id, resultJson: Self.jsonString(status.rawValue))
+            }
+        }
+    }
+
+    private func handleGetCalendarEvents(id: Int, payload: String) {
+        switch CalendarEventsPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.calendar else { return }
+                let outcome = await bridge.events(plan)
+                self?.settleCalendar(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    private func handleGetReminders(id: Int, payload: String) {
+        switch RemindersPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.calendar else { return }
+                let outcome = await bridge.reminders(plan)
+                self?.settleCalendar(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// The `settleHealth` shape plus the arm EventKit genuinely has: a refusal
+    /// the USER can act on rejects PERMISSION_DENIED, not INTERNAL — the same
+    /// split `OneShotLocation` makes between `.denied` and `.unavailable`, and
+    /// the distinction `queryPedometer` had to be fixed to make. An empty
+    /// window still resolves `[]` (the `handleSearchPOI` rule): "nothing on
+    /// your calendar" is a real answer, "you said no" is not.
+    private func settleCalendar(
+        id: Int, generation gen: Int, _ outcome: CalendarBridge.Outcome
+    ) {
+        guard gen == generation else { return }
+        switch outcome {
+        case .ok(let json):
+            runtime?.resolveInvoke(id: id, resultJson: json)
+        case .denied(let message):
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: .permissionDenied, message: message))
         case .error(let message):
             runtime?.rejectInvoke(
                 id: id,

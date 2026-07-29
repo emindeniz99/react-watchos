@@ -51,6 +51,7 @@ interface Producer {
 const HOST = "ReactWatchHost/ReactWatchHost.swift";
 const BRIDGES = "ReactWatchHost/CapabilityBridges.swift";
 const CONNECTIVITY = "ReactWatchHost/PhoneConnectivity.swift";
+const CALENDAR = "ReactWatchHost/CalendarBridge.swift";
 const HEALTH = "ReactWatchHost/HealthQueryBridge.swift";
 const WORKOUT = "ReactWatchHost/WorkoutBridge.swift";
 // The pedometer payload is assembled in ReactWatchSupport, not the watchOS
@@ -208,6 +209,30 @@ const PRODUCERS: Record<string, Producer> = {
     delegates: {
       decl: "private func handleGetConnectivityState(id: Int) {",
       calls: "connectivity.connectivityState()",
+    },
+  },
+  getCalendarEvents: {
+    sites: [
+      {
+        file: CALENDAR,
+        decl: "func events(_ plan: CalendarEventsPlan) async -> Outcome {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleGetCalendarEvents(id: Int, payload: String) {",
+      calls: "bridge.events(plan)",
+    },
+  },
+  getReminders: {
+    sites: [
+      {
+        file: CALENDAR,
+        decl: "func reminders(_ plan: RemindersPlan) async -> Outcome {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleGetReminders(id: Int, payload: String) {",
+      calls: "bridge.reminders(plan)",
     },
   },
   querySleepSamples: {

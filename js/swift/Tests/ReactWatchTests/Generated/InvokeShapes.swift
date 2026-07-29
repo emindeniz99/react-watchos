@@ -234,6 +234,26 @@ struct ReceivedFileRequest: InvokeShape {
     static let declaredKeys: Set<String> = ["path"]
 }
 
+/// js/src/calendar.ts requestCalendarAccess — which EKEntityType to ask for.
+struct CalendarAccessRequest: InvokeShape {
+    let entity: String
+    static let declaredKeys: Set<String> = ["entity"]
+}
+
+struct CalendarEventsRequest: InvokeShape {
+    /// window start, ms since epoch
+    let startMs: Double
+    let endMs: Double
+    let limit: Int?
+    static let declaredKeys: Set<String> = ["startMs", "endMs", "limit"]
+}
+
+struct RemindersRequest: InvokeShape {
+    let dueBeforeMs: Double?
+    let limit: Int?
+    static let declaredKeys: Set<String> = ["dueBeforeMs", "limit"]
+}
+
 struct DeviceInfo: InvokeShape {
     let batteryLevel: Double
     let batteryState: String
@@ -406,6 +426,33 @@ struct ConnectivityState: InvokeShape {
     ]
 }
 
+/// One EKEvent occurrence in the requested window.
+struct CalendarEvent: InvokeShape {
+    /// EKEvent.eventIdentifier — SHARED by every occurrence of a recurring series
+    let id: String
+    let title: String
+    let startMs: Double
+    let endMs: Double
+    let allDay: Bool
+    let location: String?
+    let calendarTitle: String
+    static let declaredKeys: Set<String> = [
+        "id", "title", "startMs", "endMs", "allDay", "location", "calendarTitle",
+    ]
+}
+
+/// One incomplete EKReminder.
+struct Reminder: InvokeShape {
+    /// EKCalendarItem.calendarItemIdentifier
+    let id: String
+    let title: String
+    /// absent when the reminder has no due date at all
+    let dueMs: Double?
+    let completed: Bool
+    let calendarTitle: String
+    static let declaredKeys: Set<String> = ["id", "title", "dueMs", "completed", "calendarTitle"]
+}
+
 enum InvokeShapes {
     /// method -> decode this fixture as the declared REQUEST shape.
     static let requestDecoders: [String: @Sendable (Data) throws -> Void] = [
@@ -425,6 +472,9 @@ enum InvokeShapes {
         "querySleepSamples": { try decodeStrict(SleepSamplesRequest.self, from: $0) },
         "startWorkout": { try decodeStrict(StartWorkoutRequest.self, from: $0) },
         "endWorkout": { try decodeStrict(EndWorkoutRequest.self, from: $0) },
+        "requestCalendarAccess": { try decodeStrict(CalendarAccessRequest.self, from: $0) },
+        "getCalendarEvents": { try decodeStrict(CalendarEventsRequest.self, from: $0) },
+        "getReminders": { try decodeStrict(RemindersRequest.self, from: $0) },
         "saveUpdate": { try decodeStrict(SaveUpdateRequest.self, from: $0) },
         "scheduleBackgroundRefresh": {
             try decodeStrict(ScheduleBackgroundRefreshRequest.self, from: $0)
@@ -452,6 +502,8 @@ enum InvokeShapes {
         "querySleepSamples": { try decodeStrict(arrayOf: SleepSample.self, from: $0) },
         "endWorkout": { try decodeStrict(WorkoutState.self, from: $0) },
         "getWorkoutState": { try decodeStrict(WorkoutState.self, from: $0) },
+        "getCalendarEvents": { try decodeStrict(arrayOf: CalendarEvent.self, from: $0) },
+        "getReminders": { try decodeStrict(arrayOf: Reminder.self, from: $0) },
         "saveUpdate": { try decodeStrict(SaveUpdateResult.self, from: $0) },
         "getUpdateState": { try decodeStrict(UpdateState.self, from: $0) },
         "getDeviceInfo": { try decodeStrict(DeviceInfo.self, from: $0) },

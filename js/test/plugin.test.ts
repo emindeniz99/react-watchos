@@ -254,6 +254,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     healthKit: true,
     workouts: false,
     motion: false,
+    calendar: false,
     deploymentTarget: "10.0",
     scheme: "com.emindeniz99.reactwatch",
     watchBundleSuffix: ".watch",
@@ -299,6 +300,39 @@ describe("targetConfig (options -> apple-targets config)", () => {
       watchTargetConfig({ ...demoOpts, healthKit: false, motion: true })
         .infoPlist.NSMotionUsageDescription,
     ).toBeTruthy();
+  });
+
+  it("emits BOTH EventKit full-access strings from `calendar`, and no entitlement", () => {
+    const on = watchTargetConfig({ ...demoOpts, calendar: true });
+    expect(on.infoPlist.NSCalendarsFullAccessUsageDescription).toBeTruthy();
+    expect(on.infoPlist.NSRemindersFullAccessUsageDescription).toBeTruthy();
+    // The DEPRECATED spelling (deprecated at watchOS 10.0 — this package's
+    // floor) must never ship: it would be an unused key App Review reads as a
+    // permission the app doesn't actually use.
+    expect(on.infoPlist.NSCalendarsUsageDescription).toBeUndefined();
+    // watchOS gates EventKit purely through the runtime prompt. The
+    // `com.apple.security.personal-information.calendars` entitlement Apple
+    // documents is for SANDBOXED macOS apps, and shipping it here would break
+    // provisioning for no gain.
+    expect(
+      on.entitlements["com.apple.security.personal-information.calendars"],
+    ).toBeUndefined();
+    // A consumer's own string still wins (the `??` idiom every block uses).
+    expect(
+      watchTargetConfig({
+        ...demoOpts,
+        calendar: true,
+        infoPlist: { NSCalendarsFullAccessUsageDescription: "mine" },
+      }).infoPlist.NSCalendarsFullAccessUsageDescription,
+    ).toBe("mine");
+  });
+
+  it("omits the EventKit usage strings when calendar is off (the default)", () => {
+    // M13 least privilege: an unused usage string is an App Review flag, and
+    // `calendar` is off unless asked for — the healthKit/push/motion shape.
+    const c = watchTargetConfig({ ...demoOpts, calendar: false });
+    expect(c.infoPlist.NSCalendarsFullAccessUsageDescription).toBeUndefined();
+    expect(c.infoPlist.NSRemindersFullAccessUsageDescription).toBeUndefined();
   });
 
   it("omits HealthKit entitlement + usage strings when healthKit is off", () => {

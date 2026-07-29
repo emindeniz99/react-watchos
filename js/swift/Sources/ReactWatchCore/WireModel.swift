@@ -151,9 +151,9 @@ public enum RNWire {
 /// runs only if its required features are a subset (see CapabilityGate).
 public enum HostFeatures {
     public static let watch: Set<String> = [
-        "ai", "audio", "background", "bluetooth", "connectivity", "core", "device", "haptics",
-        "health", "iap", "keychain", "location", "network", "notifications", "ota", "push",
-        "runtime", "sensors", "speech", "storage", "widgets", "workouts",
+        "ai", "audio", "background", "bluetooth", "calendar", "connectivity", "core", "device",
+        "haptics", "health", "iap", "keychain", "location", "network", "notifications", "ota",
+        "push", "runtime", "sensors", "speech", "storage", "widgets", "workouts",
     ]
     public static let widget: Set<String> = ["core", "storage", "widgets"]
 }
@@ -173,10 +173,12 @@ public enum HostInvokeFeatures {
         "deleteReceivedFile": "connectivity",
         "enableWaterLock": "device",
         "endWorkout": "workouts",
+        "getCalendarEvents": "calendar",
         "getConnectivityState": "connectivity",
         "getCurrentLocation": "location",
         "getDeviceInfo": "device",
         "getProducts": "iap",
+        "getReminders": "calendar",
         "getUpdateState": "ota",
         "getWorkoutState": "workouts",
         "keychainDelete": "keychain",
@@ -192,6 +194,7 @@ public enum HostInvokeFeatures {
         "queryPedometer": "sensors",
         "querySleepSamples": "health",
         "registerForRemoteNotifications": "push",
+        "requestCalendarAccess": "calendar",
         "requestHealthAuthorization": "health",
         "requestNotificationPermission": "notifications",
         "restorePurchases": "iap",

@@ -6,6 +6,12 @@ import { isOnDeviceAIAvailable } from "../src/ai";
 import { playAudio } from "../src/audio";
 import { scheduleBackgroundRefresh } from "../src/background";
 import { bleConnect, bleSubscribe, bleWrite } from "../src/bluetooth";
+import type { CalendarEvent, Reminder } from "../src/calendar";
+import {
+  getCalendarEvents,
+  getReminders,
+  requestCalendarAccess,
+} from "../src/calendar";
 import type {
   ConnectivityState,
   FileTransferHandle,
@@ -24,6 +30,7 @@ import {
 import type { DeviceInfo } from "../src/device";
 import { getDeviceInfo } from "../src/device";
 import type {
+  CalendarEvent as WireCalendarEvent,
   ConnectivityState as WireConnectivityState,
   Coordinate as WireCoordinate,
   DeviceInfo as WireDeviceInfo,
@@ -35,6 +42,7 @@ import type {
   PedometerData as WirePedometerData,
   POIResult as WirePOIResult,
   PurchaseResult as WirePurchaseResult,
+  Reminder as WireReminder,
   SaveUpdateResult as WireSaveUpdateResult,
   SleepSample as WireSleepSample,
   UpdateState as WireUpdateState,
@@ -242,6 +250,26 @@ const fileTransfers: FileTransferStatus[] = [
   },
   { name: "export.json", transferring: false, fractionCompleted: 1 },
 ];
+const calendarEvents: CalendarEvent[] = [
+  {
+    id: "8A0F1C2E-standup",
+    title: "Standup",
+    startMs: 1_768_471_200_000,
+    endMs: 1_768_472_100_000,
+    allDay: false,
+    location: "Room 3",
+    calendarTitle: "Work",
+  },
+];
+const reminders: Reminder[] = [
+  {
+    id: "x-apple-reminderkit://REMCDReminder/1",
+    title: "Buy milk",
+    dueMs: 1_768_500_000_000,
+    completed: false,
+    calendarTitle: "Groceries",
+  },
+];
 const connectivityState: ConnectivityState = {
   activationState: "activated",
   reachable: true,
@@ -267,6 +295,8 @@ const RESULTS: Record<string, unknown> = {
   transferFile: fileTransferHandle,
   outstandingFileTransfers: fileTransfers,
   getConnectivityState: connectivityState,
+  getCalendarEvents: calendarEvents,
+  getReminders: reminders,
 };
 
 /**
@@ -397,6 +427,15 @@ describe("invoke contract fixtures (ARCH-11)", () => {
     await deleteReceivedFile(
       "file:///var/tmp/inbox/1768483200000-1-export.json",
     );
+    // EventKit: every optional (`limit`, `dueBeforeMs`) rides a fixture, so
+    // the field-coverage assertion below has real traffic to judge.
+    await requestCalendarAccess("events");
+    await getCalendarEvents({
+      startMs: 1_768_464_000_000,
+      endMs: 1_768_550_400_000,
+      limit: 20,
+    });
+    await getReminders({ dueBeforeMs: 1_768_550_400_000, limit: 20 });
 
     for (const [method, payloadJson] of payloads) {
       if (!(method in INVOKE_SHAPES)) continue;
@@ -520,6 +559,21 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       "getConnectivityState",
       "response",
       JSON.stringify(await getConnectivityState()),
+    );
+    writeFixture(
+      "getCalendarEvents",
+      "response",
+      JSON.stringify(
+        await getCalendarEvents({
+          startMs: 1_768_464_000_000,
+          endMs: 1_768_550_400_000,
+        }),
+      ),
+    );
+    writeFixture(
+      "getReminders",
+      "response",
+      JSON.stringify(await getReminders()),
     );
     writeFixture(
       "querySleepSamples",
@@ -653,6 +707,8 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       ConnectivityState,
       WireConnectivityState
     > = true;
+    const calendarEventExact: Exact<CalendarEvent, WireCalendarEvent> = true;
+    const reminderExact: Exact<Reminder, WireReminder> = true;
     expect([
       deviceInfoExact,
       updateStateExact,
@@ -668,6 +724,8 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       fileTransferHandleExact,
       fileTransferStatusExact,
       connectivityStateExact,
-    ]).toEqual(Array(14).fill(true));
+      calendarEventExact,
+      reminderExact,
+    ]).toEqual(Array(16).fill(true));
   });
 });

@@ -24,6 +24,7 @@ export interface ResolvedOptions {
   push: boolean;
   workouts: boolean;
   motion: boolean;
+  calendar: boolean;
   deploymentTarget: string;
   appleTeamId: string | undefined;
   scheme: string;
@@ -142,6 +143,27 @@ function watchTargetConfig(opts: ResolvedOptions) {
     infoPlist.NSMotionUsageDescription =
       infoPlist.NSMotionUsageDescription ??
       "Read your steps, distance and motion to power activity features.";
+  }
+
+  if (opts.calendar) {
+    // EventKit reads (js/src/calendar.ts). NO entitlement: the
+    // `com.apple.security.personal-information.calendars` one Apple documents
+    // is for SANDBOXED macOS apps, and watchOS gates this purely through the
+    // runtime TCC prompt — which the OS refuses to show at all if these keys
+    // are missing ("if your app doesn't include usage description keys… iOS
+    // automatically denies any access request").
+    //
+    // The FULL-ACCESS spellings, not `NSCalendarsUsageDescription`: that one
+    // is deprecated at watchOS 10.0, which is this package's floor, and
+    // reading events needs full access anyway (Apple exposes no read-only
+    // grant). Two separate keys because events and reminders are two separate
+    // permissions with two separate prompts.
+    infoPlist.NSCalendarsFullAccessUsageDescription =
+      infoPlist.NSCalendarsFullAccessUsageDescription ??
+      "Show your upcoming events on your watch.";
+    infoPlist.NSRemindersFullAccessUsageDescription =
+      infoPlist.NSRemindersFullAccessUsageDescription ??
+      "Show your reminders on your watch.";
   }
 
   return {

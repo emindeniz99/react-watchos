@@ -29,6 +29,19 @@ export {
   onBleState,
 } from "./bluetooth";
 export type {
+  CalendarAccessResult,
+  CalendarEntity,
+  CalendarEvent,
+  CalendarEventsQuery,
+  Reminder,
+  RemindersQuery,
+} from "./calendar";
+export {
+  getCalendarEvents,
+  getReminders,
+  requestCalendarAccess,
+} from "./calendar";
+export type {
   AlertActionProps,
   AlertProps,
   ButtonProps,
