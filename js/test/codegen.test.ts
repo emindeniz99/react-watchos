@@ -201,7 +201,9 @@ describe("workout activity names", () => {
     // directions come from the same list, so a one-way edit is impossible —
     // and the case/name identity check catches the `.rowing -> "running"`
     // transposition a hand-written reverse table invites.
-    const reverse = generated.slice(generated.indexOf("static func name(for type:"));
+    const reverse = generated.slice(
+      generated.indexOf("static func name(for type:"),
+    );
     const mapped = [...reverse.matchAll(/case \.(\w+): "(\w+)"$/gm)];
     expect(mapped.map((m) => m[2])).toEqual(workoutActivityTypes);
     expect(mapped.filter((m) => m[1] !== m[2])).toEqual([]);

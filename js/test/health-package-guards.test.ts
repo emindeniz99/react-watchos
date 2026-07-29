@@ -195,9 +195,13 @@ describe("the workout owner is the only HKWorkoutSession construction site", () 
     // the teardown-site detach could not reach it either. Naming the session
     // JS was told about is the only test that survives both.
     const src = read("ReactWatchHost/WorkoutBridge.swift");
-    expect(src).toContain("private weak var publishedSession: HKWorkoutSession?");
+    expect(src).toContain(
+      "private weak var publishedSession: HKWorkoutSession?",
+    );
     // Set at the ONE construction site, and only for the explicit claim.
-    expect(src).toContain("if claim == .workout { publishedSession = session }");
+    expect(src).toContain(
+      "if claim == .workout { publishedSession = session }",
+    );
     const code = src
       .split("\n")
       .filter((line) => !line.trimStart().startsWith("//"))
@@ -212,7 +216,9 @@ describe("the workout owner is the only HKWorkoutSession construction site", () 
     expect(transitions).toContain("guard session === this.publishedSession");
     // Cleared on the terminal transition — which is also what stops an outside
     // kill publishing "ended" twice, once per callback.
-    expect(transitions).toContain("if name == .ended { this.publishedSession = nil }");
+    expect(transitions).toContain(
+      "if name == .ended { this.publishedSession = nil }",
+    );
     const failure = code.slice(code.indexOf("didFailWithError error: Error"));
     expect(failure).toContain("guard session === this.publishedSession");
   });
@@ -228,7 +234,9 @@ describe("the workout owner is the only HKWorkoutSession construction site", () 
       src.indexOf("    /// The one teardown path."),
     );
     expect(start).toContain("if claim == .workout {");
-    expect(start).toContain("emitState(\"ended\", error.localizedDescription, epoch)");
+    expect(start).toContain(
+      'emitState("ended", error.localizedDescription, epoch)',
+    );
   });
 
   it("crash recovery is scoped to the PROCESS, not to a runtime generation", () => {
@@ -298,7 +306,9 @@ describe("the workout owner is the only HKWorkoutSession construction site", () 
       src.indexOf("    private func adopt(_ session: HKWorkoutSession) {"),
       src.indexOf("    deinit {"),
     );
-    expect(adopt).toContain("guard self.session == nil, pendingStart == nil else {");
+    expect(adopt).toContain(
+      "guard self.session == nil, pendingStart == nil else {",
+    );
     expect(adopt).toContain("session.end()");
     // Apple: "you must access its builder and set up your data source and
     // delegates again" — all three, or the adopted session collects nothing
@@ -459,7 +469,9 @@ describe("the daily statistics collection is contiguous, not sparse", () => {
     // between "results.length is the number of days you asked for" and not.
     const src = read("ReactWatchHost/HealthQueryBridge.swift");
     const body = src.slice(
-      src.indexOf("func dailyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {"),
+      src.indexOf(
+        "func dailyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {",
+      ),
     );
     expect(body).toContain("collection.enumerateStatistics(");
     expect(body).not.toContain("collection.statistics()");
