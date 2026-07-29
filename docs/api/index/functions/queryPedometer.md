@@ -8,7 +8,7 @@
 
 > **queryPedometer**(`range`): `Promise`\<[`PedometerData`](../interfaces/PedometerData.md)\>
 
-Defined in: [js/src/sensors.ts:186](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L186)
+Defined in: [js/src/sensors.ts:198](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L198)
 
 Historical steps/distance/floors for a window, from CoreMotion's own
 on-device cache (roughly the last seven days) — no HealthKit involved, so it
@@ -19,6 +19,11 @@ Rejects `UNAVAILABLE` when the app has no `NSMotionUsageDescription` (set
 CMPedometer without it **crashes the app**, so native refuses rather than
 calling. `currentPace*`/`currentCadence*` are always absent here — Apple
 documents them as nil on a historical query.
+
+Rejects `PERMISSION_DENIED` when "Motion & Fitness" is denied or restricted
+(`CMPedometer.authorizationStatus()`). Switch on it: only a Settings change
+fixes that, so a retry is pointless — unlike a window that genuinely has no
+data, which RESOLVES with `steps: 0` rather than rejecting.
 
 ## Parameters
 

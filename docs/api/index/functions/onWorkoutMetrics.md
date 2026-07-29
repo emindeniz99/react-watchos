@@ -8,7 +8,7 @@
 
 > **onWorkoutMetrics**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/workout.ts:177](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L177)
+Defined in: [js/src/workout.ts:192](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L192)
 
 Live metrics while a workout runs: handler gets a [WorkoutMetrics](../interfaces/WorkoutMetrics.md).
 

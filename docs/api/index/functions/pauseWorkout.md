@@ -8,7 +8,7 @@
 
 > **pauseWorkout**(): `Promise`\<`void`\>
 
-Defined in: [js/src/workout.ts:135](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L135)
+Defined in: [js/src/workout.ts:143](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L143)
 
 Pauses the running workout. Rejects `UNAVAILABLE` if none is running —
  "nothing to pause" is a refusal, not a silent success.

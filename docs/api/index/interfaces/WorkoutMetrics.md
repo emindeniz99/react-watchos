@@ -6,7 +6,7 @@
 
 # Interface: WorkoutMetrics
 
-Defined in: [js/src/workout.ts:91](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L91)
+Defined in: [js/src/workout.ts:99](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L99)
 
 Live metrics payload on [WORKOUT\_METRICS\_EVENT](../variables/WORKOUT_METRICS_EVENT.md). Each optional field
  is absent until HealthKit has collected that quantity for this workout.
@@ -17,7 +17,7 @@ Live metrics payload on [WORKOUT\_METRICS\_EVENT](../variables/WORKOUT_METRICS_E
 
 > `optional` **activeEnergyKcal?**: `number`
 
-Defined in: [js/src/workout.ts:94](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L94)
+Defined in: [js/src/workout.ts:102](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L102)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [js/src/workout.ts:94](https://github.com/emindeniz99/playground/blo
 
 > `optional` **distanceMeters?**: `number`
 
-Defined in: [js/src/workout.ts:101](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L101)
+Defined in: [js/src/workout.ts:109](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L109)
 
 Distance in metres, from the quantity type matching the activity
  (cycling and swimming record under their own types).
@@ -40,7 +40,7 @@ Distance in metres, from the quantity type matching the activity
 
 > **elapsedMs**: `number`
 
-Defined in: [js/src/workout.ts:92](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L92)
+Defined in: [js/src/workout.ts:100](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L100)
 
 ***
 
@@ -48,4 +48,4 @@ Defined in: [js/src/workout.ts:92](https://github.com/emindeniz99/playground/blo
 
 > `optional` **heartRateBpm?**: `number`
 
-Defined in: [js/src/workout.ts:93](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L93)
+Defined in: [js/src/workout.ts:101](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L101)

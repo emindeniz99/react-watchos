@@ -8,7 +8,7 @@
 
 > **onWorkoutState**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/workout.ts:172](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L172)
+Defined in: [js/src/workout.ts:187](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L187)
 
 Session transitions: handler gets `{ state, reason? }`.
 
