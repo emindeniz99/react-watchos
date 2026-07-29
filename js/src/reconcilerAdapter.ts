@@ -15,8 +15,9 @@
  * deleting the cast and reading tsc:
  *
  * FIXED by @types 0.33.0 (no longer reasons to cast):
- *  - Reconciler instance: `updateContainerSync`, `flushSyncWork` and
- *    `flushPassiveEffects` are now declared on the `Reconciler` interface.
+ *  - Reconciler instance: `updateContainerSync` and `flushSyncWork` are now
+ *    declared on the `Reconciler` interface. (`flushPassiveEffects` already
+ *    was in 0.32.3 — it was never a drift row.)
  *  - `createContainer` now declares the real 10 args ending in
  *    `onDefaultTransitionIndicator` (0.32 declared 11).
  *
@@ -38,6 +39,12 @@
  *    INSTANCE, which is where this adapter reads them (TS2339).
  *  - `onDefaultTransitionIndicator` is typed non-nullable `() => void`;
  *    the runtime accepts (and this renderer passes) `null` (TS2345).
+ *  - `flushSync` is declared on the `Reconciler` interface but does NOT
+ *    exist on the runtime instance — only `flushSyncFromReconciler` does.
+ *    No tsc error because nothing here calls it; adding it to
+ *    ReconcilerExports below typechecks green and then throws
+ *    "flushSync is not a function" on the watch. Use
+ *    `flushSyncFromReconciler` if a sync flush is ever needed.
  *  - Signature drift: getChildHostContext is `(parent, type)` at runtime
  *    but 3 args in the types; preloadInstance gained a leading `instance`;
  *    suspendInstance is `(suspendedState, instance, type, props)`;

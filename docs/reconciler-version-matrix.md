@@ -27,11 +27,26 @@ watch.
 | react | react-reconciler | @types/react-reconciler | status |
 | --- | --- | --- | --- |
 | `^19.2.0` (19.2.3 in lockfile) | `0.33.0` (exact) | `^0.32.0` (0.32.3) | ✅ tested 2026-07-17 — vitest suite (410) + `tools/embed-smoke/run.sh` (quickjs-ng: app + widget + bytecode boot, dispatch/nav transaction, heap + boot budgets) |
-| `^19.2.0` (19.2.3 in lockfile) | `0.33.0` (exact) | `^0.33.0` (0.33.0) | ✅ tested 2026-07-29 — vitest suite (640) + swift 374 + `tools/embed-smoke/run.sh` (quickjs-ng: app + widget + bytecode boot, dispatch/nav transaction, heap 2.1 MB, boot 36.9 ms) |
+| `^19.2.0` (19.2.3 in lockfile) | `0.33.0` (exact) | `^0.33.0` (0.33.0) | ✅ tested 2026-07-29 — vitest suite (646) + swift 374 + `tools/embed-smoke/run.sh` (quickjs-ng: app + widget + bytecode boot, dispatch/nav transaction, heap 2.1 MB, boot 33.3 ms source / 9.2 ms bytecode) + both examples' bundles built and booted |
 
 `react` and `react-reconciler` are a lockstep pair (0.33.0 is cut from the
 React 19.2 tree and reports `reconcilerVersion: "19.2.0"` to DevTools);
 never bump one without the other.
+
+The react cell is one version for the WHOLE workspace, not just `js/`. `app/`
+and `examples/expo-watch-app` pin react exactly (`19.2.3`, what `expo install`
+wrote), so a caret floor in `js/` that resolves above that pin gives those
+consumers two react copies in one watch bundle — the reconciler binds the
+hooks dispatcher to one and the app's components read the other, so the first
+`useState` throws and the watch renders nothing. That shipped once: `7fe2d57`
+moved the `js/` and `examples/minimal-watch-app` floors to `^19.2.8` as a
+"dev/test only" patch bump, and the Expo example's bundle went to 8×19.2.3 +
+12×19.2.8 records and died at boot in real QuickJS. Both floors are back at
+`^19.2.0`; the two patches build byte-identical bundles (611434 B either way),
+so the bump bought nothing the fragmentation was worth. `test/reconcilerAdapter.test.ts`
+now pins the dev floor as well as the peer range, and every build through the
+preset fails if the module graph contains more than one react
+(`js/esbuild/single-copy.mts`) — the gate that was missing.
 
 ## The types/runtime mismatch (why the adapter still casts)
 
@@ -49,9 +64,10 @@ claim below against the installed
 Two of the old rows are genuinely fixed, and the notes for them have been
 deleted from `reconcilerAdapter.ts`:
 
-- **Reconciler instance exports** — `updateContainerSync`, `flushSyncWork`
-  and `flushPassiveEffects` are now declared on the `Reconciler`
-  interface (they were absent in 0.32).
+- **Reconciler instance exports** — `updateContainerSync` and `flushSyncWork`
+  are now declared on the `Reconciler` interface (both were absent in 0.32).
+  `flushPassiveEffects` was **not** part of this fix — 0.32.3 already declared
+  it at `index.d.ts:1014`; it was never a drift row.
 - **`createContainer` arity** — now declares the real 10 parameters ending
   in `onDefaultTransitionIndicator`. 0.32 declared 11, with a trailing
   `transitionCallbacks` the 0.33 runtime does not accept.
@@ -71,6 +87,17 @@ Removing the cast produces **six** errors, not zero:
 Beyond what tsc reports, still wrong but not load-bearing at the call sites
 we use:
 
+- **`flushSync` is declared but does not exist at runtime.** Both 0.32.3 and
+  0.33.0 declare `flushSync(): void` / `flushSync<R>(fn: () => R): R` on the
+  `Reconciler` interface (0.33.0 `index.d.ts:1016-1017`). The 0.33 runtime
+  instance has no such member: `Object.keys(instance)` yields
+  `flushPassiveEffects`, `flushSyncFromReconciler`, `flushSyncWork` — and
+  neither cjs build contains a bare `flushSync` identifier at all. Nothing
+  here calls it, so it costs no tsc error, which is exactly what makes it
+  dangerous: adding `flushSync` to `ReconcilerExports` plus a passthrough
+  typechecks green and lints green (the cast hides it), then fails only as
+  `TypeError: reconciler.flushSync is not a function` inside QuickJS on the
+  watch. **If a sync flush is ever needed, use `flushSyncFromReconciler`.**
 - **HostConfig lacks members the runtime reads.** Absent from the 0.33
   typings, present as `$$$config.*` reads in *both* runtime builds:
   `maySuspendCommitOnUpdate`, `maySuspendCommitInSyncRender`,
@@ -102,9 +129,10 @@ we use:
 The cast **stays**, and so does the exact pin. Routing through the library
 types would need *two* casts (host config in, instance out) and would lose
 the branded root plus the `Container` generic — strictly worse than the one
-cast at the factory. What the upgrade did buy is a shorter, sharper drift
-list: the reasons are now concentrated in the HostConfig and DevTools
-surfaces rather than spread across the instance API too. Upstream fixing
+cast at the factory. What the upgrade did buy is a shorter drift list, but
+not a clean instance API: the bulk moved to the HostConfig and DevTools
+surfaces, while the instance still carries rows 3–4 (`defaultOn*Error`
+declared module-level) and the declared-but-absent `flushSync`. Upstream fixing
 rows 1, 2 and 3–4 would be enough to revisit this decision; rows 1 and 2 are
 the load-bearing ones.
 
@@ -120,7 +148,10 @@ source, so consumers' typecheckers resolve the adapter's imports too.
 
 1. Open [`js/src/reconcilerAdapter.ts`](../js/src/reconcilerAdapter.ts).
    Bump `react` + `react-reconciler` (+ `@types/react-reconciler` if a new
-   major exists) **together** in `js/package.json` (peer + dev pins).
+   major exists) **together** in `js/package.json` (peer + dev pins) — and in
+   the same commit move `app/` and every `examples/*` consumer to the same
+   version, or the ones left behind resolve a second react copy into their
+   bundle (the preset's single-copy check will refuse to build it).
 2. Diff the new runtime's host-config contract against `WatchHostConfig`
    and `ReconcilerExports`:
    `grep -o '\$\$\$config\.[A-Za-z]*' node_modules/react-reconciler/cjs/react-reconciler.production.js | sort -u`

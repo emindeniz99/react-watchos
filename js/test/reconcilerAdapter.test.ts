@@ -10,9 +10,10 @@ import {
 // ARCH-14: react-reconciler internals are not a stable public renderer API,
 // and the installed typings (@types/react-reconciler@0.33) STILL describe a
 // different contract than the pinned runtime (react-reconciler@0.33) — the
-// 0.33 typings fixed the instance exports and createContainer's arity but
-// kept the HostConfig stale (see docs/reconciler-version-matrix.md for the
-// surviving rows). The whole mitigation is ONE adapter file + exact pinned
+// 0.33 typings fixed updateContainerSync/flushSyncWork and createContainer's
+// arity but kept the HostConfig stale, and still declare a `flushSync` the
+// runtime instance does not have (see docs/reconciler-version-matrix.md for
+// the surviving rows). The whole mitigation is ONE adapter file + exact pinned
 // versions + the tested matrix. These tests are the upgrade fixtures: they
 // fail the moment either half of that story drifts.
 
@@ -57,6 +58,37 @@ describe("ARCH-14: the adapter is the only reconciler boundary", () => {
     expect(pkg.devDependencies["react-reconciler"]).toBe("0.33.0");
     expect(pkg.peerDependencies.react).toBe("^19.2.0");
     expect(pkg.dependencies["@types/react-reconciler"]).toBe("^0.33.0");
+    // The react DEV floor is part of the row too, and it used to be the one
+    // pin nothing here asserted: raising it above what app/ and the examples
+    // install fragments the workspace into two react copies (a non-booting
+    // watch bundle), and it silently outdates the matrix's "in lockfile"
+    // parenthetical. Move it only together with those consumers and the row.
+    expect(pkg.devDependencies.react).toBe("^19.2.0");
+  });
+
+  it("the typings' `flushSync` still has no runtime counterpart", () => {
+    // Drift row the typings have carried since 0.32: `Reconciler` declares
+    // flushSync(): void / flushSync<R>(fn), but no build defines it — the
+    // runtime member is flushSyncFromReconciler. Nothing here calls it, so
+    // tsc CANNOT catch a maintainer who trusts the typings and adds it to
+    // ReconcilerExports: the factory cast makes that green, and it throws
+    // "flushSync is not a function" on the watch instead. This test fails
+    // if upstream ever adds the member (delete the caveat and use it) or if
+    // the adapter starts calling it (use flushSyncFromReconciler instead).
+    const runtime = readFileSync(
+      join(
+        __dirname,
+        "..",
+        "node_modules",
+        "react-reconciler",
+        "cjs",
+        "react-reconciler.production.js",
+      ),
+      "utf8",
+    );
+    expect(/\bflushSync\b(?!From|Work)/.test(runtime)).toBe(false);
+    const adapter = readFileSync(join(srcDir, ADAPTER), "utf8");
+    expect(/reconciler\.flushSync\b(?!From|Work)/.test(adapter)).toBe(false);
   });
 
   it("re-exported priority constants carry the 0.33 runtime values", () => {
