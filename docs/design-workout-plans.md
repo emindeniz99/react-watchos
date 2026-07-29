@@ -40,15 +40,26 @@ of `scheduledWorkouts`, and the invoke settles on what is actually there:
 | `removeScheduledWorkoutPlan` | confirm the pair is **gone** | reject `UNAVAILABLE`: *"the scheduler removed nothing …"* |
 | `removeAllScheduledWorkoutPlans` | confirm the list is empty | reject `UNAVAILABLE` naming the count still there |
 
-`workout-plan-guards.test.ts` pins each one: the read must appear *after* the
-write inside the same function, so a future edit that drops it fails on Linux.
+`workout-plan-guards.test.ts` pins each one, and pins it harder than "a read
+happens": the re-read is bound to a name, the guard's *condition* has to test
+that binding, and the arm it falls into has to be able to refuse. Order alone
+was not enough — `_ = await scheduler.scheduledWorkouts` followed by an
+unconditional success satisfied the original assertion, which is exactly the
+"stored nothing, reported success" bug this section exists to prevent, in the
+one file no Linux job compiles.
 
 One subtlety worth its own guard: the read-back compares the **minute**, not raw
 `DateComponents`. Apple may normalise the components it stores (an era, a
 calendar, a time zone we never set), and a raw `DateComponents ==` would then be
 a *false negative* — reported to the caller as "the scheduler accepted nothing",
 the worst possible failure for a check whose entire job is honesty. Both sides go
-through the one Linux-tested round-trip pair instead.
+through the one Linux-tested round-trip pair instead. That pair reads **only**
+`year/month/day/hour/minute` and interprets them in the caller's calendar:
+`Calendar.date(from:)` honours a `timeZone` carried *on* the components over the
+calendar's own, so an entry that came back tagged UTC would convert hours off and
+turn the tolerance into the very false negative it was written to prevent. (`era`,
+`second` and a stapled `calendar` are inert — all three verified on Linux;
+`timeZone` is not.)
 
 ### (b) The project-level risk is whether scheduling works *from the watch* at all
 
@@ -219,6 +230,15 @@ plan.blocks[2].steps[0].alert: speedRange is not supported for activityType 'run
 plan.blocks[0].steps[1].goal: energy is not supported … — energy goals are legal only on kind:'singleGoal'
 ```
 
+A wrong JSON **type** is named the same way — `plan.blocks[2].steps[0].alert.upperBpm
+is the wrong JSON type — expected a number` — rather than collapsing to "needs a
+`{ plan, atMs }` object", which is not merely unhelpful but false when the
+envelope is well formed and one leaf is a string. The decoder's
+`DecodingError.codingPath` is rendered instead of being swallowed by `try?`. One
+case cannot be recovered: a fractional number in an `Int` field arrives as
+`.dataCorrupted` with an *empty* path, indistinguishable from real garbage, so it
+keeps the envelope message — stated rather than implied fixed.
+
 Root rule 5 still applies, just to the caller's benefit: code answers, it is
 Apple's code, and our job is to ask rather than let `schedule(_:at:)` swallow it.
 What the tests can pin is **that we ask, in that order, before construction** —
@@ -252,6 +272,20 @@ bridge never reads it itself.
   natural JS check and it now holds for the natural JS id.
 - **Removing something absent resolves `false`, it does not reject.** A stale UI
   removing an already-completed plan is normal. Only a malformed UUID rejects.
+- **`remove` passes the key it FOUND (`target.date`), never one rebuilt from
+  `ref.atMs`.** `matches` is loose on purpose so a normalised entry still
+  resolves; `remove(_:at:)` gets no such tolerance and has no error channel, so
+  a key that misses leaves a plan unremovable by id — recoverable only by
+  `removeAllScheduledWorkoutPlans`, which takes the user's other workouts with
+  it. A strict no-op when Apple normalises nothing.
+- **An `(id, minute)` pair already scheduled is refused before the write**,
+  `INVALID_REQUEST`. `matches` is a KEY test, so if the pair is already there
+  the post-write read finds the OLD entry whether WorkoutKit replaced it,
+  ignored the second call, or stored a duplicate — and Apple documents none of
+  the three. The refusal is what makes the pair provably absent beforehand,
+  which is the only thing that turns *"it is there afterwards"* into *"this call
+  stored it"*. Re-saving an edited plan is `removeScheduledWorkoutPlan` then
+  `scheduleWorkoutPlan`, both read-back verified.
 - **The quota is read from `maxAllowedScheduledWorkoutCount` at runtime**,
   compared against `scheduledWorkouts.count`, and refused *before* the mutation
   with both numbers named — because `schedule` has no error channel, so an
