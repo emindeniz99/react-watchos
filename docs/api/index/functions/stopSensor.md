@@ -8,7 +8,7 @@
 
 > **stopSensor**(`kind`): `void`
 
-Defined in: [js/src/sensors.ts:88](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L88)
+Defined in: [js/src/sensors.ts:91](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L91)
 
 Force-stops a kind's native stream regardless of remaining subscribers.
  Drops all current tokens, so their outstanding cleanups become no-ops.
@@ -17,7 +17,7 @@ Force-stops a kind's native stream regardless of remaining subscribers.
 
 ### kind
 
-`string`
+[`SensorKind`](../type-aliases/SensorKind.md)
 
 ## Returns
 

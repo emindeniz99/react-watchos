@@ -25,6 +25,16 @@ function HeartRate() {
 
 type PushFn = (name: string, payloadJson?: string) => boolean;
 
+// Compile-time guard (never executed): SensorKind must stay closed over the
+// four kinds SensorBridge.handleOp implements. When it ended in `| string` this
+// line compiled clean, so `startSensor("steps", cb)` returned a working-looking
+// unsubscribe and silently never emitted. If someone re-widens the union,
+// @ts-expect-error goes unused and `pnpm typecheck` fails.
+function _unknownSensorKindIsATypeError() {
+  // @ts-expect-error "steps" is not a bound sensor kind
+  startSensor("steps", () => {});
+}
+
 describe("sensor streams", () => {
   it("routes a sensor reading to the UI live", () => {
     const host = new MemoryHost();

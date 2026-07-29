@@ -6,7 +6,7 @@
 
 # Interface: MotionOptions
 
-Defined in: [js/src/sensors.ts:127](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L127)
+Defined in: [js/src/sensors.ts:130](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L130)
 
 Options for [startMotion](../functions/startMotion.md) / [startGyroscope](../functions/startGyroscope.md).
 
@@ -16,7 +16,7 @@ Options for [startMotion](../functions/startMotion.md) / [startGyroscope](../fun
 
 > `optional` **updateIntervalMs?**: `number`
 
-Defined in: [js/src/sensors.ts:134](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L134)
+Defined in: [js/src/sensors.ts:137](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L137)
 
 Update period in ms. Default 100 (10 Hz). Every reading crosses the
 bridge and can commit a render, so raise this as far as your use case
