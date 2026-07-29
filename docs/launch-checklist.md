@@ -45,27 +45,42 @@ earned.
   updating from the app, `TimerText` stopwatch (zero per-frame JS), Control
   Center intent updating a complication with the app closed, dev hot-reload
   loop. All capturable on the simulator today (no device needed).
-- [x] **Numbers to quote** (each with its source, re-verified 2026-07-04):
-  488-line reconciler core (`js/src/renderer.ts` `wc -l`); 40 SwiftUI-like
-  primitives (`codegen/schema.mjs` `components.length`, pinned by
-  `component-contract.test.ts`); 41 host methods across 18 capability features
-  (`schema.mjs` `hostMethods` / `wire.ts` `HOST_FEATURES.watch`); 179 KB minified
-  app bundle + 146 KB widget (200 KB / 160 KB CI budgets, `pnpm check:size`);
-  351 JS tests + 188 Swift test functions passing (`pnpm test`; the Swift cores
-  run on Linux via `swift test`, the full suite — 197 with the Darwin bridges —
-  on the watchOS simulator via `pnpm test:swift:watch`);
-  ~2 MB QuickJS heap for the demo app / ~6 MB widget peak (embed-host `[mem]`
-  line); 1.06 ms/dispatch on x86 quickjs-ng (until E4). Counts drift with every
-  feature — re-derive all of these the day you quote them.
-- [ ] **Claims to make**: "React for watchOS — JSX/hooks driving native
-  SwiftUI on the watch itself, standalone, with signed OTA updates and
-  React-authored complications."
+- [x] **Numbers to quote** (each with its source, **re-derived 2026-07-29** —
+  the previous set was three feature waves out of date):
+  570-line reconciler core (`js/src/renderer.ts` `wc -l`); **41** SwiftUI-like
+  primitives and **75 host methods across 24 capability features**
+  ([api/capabilities.md](./api/capabilities.md), generated from
+  `codegen/schema.ts` so it cannot drift); **191 KB minified app bundle +
+  149 KB widget against 2 MB / 1 MB budgets** (`pnpm check:size`, run
+  2026-07-29 — the old "179/146 against 200/160" quoted budgets that were
+  raised on 2026-07-05); **640 vitest tests** (`vitest run`, executed
+  2026-07-29 — note the codegen drift check shells out to `swift format`, so
+  the suite needs the Swift toolchain present) + **`swift test` 374** (372 at
+  the WORKOUT-PLANS package, plus the one case each added by the plan-minute
+  and decode-path fixes — re-derive on a Swift-capable box before quoting);
+  QuickJS heap **0.7–2.1 MB** depending on bundle and boot path, ~6 MB widget
+  peak (embed-host `[mem]` line); **0.5–0.75 ms/dispatch on x86** over the
+  48-node lazy launch tree (until E4 — and see
+  [performance-measurement.md](./performance-measurement.md) on why this
+  harness cannot resolve a regression under ~40% across sessions). Counts
+  drift with every feature — re-derive all of these the day you quote them.
+- [ ] **Claims to make** (order matters — 2026-07-29): "React for watchOS —
+  React-authored complications and Smart Stack widgets, standalone execution
+  with no phone, HealthKit/workout depth, and signed OTA updates for the JS
+  half, all rendering as native SwiftUI on the watch itself."
 - [ ] **Claims NOT to make** (each has bitten a reviewer already): not React
   Native core (no RN ecosystem libraries — README says it first, so should
   the announcement); no device claim beyond "boots + renders" (E3 — haptics,
   Digital Crown feel, HealthKit/GPS streams and the live-face complication are
   still unverified on hardware); on-device AI is
   blocked on watchOS 27 SDK (status.md ⛔); Suspense unsupported by design.
+  Also standing (2026-07-29, see
+  [announcement-draft.md § Claims we do not make](./announcement-draft.md#claims-we-do-not-make)):
+  no "battery-first" headline (battery is a *defensive* claim, never a
+  benchmark), **no watch-user dissatisfaction / app-abandonment percentages**
+  — the widely-circulated pair traces to an unsourced content farm, so the
+  figures are not repeated even to disown them — no perf number without "x86"
+  until E4, and no commerce/social/chat/ride-hailing/video/game demos.
 - [ ] **Where the deep answers live**: architecture + alternatives → the
   2026-07-01 review; "is X real?" → status.md; security → ota-signing.md; the
   2026-07-02 self-review cycles (5 adversarial passes, 32 fixes) →
