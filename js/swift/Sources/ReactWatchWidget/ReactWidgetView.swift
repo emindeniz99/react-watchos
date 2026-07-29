@@ -5,6 +5,7 @@ import ReactWatchSupport
 import ReactWatchUI
 import SwiftUI
 import UIKit
+import WidgetKit
 import os
 
 /// Logs each unsupported widget node type once (the body re-renders, so a raw
@@ -441,12 +442,47 @@ private struct WidgetBackground: ViewModifier {
     let background: Color?
     let cornerRadius: CGFloat?
 
+    /// How the system is rendering this complication (WidgetKit, watchOS 9.0,
+    /// `.fullColor` / `.accented` / `.vibrant` — verified from the docs JSON,
+    /// well under this package's watchOS 10 floor).
+    ///
+    /// Read HERE, in the one modifier whose output the mode changes, rather
+    /// than in `WidgetNodeView`: the mode is a global, `WidgetNodeView` is
+    /// instantiated per node, and only a node that actually declares a
+    /// `background` needs the answer. (Same reasoning as reading
+    /// `isLuminanceReduced` at the app's root and never in `NodeView`, arriving
+    /// at the opposite placement because the cost here is per-node, not global.)
+    @Environment(\.widgetRenderingMode) private var renderingMode
+
     func body(content: Content) -> some View {
+        // `.accented` is not "our colours are ignored" — Apple: the system
+        // "treats the widget's views as if they were template images. It
+        // replaces the view's color … while preserving the view's alpha
+        // channel." A filled background therefore survives as an OPAQUE block
+        // in the face's colour, and the text on it is in the same (default)
+        // group, so it is coloured identically and disappears. Stroking keeps
+        // the shape legible at every alpha the face can choose, and matches
+        // Apple's own dimmed-rendering guidance to "change large, filled shapes
+        // to be stroked".
+        //
+        // DEVICE-GATED: the visual outcome can only be confirmed on a watch
+        // face that renders accented (Infograph/X-Large/Solar Dial pick
+        // different colours per group). What is verified from the docs is the
+        // API, its availability, and the alpha-preserving rule above.
+        let accented = renderingMode == .accented
         if let background, let cornerRadius {
-            content.background(
-                background, in: RoundedRectangle(cornerRadius: cornerRadius))
+            let shape = RoundedRectangle(cornerRadius: cornerRadius)
+            if accented {
+                content.overlay(shape.stroke(background, lineWidth: 1))
+            } else {
+                content.background(background, in: shape)
+            }
         } else if let background {
-            content.background(background)
+            if accented {
+                content.overlay(Rectangle().stroke(background, lineWidth: 1))
+            } else {
+                content.background(background)
+            }
         } else if let cornerRadius {
             content.clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         } else {

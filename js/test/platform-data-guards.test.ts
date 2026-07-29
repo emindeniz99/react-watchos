@@ -495,6 +495,45 @@ describe("luminance is read once, at the root, with BOTH initial-value paths", (
     expect(hostMethods.map((m) => m.feature)).not.toContain("alwaysOn");
   });
 
+  it("dims a complication by the WIDGET's own knob, not by a JS event", () => {
+    // The recorded follow-up to "no widget-side luminance in v1", and the
+    // reason it is native: a widget tree renders from a PUBLISHED payload, so
+    // there is no JS listener in the extension for a push event to reach.
+    // WidgetKit's own knob is `widgetRenderingMode` (watchOS 9.0, verified from
+    // the docs JSON), read in the modifier whose output it changes.
+    const widget = read("ReactWatchWidget/ReactWidgetView.swift");
+    expect(widget).toContain("import WidgetKit");
+    const modifier = slice(
+      widget,
+      "private struct WidgetBackground: ViewModifier {",
+      "private struct WidgetFrame",
+    );
+    expect(modifier).toContain(
+      "@Environment(\\.widgetRenderingMode) private var renderingMode",
+    );
+    // THE rule, and it is not "our colours are ignored": Apple states the
+    // system treats the views as template images, replacing the colour "while
+    // preserving the view's alpha channel". So a FILLED background survives
+    // accented rendering as an opaque block in the face's colour, with the text
+    // on it in the same group and therefore the same colour — invisible.
+    // Stroking is what keeps the shape legible.
+    const accented = code(modifier);
+    expect(accented).toContain("renderingMode == .accented");
+    // BOTH background branches (with and without a cornerRadius) stroke when
+    // accented — counted, because asserting one substring lets the other branch
+    // silently go back to filling.
+    expect(accented.match(/stroke\(background/g)).toHaveLength(2);
+    // …and each still FILLS otherwise, or this traded one wrong rendering for
+    // another on every full-colour face.
+    expect(accented).toContain("content.background(background, in: shape)");
+    expect(accented).toContain("content.background(background)\n");
+    // The app has no such environment and must not grow one: this is a
+    // complication-appearance concern, not a shared style rule.
+    expect(code(read("ReactWatchHost/NodeView.swift"))).not.toContain(
+      "widgetRenderingMode",
+    );
+  });
+
   it("does not claim scenePhase carries the Always-On state", () => {
     // The docs define no ScenePhase value for it, so an app keying off
     // scenePhase would never see wrist-down. Saying otherwise in a doc comment
