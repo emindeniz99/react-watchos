@@ -296,7 +296,7 @@ const receivedFileChunk: ReceivedFileChunk = {
   // state a caller loops on, and the one a "whole file" reply would never
   // exercise. `bytes` is a multiple of 3 because the host trims a non-final
   // chunk so successive base64 strings concatenate.
-  base64: "aGVsbG8gd28=",
+  base64: "aGVsbG8gd29y",
   bytes: 9,
   offset: 0,
   totalBytes: 4096,
