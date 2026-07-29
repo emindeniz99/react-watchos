@@ -193,6 +193,7 @@ public enum HostInvokeFeatures {
         "queryHealthStatistics": "health",
         "queryPedometer": "sensors",
         "querySleepSamples": "health",
+        "readReceivedFile": "connectivity",
         "registerForRemoteNotifications": "push",
         "requestCalendarAccess": "calendar",
         "requestHealthAuthorization": "health",

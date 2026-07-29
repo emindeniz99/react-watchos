@@ -58,6 +58,10 @@ const WORKOUT = "ReactWatchHost/WorkoutBridge.swift";
 // bridge: that makes the omit-when-unavailable rule Linux-testable AND puts
 // this scan on a file `swift test` actually compiles.
 const PEDOMETER = "ReactWatchSupport/PedometerReading.swift";
+// Same reason as the pedometer: the chunk is assembled in ReactWatchSupport,
+// not the watchOS bridge, so the range/ceiling rules are Linux-testable AND
+// this scan runs against a file `swift test` actually compiles.
+const INBOX = "ReactWatchSupport/FileInbox.swift";
 
 /** Every `via:"invoke"` method the schema gives a `response` shape, and the
  *  Swift function(s) that build that response's JSON. */
@@ -209,6 +213,15 @@ const PRODUCERS: Record<string, Producer> = {
     delegates: {
       decl: "private func handleGetConnectivityState(id: Int) {",
       calls: "connectivity.connectivityState()",
+    },
+  },
+  readReceivedFile: {
+    sites: [
+      { file: INBOX, decl: "    public func payload() -> [String: Any] {" },
+    ],
+    delegates: {
+      decl: "private func handleReadReceivedFile(id: Int, payload: String) {",
+      calls: "connectivity.readReceivedFile(payload)",
     },
   },
   getCalendarEvents: {

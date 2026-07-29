@@ -6,7 +6,7 @@
 
 # Interface: FileTransferResult
 
-Defined in: [js/src/connectivity.ts:162](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L162)
+Defined in: [js/src/connectivity.ts:161](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L161)
 
 The terminal state of one outbound [transferFile](../functions/transferFile.md).
 
@@ -16,7 +16,7 @@ The terminal state of one outbound [transferFile](../functions/transferFile.md).
 
 > `optional` **code?**: `string`
 
-Defined in: [js/src/connectivity.ts:171](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L171)
+Defined in: [js/src/connectivity.ts:170](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L170)
 
 The `WCError.Code` case name (e.g. `"insufficientSpace"`), when the
  failure was one — so a caller can branch without parsing `error`.
@@ -27,7 +27,7 @@ The `WCError.Code` case name (e.g. `"insufficientSpace"`), when the
 
 > `optional` **error?**: `string`
 
-Defined in: [js/src/connectivity.ts:168](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L168)
+Defined in: [js/src/connectivity.ts:167](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L167)
 
 Native failure message; absent when `state` is `"finished"`.
 
@@ -37,7 +37,7 @@ Native failure message; absent when `state` is `"finished"`.
 
 > **id**: `number` \| `null`
 
-Defined in: [js/src/connectivity.ts:165](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L165)
+Defined in: [js/src/connectivity.ts:164](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L164)
 
 The id [transferFile](../functions/transferFile.md) resolved, or `null` for a transfer queued by
  a previous launch (see [FileTransferStatus.id](FileTransferStatus.md#id)).
@@ -48,4 +48,4 @@ The id [transferFile](../functions/transferFile.md) resolved, or `null` for a tr
 
 > **state**: `"failed"` \| `"finished"`
 
-Defined in: [js/src/connectivity.ts:166](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L166)
+Defined in: [js/src/connectivity.ts:165](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L165)

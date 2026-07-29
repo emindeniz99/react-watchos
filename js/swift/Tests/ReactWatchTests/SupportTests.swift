@@ -3253,6 +3253,167 @@ final class FileInboxTests: XCTestCase {
             FileInbox(root: root.appendingPathComponent("nope")).prune().isEmpty)
     }
 
+    func testReadPlanNeedsAPathAndDefaultsTheRange() {
+        switch ReceivedFileReadPlan.decode(json: #"{"path":"/inbox/a","offset":9}"#) {
+        case .success(let plan):
+            XCTAssertEqual(plan.path, "/inbox/a")
+            XCTAssertEqual(plan.offset, 9)
+            // Omitted length means "as much as one chunk may carry", NOT zero.
+            XCTAssertNil(plan.length)
+        case .failure(let error): XCTFail("rejected a valid plan: \(error)")
+        }
+        for json in ["{}", #"{"path":""}"#, "[]", "not json", #"{"path":7}"#] {
+            switch ReceivedFileReadPlan.decode(json: json) {
+            case .success: XCTFail("accepted \(json)")
+            case .failure(let error):
+                XCTAssertEqual(error.code, .invalidRequest)
+            }
+        }
+    }
+
+    func testReadWindowRefusesEveryRangeItCannotHonourExactly() {
+        let cap = 300
+        // The happy default: everything left, up to the ceiling.
+        XCTAssertEqual(
+            try XCTUnwrap(
+                FileInbox.readWindow(
+                    offset: 0, length: nil, totalBytes: 100, maxBytes: cap
+                ).get()),
+            ReceivedFileReadWindow(offset: 0, length: 100))
+        // Offset AT the end is legal and yields an empty, EOF chunk — that is
+        // how a loop terminates on a zero-byte file.
+        XCTAssertEqual(
+            try XCTUnwrap(
+                FileInbox.readWindow(
+                    offset: 100, length: nil, totalBytes: 100, maxBytes: cap
+                ).get()
+            ).length, 0)
+        // A chunk that does NOT end the file is trimmed to a multiple of 3, so
+        // the base64 of successive chunks concatenates rather than padding
+        // mid-file. 100 bytes left, ceiling 50 -> 48.
+        XCTAssertEqual(
+            try XCTUnwrap(
+                FileInbox.readWindow(
+                    offset: 0, length: nil, totalBytes: 100, maxBytes: 50
+                ).get()
+            ).length, 48)
+        // …and the LAST chunk is NOT trimmed, or the tail would be unreachable:
+        // 49 bytes left, under the ceiling, kept whole though 49 % 3 != 0.
+        XCTAssertEqual(
+            try XCTUnwrap(
+                FileInbox.readWindow(
+                    offset: 51, length: nil, totalBytes: 100, maxBytes: 50
+                ).get()
+            ).length, 49)
+
+        // Every refusal, because silently returning a different range than the
+        // one asked for is the failure mode this op exists to remove.
+        let refusals: [(Int, Int?, String)] = [
+            (-1, nil, "negative offset"),
+            (101, nil, "offset past the end"),
+            (0, 0, "zero length"),
+            (0, -5, "negative length"),
+            (0, cap + 1, "length over the ceiling"),
+            (0, 2, "a mid-file chunk too short to concatenate"),
+        ]
+        for (offset, length, reason) in refusals {
+            switch FileInbox.readWindow(
+                offset: offset, length: length, totalBytes: 100, maxBytes: cap)
+            {
+            case .success: XCTFail("accepted \(reason)")
+            case .failure(let error):
+                XCTAssertEqual(error.code, .invalidRequest, reason)
+                XCTAssertFalse(error.message.isEmpty, reason)
+            }
+        }
+        // The same 2-byte length IS legal when it reaches the end — the trim
+        // rule applies to non-final chunks only.
+        XCTAssertEqual(
+            try XCTUnwrap(
+                FileInbox.readWindow(
+                    offset: 98, length: 2, totalBytes: 100, maxBytes: cap
+                ).get()
+            ).length, 2)
+    }
+
+    func testReadReturnsTheFileInConcatenatingChunks() throws {
+        let box = inbox()
+        let bytes = Data((0..<250).map { UInt8($0 % 251) })
+        let source = try makeFile("clip.bin")
+        try bytes.write(to: source)
+        let landed = try box.adopt(
+            source, receivedAtMs: 1, sequence: 1, name: "clip.bin")
+
+        var assembled = ""
+        var offset = 0
+        var chunks = 0
+        while true {
+            let chunk = try XCTUnwrap(
+                box.read(
+                    ReceivedFileReadPlan(
+                        path: landed.absoluteString, offset: offset, length: 100)
+                ).get())
+            XCTAssertEqual(chunk.totalBytes, 250)
+            XCTAssertEqual(chunk.offset, offset)
+            assembled += chunk.base64
+            chunks += 1
+            if chunk.eof { break }
+            // `bytes` is what advances the cursor — never the requested length.
+            offset += chunk.bytes
+            XCTAssertLessThan(chunks, 10, "loop did not terminate")
+        }
+        // THE property the multiple-of-3 trim buys: the CONCATENATED base64 of
+        // the chunks decodes to the file. Without the trim this is silently the
+        // wrong bytes, because base64 pads each partial 3-byte group.
+        XCTAssertEqual(Data(base64Encoded: assembled), bytes)
+        XCTAssertGreaterThan(chunks, 1, "the range was never actually chunked")
+        // One unbounded read gets the whole file and reports eof immediately.
+        let whole = try XCTUnwrap(
+            box.read(ReceivedFileReadPlan(path: landed.path)).get())
+        XCTAssertTrue(whole.eof)
+        XCTAssertEqual(whole.bytes, 250)
+        XCTAssertEqual(Data(base64Encoded: whole.base64), bytes)
+    }
+
+    func testReadRefusesAPathOutsideTheInboxAndOneRetentionTookBack() throws {
+        let box = inbox()
+        let landed = try box.adopt(
+            try makeFile("ok.txt", bytes: "hello"), receivedAtMs: 1, sequence: 1,
+            name: "ok.txt")
+        // Containment is `resolve`'s, so a read cannot reach further than a
+        // delete can: the same traversal that must not be deletable must not be
+        // readable either.
+        for path in [
+            "/etc/passwd", root.appendingPathComponent("../../etc/passwd").path,
+            "relative/file.txt", root.path,
+        ] {
+            switch box.read(ReceivedFileReadPlan(path: path)) {
+            case .success: XCTFail("read \(path) from outside the inbox")
+            case .failure(let error):
+                XCTAssertEqual(error.code, .invalidRequest)
+                XCTAssertTrue(error.message.contains("not a file this app received"))
+            }
+        }
+        // A path that WAS in the inbox and is gone gets the other answer, so an
+        // app can tell "you asked for something that was never yours" from
+        // "retention reclaimed it".
+        try FileManager.default.removeItem(at: landed)
+        switch box.read(ReceivedFileReadPlan(path: landed.absoluteString)) {
+        case .success: XCTFail("read a file that is gone")
+        case .failure(let error):
+            XCTAssertEqual(error.code, .invalidRequest)
+            XCTAssertTrue(error.message.contains("no longer in the inbox"))
+        }
+    }
+
+    func testTheChunkCeilingIsTheFetchBodyCeiling() {
+        // One constraint (the QuickJS heap), one number. A second, drifting
+        // number would let the same file be readable through one bridge and not
+        // the other — and this is a HARD reject, so it belongs with the hard
+        // ceilings and not in BudgetPolicy, whose caps warn and proceed.
+        XCTAssertEqual(FileInbox.maxReadBytes, FetchResponse.defaultMaxBodyBytes)
+    }
+
     func testResolveRefusesEverythingOutsideTheInbox() throws {
         let box = inbox()
         let landed = try box.adopt(

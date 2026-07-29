@@ -8,7 +8,7 @@
 
 > **outstandingFileTransfers**(): `Promise`\<[`FileTransferStatus`](../interfaces/FileTransferStatus.md)[]\>
 
-Defined in: [js/src/connectivity.ts:226](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L226)
+Defined in: [js/src/connectivity.ts:225](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L225)
 
 Every transfer WCSession still has queued, including ones this launch did
  not queue (`id: null`). The polling counterpart to [onFileTransfer](onFileTransfer.md).

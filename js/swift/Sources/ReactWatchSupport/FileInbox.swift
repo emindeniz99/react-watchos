@@ -250,4 +250,235 @@ public struct FileInbox: Sendable, Equatable {
         else { return nil }
         return URL(fileURLWithPath: resolved)
     }
+
+    // MARK: - Reading a received file
+
+    /// Hard ceiling on ONE bridged chunk — a reject, not a budget.
+    ///
+    /// Deliberately the SAME number as `FetchResponse.defaultMaxBodyBytes`, and
+    /// deliberately not a `BudgetPolicy` entry. `BudgetPolicy`'s caps are soft
+    /// (ARCH-13: warn once, proceed) because the real authority is elsewhere —
+    /// `WCError`, not our number, decides what is too large to transfer. Here
+    /// the authority is the QuickJS heap, which is a hard limit, so this joins
+    /// the hard ceilings (`FetchResponse.defaultMaxBodyBytes`, the host's OTA
+    /// bundle limit) instead. It bounds the identical thing `fetch` bounds —
+    /// one string, base64-inflated, JSON-wrapped, copied into the runtime's
+    /// heap — so referencing that constant rather than inventing a second
+    /// number keeps one number for one constraint.
+    public static var maxReadBytes: Int { FetchResponse.defaultMaxBodyBytes }
+
+    /// Clamps a requested range against the file and the chunk ceiling.
+    ///
+    /// Every refusal here is a CALLER error and says so. The alternative —
+    /// quietly returning a different range than the one asked for — is exactly
+    /// the silent class this op exists to remove.
+    public static func readWindow(
+        offset: Int, length: Int?, totalBytes: Int,
+        maxBytes: Int = FileInbox.maxReadBytes
+    ) -> Result<ReceivedFileReadWindow, ReceivedFileReadError> {
+        guard offset >= 0 else {
+            return .failure(
+                ReceivedFileReadError(.invalidRequest, "offset must not be negative"))
+        }
+        guard offset <= totalBytes else {
+            return .failure(
+                ReceivedFileReadError(
+                    .invalidRequest,
+                    "offset \(offset) is past the end of a \(totalBytes)-byte file"))
+        }
+        if let length {
+            guard length > 0 else {
+                return .failure(
+                    ReceivedFileReadError(
+                        .invalidRequest, "length must be a positive byte count"))
+            }
+            guard length <= maxBytes else {
+                return .failure(
+                    ReceivedFileReadError(
+                        .invalidRequest,
+                        "length \(length) is over the \(maxBytes)-byte chunk ceiling"
+                            + " — read the file in successive chunks"))
+            }
+        }
+        var window = Swift.min(length ?? maxBytes, totalBytes - offset)
+        if offset + window < totalBytes {
+            // A chunk that does NOT end the file is trimmed to a multiple of 3,
+            // so the base64 of successive chunks CONCATENATES into the base64 of
+            // the whole file. Without this, a caller doing `atob(a + b)` gets
+            // silently wrong bytes at every boundary — base64 pads a partial
+            // 3-byte group, and the padding lands mid-file.
+            window -= window % 3
+            guard window > 0 else {
+                return .failure(
+                    ReceivedFileReadError(
+                        .invalidRequest,
+                        "a chunk that does not reach the end of the file must be"
+                            + " at least 3 bytes, so its base64 concatenates"))
+            }
+        }
+        return .success(ReceivedFileReadWindow(offset: offset, length: window))
+    }
+
+    /// Reads one base64 chunk of a file this app received.
+    ///
+    /// The byte-reading API the package otherwise had no form of: `fetch` is
+    /// gated on the `network` feature while the file ops are `connectivity`, so
+    /// a bundle narrowed to `connectivity` was handed paths it could not open —
+    /// and `file://` honours no HTTP Range, so a file over the bridge's body
+    /// ceiling had no readable form at all. Chunking closes the second half:
+    /// the ceiling bounds one CHUNK, not the file.
+    ///
+    /// Containment is `resolve`'s, unchanged — the same check that stops
+    /// `deleteReceivedFile` addressing anything outside the inbox stops this
+    /// reading it.
+    public func read(
+        _ plan: ReceivedFileReadPlan, fileManager: FileManager = .default
+    ) -> Result<ReceivedFileChunk, ReceivedFileReadError> {
+        guard let url = resolve(path: plan.path) else {
+            return .failure(
+                ReceivedFileReadError(
+                    .invalidRequest, "\(plan.path) is not a file this app received"))
+        }
+        // Deliberately a different answer from the containment refusal above:
+        // this path WAS addressable, so "it is gone" is the honest report, and
+        // it is what tells an app retention reclaimed the file.
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+            let totalBytes = attributes[.size] as? Int
+        else {
+            return .failure(
+                ReceivedFileReadError(
+                    .invalidRequest,
+                    "\(plan.path) is no longer in the inbox — it was deleted or"
+                        + " reclaimed by retention"))
+        }
+        let window: ReceivedFileReadWindow
+        switch Self.readWindow(
+            offset: plan.offset, length: plan.length, totalBytes: totalBytes)
+        {
+        case .success(let value): window = value
+        case .failure(let error): return .failure(error)
+        }
+        guard let handle = try? FileHandle(forReadingFrom: url) else {
+            return .failure(
+                ReceivedFileReadError(
+                    .internal, "could not open \(plan.path) for reading"))
+        }
+        defer { try? handle.close() }
+        let data: Data
+        do {
+            try handle.seek(toOffset: UInt64(window.offset))
+            data = try handle.read(upToCount: window.length) ?? Data()
+        } catch {
+            return .failure(
+                ReceivedFileReadError(
+                    .internal,
+                    "could not read \(plan.path): \(error.localizedDescription)"))
+        }
+        return .success(
+            ReceivedFileChunk(
+                base64: data.base64EncodedString(),
+                bytes: data.count,
+                offset: window.offset,
+                totalBytes: totalBytes,
+                // From what was actually READ, never from what was asked for, so
+                // a short read cannot claim to have ended the file.
+                eof: window.offset + data.count >= totalBytes))
+    }
+}
+
+/// Why a `readReceivedFile` was refused. Carries the invoke code, so the
+/// watchOS adapter only re-wraps it — the classification (a caller error vs a
+/// host failure) is decided here, on Linux.
+public struct ReceivedFileReadError: Error, Equatable, Sendable,
+    CustomStringConvertible
+{
+    public let code: InvokeErrorCode
+    public let message: String
+
+    public init(_ code: InvokeErrorCode, _ message: String) {
+        self.code = code
+        self.message = message
+    }
+
+    public var description: String { message }
+}
+
+/// A validated `readReceivedFile` request.
+public struct ReceivedFileReadPlan: Equatable, Sendable {
+    public let path: String
+    public let offset: Int
+    /// nil = "as much as one chunk may carry".
+    public let length: Int?
+
+    public init(path: String, offset: Int = 0, length: Int? = nil) {
+        self.path = path
+        self.offset = offset
+        self.length = length
+    }
+
+    private struct Payload: Decodable {
+        let path: String?
+        let offset: Int?
+        let length: Int?
+    }
+
+    public static func decode(
+        json: String
+    ) -> Result<ReceivedFileReadPlan, ReceivedFileReadError> {
+        guard
+            let payload = try? JSONDecoder().decode(
+                Payload.self, from: Data(json.utf8)),
+            let path = payload.path, !path.isEmpty
+        else {
+            return .failure(
+                ReceivedFileReadError(
+                    .invalidRequest, "readReceivedFile needs a `path`"))
+        }
+        return .success(
+            ReceivedFileReadPlan(
+                path: path, offset: payload.offset ?? 0, length: payload.length))
+    }
+}
+
+/// The byte range one read will actually cover, after clamping.
+public struct ReceivedFileReadWindow: Equatable, Sendable {
+    public let offset: Int
+    public let length: Int
+
+    public init(offset: Int, length: Int) {
+        self.offset = offset
+        self.length = length
+    }
+}
+
+/// One chunk of a received file, as the wire's `ReceivedFileChunk`.
+public struct ReceivedFileChunk: Equatable, Sendable {
+    public let base64: String
+    /// Authoritative: the host clamps, so this — not the requested `length` —
+    /// is what a caller adds to `offset` for the next read.
+    public let bytes: Int
+    public let offset: Int
+    public let totalBytes: Int
+    public let eof: Bool
+
+    public init(
+        base64: String, bytes: Int, offset: Int, totalBytes: Int, eof: Bool
+    ) {
+        self.base64 = base64
+        self.bytes = bytes
+        self.offset = offset
+        self.totalBytes = totalBytes
+        self.eof = eof
+    }
+
+    /// The JSON-safe payload the invoke resolves with.
+    public func payload() -> [String: Any] {
+        [
+            "base64": base64,
+            "bytes": bytes,
+            "offset": offset,
+            "totalBytes": totalBytes,
+            "eof": eof,
+        ]
+    }
 }

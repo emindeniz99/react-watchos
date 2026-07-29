@@ -138,6 +138,7 @@ export type {
   FileTransferStatus,
   MessageContract,
   ReceivedFile,
+  ReceivedFileChunk,
   TypedMessages,
 } from "./connectivity";
 export {
@@ -157,6 +158,7 @@ export {
   outstandingFileTransfers,
   PHONE_MESSAGE_EVENT,
   RECEIVED_FILE_EVENT,
+  readReceivedFile,
   sendToPhone,
   transferFile,
   transferUserInfo,

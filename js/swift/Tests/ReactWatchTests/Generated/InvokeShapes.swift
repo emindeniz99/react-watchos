@@ -234,6 +234,16 @@ struct ReceivedFileRequest: InvokeShape {
     static let declaredKeys: Set<String> = ["path"]
 }
 
+/// readReceivedFile — one base64 chunk of an inbox file, by byte range.
+struct ReadReceivedFileRequest: InvokeShape {
+    let path: String
+    /// byte offset to read from; default 0
+    let offset: Int?
+    /// max bytes to read; default (and ceiling) is one chunk
+    let length: Int?
+    static let declaredKeys: Set<String> = ["path", "offset", "length"]
+}
+
 /// js/src/calendar.ts requestCalendarAccess — which EKEntityType to ask for.
 struct CalendarAccessRequest: InvokeShape {
     let entity: String
@@ -414,6 +424,20 @@ struct FileTransferStatus: InvokeShape {
     static let declaredKeys: Set<String> = ["id", "name", "transferring", "fractionCompleted"]
 }
 
+/// One base64 chunk of a received file (js/src/connectivity.ts readReceivedFile).
+struct ReceivedFileChunk: InvokeShape {
+    /// the chunk's bytes; successive chunks CONCATENATE (host trims to a multiple of 3)
+    let base64: String
+    /// decoded byte count of THIS chunk — authoritative, the request's length is not
+    let bytes: Int
+    let offset: Int
+    /// the whole file's size
+    let totalBytes: Int
+    /// true when this chunk ends the file
+    let eof: Bool
+    static let declaredKeys: Set<String> = ["base64", "bytes", "offset", "totalBytes", "eof"]
+}
+
 /// WCSession observability — a snapshot, NOT a send gate (see connectivity.ts).
 struct ConnectivityState: InvokeShape {
     let activationState: String
@@ -460,6 +484,7 @@ enum InvokeShapes {
         "transferFile": { try decodeStrict(TransferFileRequest.self, from: $0) },
         "cancelFileTransfer": { try decodeStrict(FileTransferIdRequest.self, from: $0) },
         "deleteReceivedFile": { try decodeStrict(ReceivedFileRequest.self, from: $0) },
+        "readReceivedFile": { try decodeStrict(ReadReceivedFileRequest.self, from: $0) },
         "bleConnect": { try decodeStrict(BleConnectRequest.self, from: $0) },
         "bleWrite": { try decodeStrict(BleWriteRequest.self, from: $0) },
         "bleSubscribe": { try decodeStrict(BleSubscribeRequest.self, from: $0) },
@@ -496,6 +521,7 @@ enum InvokeShapes {
             try decodeStrict(arrayOf: FileTransferStatus.self, from: $0)
         },
         "getConnectivityState": { try decodeStrict(ConnectivityState.self, from: $0) },
+        "readReceivedFile": { try decodeStrict(ReceivedFileChunk.self, from: $0) },
         "queryPedometer": { try decodeStrict(PedometerData.self, from: $0) },
         "queryHealthStatistics": { try decodeStrict(HealthStatisticsResult.self, from: $0) },
         "queryHealthSamples": { try decodeStrict(arrayOf: HealthSample.self, from: $0) },

@@ -688,6 +688,8 @@ final class ReactWatchModel {
             handleGetConnectivityState(id: id)
         case "deleteReceivedFile":
             settleConnectivity(id: id, connectivity.deleteReceivedFile(payload))
+        case "readReceivedFile":
+            handleReadReceivedFile(id: id, payload: payload)
         case "scheduleNotification":
             scheduleNotification(id: id, payload: payload)
         case "aiAvailability":
@@ -1116,6 +1118,24 @@ final class ReactWatchModel {
     private func handleGetConnectivityState(id: Int) {
         runtime?.resolveInvoke(
             id: id, resultJson: Self.jsonObject(connectivity.connectivityState()))
+    }
+
+    /// Reads one chunk of a received file. Settles SYNCHRONOUSLY on main, like
+    /// the other inbox op: this is a local flash read bounded by
+    /// `FileInbox.maxReadBytes`, with no daemon, no network and no permission
+    /// sheet in the way — the CalendarBridge queue hop exists because Apple
+    /// documents `events(matching:)` as slow, which is not this. The cost of a
+    /// ceiling-sized chunk (read + base64 + JSON) is stated on the JS wrapper
+    /// so a caller can choose smaller chunks rather than discover the pause.
+    private func handleReadReceivedFile(id: Int, payload: String) {
+        switch connectivity.readReceivedFile(payload) {
+        case .success(let chunk):
+            runtime?.resolveInvoke(id: id, resultJson: Self.jsonObject(chunk))
+        case .failure(let error):
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: error.code, message: error.message))
+        }
     }
 
     /// Maps UNAuthorizationStatus to the JS NotificationPermission string

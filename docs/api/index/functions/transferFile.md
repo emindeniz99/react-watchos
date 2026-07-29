@@ -8,7 +8,7 @@
 
 > **transferFile**(`path`, `metadata?`): `Promise`\<[`FileTransferHandle`](../interfaces/FileTransferHandle.md)\>
 
-Defined in: [js/src/connectivity.ts:199](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L199)
+Defined in: [js/src/connectivity.ts:198](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L198)
 
 Queues a FILE for the paired iPhone (`WCSession.transferFile`) and resolves
 **once queued**, with the id to track it by — not once delivered.

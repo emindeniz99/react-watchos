@@ -129,24 +129,23 @@ export interface ConnectivityState {
 /** A file received from the iPhone, as delivered to {@link onReceivedFile}. */
 export interface ReceivedFile {
   /** Absolute `file://` path inside this app's inbox. Read it with
-   *  `fetch(path)` → `arrayBuffer()`, then {@link deleteReceivedFile} it —
-   *  with three caveats. (The `file://` leg itself is still device-unverified:
-   *  see `docs/design-platform-data-package.md` §"What is verified".)
+   *  {@link readReceivedFile}, then {@link deleteReceivedFile} it.
    *
-   *  - **Ignore `response.ok` and `response.status`.** A `file://` load is not
-   *    an `HTTPURLResponse`, so the host reports `status: 0` — making
+   *  `fetch(path)` → `arrayBuffer()` is **not** the way to read one, and each
+   *  reason is a defect {@link readReceivedFile} exists to avoid:
+   *
+   *  - **`fetch` reports failure on success.** A `file://` load is not an
+   *    `HTTPURLResponse`, so the host reports `status: 0` — making
    *    `ok === false` and `statusText === "Server Error"` on a read that fully
-   *    succeeded. `arrayBuffer()` still returns the bytes; a rejected promise
-   *    is the only real failure signal here.
-   *  - **Over 5 MiB is unreadable.** The host caps a bridged body at
-   *    `FetchResponse.defaultMaxBodyBytes` and rejects past it, to keep an
-   *    unbounded body out of the watch's tight QuickJS heap — and the sending
-   *    phone is under no matching cap. Check {@link ReceivedFile.size} first;
-   *    `file://` honours no HTTP Range, so there is no chunked read and no
-   *    other byte-reading API in this package.
-   *  - **Reading needs the `network` feature**, not `connectivity`. `fetch` is
-   *    gated separately, so a bundle policy-limited to `connectivity` receives
-   *    files it has no way to open.
+   *    succeeded. (The `file://` leg itself is also still device-unverified:
+   *    see `docs/design-platform-data-package.md` §"What is verified".)
+   *  - **`fetch` cannot read a large file at all.** It caps a bridged body at
+   *    5 MiB and `file://` honours no HTTP Range, so a bigger file — and the
+   *    sending phone is under no matching cap — had no readable form.
+   *    {@link readReceivedFile} bounds one CHUNK, not the file.
+   *  - **`fetch` needs the `network` feature**, not `connectivity`, so a bundle
+   *    policy-limited to `connectivity` received files it had no way to open.
+   *    {@link readReceivedFile} is gated on `connectivity`, with the receive.
    */
   path: string;
   /** The name the sender gave the file. */
@@ -254,6 +253,69 @@ export function getConnectivityState(): Promise<ConnectivityState> {
  */
 export function deleteReceivedFile(path: string): Promise<void> {
   return invoke("deleteReceivedFile", { path });
+}
+
+/** One chunk of a received file, as {@link readReceivedFile} resolves it. */
+export interface ReceivedFileChunk {
+  /** Base64 of this chunk's bytes. Successive chunks **concatenate**: the host
+   *  trims a chunk that does not end the file to a multiple of 3 bytes, so
+   *  `atob(a + b + c)` is the file — no per-chunk decode-and-join needed. */
+  base64: string;
+  /** Decoded byte count of THIS chunk. Authoritative: add it to `offset` for
+   *  the next read. The `length` you asked for is not — the host clamps it
+   *  against the end of the file and the chunk ceiling. */
+  bytes: number;
+  /** Byte offset this chunk starts at. */
+  offset: number;
+  /** The whole file's size, so a loop knows where it is going. */
+  totalBytes: number;
+  /** True when this chunk ends the file. */
+  eof: boolean;
+}
+
+/**
+ * Reads a file this app received, by the `path` its {@link onReceivedFile}
+ * event carried — the package's byte-reading API for the inbox, and the reason
+ * {@link ReceivedFile.path} says not to `fetch` one.
+ *
+ * Reads at most one chunk per call, so a file larger than the bridge's body
+ * ceiling is still readable — the ceiling bounds a chunk, not the file:
+ *
+ * ```ts
+ * let b64 = "";
+ * for (let offset = 0; ; ) {
+ *   const chunk = await readReceivedFile(file.path, { offset });
+ *   b64 += chunk.base64;                 // chunks concatenate, see `base64`
+ *   if (chunk.eof) break;
+ *   offset += chunk.bytes;               // NOT the length you asked for
+ * }
+ * await deleteReceivedFile(file.path);
+ * ```
+ *
+ * Gated on `connectivity`, with the receive itself — reading a file the host
+ * handed you is the same privilege as deleting it, not a network one.
+ *
+ * ### Cost
+ *
+ * The read, the base64 and the JSON hop all happen on the main thread, so a
+ * ceiling-sized chunk is a visible pause. Pass a smaller `length` if you are
+ * reading while anything is animating, and prefer a user action over a render
+ * or sensor path.
+ *
+ * Rejects `INVALID_REQUEST` for a path outside the inbox, a path retention has
+ * already reclaimed, a negative `offset`, an `offset` past the end, a `length`
+ * that is not positive, and a `length` over the chunk ceiling — the host never
+ * silently returns a different range than the one asked for.
+ */
+export function readReceivedFile(
+  path: string,
+  options?: { offset?: number; length?: number },
+): Promise<ReceivedFileChunk> {
+  return invoke<ReceivedFileChunk>("readReceivedFile", {
+    path,
+    ...(options?.offset === undefined ? {} : { offset: options.offset }),
+    ...(options?.length === undefined ? {} : { length: options.length }),
+  });
 }
 
 /**

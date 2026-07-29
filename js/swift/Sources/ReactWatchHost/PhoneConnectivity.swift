@@ -327,6 +327,31 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         return nil
     }
 
+    /// Reads one base64 chunk of a received file. A thin adapter: the plan
+    /// decode, the containment check, the chunk ceiling and the range clamp all
+    /// live in `FileInbox` (ReactWatchSupport), where `swift test` reaches them
+    /// on Linux — this only maps the failure onto the invoke error channel.
+    func readReceivedFile(_ json: String) -> Result<[String: Any], SendError> {
+        guard let inbox else {
+            return .failure(
+                SendError(
+                    code: .unavailable,
+                    message: "Application Support could not be located, so this app"
+                        + " has no inbox to read from"))
+        }
+        let plan: ReceivedFileReadPlan
+        switch ReceivedFileReadPlan.decode(json: json) {
+        case .success(let value): plan = value
+        case .failure(let error):
+            return .failure(SendError(code: error.code, message: error.message))
+        }
+        switch inbox.read(plan) {
+        case .success(let chunk): return .success(chunk.payload())
+        case .failure(let error):
+            return .failure(SendError(code: error.code, message: error.message))
+        }
+    }
+
     private static func activationName(_ state: WCSessionActivationState) -> String {
         switch state {
         case .notActivated: "notActivated"

@@ -187,6 +187,48 @@ describe("an inbound file is moved before anything else can happen", () => {
     );
   });
 
+  it("readReceivedFile is gated on `connectivity`, not `network`", () => {
+    // THE reason the op exists at all, next to the size ceiling. `fetch` is
+    // gated on `network` while every file op is `connectivity`, so a bundle
+    // policy-limited to `connectivity` used to be handed inbox paths it had no
+    // permitted way to open. Moving the read under `network` would restore
+    // exactly that hole, silently — the files still arrive.
+    const method = hostMethods.find((m) => m.name === "readReceivedFile");
+    expect(method?.feature).toBe("connectivity");
+    // WCSession does not exist for a widget extension, and neither does its
+    // inbox: the read must not become a widget's way into the container.
+    expect(method?.targets).toEqual(["watch"]);
+    expect(HOST_FEATURES.widget).not.toContain("connectivity");
+  });
+
+  it("readReceivedFile decides nothing in the watchOS adapter", () => {
+    // The containment check, the chunk ceiling and the range clamp are the
+    // whole security and correctness surface of this op, and all three live in
+    // `FileInbox` (ReactWatchSupport) where `swift test` reaches them on Linux.
+    // A `resolve`/`FileHandle`/`base64` appearing in the watchOS file would be
+    // a second, uncompiled copy of a rule that must not drift.
+    const body = code(
+      slice(
+        read(CONNECTIVITY),
+        "func readReceivedFile(_ json: String) -> Result<[String: Any], SendError> {",
+        "private static func activationName",
+      ),
+    );
+    expect(body).toContain("ReceivedFileReadPlan.decode(json: json)");
+    expect(body).toContain("inbox.read(plan)");
+    for (const decided of [
+      "resolve(",
+      "FileHandle",
+      "base64",
+      "maxReadBytes",
+    ]) {
+      expect(
+        body,
+        `${decided} is decided in the watchOS adapter`,
+      ).not.toContain(decided);
+    }
+  });
+
   it("deleteReceivedFile resolves the path through the inbox's containment check", () => {
     // The whole reason the op takes a path at all. Without `resolve`, a bundle
     // could hand back `…/ReactWatchInbox/../../Library/Preferences/…` and have

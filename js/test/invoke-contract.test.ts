@@ -16,12 +16,14 @@ import type {
   ConnectivityState,
   FileTransferHandle,
   FileTransferStatus,
+  ReceivedFileChunk,
 } from "../src/connectivity";
 import {
   cancelFileTransfer,
   deleteReceivedFile,
   getConnectivityState,
   outstandingFileTransfers,
+  readReceivedFile,
   sendToPhone,
   transferFile,
   transferUserInfo,
@@ -42,6 +44,7 @@ import type {
   PedometerData as WirePedometerData,
   POIResult as WirePOIResult,
   PurchaseResult as WirePurchaseResult,
+  ReceivedFileChunk as WireReceivedFileChunk,
   Reminder as WireReminder,
   SaveUpdateResult as WireSaveUpdateResult,
   SleepSample as WireSleepSample,
@@ -270,6 +273,17 @@ const reminders: Reminder[] = [
     calendarTitle: "Groceries",
   },
 ];
+const receivedFileChunk: ReceivedFileChunk = {
+  // A NON-final chunk: `eof: false` with `bytes` short of `totalBytes` is the
+  // state a caller loops on, and the one a "whole file" reply would never
+  // exercise. `bytes` is a multiple of 3 because the host trims a non-final
+  // chunk so successive base64 strings concatenate.
+  base64: "aGVsbG8gd28=",
+  bytes: 9,
+  offset: 0,
+  totalBytes: 4096,
+  eof: false,
+};
 const connectivityState: ConnectivityState = {
   activationState: "activated",
   reachable: true,
@@ -295,6 +309,7 @@ const RESULTS: Record<string, unknown> = {
   transferFile: fileTransferHandle,
   outstandingFileTransfers: fileTransfers,
   getConnectivityState: connectivityState,
+  readReceivedFile: receivedFileChunk,
   getCalendarEvents: calendarEvents,
   getReminders: reminders,
 };
@@ -426,6 +441,13 @@ describe("invoke contract fixtures (ARCH-11)", () => {
     await cancelFileTransfer(3);
     await deleteReceivedFile(
       "file:///var/tmp/inbox/1768483200000-1-export.json",
+    );
+    // Both optionals ride this one: the field-coverage assertion below wants
+    // every declared field in some fixture, and `offset`/`length` are exactly
+    // the pair a caller omits on the first read.
+    await readReceivedFile(
+      "file:///var/tmp/inbox/1768483200000-1-export.json",
+      { offset: 4096, length: 65_536 },
     );
     // EventKit: every optional (`limit`, `dueBeforeMs`) rides a fixture, so
     // the field-coverage assertion below has real traffic to judge.
@@ -559,6 +581,13 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       "getConnectivityState",
       "response",
       JSON.stringify(await getConnectivityState()),
+    );
+    writeFixture(
+      "readReceivedFile",
+      "response",
+      JSON.stringify(
+        await readReceivedFile("file:///var/tmp/inbox/1-1-export.json"),
+      ),
     );
     writeFixture(
       "getCalendarEvents",
@@ -707,6 +736,10 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       ConnectivityState,
       WireConnectivityState
     > = true;
+    const receivedFileChunkExact: Exact<
+      ReceivedFileChunk,
+      WireReceivedFileChunk
+    > = true;
     const calendarEventExact: Exact<CalendarEvent, WireCalendarEvent> = true;
     const reminderExact: Exact<Reminder, WireReminder> = true;
     expect([
@@ -724,8 +757,9 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       fileTransferHandleExact,
       fileTransferStatusExact,
       connectivityStateExact,
+      receivedFileChunkExact,
       calendarEventExact,
       reminderExact,
-    ]).toEqual(Array(16).fill(true));
+    ]).toEqual(Array(17).fill(true));
   });
 });

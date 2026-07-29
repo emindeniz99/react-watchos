@@ -6,7 +6,7 @@
 
 # Interface: PedometerData
 
-Defined in: [js/src/generated/wire.ts:430](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L430)
+Defined in: [js/src/generated/wire.ts:437](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L437)
 
 ONE shape on both carriers: the sensor.pedometer push AND queryPedometer.
 
@@ -16,7 +16,7 @@ ONE shape on both carriers: the sensor.pedometer push AND queryPedometer.
 
 > `optional` **averageActivePaceSecPerMeter?**: `number`
 
-Defined in: [js/src/generated/wire.ts:439](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L439)
+Defined in: [js/src/generated/wire.ts:446](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L446)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/generated/wire.ts:439](https://github.com/emindeniz99/playgr
 
 > `optional` **currentCadenceStepsPerSec?**: `number`
 
-Defined in: [js/src/generated/wire.ts:438](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L438)
+Defined in: [js/src/generated/wire.ts:445](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L445)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [js/src/generated/wire.ts:438](https://github.com/emindeniz99/playgr
 
 > `optional` **currentPaceSecPerMeter?**: `number`
 
-Defined in: [js/src/generated/wire.ts:437](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L437)
+Defined in: [js/src/generated/wire.ts:444](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L444)
 
 ***
 
@@ -40,7 +40,7 @@ Defined in: [js/src/generated/wire.ts:437](https://github.com/emindeniz99/playgr
 
 > `optional` **distanceMeters?**: `number`
 
-Defined in: [js/src/generated/wire.ts:434](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L434)
+Defined in: [js/src/generated/wire.ts:441](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L441)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: [js/src/generated/wire.ts:434](https://github.com/emindeniz99/playgr
 
 > **endMs**: `number`
 
-Defined in: [js/src/generated/wire.ts:432](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L432)
+Defined in: [js/src/generated/wire.ts:439](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L439)
 
 ***
 
@@ -56,7 +56,7 @@ Defined in: [js/src/generated/wire.ts:432](https://github.com/emindeniz99/playgr
 
 > `optional` **floorsAscended?**: `number`
 
-Defined in: [js/src/generated/wire.ts:435](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L435)
+Defined in: [js/src/generated/wire.ts:442](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L442)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [js/src/generated/wire.ts:435](https://github.com/emindeniz99/playgr
 
 > `optional` **floorsDescended?**: `number`
 
-Defined in: [js/src/generated/wire.ts:436](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L436)
+Defined in: [js/src/generated/wire.ts:443](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L443)
 
 ***
 
@@ -72,7 +72,7 @@ Defined in: [js/src/generated/wire.ts:436](https://github.com/emindeniz99/playgr
 
 > **startMs**: `number`
 
-Defined in: [js/src/generated/wire.ts:431](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L431)
+Defined in: [js/src/generated/wire.ts:438](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L438)
 
 ***
 
@@ -80,4 +80,4 @@ Defined in: [js/src/generated/wire.ts:431](https://github.com/emindeniz99/playgr
 
 > **steps**: `number`
 
-Defined in: [js/src/generated/wire.ts:433](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L433)
+Defined in: [js/src/generated/wire.ts:440](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L440)

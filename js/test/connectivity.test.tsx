@@ -18,6 +18,7 @@ import {
   onReceivedFile,
   onUserInfo,
   outstandingFileTransfers,
+  readReceivedFile,
   sendToPhone,
   Text,
   transferFile,
@@ -186,6 +187,41 @@ describe("file transfer", () => {
     ).toEqual([
       ["cancelFileTransfer", { id: 7 }],
       ["deleteReceivedFile", { path: "file:///inbox/1-1-export.json" }],
+    ]);
+  });
+
+  it("readReceivedFile omits the range it was not given, and loops on `bytes`", async () => {
+    // The first read of a file carries `path` alone: an `offset: 0` /
+    // `length: <ceiling>` the caller never asked for would be this wrapper
+    // inventing a range, and the host's clamp already answers both.
+    const host = installMockHost();
+    const chunks = [
+      { base64: "AAECAwQF", bytes: 6, offset: 0, totalBytes: 9, eof: false },
+      { base64: "BgcI", bytes: 3, offset: 6, totalBytes: 9, eof: true },
+    ];
+    let call = 0;
+    host.invoke.mockImplementation((id: number) => {
+      (
+        globalThis as { __resolveInvoke?: (i: number, j: string) => void }
+      ).__resolveInvoke?.(id, JSON.stringify(chunks[call++]));
+    });
+    let base64 = "";
+    for (let offset = 0; ; ) {
+      const chunk = await readReceivedFile("file:///inbox/1-1-clip.bin", {
+        ...(offset === 0 ? {} : { offset }),
+      });
+      base64 += chunk.base64;
+      if (chunk.eof) break;
+      // `bytes`, not the requested length — the host clamps against EOF and
+      // the chunk ceiling, so the request's number is not the cursor.
+      offset += chunk.bytes;
+    }
+    expect(base64).toBe("AAECAwQFBgcI");
+    expect(
+      host.invoke.mock.calls.map((c) => [c[1], JSON.parse(c[2] as string)]),
+    ).toEqual([
+      ["readReceivedFile", { path: "file:///inbox/1-1-clip.bin" }],
+      ["readReceivedFile", { path: "file:///inbox/1-1-clip.bin", offset: 6 }],
     ]);
   });
 

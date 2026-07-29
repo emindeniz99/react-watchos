@@ -6,7 +6,7 @@
 
 # Interface: TypedMessages\<T\>
 
-Defined in: [js/src/connectivity.ts:338](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L338)
+Defined in: [js/src/connectivity.ts:400](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L400)
 
 Typed `send`/`on` over one [MessageContract](../type-aliases/MessageContract.md); see [defineMessages](../functions/defineMessages.md).
 
@@ -22,7 +22,7 @@ Typed `send`/`on` over one [MessageContract](../type-aliases/MessageContract.md)
 
 > **on**\<`K`\>(`name`, `handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/connectivity.ts:345](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L345)
+Defined in: [js/src/connectivity.ts:407](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L407)
 
 Handle a typed message from the phone. Returns an unsubscribe.
 
@@ -52,7 +52,7 @@ Handle a typed message from the phone. Returns an unsubscribe.
 
 > **send**\<`K`\>(`name`, `payload`): `Promise`\<`Record`\<`string`, `unknown`\>\>
 
-Defined in: [js/src/connectivity.ts:340](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L340)
+Defined in: [js/src/connectivity.ts:402](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L402)
 
 Send a typed message to the phone; resolves the phone's reply.
 

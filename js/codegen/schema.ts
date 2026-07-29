@@ -769,6 +769,31 @@ export const invokeShapes: StructDef[] = [
     fields: [{ name: "path", swift: "String", ts: "string" }],
   },
   {
+    swift: "ReadReceivedFileRequest",
+    ts: "ReadReceivedFileRequest",
+    doc: "readReceivedFile — one base64 chunk of an inbox file, by byte range.",
+    fields: [
+      { name: "path", swift: "String", ts: "string" },
+      {
+        name: "offset",
+        swift: "Int?",
+        ts: "number",
+        optional: true,
+        doc: "byte offset to read from; default 0",
+      },
+      {
+        // Optional, and CLAMPED rather than trusted: the host bounds one chunk
+        // at FileInbox.maxReadBytes because the QuickJS heap is a hard limit,
+        // not a budget. Omitting it means "as much as one chunk may carry".
+        name: "length",
+        swift: "Int?",
+        ts: "number",
+        optional: true,
+        doc: "max bytes to read; default (and ceiling) is one chunk",
+      },
+    ],
+  },
+  {
     swift: "CalendarAccessRequest",
     ts: "CalendarAccessRequest",
     doc: "js/src/calendar.ts requestCalendarAccess — which EKEntityType to ask for.",
@@ -1084,6 +1109,35 @@ export const invokeShapes: StructDef[] = [
         swift: "Double",
         ts: "number",
         doc: "WCSessionFileTransfer.progress.fractionCompleted (watchOS 5.0+)",
+      },
+    ],
+  },
+  {
+    swift: "ReceivedFileChunk",
+    ts: "ReceivedFileChunk",
+    doc: "One base64 chunk of a received file (js/src/connectivity.ts readReceivedFile).",
+    fields: [
+      {
+        name: "base64",
+        swift: "String",
+        ts: "string",
+        doc: "the chunk's bytes; successive chunks CONCATENATE (host trims to a multiple of 3)",
+      },
+      {
+        // What the caller adds to `offset` for the next read. Not the length
+        // they asked for: the host clamps against EOF and the chunk ceiling.
+        name: "bytes",
+        swift: "Int",
+        ts: "number",
+        doc: "decoded byte count of THIS chunk — authoritative, the request's length is not",
+      },
+      { name: "offset", swift: "Int", ts: "number" },
+      { name: "totalBytes", swift: "Int", ts: "number", doc: "the whole file's size" },
+      {
+        name: "eof",
+        swift: "Bool",
+        ts: "boolean",
+        doc: "true when this chunk ends the file",
       },
     ],
   },
@@ -1425,6 +1479,21 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     via: "invoke",
     request: "ReceivedFileRequest",
+  },
+  // The byte-reading half of the receive path, and `connectivity` rather than
+  // `network` is the point of it: `fetch` is gated on `network`, so a bundle
+  // policy-limited to `connectivity` used to receive files it had no way to
+  // open. Reading a file this app was handed is the same privilege as deleting
+  // it, not a network privilege.
+  {
+    name: "readReceivedFile",
+    targets: ["watch"],
+    feature: "connectivity",
+    since: 1,
+    via: "invoke",
+    doc: "Reads one base64 chunk of a file this app received; chunked because the bridge bounds ONE chunk, not the file.",
+    request: "ReadReceivedFileRequest",
+    response: "ReceivedFileChunk",
   },
   {
     name: "fetch",

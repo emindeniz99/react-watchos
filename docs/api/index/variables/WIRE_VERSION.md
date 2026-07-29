@@ -8,6 +8,6 @@
 
 > `const` **WIRE\_VERSION**: `1`
 
-Defined in: [js/src/generated/wire.ts:488](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L488)
+Defined in: [js/src/generated/wire.ts:504](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L504)
 
 Committed-tree wire version (SerializedTree.v). Bump on shape changes.
