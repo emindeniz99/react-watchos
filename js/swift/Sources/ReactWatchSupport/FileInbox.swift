@@ -418,8 +418,13 @@ public struct ReceivedFileReadPlan: Equatable, Sendable {
 
     private struct Payload: Decodable {
         let path: String?
-        let offset: Int?
-        let length: Int?
+        // Decoded as Double, not Int, so a number that is not a whole byte
+        // count is NAMED by `wholeBytes` below. As `Int?` it failed the whole
+        // payload decode, and the one guard reported that as a missing `path`
+        // — the wire type is `offset?: number`, a JS double, so
+        // `{ offset: file.size / 2 }` is type-legal and lands here fractional.
+        let offset: Double?
+        let length: Double?
     }
 
     public static func decode(
@@ -427,16 +432,48 @@ public struct ReceivedFileReadPlan: Equatable, Sendable {
     ) -> Result<ReceivedFileReadPlan, ReceivedFileReadError> {
         guard
             let payload = try? JSONDecoder().decode(
-                Payload.self, from: Data(json.utf8)),
-            let path = payload.path, !path.isEmpty
+                Payload.self, from: Data(json.utf8))
         else {
+            return .failure(
+                ReceivedFileReadError(
+                    .invalidRequest,
+                    "readReceivedFile needs a JSON object with a string `path`"
+                        + " and numeric `offset`/`length`"))
+        }
+        guard let path = payload.path, !path.isEmpty else {
             return .failure(
                 ReceivedFileReadError(
                     .invalidRequest, "readReceivedFile needs a `path`"))
         }
+        let offset: Int?
+        switch wholeBytes(payload.offset, "offset") {
+        case .success(let value): offset = value
+        case .failure(let error): return .failure(error)
+        }
+        let length: Int?
+        switch wholeBytes(payload.length, "length") {
+        case .success(let value): length = value
+        case .failure(let error): return .failure(error)
+        }
         return .success(
             ReceivedFileReadPlan(
-                path: path, offset: payload.offset ?? 0, length: payload.length))
+                path: path, offset: offset ?? 0, length: length))
+    }
+
+    /// A byte count has to be a WHOLE number in `Int` range — every range rule
+    /// in `readWindow` speaks about integers — so anything else is refused by
+    /// its own field name rather than folded into the `path` guard.
+    private static func wholeBytes(
+        _ value: Double?, _ field: String
+    ) -> Result<Int?, ReceivedFileReadError> {
+        guard let value else { return .success(nil) }
+        guard let whole = Int(exactly: value) else {
+            return .failure(
+                ReceivedFileReadError(
+                    .invalidRequest,
+                    "`\(field)` must be a whole number of bytes, not \(value)"))
+        }
+        return .success(whole)
     }
 }
 

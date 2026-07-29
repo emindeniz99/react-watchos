@@ -3366,6 +3366,34 @@ final class FileInboxTests: XCTestCase {
                 XCTAssertEqual(error.code, .invalidRequest)
             }
         }
+        // `offset`/`length` are `number` on the wire — a JS double — so
+        // `{ offset: file.size / 2 }` is type-legal and arrives fractional. The
+        // refusal has to name the field it is about: reporting it as a missing
+        // `path` sends the caller to debug an argument they did pass.
+        for (json, field) in [
+            (#"{"path":"/inbox/a","offset":1.5}"#, "offset"),
+            (#"{"path":"/inbox/a","length":2.5}"#, "length"),
+        ] {
+            switch ReceivedFileReadPlan.decode(json: json) {
+            case .success: XCTFail("accepted \(json)")
+            case .failure(let error):
+                XCTAssertEqual(error.code, .invalidRequest)
+                XCTAssertTrue(
+                    error.message.contains("`\(field)`"),
+                    "\(json) blamed the wrong field: \(error.message)")
+            }
+        }
+        // A whole number that a JSON writer spelled with a fraction part is
+        // still a byte count, and a NEGATIVE one belongs to `readWindow`'s
+        // rule, not this one — decode must not take that refusal over.
+        XCTAssertEqual(
+            try ReceivedFileReadPlan.decode(
+                json: #"{"path":"/inbox/a","offset":2.0}"#
+            ).get().offset, 2)
+        XCTAssertEqual(
+            try ReceivedFileReadPlan.decode(
+                json: #"{"path":"/inbox/a","offset":-1}"#
+            ).get().offset, -1)
     }
 
     func testReadWindowRefusesEveryRangeItCannotHonourExactly() {
