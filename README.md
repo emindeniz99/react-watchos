@@ -44,8 +44,9 @@ SwiftUI-like, all 41 primitives: `VStack`, `HStack`, `ZStack`, `ScrollView`,
 `ShareLink`, `Chart`, `LabeledContent`, `ContentUnavailable`, `Toolbar`,
 `ToolbarItem` — with SwiftUI layout rather than flexbox. Beyond views there's
 `Storage` (App Group UserDefaults), `fetch` (WHATWG subset over native
-URLSession), sensors (heart rate / motion / gyroscope / location via
-HealthKit + CoreMotion push streams), a BLE central (`bleConnect` /
+URLSession), four sensor push streams — live heart rate (a hidden HealthKit
+workout session used as an HR pump; **no** steps, energy, sleep or workout
+control), device motion, gyroscope and location — a BLE central (`bleConnect` /
 `bleWrite` / `bleSubscribe` + state/notify pushes), `sendToPhone`
 (WatchConnectivity, watch side), `playHaptic`, `playAudio`,
 `scheduleNotification` (local notifications with permission request and

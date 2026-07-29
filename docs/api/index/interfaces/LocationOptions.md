@@ -6,7 +6,7 @@
 
 # Interface: LocationOptions
 
-Defined in: [js/src/sensors.ts:133](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L133)
+Defined in: [js/src/sensors.ts:138](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L138)
 
 Options for [startLocation](../functions/startLocation.md).
 
@@ -16,7 +16,7 @@ Options for [startLocation](../functions/startLocation.md).
 
 > `optional` **accuracy?**: `"navigation"` \| `"best"` \| `"tenMeters"` \| `"hundredMeters"` \| `"kilometer"`
 
-Defined in: [js/src/sensors.ts:140](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L140)
+Defined in: [js/src/sensors.ts:145](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L145)
 
 Positioning accuracy — coarser keeps the GPS hardware colder. Default
 "tenMeters" (right for maps/route tracking); use "best" or "navigation"
@@ -29,6 +29,6 @@ takes effect.
 
 > `optional` **distanceFilterMeters?**: `number`
 
-Defined in: [js/src/sensors.ts:147](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L147)
+Defined in: [js/src/sensors.ts:152](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L152)
 
 Minimum movement in meters between callbacks. Default 10.

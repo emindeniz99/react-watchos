@@ -46,8 +46,10 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
   (react-native-watch-connectivity in the companion app), **Bluetooth
   entitlement** — all done.
 
-Also shipped: **DatePicker**, **onDrag** scrub (T1), **sensors/HealthKit**
-(T3-P1), **Map** primitive, **Smart Stack relevance ranking** (per-entry score;
+Also shipped: **DatePicker**, **onDrag** scrub (T1), **four sensor streams**
+(T3-P1 — heart rate / motion / gyroscope / location; the HealthKit side is a
+heart-rate read only, *not* steps/energy/sleep/workout control),
+**Map** primitive, **Smart Stack relevance ranking** (per-entry score;
 the *predictive* `relevantContexts` surfacing is decoded-not-applied — CX-017,
 [status.md](./status.md)), **Liquid Glass** (`glass`), **OTA update channel**
 (`applyUpdate`), **React Compiler** in the esbuild pipeline (auto-memoization),
@@ -173,7 +175,7 @@ Owns the companion app, new `__host` methods, native-event streams.
 |---|---|---|---|
 | **WatchConnectivity bridge** | P0 → **wired** | M | Both sides in place: phone→watch via `registerNativeListener`/`__pushNativeEvent`, watch→phone via `sendToPhone` (invoke channel), and the companion app's `react-native-watch-connectivity` listener replies so the watch promise settles. Accept criterion (a phone message updates watch UI live) still needs a paired sim/device run — ③ in status.md. **Background channels shipped too (ARCH-12, 2026-07-16):** outbound `updateApplicationContext` (latest-wins state) / `transferUserInfo` (FIFO queue surviving suspension) over invoke; inbound events split by delivery semantics with `onApplicationContext`/`onUserInfo` (BREAKING: phone-pushed context no longer arrives on `onPhoneMessage`). JS-verified (connectivity 7/7); the watch-only delegates await the next Xcode build. |
 | Networking (`fetch`) | P1 | M | A `fetch` shim backed by `URLSession` through a new async `__host` method. Promise-based → **depends on Track 2's async/`setInterval` work** for deterministic flush. |
-| Sensors / HealthKit | P1 | M-L | Heart rate, motion, workout sessions as native-event streams on the push channel. HealthKit adds entitlement/privacy plumbing. Builds directly on `__pushNativeEvent`. |
+| Sensors / HealthKit | P1 → **partial** | M-L | **Shipped:** heart rate, motion, gyroscope and location as native-event streams on the push channel; HealthKit entitlement/privacy plumbing done. Builds directly on `__pushNativeEvent`. **Not shipped:** workout sessions are *not* an exposed capability — heart rate comes from a hidden `.other` `HKWorkoutSession` that exists purely as an HR pump and is never saved, so there is no start/pause/end/save API. Nor are there HealthKit reads (steps, active energy, sleep, SpO2). Those remain the top gap. |
 | Dynamic Type + reduce-motion | P2 → **shipped** | S | Labels done; `textStyle` gives Dynamic Type scaling for free (semantic fonts), and `getDeviceInfo` exposes `preferredContentSizeCategory`. Reduce-motion now honored natively: `LayoutModifier.animated()` skips a node's `animation` under `@Environment(\.accessibilityReduceMotion)`, and the flag is on `getDeviceInfo` for JS-driven transitions. On-device feel is ③. |
 | Live Activities / Smart Stack+ | P2 | M | Extends the existing widget timeline pipeline. |
 | **i18n track (M7)** | P1 → **shipped** | M | QuickJS has no `Intl`; the gap was undocumented until the 2026-07-04 review. Step 1 SHIPPED: `locale`/`language`/`is24Hour` in `getDeviceInfo()` + README limitation. Step 2 SHIPPED: `<FormattedText>` — a declarative date/number primitive rendered natively with the device locale (shared `RNFormat` kernel in Support, Linux-tested; full widget support). Step 3 SHIPPED: `createTranslations`/`TranslationProvider`/`useTranslation` — a message translation layer (typed `t()`, `{placeholder}` interpolation, an app-supplied plural-rule seam since there's no `Intl.PluralRules`), plain data + one context resolved in JS like the theme layer, Linux-tested. |
@@ -388,8 +390,13 @@ plus a host app + plugin scaffolding.
 
 1. **macOS build green** (gate — unchanged). Now also gates double-tap,
    on-device AI, and the inspector's on-watch side.
-2. **Sensors/HealthKit** — watchOS 26's fitness APIs + market demand keep it
-   the top *feature* (watch side done; verify on-device).
+2. **HealthKit depth** — market demand keeps it the top *feature*. Note what
+   is actually bound today: heart rate (a hidden `.other` workout session used
+   purely as an HR pump, never saved), motion, gyroscope, location — using
+   `HKWorkoutSession`/`HKLiveWorkoutDataSource`/`CMMotionManager`, all watchOS
+   2.0–5.0 APIs, **no watchOS 26 API at all**. The gap is the reads and the
+   controls: steps, energy, sleep, and real workout control (watch side of the
+   existing streams done; verify on-device).
 3. **Foundation Models streaming + structured output** — high-leverage now
    that the synchronous path ships; reuses the push channel.
 4. **Cross-platform core extraction** (→ tvOS) — the strategic bet.

@@ -8,4 +8,4 @@
 
 > **SensorKind** = `"heartRate"` \| `"motion"` \| `"gyroscope"` \| `"location"` \| `string`
 
-Defined in: [js/src/sensors.ts:17](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L17)
+Defined in: [js/src/sensors.ts:22](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L22)

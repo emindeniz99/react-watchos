@@ -8,10 +8,15 @@
 
 > `const` **SENSOR\_EVENT\_PREFIX**: `"sensor."` = `"sensor."`
 
-Defined in: [js/src/sensors.ts:15](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L15)
+Defined in: [js/src/sensors.ts:20](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L20)
 
-Live sensor streams (heart rate via HealthKit, motion via CoreMotion).
-start a kind and readings arrive on the native-event push channel as
-`sensor.<kind>` (so each reading commits instantly via runSync). The
-watch's standout app shape is sensor + complication, and this rides
-watchOS 26's expanded real-time fitness APIs.
+Live sensor streams (heart rate via HealthKit, motion/gyroscope via
+CoreMotion, location via CoreLocation). start a kind and readings arrive on
+the native-event push channel as `sensor.<kind>` (so each reading commits
+instantly via runSync). The watch's standout app shape is sensor +
+complication.
+
+No watchOS 26 API is involved: the bridge uses `HKWorkoutSession` (2.0),
+`HKLiveWorkoutDataSource` (5.0), `HKQuantityType(.heartRate)` (2.0),
+`CMMotionManager` (2.0) and `CLLocationManager` — every one of them far
+below this project's watchOS 10 floor.
