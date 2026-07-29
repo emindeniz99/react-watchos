@@ -156,6 +156,10 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   change; the output is committed.
 - [launch-checklist.md](./launch-checklist.md) — pre-marketing gates with
   honest statuses (engineering, release, security posture, claims discipline).
+- [debugging.md](./debugging.md) — what a crash on-wrist looks like and how to
+  read it: the full-screen/banner/diagnostics-ring/Console.app/remote-inspector
+  surfaces, the `js.*` diagnostic codes, the local `qjs`/embed-smoke repro loop,
+  and — stated plainly — what this is NOT (no React DevTools, no breakpoints).
 - [performance-measurement.md](./performance-measurement.md) — how to measure
   CPU/memory/render/energy: the `tools/embed-smoke` engine harness (runs on CI),
   `os_signpost`, Instruments on a physical watch, and why MetricKit is
