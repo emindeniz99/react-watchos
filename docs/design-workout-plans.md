@@ -36,7 +36,7 @@ of `scheduledWorkouts`, and the invoke settles on what is actually there:
 
 | op | after the mutation | if the read-back disagrees |
 |---|---|---|
-| `scheduleWorkoutPlan` | confirm the `(plan.id, minute)` pair is present | reject `UNAVAILABLE`: *"the scheduler accepted nothing — watch-side scheduling may be unsupported on this configuration"* |
+| `scheduleWorkoutPlan` | confirm the `(plan.id, minute)` pair is present | read `authorizationState` first, then reject `UNAVAILABLE`: *"… scheduling authorization is denied …"* when it is not `.authorized`, else *"the scheduler accepted nothing — watch-side scheduling may be unsupported on this configuration"* |
 | `removeScheduledWorkoutPlan` | confirm the pair is **gone** | reject `UNAVAILABLE`: *"the scheduler removed nothing …"* |
 | `removeAllScheduledWorkoutPlans` | confirm the list is empty | reject `UNAVAILABLE` naming the count still there |
 

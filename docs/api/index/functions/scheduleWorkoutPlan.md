@@ -8,7 +8,7 @@
 
 > **scheduleWorkoutPlan**(`plan`, `at`): `Promise`\<[`ScheduledWorkoutSummary`](../interfaces/ScheduledWorkoutSummary.md)\>
 
-Defined in: [js/src/workoutPlans.ts:410](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L410)
+Defined in: [js/src/workoutPlans.ts:415](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L415)
 
 Schedules `plan` at `at` and resolves the summary the scheduler actually
 holds — **read back after writing**, never assumed.
@@ -29,7 +29,12 @@ holds — **read back after writing**, never assumed.
   allowing it would resolve a "saved" that could not be verified. Re-saving
   an edited plan is [removeScheduledWorkoutPlan](removeScheduledWorkoutPlan.md) then this.
 - If the scheduler stores nothing, this rejects `UNAVAILABLE` saying so
-  rather than resolving a success that did not happen.
+  rather than resolving a success that did not happen — and it reads
+  `authorizationState` before wording that refusal, so a plan that was not
+  stored because scheduling was never authorized (or was denied) says
+  exactly that instead of blaming the device. Call
+  [requestWorkoutPlanAuthorization](requestWorkoutPlanAuthorization.md) first; `WorkoutScheduler.isSupported`
+  is a device flag and stays true after a user taps Don't Allow.
 
 The user sees a scheduled plan at the top of the Workout app on the day it
 is due (Apple shows a ±7-day window).

@@ -165,6 +165,26 @@ describe("every scheduler mutation is verified by read-back", () => {
     expect(src).toContain("the scheduler removed nothing");
   });
 
+  it("asks authorizationState before blaming the platform", () => {
+    // `isSupported` is a DEVICE flag and stays true after the user taps Don't
+    // Allow, so a denial lands in the read-back failure branch. Blaming
+    // watch-side scheduling there would misdiagnose the likeliest real failure
+    // as the one thing this package cannot verify — and would poison the sim
+    // spike, which reads that message as its evidence.
+    const body = code(functionBody(read(BRIDGE), "    func schedule("));
+    const mutation = body.indexOf("await scheduler.schedule(");
+    const asked = body.indexOf("await scheduler.authorizationState", mutation);
+    const platformBlame = body.indexOf("Self.acceptedNothingMessage)", asked);
+    expect(
+      asked,
+      "the failure branch never reads authorizationState",
+    ).toBeGreaterThan(mutation);
+    expect(
+      platformBlame,
+      "the platform message is not gated behind the authorization check",
+    ).toBeGreaterThan(asked);
+  });
+
   it("refuses an (id, minute) already scheduled, so the read-back is not vacuous", () => {
     // `matches` is a KEY test — id plus minute, nothing about the composition.
     // So if that pair is ALREADY stored when `schedule` is called, the read-back

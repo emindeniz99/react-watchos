@@ -158,6 +158,15 @@ import WorkoutKit
                 Self.matches($0, id: plan.id, atMs: spec.atMs, calendar: calendar)
             }), let summary = Self.summary(confirmed, calendar: calendar)
         else {
+            // `schedule(_:at:)` cannot report a denial, but `authorizationState`
+            // can be READ — so ask before blaming the platform. A user who
+            // tapped Don't Allow is the likeliest reason the scheduler stored
+            // nothing, and `isSupported` (a DEVICE flag) is still true for them.
+            let state = await scheduler.authorizationState
+            guard state == .authorized else {
+                return .unavailable(
+                    Self.acceptedNothingMessage(unauthorized: Self.name(for: state)))
+            }
             return .unavailable(Self.acceptedNothingMessage)
         }
         return .ok(Self.json(summary))
@@ -263,9 +272,18 @@ import WorkoutKit
         "this device does not support scheduled workouts "
         + "(WorkoutScheduler.isSupported is false)"
 
+    /// Only reachable with authorization ALREADY granted — which is what makes
+    /// it evidence for the sim spike rather than a guess that shadows the far
+    /// likelier permission answer below.
     private static let acceptedNothingMessage =
         "the scheduler accepted nothing — watch-side scheduling may be "
         + "unsupported on this configuration"
+
+    private static func acceptedNothingMessage(unauthorized state: String) -> String {
+        "the scheduler accepted nothing — scheduling authorization is \(state), "
+            + "so nothing could be stored; call requestWorkoutPlanAuthorization "
+            + "and have the user allow it"
+    }
 
     /// Whether a scheduled entry IS the `(id, instant)` pair we asked about.
     ///
