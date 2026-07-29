@@ -148,6 +148,7 @@ export {
   stopExtendedRuntimeSession,
 } from "./extendedRuntime";
 export { Headers } from "./fetch";
+export type { PedometerData } from "./generated/wire";
 export { WIRE_VERSION } from "./generated/wire";
 export type { HapticType } from "./haptics";
 export { playHaptic } from "./haptics";
@@ -281,14 +282,17 @@ export type {
   HeartRateOptions,
   LocationOptions,
   MotionOptions,
+  PedometerOptions,
   SensorKind,
 } from "./sensors";
 export {
+  queryPedometer,
   SENSOR_EVENT_PREFIX,
   startGyroscope,
   startHeartRate,
   startLocation,
   startMotion,
+  startPedometer,
   startSensor,
   stopSensor,
 } from "./sensors";

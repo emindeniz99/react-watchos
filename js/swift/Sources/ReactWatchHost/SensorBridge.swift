@@ -36,6 +36,10 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     /// for the SHARE grant this one must never want).
     private let healthStore = HKHealthStore()
     private let motion = CMMotionManager()
+    /// CMPedometer lives in its own bridge (PedometerBridge.swift) because it
+    /// serves BOTH carriers — this push stream and the `queryPedometer` invoke —
+    /// and the invoke handler needs to reach it directly.
+    let pedometer = PedometerBridge()
     private lazy var location: CLLocationManager = {
         let m = CLLocationManager()
         m.delegate = self
@@ -77,6 +81,7 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         let updateIntervalMs: Double?
         let accuracy: String?
         let distanceFilterMeters: Double?
+        let fromMs: Double?
     }
 
     func handleOp(_ json: String) {
@@ -98,6 +103,12 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
         case ("stop", "location"):
             jsWantsLocation = false
             stopLocationIfIdle()
+        case ("start", "pedometer"): pedometer.start(fromMs: op.fromMs)
+        case ("stop", "pedometer"): pedometer.stop()
+        // `default` is a forward-compat no-op for an unknown kind, which is
+        // exactly why widening SensorKind in JS without adding the case here
+        // would silently start nothing forever — the hazard the
+        // `_unknownSensorKindIsATypeError` compile guard exists for.
         default: break
         }
     }
@@ -108,6 +119,7 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
     func stopAll() {
         stopHeartRate()
         stopMotion()
+        pedometer.stop()
         motion.stopGyroUpdates()
         jsWantsLocation = false
         routeTracking = false

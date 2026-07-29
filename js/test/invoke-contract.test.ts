@@ -19,6 +19,7 @@ import type {
   HealthSample as WireHealthSample,
   HealthStatisticsResult as WireHealthStatisticsResult,
   IAPProduct as WireIAPProduct,
+  PedometerData as WirePedometerData,
   POIResult as WirePOIResult,
   PurchaseResult as WirePurchaseResult,
   SaveUpdateResult as WireSaveUpdateResult,
@@ -44,6 +45,7 @@ import { Keychain } from "../src/keychain";
 import type { Coordinate, POIResult } from "../src/maps";
 import { getCurrentLocation, searchPOI } from "../src/maps";
 import { scheduleNotification } from "../src/notifications";
+import { queryPedometer } from "../src/sensors";
 import { speak } from "../src/speech";
 import type { SaveUpdateResult, UpdateState } from "../src/update";
 import { applyUpdate, getUpdateState, markUpdateHealthy } from "../src/update";
@@ -183,6 +185,19 @@ const healthSamples: HealthSample[] = [
     unit: "count/min",
   },
 ];
+const pedometerData: WirePedometerData = {
+  startMs: 1_768_396_800_000,
+  endMs: 1_768_483_200_000,
+  steps: 8412,
+  distanceMeters: 6_210.5,
+  floorsAscended: 12,
+  floorsDescended: 9,
+  // Live-only on the wire; a historical query omits them. The fixture carries
+  // them so the declared shape is exercised in full.
+  currentPaceSecPerMeter: 0.42,
+  currentCadenceStepsPerSec: 1.85,
+  averageActivePaceSecPerMeter: 0.51,
+};
 const workoutState: WorkoutState = {
   state: "ended",
   elapsedMs: 1_845_000,
@@ -216,6 +231,7 @@ const RESULTS: Record<string, unknown> = {
   querySleepSamples: sleepSamples,
   endWorkout: workoutState,
   getWorkoutState: workoutState,
+  queryPedometer: pedometerData,
 };
 
 /**
@@ -327,6 +343,10 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       collectRoute: true,
     });
     await endWorkout({ discard: false });
+    await queryPedometer({
+      startMs: 1_768_396_800_000,
+      endMs: 1_768_483_200_000,
+    });
     // Opaque (the three connectivity channels): the payload is the app's own
     // JSON. Swift never reads a field — it only requires a JSON OBJECT, which
     // is exactly what the Swift side asserts about these fixtures.
@@ -404,6 +424,16 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       JSON.stringify(await getCurrentLocation()),
     );
     writeFixture("endWorkout", "response", JSON.stringify(await endWorkout()));
+    writeFixture(
+      "queryPedometer",
+      "response",
+      JSON.stringify(
+        await queryPedometer({
+          startMs: 1_768_396_800_000,
+          endMs: 1_768_483_200_000,
+        }),
+      ),
+    );
     writeFixture(
       "getWorkoutState",
       "response",

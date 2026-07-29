@@ -6,6 +6,7 @@ import {
   startHeartRate,
   startLocation,
   startMotion,
+  startPedometer,
   startSensor,
   stopSensor,
   Text,
@@ -26,7 +27,7 @@ function HeartRate() {
 type PushFn = (name: string, payloadJson?: string) => boolean;
 
 // Compile-time guard (never executed): SensorKind must stay closed over the
-// four kinds SensorBridge.handleOp implements. When it ended in `| string` this
+// five kinds SensorBridge.handleOp implements. When it ended in `| string` this
 // line compiled clean, so `startSensor("steps", cb)` returned a working-looking
 // unsubscribe and silently never emitted. If someone re-widens the union,
 // @ts-expect-error goes unused and `pnpm typecheck` fails.
@@ -75,6 +76,22 @@ describe("sensor streams", () => {
     expect(host.sensor.mock.calls.map((c) => JSON.parse(c[0]).kind)).toEqual([
       "gyroscope",
       "location",
+    ]);
+  });
+
+  it("pedometer starts its kind and forwards fromMs only when set", () => {
+    // `pedometer` is the kind added last, and the hazard it exercises is the
+    // half-done widening: `SensorBridge.handleOp` default-breaks, so a kind in
+    // the TS union with no Swift case would start nothing and emit nothing
+    // forever while every JS test still passed. This asserts the JS half; the
+    // Swift half is the `case ("start", "pedometer")` added in the same commit.
+    const host = installMockHost();
+    startPedometer(() => {});
+    __resetSensorCountsForTest();
+    startPedometer(() => {}, { fromMs: 1_768_396_800_000 });
+    expect(host.sensor.mock.calls.map((c) => JSON.parse(c[0]))).toEqual([
+      { op: "start", kind: "pedometer" },
+      { op: "start", kind: "pedometer", fromMs: 1_768_396_800_000 },
     ]);
   });
 

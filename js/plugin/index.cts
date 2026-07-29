@@ -41,6 +41,7 @@ interface ReactWatchOptions {
   healthKit?: boolean;
   push?: boolean;
   workouts?: boolean;
+  motion?: boolean;
   deploymentTarget?: string;
   appleTeamId?: string;
   scheme?: string;
@@ -89,6 +90,12 @@ function resolveOptions(
     // a workout must not carry. Turning it on also turns on the HealthKit
     // entitlement, because saving an HKWorkout needs it.
     workouts: o.workouts ?? false,
+    // NSMotionUsageDescription, previously (wrongly) emitted under `healthKit`:
+    // CoreMotion needs it independently of HealthKit. Default false for the
+    // same least-privilege reason as the others — and safely, because
+    // PedometerBridge checks the key and refuses with an actionable
+    // UNAVAILABLE rather than hitting Apple's documented crash.
+    motion: o.motion ?? false,
     deploymentTarget: o.deploymentTarget ?? "10.0",
     appleTeamId: o.appleTeamId ?? config.ios?.appleTeamId,
     // Deep-link scheme, defaulted to the consumer's own bundle id (like the App

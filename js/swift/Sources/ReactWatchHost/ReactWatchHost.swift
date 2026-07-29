@@ -344,6 +344,9 @@ final class ReactWatchModel {
             self?.pushNativeEvent("sensor.\(kind)", payload: payload)
         }
         sensors.workoutOwner = workout
+        sensors.pedometer.onReading = { [weak self] payload in
+            self?.pushNativeEvent("sensor.pedometer", payload: payload)
+        }
         sensors.onLocationFix = { [weak self] locations in
             self?.workout.insertRoute(locations)
         }
@@ -694,6 +697,8 @@ final class ReactWatchModel {
             handleEndWorkout(id: id, payload: payload)
         case "getWorkoutState":
             handleGetWorkoutState(id: id)
+        case "queryPedometer":
+            handleQueryPedometer(id: id, payload: payload)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -2890,6 +2895,49 @@ extension ReactWatchModel {
             runtime?.rejectInvoke(
                 id: id,
                 errorJson: Self.errorJSON(code: .unavailable, message: message))
+        }
+    }
+
+    /// CMPedometer's historical query (~7 days of on-device step history).
+    ///
+    /// Same `sensors` feature as the live motion streams, deliberately:
+    /// CMPedometer is CoreMotion — the same framework, the same
+    /// NSMotionUsageDescription, and the same single OS consent toggle
+    /// ("Motion & Fitness"). A user cannot grant one and deny the other, so a
+    /// separate feature id would map to no independently-grantable consent.
+    ///
+    /// The `false` return is the documented-crash guard: Apple states calling
+    /// CMPedometer without NSMotionUsageDescription CRASHES the app, so the
+    /// bridge checks the key first and this is where that refusal gets an
+    /// actionable message instead of a silent no-op.
+    private func handleQueryPedometer(id: Int, payload: String) {
+        switch PedometerQueryPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            let gen = generation
+            let started = sensors.pedometer.query(plan) { [weak self] reading in
+                guard let self, gen == self.generation else { return }
+                guard let reading else {
+                    self.runtime?.rejectInvoke(
+                        id: id,
+                        errorJson: Self.errorJSON(
+                            code: .internal,
+                            message: "CoreMotion returned no pedometer data"))
+                    return
+                }
+                self.runtime?.resolveInvoke(
+                    id: id, resultJson: Self.jsonObject(reading))
+            }
+            if !started {
+                runtime?.rejectInvoke(
+                    id: id,
+                    errorJson: Self.errorJSON(
+                        code: .unavailable,
+                        message: PedometerBridge.usageDescriptionMissing
+                            ? PedometerBridge.missingUsageDescriptionMessage
+                            : "step counting is not available on this device"))
+            }
         }
     }
 

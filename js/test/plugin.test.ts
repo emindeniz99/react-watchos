@@ -253,6 +253,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     widget: true,
     healthKit: true,
     workouts: false,
+    motion: false,
     deploymentTarget: "10.0",
     scheme: "com.emindeniz99.reactwatch",
     watchBundleSuffix: ".watch",
@@ -279,9 +280,25 @@ describe("targetConfig (options -> apple-targets config)", () => {
         CFBundleURLSchemes: ["com.emindeniz99.reactwatch"],
       },
     ]);
-    // HealthKit on => the HealthKit/motion usage strings are present.
+    // HealthKit on => the HealthKit usage strings are present.
     expect(c.infoPlist.NSHealthShareUsageDescription).toBeTruthy();
-    expect(c.infoPlist.NSMotionUsageDescription).toBeTruthy();
+  });
+
+  it("emits NSMotionUsageDescription from `motion`, NOT from healthKit", () => {
+    // It used to ride `healthKit`, which is wrong twice over: CoreMotion needs
+    // the key with no HealthKit involved (the motion/gyroscope streams and
+    // CMPedometer), and an app wanting step counts had to take the HealthKit
+    // entitlement to get it. Apple documents that calling CMPedometer without
+    // the key CRASHES, so the runtime guard in PedometerBridge is what makes
+    // the false default safe.
+    expect(
+      watchTargetConfig({ ...demoOpts, healthKit: true, motion: false })
+        .infoPlist.NSMotionUsageDescription,
+    ).toBeUndefined();
+    expect(
+      watchTargetConfig({ ...demoOpts, healthKit: false, motion: true })
+        .infoPlist.NSMotionUsageDescription,
+    ).toBeTruthy();
   });
 
   it("omits HealthKit entitlement + usage strings when healthKit is off", () => {
@@ -416,6 +433,11 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
   it("healthKit is an explicit opt-in", () => {
     const o = resolveOptions(config, { healthKit: true });
     expect(o.healthKit).toBe(true);
+  });
+
+  it("motion is an explicit opt-in", () => {
+    expect(resolveOptions(config, {}).motion).toBe(false);
+    expect(resolveOptions(config, { motion: true }).motion).toBe(true);
   });
 
   it("workouts is an explicit opt-in", () => {

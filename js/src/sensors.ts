@@ -1,4 +1,6 @@
+import type { PedometerData } from "./generated/wire";
 import { getHost } from "./host";
+import { invoke } from "./invoke";
 import {
   type NativeEventHandler,
   registerNativeListener,
@@ -21,13 +23,24 @@ export const SENSOR_EVENT_PREFIX = "sensor.";
 
 /**
  * The sensor streams the native bridge actually implements. Closed on purpose:
- * `SensorBridge.handleOp` switches on exactly these four and `default: break`s,
+ * `SensorBridge.handleOp` switches on exactly these five and `default: break`s,
  * so any other kind starts nothing and silently never emits. This union used to
  * end in `| string`, which made `startSensor("steps", cb)` type-check, return a
  * plausible unsubscribe, and no-op forever — a skipped feature at the type
  * level. An unknown kind is now a compile error instead.
+ *
+ * WIDENING THIS UNION REQUIRES ADDING THE MATCHING `handleOp` CASE IN THE SAME
+ * CHANGE. The Swift switch's `default: break` is deliberate forward-compat, so
+ * a kind added here alone compiles, type-checks, lints, and no-ops forever —
+ * which is precisely what the compile guard in test/sensors.test.tsx exists to
+ * stop, and it cannot see a half-done widening.
  */
-export type SensorKind = "heartRate" | "motion" | "gyroscope" | "location";
+export type SensorKind =
+  | "heartRate"
+  | "motion"
+  | "gyroscope"
+  | "location"
+  | "pedometer";
 
 function sensor(
   op: "start" | "stop",
@@ -124,6 +137,57 @@ export function startHeartRate(
       ? { keepAliveInBackground: true }
       : undefined,
   );
+}
+
+/** Options for {@link startPedometer}. */
+export interface PedometerOptions {
+  /**
+   * Count from this instant (ms since epoch) instead of from now — CoreMotion
+   * back-fills from its ~7-day on-device history, so `fromMs: startOfDay` gives
+   * today's running total immediately rather than counting up from zero.
+   * Only the FIRST subscriber's value takes effect (the stream is shared).
+   */
+  fromMs?: number;
+}
+
+/**
+ * Live pedometer updates: handler gets a {@link PedometerData}.
+ *
+ * Under the `sensors` feature with the other CoreMotion streams, not `health`:
+ * same framework, same `NSMotionUsageDescription`, same single OS consent
+ * toggle ("Motion & Fitness"), so a user cannot grant one and deny the other.
+ *
+ * Note the units in the field names — Apple's pace is **seconds per metre** and
+ * cadence is **steps per second**, not the other way round. `currentPace*` and
+ * `currentCadence*` are live-only and absent from {@link queryPedometer}.
+ */
+export function startPedometer(
+  handler: NativeEventHandler,
+  options?: PedometerOptions,
+): Unsubscribe {
+  return startSensor(
+    "pedometer",
+    handler,
+    options?.fromMs === undefined ? undefined : { fromMs: options.fromMs },
+  );
+}
+
+/**
+ * Historical steps/distance/floors for a window, from CoreMotion's own
+ * on-device cache (roughly the last seven days) — no HealthKit involved, so it
+ * needs no `health` grant.
+ *
+ * Rejects `UNAVAILABLE` when the app has no `NSMotionUsageDescription` (set
+ * `motion: true` in the config plugin): Apple documents that calling
+ * CMPedometer without it **crashes the app**, so native refuses rather than
+ * calling. `currentPace*`/`currentCadence*` are always absent here — Apple
+ * documents them as nil on a historical query.
+ */
+export function queryPedometer(range: {
+  startMs: number;
+  endMs: number;
+}): Promise<PedometerData> {
+  return invoke<PedometerData>("queryPedometer", range);
 }
 
 /** Options for {@link startMotion} / {@link startGyroscope}. */

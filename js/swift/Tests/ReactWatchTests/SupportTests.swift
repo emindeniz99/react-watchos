@@ -2745,3 +2745,52 @@ final class WorkoutPlanTests: XCTestCase {
             ["requested", "discarded", "runtimeReload", "failed"])
     }
 }
+
+/// CMPedometer's wire shape (js/src/sensors.ts startPedometer / queryPedometer).
+/// The assembly rule is here rather than in the watchOS bridge precisely so it
+/// is provable on Linux: what gets OMITTED is the whole contract, and a
+/// zero-filled field would be indistinguishable from a real zero.
+final class PedometerReadingTests: XCTestCase {
+    func testOmitsUnavailableFieldsInsteadOfZeroFilling() {
+        // A watch with no altimeter reports NO floors — not 0 floors. Zero
+        // would read as "you climbed nothing", which is a different claim.
+        let payload = PedometerReading(
+            startMs: 1000, endMs: 2000, steps: 500
+        ).payload()
+        XCTAssertEqual(payload.keys.sorted(), ["endMs", "startMs", "steps"])
+        XCTAssertEqual(payload["steps"] as? Double, 500)
+    }
+
+    func testCarriesEveryDeclaredFieldWhenAvailable() {
+        let payload = PedometerReading(
+            startMs: 1000, endMs: 2000, steps: 500, distanceMeters: 410.5,
+            floorsAscended: 3, floorsDescended: 2,
+            currentPaceSecPerMeter: 0.42, currentCadenceStepsPerSec: 1.85,
+            averageActivePaceSecPerMeter: 0.51
+        ).payload()
+        XCTAssertEqual(
+            payload.keys.sorted(),
+            [
+                "averageActivePaceSecPerMeter", "currentCadenceStepsPerSec",
+                "currentPaceSecPerMeter", "distanceMeters", "endMs",
+                "floorsAscended", "floorsDescended", "startMs", "steps",
+            ])
+        // The units are in the NAMES because Apple's are counter-intuitive:
+        // currentPace is seconds per METRE and cadence is steps per SECOND.
+        XCTAssertEqual(payload["currentPaceSecPerMeter"] as? Double, 0.42)
+        XCTAssertEqual(payload["currentCadenceStepsPerSec"] as? Double, 1.85)
+    }
+
+    func testQueryPlanRejectsAnInvertedOrNonFiniteWindow() {
+        XCTAssertNotNil(
+            try? PedometerQueryPlan.decode(
+                json: #"{"startMs":1000,"endMs":2000}"#
+            ).get())
+        XCTAssertNil(
+            try? PedometerQueryPlan.decode(
+                json: #"{"startMs":2000,"endMs":1000}"#
+            ).get())
+        XCTAssertNil(try? PedometerQueryPlan.decode(json: #"{"startMs":1000}"#).get())
+        XCTAssertNil(try? PedometerQueryPlan.decode(json: "not json").get())
+    }
+}

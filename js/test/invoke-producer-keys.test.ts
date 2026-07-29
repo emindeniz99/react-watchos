@@ -52,6 +52,10 @@ const HOST = "ReactWatchHost/ReactWatchHost.swift";
 const BRIDGES = "ReactWatchHost/CapabilityBridges.swift";
 const HEALTH = "ReactWatchHost/HealthQueryBridge.swift";
 const WORKOUT = "ReactWatchHost/WorkoutBridge.swift";
+// The pedometer payload is assembled in ReactWatchSupport, not the watchOS
+// bridge: that makes the omit-when-unavailable rule Linux-testable AND puts
+// this scan on a file `swift test` actually compiles.
+const PEDOMETER = "ReactWatchSupport/PedometerReading.swift";
 
 /** Every `via:"invoke"` method the schema gives a `response` shape, and the
  *  Swift function(s) that build that response's JSON. */
@@ -162,6 +166,15 @@ const PRODUCERS: Record<string, Producer> = {
     delegates: {
       decl: "private func handleGetWorkoutState(id: Int) {",
       calls: "workout.stateSnapshot()",
+    },
+  },
+  queryPedometer: {
+    sites: [
+      { file: PEDOMETER, decl: "public func payload() -> [String: Any] {" },
+    ],
+    delegates: {
+      decl: "private func handleQueryPedometer(id: Int, payload: String) {",
+      calls: "sensors.pedometer.query(plan)",
     },
   },
   querySleepSamples: {

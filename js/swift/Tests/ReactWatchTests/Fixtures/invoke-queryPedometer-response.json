@@ -1,0 +1,11 @@
+{
+  "startMs": 1768396800000,
+  "endMs": 1768483200000,
+  "steps": 8412,
+  "distanceMeters": 6210.5,
+  "floorsAscended": 12,
+  "floorsDescended": 9,
+  "currentPaceSecPerMeter": 0.42,
+  "currentCadenceStepsPerSec": 1.85,
+  "averageActivePaceSecPerMeter": 0.51
+}

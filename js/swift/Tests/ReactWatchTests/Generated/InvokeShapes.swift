@@ -206,6 +206,13 @@ struct EndWorkoutRequest: InvokeShape {
     static let declaredKeys: Set<String> = ["discard"]
 }
 
+/// js/src/sensors.ts queryPedometer -> CMPedometer.queryPedometerData.
+struct PedometerQueryRequest: InvokeShape {
+    let startMs: Double
+    let endMs: Double
+    static let declaredKeys: Set<String> = ["startMs", "endMs"]
+}
+
 struct DeviceInfo: InvokeShape {
     let batteryLevel: Double
     let batteryState: String
@@ -330,6 +337,25 @@ struct WorkoutState: InvokeShape {
     ]
 }
 
+/// ONE shape on both carriers: the sensor.pedometer push AND queryPedometer.
+struct PedometerData: InvokeShape {
+    let startMs: Double
+    let endMs: Double
+    let steps: Double
+    let distanceMeters: Double?
+    let floorsAscended: Double?
+    let floorsDescended: Double?
+    /// LIVE ONLY — nil on a historical queryPedometer
+    let currentPaceSecPerMeter: Double?
+    /// LIVE ONLY — nil on a historical queryPedometer
+    let currentCadenceStepsPerSec: Double?
+    let averageActivePaceSecPerMeter: Double?
+    static let declaredKeys: Set<String> = [
+        "startMs", "endMs", "steps", "distanceMeters", "floorsAscended", "floorsDescended",
+        "currentPaceSecPerMeter", "currentCadenceStepsPerSec", "averageActivePaceSecPerMeter",
+    ]
+}
+
 enum InvokeShapes {
     /// method -> decode this fixture as the declared REQUEST shape.
     static let requestDecoders: [String: @Sendable (Data) throws -> Void] = [
@@ -337,6 +363,7 @@ enum InvokeShapes {
         "bleConnect": { try decodeStrict(BleConnectRequest.self, from: $0) },
         "bleWrite": { try decodeStrict(BleWriteRequest.self, from: $0) },
         "bleSubscribe": { try decodeStrict(BleSubscribeRequest.self, from: $0) },
+        "queryPedometer": { try decodeStrict(PedometerQueryRequest.self, from: $0) },
         "requestHealthAuthorization": {
             try decodeStrict(HealthAuthorizationRequest.self, from: $0)
         },
@@ -361,6 +388,7 @@ enum InvokeShapes {
 
     /// method -> decode this fixture as the declared RESULT shape.
     static let responseDecoders: [String: @Sendable (Data) throws -> Void] = [
+        "queryPedometer": { try decodeStrict(PedometerData.self, from: $0) },
         "queryHealthStatistics": { try decodeStrict(HealthStatisticsResult.self, from: $0) },
         "queryHealthSamples": { try decodeStrict(arrayOf: HealthSample.self, from: $0) },
         "querySleepSamples": { try decodeStrict(arrayOf: SleepSample.self, from: $0) },

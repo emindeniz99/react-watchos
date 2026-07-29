@@ -721,6 +721,15 @@ export const invokeShapes: StructDef[] = [
       },
     ],
   },
+  {
+    swift: "PedometerQueryRequest",
+    ts: "PedometerQueryRequest",
+    doc: "js/src/sensors.ts queryPedometer -> CMPedometer.queryPedometerData.",
+    fields: [
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+    ],
+  },
   // --- results. Type-identical to the public interfaces in js/src (device.ts,
   //     update.ts, iap.ts, maps.ts); `invoke-contract.test.ts` asserts that
   //     identity at COMPILE time in both directions, so the two can't drift.
@@ -926,6 +935,49 @@ export const invokeShapes: StructDef[] = [
       },
       {
         name: "endedDistanceMeters",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+    ],
+  },
+  {
+    swift: "PedometerData",
+    ts: "PedometerData",
+    doc: "ONE shape on both carriers: the sensor.pedometer push AND queryPedometer.",
+    fields: [
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      { name: "steps", swift: "Double", ts: "number" },
+      {
+        // Omitted-when-unavailable, never zero-filled: a 0 would lie about a
+        // watch with no altimeter (isFloorCountingAvailable() == false).
+        name: "distanceMeters",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+      { name: "floorsAscended", swift: "Double?", ts: "number", optional: true },
+      { name: "floorsDescended", swift: "Double?", ts: "number", optional: true },
+      {
+        // The units are IN the names deliberately: Apple's currentPace is
+        // SECONDS PER METER and currentCadence is STEPS PER SECOND — both
+        // counter-intuitive, both verified from the property abstracts.
+        name: "currentPaceSecPerMeter",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+        doc: "LIVE ONLY — nil on a historical queryPedometer",
+      },
+      {
+        name: "currentCadenceStepsPerSec",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+        doc: "LIVE ONLY — nil on a historical queryPedometer",
+      },
+      {
+        name: "averageActivePaceSecPerMeter",
         swift: "Double?",
         ts: "number",
         optional: true,
@@ -1217,6 +1269,24 @@ export const hostMethods: HostMethod[] = [
     feature: "sensors",
     since: 1,
     args: [{ name: "json", type: "string" }],
+  },
+  // Historical pedometer (CMPedometer.queryPedometerData, ~7-day device cache).
+  // Same "sensors" feature as the live streams, and deliberately so: CMPedometer
+  // is CoreMotion — the same framework, the same NSMotionUsageDescription and
+  // the same single OS consent toggle ("Motion & Fitness") as the shipped
+  // startMotion/startGyroscope. The user cannot grant one and deny the other, so
+  // a separate feature id would map to no independently-grantable consent — it
+  // would be a taxonomy, not an authorization unit (the inverse of the `push`
+  // split, whose GRANT genuinely differs). The live stream rides the `sensor`
+  // push channel above; only the historical query is fallible enough to invoke.
+  {
+    name: "queryPedometer",
+    targets: ["watch"],
+    feature: "sensors",
+    since: 1,
+    via: "invoke",
+    request: "PedometerQueryRequest",
+    response: "PedometerData",
   },
   // --- HealthKit READS (feature "health"): its own authorization unit because
   //     it discloses the user's stored health HISTORY — potentially years,

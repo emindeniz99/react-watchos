@@ -23,6 +23,7 @@ export interface ResolvedOptions {
   healthKit: boolean;
   push: boolean;
   workouts: boolean;
+  motion: boolean;
   deploymentTarget: string;
   appleTeamId: string | undefined;
   scheme: string;
@@ -122,9 +123,20 @@ function watchTargetConfig(opts: ResolvedOptions) {
     infoPlist.NSHealthUpdateUsageDescription =
       infoPlist.NSHealthUpdateUsageDescription ??
       "Record a workout session to read live heart rate.";
+  }
+  if (opts.motion) {
+    // DECOUPLED from `healthKit` (where it used to live). CoreMotion needs this
+    // key independently — the motion/gyroscope streams and CMPedometer all use
+    // it, and none of them touches HealthKit — so an app that wants step counts
+    // and no health history had to turn on the HealthKit entitlement to get it.
+    //
+    // Apple, CMPedometer: "If you don't include a usage description string,
+    // your app crashes when you call this API." That is why the option can
+    // safely default to false: PedometerBridge checks for the key and refuses
+    // with an actionable UNAVAILABLE instead of letting the crash happen.
     infoPlist.NSMotionUsageDescription =
       infoPlist.NSMotionUsageDescription ??
-      "Use device motion for interactive features.";
+      "Read your steps, distance and motion to power activity features.";
   }
 
   return {

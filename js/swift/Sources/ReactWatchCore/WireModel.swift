@@ -185,6 +185,7 @@ public enum HostInvokeFeatures {
         "purchase": "iap",
         "queryHealthSamples": "health",
         "queryHealthStatistics": "health",
+        "queryPedometer": "sensors",
         "querySleepSamples": "health",
         "registerForRemoteNotifications": "push",
         "requestHealthAuthorization": "health",
