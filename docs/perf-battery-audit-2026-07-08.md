@@ -93,6 +93,17 @@ Short animation timers keep tiny leeway (no jank); long debounces/polls get big
 coalescing wins. `pendingTimers` type changes `DispatchWorkItem` →
 `DispatchSourceTimer`; cancel/deinit stay the same.
 
+**Compounding fix (2026-07-29, PLATFORM-DATA item 6):** leeway makes these
+wakeups *coalescable*; `onLuminanceReduced` lets an app remove them outright
+for the window nobody is looking at. On Apple Watch the display stays on when
+the wrist drops (watchOS 8+ participates by default — the opt-*out* is
+`WKSupportsAlwaysOnDisplay = false`), so every timer above keeps firing against
+a dimmed screen. An app that pauses its interval on the event pays neither the
+wakeup nor the pixels. See
+[design-platform-data-package.md](./design-platform-data-package.md) § Item 6.
+Note also that `scenePhase` is **not** this signal — SwiftUI defines no
+`ScenePhase` value for the Always-On state.
+
 ### P1-2 · Widget timeline renders a full QJS boot on every cycle even when the stored payload is current
 `ReactTimeline.swift:53-55` — `stored` is loaded, then `fresh = renderFreshTimelines(...)` is computed **unconditionally** before `newestPayload(stored, fresh)`.
 

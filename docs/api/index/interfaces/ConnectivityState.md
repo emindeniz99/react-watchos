@@ -1,0 +1,47 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / ConnectivityState
+
+# Interface: ConnectivityState
+
+Defined in: [js/src/connectivity.ts:120](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L120)
+
+A snapshot of the WCSession, for **observability only** — see
+ [getConnectivityState](../functions/getConnectivityState.md).
+
+## Properties
+
+### activationState
+
+> **activationState**: `"notActivated"` \| `"inactive"` \| `"activated"`
+
+Defined in: [js/src/connectivity.ts:121](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L121)
+
+***
+
+### companionAppInstalled
+
+> **companionAppInstalled**: `boolean`
+
+Defined in: [js/src/connectivity.ts:125](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L125)
+
+***
+
+### hasContentPending
+
+> **hasContentPending**: `boolean`
+
+Defined in: [js/src/connectivity.ts:126](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L126)
+
+***
+
+### reachable
+
+> **reachable**: `boolean`
+
+Defined in: [js/src/connectivity.ts:124](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L124)
+
+Apple: valid **only** for a session that activated successfully; ignore
+ it while `activationState` is anything but `"activated"`.

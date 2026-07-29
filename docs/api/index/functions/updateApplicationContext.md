@@ -8,7 +8,7 @@
 
 > **updateApplicationContext**(`context`): `Promise`\<`void`\>
 
-Defined in: [js/src/connectivity.ts:55](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L55)
+Defined in: [js/src/connectivity.ts:63](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L63)
 
 Publishes latest-wins state to the paired iPhone in the BACKGROUND: the
 phone receives the most recent context when it next wakes — no reachability

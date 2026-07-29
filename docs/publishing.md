@@ -141,6 +141,14 @@ type Options = {
                                 //   documents as CRASHING without the key (the bridge refuses
                                 //   with UNAVAILABLE rather than calling). Previously emitted
                                 //   under `healthKit`, which was wrong: CoreMotion is not HealthKit.
+  calendar?: boolean;           // EventKit reads: NSCalendarsFullAccessUsageDescription +
+                                //   NSRemindersFullAccessUsageDescription (default false — opt-in).
+                                //   NO entitlement — the personal-information.calendars one Apple
+                                //   documents is for SANDBOXED macOS apps. Never the deprecated
+                                //   NSCalendarsUsageDescription (deprecated at watchOS 10.0, our
+                                //   floor). REQUIRED: without the keys the OS denies every access
+                                //   request WITHOUT prompting, so getCalendarEvents/getReminders
+                                //   would reject PERMISSION_DENIED forever.
   push?: boolean;               // remote push: aps-environment entitlement (default false — opt-in)
   families?: WidgetFamily[];    // complication families
   deploymentTarget?: string;    // default "10.0"

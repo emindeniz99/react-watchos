@@ -86,6 +86,17 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   one `@available` gate), and the four named follow-ups. Also records why
   health is **device-only ③**: the sim run script signs without the `healthkit`
   entitlement on purpose.
+- [design-platform-data-package.md](./design-platform-data-package.md) — the
+  PLATFORM-DATA package (WatchConnectivity file transfer + session state,
+  EventKit reads, Always-On `isLuminanceReduced`), shipped 2026-07-29. Records
+  the availability sweep (nothing in it needs an `@available` gate — the
+  highest floor is `requestFullAccessToEvents` at exactly watchOS 10.0), why
+  `transferFile` does NOT park its invoke, why the transfer-id space is the
+  deliberate opposite of the BLE reset hook, why the inbound file move has to
+  precede the main-queue hop, the `calendar` single-feature decision, and the
+  two Always-On initial-value mechanisms that both have to exist. Also records
+  the standing gaps: file transfer is 🔴 **unverifiable on a simulator** (Apple
+  says so twice) and wrist-down is device-only.
 - [design-cx-025-release-freshness.md](./design-cx-025-release-freshness.md) —
   CX-025 OTA `releaseId` (so non-breaking fixes can ship). Core primitive proven
   (JS FNV-1a == Swift `ContentHash`); spec ready for a focused load-flow pass.

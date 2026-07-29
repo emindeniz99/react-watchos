@@ -8,7 +8,7 @@
 
 > **onPhoneMessage**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/connectivity.ts:43](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L43)
+Defined in: [js/src/connectivity.ts:51](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L51)
 
 Registers a handler for messages pushed from the iPhone. Returns an unsubscribe.
 

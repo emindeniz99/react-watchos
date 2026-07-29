@@ -125,6 +125,93 @@ Held deliberately:
 - [x] **Remote push (APNs) — registration + delivery (2026-07-17).** The watch gets its own APNs token and remote payloads reach JS (`6b3bbdb`/`9e45d9d`/`a199faf`): `registerForRemoteNotifications()` resolves the lowercase-hex device token over invoke (call every launch — tokens are variable length and rotate; default 30 s watchdog, not user-mediated), `onRemotePush`/`onRemotePushToken`/`onRemotePushRegistrationError` are typed wrappers over the push channel, and the schema declares the method under a NEW **`"push"` feature** — a distinct HostPolicy authorization unit (local `notifications` must not implicitly grant remote push, which hands out a routable token), so POLICY_DENIED comes free from ARCH-07's generic gate and the widget's typed invoke rejecter auto-rejects it (zero special cases). Host side: WatchKit has no registration completion handler, so pending register invokes are parked `(id, generation)` and the ONE `didRegister`/`didFail` delegate callback settles them all (stale generations drop, CX-008; failures reject `UNAVAILABLE` — the fix is entitlement/environment, not the user); `remotePushDidReceive` sanitizes the userInfo (`RemotePushWire.sanitize`: non-String keys stringified, non-JSON leaves DROPPED not stringified) and maps the new `JSRuntime.pushNativeEventReturning` Bool (both bridge modes, CR-5) to `.newData`/`.noData` — no runtime / mid-boot (cold-launch background push, documented v1 drop) / no listener → `.noData`, synchronous so the 30 s completion budget is trivial. `ReactWatchAppDelegate` grows the three `WKApplicationDelegate` methods; `ReactWatchRemotePush` is the same forwarding surface for consumers with their own delegate. Expo plugin: `push: true` (default false, least privilege like healthKit) adds `"aps-environment": "development"` to the watch target + its EAS entry. Verify: swift test 246 (+8: hex/sanitize, Bool round-trip across both bridge modes, missing-global → false), JS 426 (+8: invoke routing, UNAVAILABLE/native-reason rejections, typed unwrapping + unsubscribe, live runApp UI update off `__pushNativeEvent`'s Bool, pinned event names, plugin entitlement on/off + EAS propagation), codegen regenerates byte-identically (HOST_METHODS/HOST_FEATURES + WireModel maps only), typecheck/biome clean, embed-smoke green; the host/delegate halves are watchOS-only → compile-verified at the next Mac build (`swiftc -parse` clean here), and real APNs delivery is the ③ device slice (`xcrun simctl push` can exercise `didReceiveRemoteNotification` on a Mac sim).
 - [x] **CX-017** — both halves now wired. (1) per-entry `TimelineEntryRelevance(score:duration:)` = the Smart Stack **ranking** signal (was already done). (2) **predictive `relevantContexts` → surfacing DONE**: `ReactTimelineProvider.relevance()` (watchOS 11+) maps each published hint to a RelevanceKit `RelevantContext` — `.location(CLCircularRegion)` when coords are present, else `.date` — wrapped in `WidgetRelevance([WidgetRelevanceAttribute<Void>(context:)])`. Both the static `ReactTimelineProvider` (`WidgetRelevance<Void>`) and the configurable `ShoppingTimelineProvider` (per-list `WidgetRelevance<SelectShoppingListIntent>`) implement it, via a shared `reactRelevantContext`/`reactRelevantContexts` helper. **Widget Xcode build (`React Watch Widgets`) SUCCEEDED** against the watchOS-26 SDK, so the API/shape is verified; only the actual Smart-Stack *surfacing behavior* is device-only.
 
+### Session 2026-07-29 — the PLATFORM-DATA package (WatchConnectivity completion · EventKit · Always-On)
+
+Three queue items shipped together because they answer one question: **what
+does this device know that JS cannot?** Files the phone sent, the user's
+schedule, and whether anyone is actually looking at the screen. Scope came from
+an Apple-docs-verified brief (every availability claim read from
+`metadata.platforms[].introducedAt` / `.deprecatedAt`); the decisions are in
+[design-platform-data-package.md](./design-platform-data-package.md).
+
+**The headline finding: nothing in the package needs an `@available` gate.**
+The highest floor anywhere in it is `EKEventStore.requestFullAccessToEvents(completion:)`
+at watchOS **10.0** — exactly ours. Everything else is 2.0–9.0, including
+`isLuminanceReduced` (8.0) and `onChange(of:initial:)` (10.0). Two symbols were
+checked and deliberately *not* used because they are deprecated **at** our
+floor (`requestAccess(to:completion:)`, `NSCalendarsUsageDescription`); one was
+checked and found absent on watchOS entirely (`sessionWatchStateDidChange`),
+which is what makes the session-state surface exactly three callbacks and
+therefore one event.
+
+Shipped (each its own commit, all suites green):
+
+- **WatchConnectivity file transfer + session state** under the existing
+  `connectivity` feature — `transferFile`/`cancelFileTransfer`/
+  `outstandingFileTransfers`/`deleteReceivedFile`/`getConnectivityState`, plus
+  `watchConnectivity.file` / `.fileTransfer` / `.state` pushes. Three decisions
+  are the substance. (1) The transfer does **not** park its invoke: Apple
+  documents it as throttled, surviving suspension, and able to complete in a
+  *later launch*, so the `startExtendedRuntimeSession` parking precedent would
+  blow the 30 s watchdog every time — it resolves once QUEUED with our id. (2)
+  The correlation id is minted on the BRIDGE and never reset per generation —
+  the deliberate opposite of `bluetooth.resetPendingForReload()`, because BLE
+  ids come from the runtime's id space (restarts at 1 per boot) while these
+  come from an object that outlives every generation, so reuse is impossible
+  and a reset would *reintroduce* the hazard. (3) The inbound move happens
+  synchronously inside `session(_:didReceive:)`, on its background thread,
+  BEFORE the existing main hop — Apple deletes the file when that method
+  returns, and every other delegate in the file hops first, so the natural
+  shape here is the one that loses every received file silently.
+- **EventKit reads** behind a new `calendar` feature —
+  `requestCalendarAccess`/`getCalendarEvents`/`getReminders`, read-only v1. The
+  counter-intuitive part: a read-only API must ask for FULL access (Apple
+  exposes no read-only grant), and `writeOnly` is reported as its own status
+  rather than folded into `denied` — both are unreadable, but they mean
+  opposite things to the person who chose them. ONE feature covers both
+  entities: each carries its own TCC prompt, so the OS already gates per entity
+  and ARCH-07 only answers the coarse question — the inverse of the
+  `push`/`notifications` split, whose grant genuinely differed.
+- **Always-On `onLuminanceReduced`** — a PURE push event (no schema entry, no
+  host method, no HostPolicy feature), read once at `ReactWatchRootView` and
+  never in `NodeView`. Two initial-value mechanisms, both required:
+  `.onChange(of:initial:true)` because `.onChange` alone misses an app mounted
+  with the wrist already down, and a re-push at the end of `boot()` because the
+  first can land while `pushNativeEvent` still reaches nobody and SwiftUI does
+  not order it against `.onAppear`. Deleting either leaves a hole whose only
+  symptom is battery drain, so both are guard-tested. It compounds with the
+  perf audit's P1-1 (zero-leeway timers): leeway makes wakeups coalescable,
+  this removes them.
+
+`FileInbox` (sanitization, retention, containment) and `CalendarPlan` (entity
+vocabulary, window rules, limit clamp) are ReactWatchSupport, so the rules that
+can go wrong are proven on Linux; ten silent-failure invariants are pinned by
+`platform-data-guards.test.ts`, each negative-checked (revert the fix, exactly
+that test goes red). Counts: `swift test` 328 → 340, vitest 535 → 575.
+
+**Standing gaps, stated plainly.** 🔴 File transfer is **unverifiable on a
+simulator** — Apple says so twice, in two separate warning asides ("The
+Simulator app doesn't support the `transferFile(_:metadata:)` method"; "The
+system doesn't call the `session(_:didReceive:)` method in Simulator") — so it
+needs two paired physical devices, alongside the battery-drain run already on
+that list. 🔴 `fetch("file:///…")` against a received file is the one link in
+the read path that could not be proven from docs; if it fails the fallback is a
+`readReceivedFile` invoke returning base64, which is a separate decision. And
+wrist-down is not reproducible on a simulator, so the Always-On initial-value
+behaviour is device-only too.
+
+**Recorded, not built** (each with its reason, not just deferred):
+`widgetRenderingMode` → `WidgetNodeView` for complication dimming (the widget
+tree renders from a published payload, so there is no JS listener for an event
+to reach, and nothing in WidgetKit's docs says it sets `isLuminanceReduced`);
+a file-transfer **progress push channel** (a KVO observer per transfer pushing
+at an unbounded rate is exactly the P1-1 anti-pattern — poll
+`outstandingFileTransfers()` instead); `getCalendarAccessStatus` (a
+non-prompting status read — `requestFullAccess*` already returns the standing
+status without re-prompting); EventKit **writes**; and a typed `onScenePhase`
+wrapper, which `appState.ts` is the natural home for but which is its own
+change (`scenePhase` already pushes natively with no typed JS wrapper).
+
 ### Session 2026-07-29 — the HEALTH package (reads + workout control + pedometer)
 
 Closes what roadmap.md called "the top feature gap" and what status.md's

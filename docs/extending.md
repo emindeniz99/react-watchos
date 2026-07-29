@@ -129,6 +129,9 @@ through the same invoke channel:
 | Speech (TTS) | `speak(text, opts?)`, `stopSpeaking()`, `onSpeechFinished(cb)` | `speech` |
 | Audio | `playAudio(url, opts?)`, `stopAudio()`, `onAudioFinished(cb)` (AVAudioPlayer; downloads the URL, routes to Bluetooth/speaker) | `audio` |
 | In-app purchase | `getProducts`, `purchase`, `currentEntitlements`, `restorePurchases` (StoreKit 2) | `iap` |
+| File transfer + session state | `transferFile(path, metadata?)` (resolves once QUEUED — completion arrives on `onFileTransfer`, possibly in a later launch), `cancelFileTransfer`, `outstandingFileTransfers`, `onReceivedFile` (already moved into this app's inbox), `deleteReceivedFile`, `getConnectivityState`/`onConnectivityState` | `connectivity` |
+| Calendar + reminders (read) | `requestCalendarAccess(entity)`, `getCalendarEvents({startMs,endMs})`, `getReminders()` — EventKit; needs `calendar: true` in the config plugin for the usage strings | `calendar` |
+| Always-On | `onLuminanceReduced(reduced => …)` — wrist-down at reduced luminance | *(none — a push event, not policy-gated)* |
 
 **Host policy (ARCH-07):** the consumer app decides which of these features a
 bundle may actually use — `ReactWatchRootView(policy: .allow([...]))` (and
@@ -140,7 +143,7 @@ so `checkForUpdate`'s `appUpdateRequired`/`missingCapabilities` can also mean
 "restricted by the app's HostPolicy" — the fix is an app configuration change
 shipped as a native release, not an OTA.
 
-Two honest caveats:
+Four honest caveats:
 
 - **Background refresh** is fully wired: `scheduleBackgroundRefresh`
   registers the wake-up, and the package's `ReactWatchAppDelegate` forwards
@@ -153,6 +156,16 @@ Two honest caveats:
   reason in the target's Info.plist; without it the system invalidates the
   session immediately, which surfaces as a `runtimeSession.state` event with
   `state: "invalidated"`.
+- **File transfer cannot be exercised on a simulator at all.** Apple states
+  both halves: the Simulator does not support `transferFile(_:metadata:)`, and
+  the system does not call `session(_:didReceive:)` there. It needs paired
+  physical devices. Also: `getConnectivityState().reachable` is
+  **observability, not a send gate** — see
+  [`notes/watchconnectivity-reliability.md`](../notes/watchconnectivity-reliability.md).
+- **Calendar reads need FULL access.** Apple exposes no read-only grant for
+  events or reminders, so `requestCalendarAccess` asks for full access even
+  though this API only reads. Without the plugin's `calendar: true` (which
+  emits the two usage strings) the OS denies every request *without prompting*.
 
 ## App Shortcuts / Siri — a native AppIntents concern, not a runtime binding
 

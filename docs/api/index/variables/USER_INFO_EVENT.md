@@ -8,4 +8,4 @@
 
 > `const` **USER\_INFO\_EVENT**: `"watchConnectivity.userInfo"` = `"watchConnectivity.userInfo"`
 
-Defined in: [js/src/connectivity.ts:27](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L27)
+Defined in: [js/src/connectivity.ts:29](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L29)

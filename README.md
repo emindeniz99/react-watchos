@@ -49,9 +49,12 @@ gyroscope, location and pedometer — **HealthKit reads** (`queryHealthStatistic
 / `queryHealthSamples` / `querySleepSamples`: steps, active energy, distance,
 SpO2, sleep stages) and **real workout control** (`startWorkout` / `pause` /
 `resume` / `endWorkout` with a saved `HKWorkout`, live metrics and an optional
-route) — a BLE central (`bleConnect` /
-`bleWrite` / `bleSubscribe` + state/notify pushes), `sendToPhone`
-(WatchConnectivity, watch side), `playHaptic`, `playAudio`,
+route) — **calendar + reminder reads** (`getCalendarEvents` /
+`getReminders` over EventKit) — a BLE central (`bleConnect` /
+`bleWrite` / `bleSubscribe` + state/notify pushes), the full
+WatchConnectivity surface (`sendToPhone`, `updateApplicationContext`,
+`transferUserInfo`, `transferFile` + an inbound file inbox, and
+`getConnectivityState`), `playHaptic`, `playAudio`,
 `scheduleNotification` (local notifications with permission request and
 cancel), `registerNativeListener` (instant native→React pushes),
 `getDeviceInfo` (+ accessibility state, Water Lock), `Keychain`, `speak`
@@ -128,6 +131,19 @@ radio or sensor hot is bounded or opt-in:
   `publishWidgets()` calls collapses to one extension wake, and a reload
   arriving while the published payload is still current decodes it instead
   of booting the JS engine inside the extension.
+- **You are told when nobody is looking.** On Apple Watch the display stays on
+  when the wrist drops — your app keeps rendering at reduced luminance, and
+  watchOS 8+ participates by *default* (the opt-out is
+  `WKSupportsAlwaysOnDisplay = false`). `onLuminanceReduced(reduced => …)` is
+  the signal to pause polls and animations; the handler also fires once on
+  mount, so an app launched with the wrist already down learns it immediately.
+  Note `scenePhase` is **not** this signal — SwiftUI defines no `ScenePhase`
+  value for the Always-On state.
+- **File transfers warn before they get expensive.** `transferFile` resolves
+  as soon as WatchConnectivity has queued it (delivery is throttled by the
+  system and can finish in a later launch, so `onFileTransfer` reports the
+  outcome). Crossing the 1 MB soft cap emits a `budget` diagnostic and still
+  transfers — `WCError` is the authority on what is genuinely too large.
 
 How to *measure* (Instruments, the embed-smoke gates, what we can and can't
 claim) is in `docs/performance-measurement.md`; the dated perf/battery audit

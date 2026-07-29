@@ -32,12 +32,13 @@ raise it**. Two framings to read the table with:
 | 12 | **commit tree node budget** | 1000 nodes | [`js/src/budgets.ts`](../js/src/budgets.ts) `BUDGETS.maxNodes` (JS-side check; mirrored in [`BudgetPolicy.swift`](../js/swift/Sources/ReactWatchSupport/BudgetPolicy.swift)) | lib-internal (ARCH-13 tripwire) | none — a serialize/decode/SwiftUI-diff **cost tripwire** | it's a WARN, not a ceiling: crossing emits one `budget` diagnostic per crossing (hysteresis) and the commit still renders. A watch screen showing >1000 nodes is a design smell long before it's a crash |
 | 13 | **commit JSON size budget** | 256 KB | `budgets.ts` `BUDGETS.maxCommitJSONBytes` (JS checks `json.length` post-stringify; native re-checks true UTF-8 bytes on the decode path via `BudgetPolicy`) | lib-internal (ARCH-13 tripwire) | none — bounds per-commit stringify/bridge/decode cost, ~10–20×/sec under sensors | WARN with hysteresis, commit still renders. Sits far under the OTA cap (#7); a payload here is per-commit, not per-install |
 | 14 | **widget render time budget** | 500 ms | `budgets.ts` `BUDGETS.maxWidgetRenderMs` (enforced natively in [`WidgetIntentRuntime.swift`](../js/swift/Sources/ReactWatchWidget/WidgetIntentRuntime.swift) via `BudgetPolicy`) | lib-internal (ARCH-13 tripwire) | the **WidgetKit provider watchdog** (unpublished, seconds-scale) is the real wall | WARN to the Logger sink per breach — the early signal before the watchdog kills the extension silently. Tune against on-device timings once measured |
+| 15 | **`transferFile` soft cap** | 1 MB | `budgets.ts` `BUDGETS.maxTransferFileBytes` (checked natively in [`PhoneConnectivity`](../js/swift/Sources/ReactWatchHost/PhoneConnectivity.swift) → `BudgetPolicy`) | lib-internal (ARCH-13 tripwire) | **none published** — Apple documents no byte cap for `WCSession.transferFile`, only that it throttles delivery "to accommodate performance and power concerns"; the real failures surface as `WCError.payloadTooLarge` / `.insufficientSpace` / `.transferTimedOut` | **this number is OURS, provisional and unmeasured.** WARN only: crossing it emits one `budget` diagnostic (hysteresis) and the file still transfers, because `WCError` is the authority on what is actually too large. Raise/lower it once the paired-device pass measures real transfer cost |
 
 Only **#10 (fetch timeout)** is a real consumer knob today. Everything else is a
 lib-internal guardrail; a consumer who genuinely needs a different value forks or
 files an issue (and #8 is the obvious next candidate to promote to a knob).
 
-#12–14 are the **ARCH-13 operating budgets**: breaches WARN — a recoverable
+#12–15 are the **ARCH-13 operating budgets**: breaches WARN — a recoverable
 `budget`-subsystem diagnostic in the always-on ring (+ `console.warn` JS-side)
 with once-per-crossing hysteresis — and never reject the commit (rejecting
 would desync `ackedSeq`/optimistic state, CX-010). The numbers live in

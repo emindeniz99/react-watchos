@@ -8,7 +8,7 @@
 
 > **onApplicationContext**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/connectivity.ts:76](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L76)
+Defined in: [js/src/connectivity.ts:84](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L84)
 
 Latest-wins context pushed from the iPhone (its `updateApplicationContext`).
  Returns an unsubscribe.
