@@ -46,7 +46,7 @@ export function onTorchState(cb: (on: boolean) => void) {
 ```
 
 If you're adding the op to the renderer itself, add it to
-`codegen/schema.mjs`'s `hostMethods` and run `pnpm codegen` —
+`codegen/schema.ts`'s `hostMethods` and run `pnpm codegen` —
 `QuickJSHostGlobal` is GENERATED (`src/generated/wire.ts`, re-exported from
 `src/host.ts`), so hand-editing the type gets overwritten; the schema is the
 source of truth and the Swift install is cross-checked from it.
