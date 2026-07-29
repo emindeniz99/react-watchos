@@ -8,7 +8,7 @@
 
 > **unregisterAllNativeListeners**(): `void`
 
-Defined in: [js/src/nativeEvents.ts:60](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/nativeEvents.ts#L60)
+Defined in: [js/src/nativeEvents.ts:71](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/nativeEvents.ts#L71)
 
 ## Returns
 

@@ -8,7 +8,7 @@
 
 > **dispatchNativeEvent**(`name`, `payload?`): `boolean`
 
-Defined in: [js/src/nativeEvents.ts:66](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/nativeEvents.ts#L66)
+Defined in: [js/src/nativeEvents.ts:77](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/nativeEvents.ts#L77)
 
 Invokes every listener for `name`; returns false if none is registered.
 

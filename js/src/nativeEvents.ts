@@ -21,10 +21,21 @@ const listeners = new Map<string, Set<NativeEventHandler>>();
  * wrist movement, so a conditionally-mounted consumer would otherwise believe
  * luminance is normal while the display is dimmed.
  *
+ * `scenePhase` qualifies on the same test and for the same reason: `background`
+ * is a state the app IS in, native pushes on every transition, so the last
+ * payload IS the current phase and replaying it cannot fabricate anything. It
+ * differs from `luminanceReduced` in one way worth knowing rather than
+ * discovering — there is no boot-time push (`.onChange(of: scenePhase)` carries
+ * no `initial: true` and nothing re-pushes it after `jsReady`), so replay
+ * covers "subscribed after a transition", not "subscribed before the first
+ * one". Adding the initial push would be a native change with its own
+ * `handleScenePhase` side effect at boot, so it is deliberately not smuggled in
+ * here: a launched app is `active`, which is the state a caller already has.
+ *
  * Edge-triggered events (sensor samples, incoming messages, transfers) must NOT
  * be listed: replaying one fabricates an event that did not occur.
  */
-const REPLAYED_EVENTS = new Set<string>(["luminanceReduced"]);
+const REPLAYED_EVENTS = new Set<string>(["luminanceReduced", "scenePhase"]);
 const lastReplayed = new Map<string, Record<string, unknown> | undefined>();
 
 /**
