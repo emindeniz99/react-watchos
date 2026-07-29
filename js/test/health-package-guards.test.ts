@@ -90,20 +90,164 @@ describe("the workout owner is the only HKWorkoutSession construction site", () 
     expect(src).not.toContain("HKLiveWorkoutBuilderDelegate");
   });
 
-  it("teardown ends the workout before the runtime is freed (ARCH-08)", () => {
-    // Ordering is the point: the session must be released before QuickJS goes
-    // away, and after the sensor claim is dropped, so the fresh runtime cannot
-    // inherit a workout it never started.
+  it("teardown ends the workout BEFORE the sensor claim and the runtime (ARCH-08)", () => {
+    // Ordering is the point, and this order is the opposite of the one that
+    // shipped. `sensors.stopAll()` -> `stopHeartRate()` -> `releaseHeartRate()`
+    // ends the heart-rate pump itself and nils the owner's session, after which
+    // `tearDownForReload()` returns on its `guard session != nil` BEFORE
+    // `detachDelegates()` — so the outgoing session keeps the owner as its
+    // delegate and its trailing `.ended` (and a late `didCollectDataOf`) push a
+    // stale `workout.state` / `sensor.heartRate` into the runtime `boot()` is
+    // about to install, which `pushNativeEvent` name-routes with no generation
+    // guard. Running the workout teardown first is what makes this file's
+    // "the delegate is detached first" comment true, and it is also what makes
+    // the owner's pump-only (`wasWorkout == false`) branch reachable at all.
+    // The session must still be released before QuickJS goes away.
     const src = read("ReactWatchHost/ReactWatchHost.swift");
-    const teardown = src.slice(
-      src.indexOf("private func tearDownGeneration() {"),
-    );
+    // Comments stripped first: the ordering rule is spelled out in a comment
+    // that names `sensors.stopAll()` above the call it orders against, and an
+    // index scan would otherwise match the prose instead of the code.
+    const teardown = src
+      .slice(src.indexOf("private func tearDownGeneration() {"))
+      .replace(/^\s*\/\/.*$/gm, "");
     const sensors = teardown.indexOf("sensors.stopAll()");
     const workout = teardown.indexOf("workout.tearDownForReload()");
     const shutdown = teardown.indexOf("runtime?.shutdown()");
-    expect(sensors).toBeGreaterThan(-1);
-    expect(workout).toBeGreaterThan(sensors);
-    expect(shutdown).toBeGreaterThan(workout);
+    expect(workout).toBeGreaterThan(-1);
+    expect(sensors).toBeGreaterThan(workout);
+    expect(shutdown).toBeGreaterThan(sensors);
+  });
+
+  it("the UPGRADE ends the pump before building the configured session", () => {
+    // The transition the whole file exists for, and it shipped unimplemented:
+    // `start()` is idempotent against a live session (`guard session == nil`,
+    // its real double-auth-completion guard), so a `startWorkout` over a live
+    // pump was accepted, then silently dropped — no session, no delegate
+    // callback, and the parked invoke hanging to its 30 s watchdog. The end
+    // has to happen in the authorization completion, the only call site that
+    // can reach `start()` with a session already live, and BEFORE the new
+    // session per Apple ("if a second workout starts while your workout is
+    // running ... your session ends" would kill the one we are starting).
+    const src = read("ReactWatchHost/WorkoutBridge.swift");
+    const window = src.slice(
+      src.indexOf(
+        "healthStore.requestAuthorization(toShare: share, read: read)",
+      ),
+      src.indexOf("func pauseWorkout()"),
+    );
+    const end = window.indexOf("this.endSession(");
+    const start = window.indexOf("this.start(configuration: configuration");
+    expect(end).toBeGreaterThan(-1);
+    expect(start).toBeGreaterThan(end);
+  });
+
+  it("a start parked in the authorization window is cancellable", () => {
+    // `endWorkout` guards on a live session, which does not exist yet for the
+    // whole HealthKit round trip — so the cancel was refused ("no workout is
+    // running") while `isWorkoutActive` was simultaneously true, and the
+    // workout started anyway once the sheet completed. Clearing `pendingStart`
+    // is what makes the auth completion drop it; the terminal emit is what
+    // settles the parked invoke, since a session that was never created can
+    // produce no callback of its own.
+    const src = read("ReactWatchHost/WorkoutBridge.swift");
+    const body = src.slice(
+      src.indexOf("func endWorkout("),
+      src.indexOf("func tearDownForReload()"),
+    );
+    const cancel = body.indexOf("if pendingStart != nil {");
+    const guardLive = body.indexOf("guard claim == .workout, session != nil");
+    expect(cancel).toBeGreaterThan(-1);
+    expect(guardLive).toBeGreaterThan(cancel);
+    expect(body).toContain(
+      "endWorkout() was called while it was still starting",
+    );
+  });
+
+  it("the pump's teardown stays invisible to the workout API", () => {
+    // `workout.state` and `getWorkoutState()` describe the EXPLICIT session
+    // only — the pump is an implementation detail of `startHeartRate` and JS
+    // never saw it start. Neither can be enforced at the delegate: `claim` is
+    // already nil when `didChangeTo(.ended)` lands, for the explicit session
+    // too, which is why the `.ended` escape hatch exists. So the teardown site
+    // has to answer it: detach the pump's SESSION delegate (never the
+    // builder's — the dying pump's last readings still owe `sensor.heartRate`
+    // a sample), and skip `recordEnded`, or a plain `stopHeartRate()` leaves
+    // `getWorkoutState()` reporting a finished workout forever.
+    const src = read("ReactWatchHost/WorkoutBridge.swift");
+    const body = src.slice(
+      src.indexOf("private func endSession("),
+      src.indexOf("private func restorePumpIfWanted()"),
+    );
+    expect(body).toContain("let wasPump = claim == .heartRate");
+    expect(body).toContain("if wasPump { session.delegate = nil }");
+    expect(body).toContain("if !wasPump {");
+    expect(body).not.toContain("builder.delegate = nil");
+  });
+
+  it("no recovery entry point is left uncalled", () => {
+    // `resumeHeartRateIfWanted()` was written, was correct, and had zero call
+    // sites anywhere in the package — so a pump killed from OUTSIDE (Apple ends
+    // ours when a second workout starts elsewhere) stayed dead forever with
+    // `wantHeartRate` still true, and a DOWNGRADE parked while the app was
+    // backgrounded never came back. A definition plus at least one call is the
+    // shape that would have caught it.
+    const sources = [
+      read("ReactWatchHost/WorkoutBridge.swift"),
+      read("ReactWatchHost/SensorBridge.swift"),
+      read("ReactWatchHost/ReactWatchHost.swift"),
+    ].join("\n");
+    const mentions = sources.match(/resumeHeartRateIfWanted/g) ?? [];
+    expect(mentions.length).toBeGreaterThan(1);
+    expect(read("ReactWatchHost/SensorBridge.swift")).toContain(
+      "workoutOwner?.resumeHeartRateIfWanted()",
+    );
+  });
+
+  it("the DOWNGRADE cannot revive the background heart-rate drain", () => {
+    // `pauseForBackground` only ends a session that exists at the moment of
+    // backgrounding; the DOWNGRADE runs later, when the save settles. A workout
+    // ended while the app is away would otherwise start a fresh `.other`
+    // session that re-grants background execution and re-arms HR sampling —
+    // the exact drain `keepAliveInBackground: false` asked to avoid, through
+    // the one door the backstop does not watch.
+    const src = read("ReactWatchHost/WorkoutBridge.swift");
+    expect(src).toContain("private var pumpBlockedByBackground = false");
+    const restore = src.slice(
+      src.indexOf("private func restorePumpIfWanted()"),
+      src.indexOf("private func recordEnded("),
+    );
+    expect(restore).toContain("guard !pumpBlockedByBackground else { return }");
+  });
+
+  it("route GPS stops on every terminal session state, not just endWorkout", () => {
+    // `endWorkout` is not the only way a session dies — Apple ends ours when
+    // another app starts a workout, a start that throws never reaches the
+    // endWorkout completion, and a start cancelled inside the auth window never
+    // had a session. The route runs the GPS at kCLLocationAccuracyBest with no
+    // distance filter, and the stranded `routeTracking` latch also makes the
+    // app's own `stopLocation()` a permanent no-op. The `isWorkoutActive` guard
+    // is what keeps a stale "ended" from stopping a route that has since
+    // started (the UPGRADE makes that ordering reachable).
+    const src = read("ReactWatchHost/ReactWatchHost.swift");
+    const closure = src.slice(
+      src.indexOf("workout.onState = { [weak self] state, reason, epoch in"),
+      src.indexOf("workout.onMetrics ="),
+    );
+    expect(closure).toContain('if state == "ended"');
+    expect(closure).toContain("self?.workout.isWorkoutActive == false");
+    expect(closure).toContain("self?.sensors.stopRouteTracking()");
+  });
+
+  it("sensor.heartRate is gated on the subscription, not on the workout", () => {
+    // `sensor.heartRate` is `startHeartRate`'s stream. An explicit workout
+    // collects heart rate whether or not anyone subscribed, so ungated this
+    // pushed one listener-less event per collected sample (~1 Hz) for the whole
+    // workout — the per-sample bridge cost `emitMetricsIfDue` coalescing exists
+    // to avoid. `workout.metrics.heartRateBpm` is the in-workout channel.
+    const src = read("ReactWatchHost/WorkoutBridge.swift");
+    expect(src).toContain(
+      "if this.wantHeartRate, let heartRate { this.onHeartRate?(heartRate) }",
+    );
   });
 
   it("keeps the deinit backstop that releases the system slot", () => {
