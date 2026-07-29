@@ -174,8 +174,16 @@ import WorkoutKit
                 Self.matches($0, id: ref.id, atMs: ref.atMs, calendar: calendar)
             })
         else { return .ok("false") }
-        let at = WorkoutPlanSchedule.components(fromMs: ref.atMs, calendar: calendar)
-        await scheduler.remove(target.plan, at: at)
+        // The key comes from the ENTRY, never rebuilt from `ref.atMs`. `matches`
+        // is deliberately loose — it round-trips both sides through the minute
+        // precisely so a normalised entry (`an era, a calendar, a time zone we
+        // never set`) still resolves — so the components it matched on may not
+        // be the ones the scheduler is holding. `remove(_:at:)` gets no such
+        // tolerance: it has no error channel, so a key that misses is a plan
+        // that can never be removed by id again, recoverable only by
+        // `removeAllWorkouts()`, which takes the user's other workouts with it.
+        // `target.date` IS the stored key, so this is exact by construction.
+        await scheduler.remove(target.plan, at: target.date)
         let after = await scheduler.scheduledWorkouts
         guard
             !after.contains(where: {

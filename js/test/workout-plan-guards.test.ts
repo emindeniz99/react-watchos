@@ -99,7 +99,7 @@ describe("every scheduler mutation is verified by read-back", () => {
     },
     {
       decl: "    func remove(",
-      call: "await scheduler.remove(target.plan, at: at)",
+      call: "await scheduler.remove(target.plan, at: target.date)",
     },
     {
       decl: "    func removeAll() async -> Outcome {",
@@ -151,6 +151,26 @@ describe("every scheduler mutation is verified by read-back", () => {
     expect(matches).toContain("WorkoutPlanSchedule.minuteMs(");
     expect(matches).toContain("WorkoutPlanSchedule.milliseconds(");
     expect(matches).not.toContain("scheduled.date ==");
+  });
+
+  it("remove passes the STORED key, never one rebuilt from ref.atMs", () => {
+    // The flip side of the tolerance above. `matches` is loose on purpose, so
+    // the entry it finds may be a NORMALISED one whose components are not the
+    // ones we would rebuild from `ref.atMs` — SupportTests asserts we never
+    // build a `timeZone`/`calendar`/`era` and that a stored entry carrying them
+    // still matches. `remove(_:at:)` gets none of that tolerance: it is
+    // non-throwing and returns Void, so a key that misses leaves a plan that
+    // can never be removed by id again — recoverable only by
+    // `removeAllWorkouts()`, which destroys the user's other scheduled
+    // workouts. The authoritative key is already bound one line above.
+    const body = code(functionBody(read(BRIDGE), "    func remove("));
+    expect(body).toContain(
+      "await scheduler.remove(target.plan, at: target.date)",
+    );
+    expect(
+      body,
+      "remove rebuilt the scheduler key from ref.atMs instead of using target.date",
+    ).not.toContain("WorkoutPlanSchedule.components(");
   });
 });
 
