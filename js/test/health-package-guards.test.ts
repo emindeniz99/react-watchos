@@ -67,6 +67,11 @@ describe("the workout owner is the only HKWorkoutSession construction site", () 
       "ReactWatchHost/CapabilityBridges.swift",
       "ReactWatchHost/HealthQueryBridge.swift",
       "ReactWatchHost/PedometerBridge.swift",
+      // The newest neighbour, and the likeliest future offender: a file named
+      // `WorkoutPlanBridge` sitting next to `WorkoutBridge` is exactly where
+      // someone would reach for the session to "start the plan". WorkoutKit is
+      // a document API and takes no session at all.
+      "ReactWatchHost/WorkoutPlanBridge.swift",
     ];
     for (const file of hostFiles) {
       expect(
