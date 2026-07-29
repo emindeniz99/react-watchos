@@ -194,6 +194,23 @@ describe("workout activity names", () => {
     expect(mapped.filter((m) => m[1] !== m[2])).toEqual([]);
   });
 
+  it("reads the same table backwards for a recovered session", () => {
+    // The one session this process does not build from a wire payload: a
+    // workout recovered after a crash arrives as an HKWorkoutActivityType
+    // case, and `getWorkoutState()` cannot report it until it is named. Both
+    // directions come from the same list, so a one-way edit is impossible —
+    // and the case/name identity check catches the `.rowing -> "running"`
+    // transposition a hand-written reverse table invites.
+    const reverse = generated.slice(generated.indexOf("static func name(for type:"));
+    const mapped = [...reverse.matchAll(/case \.(\w+): "(\w+)"$/gm)];
+    expect(mapped.map((m) => m[2])).toEqual(workoutActivityTypes);
+    expect(mapped.filter((m) => m[1] !== m[2])).toEqual([]);
+    // Same refusal posture as the forward direction: a case this vocabulary
+    // excludes is unnamed, and the snapshot omits activityType rather than
+    // reporting a workout the user never did.
+    expect(reverse).toContain("default: nil");
+  });
+
   it("keeps a nil default so an unknown name is refused, not defaulted", () => {
     // Falling back to `.other` would record a workout the user never did.
     expect(generated).toContain("default: nil");

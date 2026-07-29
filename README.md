@@ -46,8 +46,9 @@ SwiftUI-like, all 41 primitives: `VStack`, `HStack`, `ZStack`, `ScrollView`,
 `Storage` (App Group UserDefaults), `fetch` (WHATWG subset over native
 URLSession), five sensor push streams — live heart rate, device motion,
 gyroscope, location and pedometer — **HealthKit reads** (`queryHealthStatistics`
-/ `queryHealthSamples` / `querySleepSamples`: steps, active energy, distance,
-SpO2, sleep stages) and **real workout control** (`startWorkout` / `pause` /
+/ `queryHealthDailyStatistics` / `queryHealthSamples` / `querySleepSamples`:
+steps, active energy, distance, SpO2, sleep stages, and a whole week's daily
+buckets in one query) and **real workout control** (`startWorkout` / `pause` /
 `resume` / `endWorkout` with a saved `HKWorkout`, live metrics and an optional
 route) — **calendar + reminder reads** (`getCalendarEvents` /
 `getReminders` over EventKit) — a BLE central (`bleConnect` /
@@ -111,6 +112,13 @@ radio or sensor hot is bounded or opt-in:
   `HKWorkoutSession` per process, so `startHeartRate` and `startWorkout` share
   one — a second would kill the first. `collectRoute` records from the same
   `CLLocationManager` `startLocation` uses instead of starting a second one.
+  If a launch crashes mid-workout, the next one adopts the session that
+  outlived it rather than leaving the slot occupied and the workout unsaved.
+- **A week chart is one health query, not seven.**
+  `queryHealthDailyStatistics` returns one aggregate per day from a single
+  `HKStatisticsCollectionQueryDescriptor`; a loop of `queryHealthStatistics`
+  pays a full HealthKit round trip per day. Buckets are contiguous, so an
+  empty day is `value: null` rather than a missing entry.
 - **BLE auto-reconnect is bounded.** An unexpected drop re-scans for 5
   attempts × 60 s each, then stays `disconnected` instead of scanning
   forever for a peripheral that left. Tune per connection:

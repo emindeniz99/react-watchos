@@ -1,8 +1,10 @@
 # Design — the HEALTH package (reads, workout control, pedometer)
 
-Shipped 2026-07-29 in four commits. This records the decisions and the
-follow-ups so the *why* survives the diff, and so a later reader can tell what
-was deliberately not built from what nobody thought of.
+Shipped 2026-07-29 in four commits, plus a follow-up wave the same day that
+took three of the recorded deferrals (`healthBuckets`, `workoutRecovery`,
+`pumpKillIsInvisible`). This records the decisions and the remaining follow-ups
+so the *why* survives the diff, and so a later reader can tell what was
+deliberately not built from what nobody thought of.
 
 Source: an Apple-docs-verified research brief (≈130 fetches of
 `developer.apple.com/tutorials/data/documentation/<path>.json`, including one
@@ -57,15 +59,16 @@ site. Both callers take a claim:
 | `endWorkout` while a `startWorkout` is still in the authorization window | **Cancel**: drop the pending start, settle its parked invoke, resolve the `endWorkout`. No session is ever created. |
 | `startWorkout` while a workout runs | **Refuse synchronously**, `UNAVAILABLE`. |
 | Background | The owner ends the session only when the sole claim is the pump and `keepAliveInBackground` is false. An explicit workout **pins** it. |
-| The session dies from OUTSIDE | Apple ends ours when a second workout starts elsewhere. The explicit claim publishes `ended` and settles any parked start; a pump comes back on the next foreground. |
+| The session dies from OUTSIDE | Apple ends ours when a second workout starts elsewhere. The explicit claim publishes `ended` **once** and settles any parked start; a killed **pump** publishes nothing at all, and comes back on the next foreground. |
+| A session outlives the PROCESS | **Recovery**: the launch after a crash adopts it — builder, data source, delegates, claim — and publishes its state. Not the reload path; see below. |
 
 **`startHeartRate` is unchanged at the JS API level.** That was a hard
 constraint, not an outcome.
 
-### The three state-machine rules the transitions rest on
+### The four state-machine rules the transitions rest on
 
 Recorded because each one shipped broken, and each fix is load-bearing for the
-others (2026-07-29 review):
+others (2026-07-29 review, extended by the follow-up wave):
 
 1. **The UPGRADE happens in the authorization completion**, not in
    `startWorkout`. That is the only call site that can reach `start()` with a
@@ -82,14 +85,28 @@ others (2026-07-29 review):
    started anyway once the sheet completed. The window is not just the
    first-ever sheet — Apple calls the completion without prompting once the
    types are decided, and a React effect cleanup lands in it with no tap at all.
-3. **The pump is invisible to the workout API.** Neither half can be enforced at
-   the delegate: `endSession` clears `claim` synchronously, so by the time
-   `didChangeTo(.ended)` lands it is nil for the *explicit* session too — which
-   is why the `.ended` escape hatch exists at all. So the teardown site answers
-   it, detaching the pump's **session** delegate (never the builder's — the
-   dying pump still owes its last readings to `sensor.heartRate`) and skipping
-   `recordEnded`, without which a bare `stopHeartRate()` left `getWorkoutState()`
-   reporting a finished workout forever, `lastEnded` being deliberately sticky.
+3. **The pump is invisible to the workout API.** `claim` cannot enforce this at
+   the delegate: `endSession` clears it synchronously, so by the time
+   `didChangeTo(.ended)` lands it is nil for the *explicit* session too. The
+   teardown site answers the half it can reach, detaching the pump's **session**
+   delegate (never the builder's — the dying pump still owes its last readings
+   to `sensor.heartRate`) and skipping `recordEnded`, without which a bare
+   `stopHeartRate()` left `getWorkoutState()` reporting a finished workout
+   forever, `lastEnded` being deliberately sticky.
+4. **The rule is session IDENTITY, and it subsumes the `.ended` escape hatch.**
+   The owner *names* the session it told JS about (`publishedSession`, weak) and
+   the delegate publishes only for that one. This is what closed
+   `pumpKillIsInvisible`: a pump killed from outside is a session we were never
+   given the chance to detach, and its `didFailWithError` is followed by a
+   trailing `didChangeTo(.ended)` (Apple documents that order) which passed the
+   old `|| toState == .ended` disjunct — so a `startHeartRate`-only app got a
+   `workout.state: "ended"` for a workout it never started. The hatch is
+   **gone**, not supplemented: while it was there the identity check was dead
+   weight. Clearing the name on the terminal transition also fixed a sibling
+   nobody had filed — an outside kill published `"ended"` **twice**, once per
+   callback. Same reasoning applied to `start()`'s catch, which is now gated on
+   the explicit claim: no invoke is ever parked on a pump start, so emitting a
+   terminal state for one only ever published a lie.
 
 **Teardown order on a reload is the reverse of what first shipped.**
 `tearDownGeneration()` calls `workoutOwner.tearDownForReload()` **before**
@@ -104,6 +121,51 @@ generation guard. Running the workout teardown first also makes the owner's
 pump-only (`wasWorkout == false`) branch reachable, which is what ends a
 pump-only session on reload. Rule 3's detach covers the same leak independently;
 both are kept, because the ordering additionally fixes *which* branch runs.
+
+### Reload versus crash: two different events, and they must stay so
+
+`recoverActiveWorkoutSession` (watchOS 5.0) closes `workoutRecovery`, and the
+distinction it turns on is the one the API makes easiest to blur:
+
+- a **runtime reload** (dev hot-reload, OTA apply) still ends the workout
+  deterministically — `tearDownForReload` ends, saves, and parks the snapshot.
+  The process is alive; the workout belongs to the bundle that started it; an
+  incoming bundle must not inherit one it never started. That v1 decision is
+  unchanged, and the ordering above is unchanged with it.
+- **recovery** is process *death*. Nothing ended that session and nothing saved
+  it: it is still running on the user's wrist and still holding the one slot
+  watchOS allows. There is no runtime to hand it back to — the one that started
+  it no longer exists — so the choice is adopt or strand, and stranding burns
+  the slot for the whole next launch.
+
+So it is called **once per process**, from `start()` (guarded by
+`runtime == nil`) and never from `boot()`, which runs again on every reload.
+Its completion is deliberately **not** generation-guarded either: a recovered
+session was started by neither runtime, so "the runtime that started it" has no
+meaning, and the live one is the only one that can report it. The next reload
+ends and saves it like any other workout.
+
+**The race that makes it subtle, and the one line that closes it.**
+`recoverActiveWorkoutSession` is a healthd round trip and the JS bundle boots
+inside it — so a `startHeartRate` effect can land first, take the single slot,
+and (by the same Apple rule this whole file exists for) **end the session being
+recovered**. The pump is therefore deferred at the one choke point every pump
+start goes through, and the completion calls `restorePumpIfWanted()` on every
+path: deferred by one round trip, never dropped. Executed with the guard
+removed: two sessions, the orphan never adopted, `getWorkoutState()` back to
+`notStarted`, nothing saved — the user's workout silently lost. A `startWorkout`
+that lands inside the window wins the slot instead, and the recovered session is
+ended rather than stranded.
+
+Apple's *"you must access its builder and set up your data source and delegates
+again"* is followed literally; `beginCollection` is **not** called, because the
+crashed launch already began it and that data is exactly what this recovers. The
+generated `WorkoutActivityName` gained a reverse map for it — the recovered
+session arrives as an `HKWorkoutActivityType` case and has to be named before
+`getWorkoutState()` can report it — and `WorkoutStartPlan.recovered()` holds the
+two knobs with no wire payload behind them: the default metrics period (the
+crashed launch's choice is unknowable) and `collectRoute: false`, because a
+route resumed here would begin wherever the app relaunched and *look* complete.
 
 **Route GPS stops on the terminal session state**, not only in the `endWorkout`
 completion. `endWorkout` is not the only way a session dies — an outside kill,
@@ -213,6 +275,30 @@ A health-driven complication is fed by the **app** publishing a timeline through
   JSDoc says an empty result means denied-or-absent-or-outside-your-window.
 - **Sleep is its own shape.** Jamming a category into the numeric one produces
   `value: 3` plus a magic mapping every caller must own.
+- **Daily buckets reuse the scalar shapes, both ways.** `healthBuckets` was
+  deferred because it "doubles the result surface (scalar → array with bucket
+  bounds)" — and it turns out not to: a bucket *is* the scalar aggregate over
+  one day, so `HealthStatisticsRequest` and `HealthStatisticsResult` already
+  describe it, and `queryHealthDailyStatistics` adds a method rather than a
+  vocabulary. There is no bucket-size option: the method name is the
+  granularity, and a one-member union would only pretend to be a choice.
+- **Buckets are contiguous, and the ceiling is a refusal.**
+  `HKStatisticsCollection.statistics()` skips intervals with no samples ("there
+  may be arbitrarily large gaps"), which would return five buckets for a week
+  the user rested twice; `enumerateStatistics(from:to:)` calls its block once
+  per interval with a nil quantity, which is the `value: null` the scalar query
+  already means — so `length` is the number of days asked for and index *n* is
+  day *n*. Its documented cost is that the final interval is the one
+  *containing* the end date, so a `[midnight, midnight + 7d)` week yields an
+  eighth bucket; `HealthWindow.containsBucketStart` drops it, in
+  ReactWatchSupport so Linux proves it. A window past the 1000-bucket ceiling
+  is **refused, not clamped** (rule 12): a truncated series is a chart that
+  lies about its range. The ceiling is the sample ceiling — a bucket costs the
+  wire what a sample does, so there is one number, not two rules.
+- **The bucket anchor is the caller's `startMs`.** A "day" therefore begins
+  where JS says it does, which keeps the time zone in the one place that has a
+  calendar; a `Calendar.current` midnight natively would silently disagree with
+  the labels the caller renders.
 - **Activity types are name-keyed, not rawValue-keyed.** `HKWorkoutActivityType`
   is an ObjC `NS_ENUM` whose raw values Apple does not document. One schema list
   renders both the TS union and the Swift `switch`, so drift is structurally
@@ -260,15 +346,22 @@ A health-driven complication is fed by the **app** publishing a timeline through
   saying "Save your workouts to Health." on an app that literally saves
   workouts).
 
-## Deliberately not v1 — each recorded as a named follow-up
+## Taken since — the three follow-ups this wave closed
+
+| Id | What shipped |
+|---|---|
+| `healthBuckets` | `queryHealthDailyStatistics` (`HKStatisticsCollectionQueryDescriptor`). The deferral's stated cost — a doubled result surface — did not materialise: a bucket is the scalar aggregate over one day, so the existing request and result shapes describe it. See the bullets above for contiguity, the anchor, and the refused ceiling. |
+| `workoutRecovery` | `recoverActiveWorkoutSession` for the **crash** case, which the deferral already called "worth doing regardless". The *reload* half stays deferred **and stays deliberate**: a reload still ends + saves deterministically, and letting a workout survive one would still let an OTA bundle inherit a workout it never started. See "Reload versus crash" above. |
+| `pumpKillIsInvisible` | Closed with session identity, exactly as the deferral predicted it would have to be — and it was right that a `didFailWithError`-only fix changes nothing, because the trailing transition leaks anyway. Fixing it also removed a double `"ended"` on the explicit path that had not been filed. |
+
+## Still deliberately not built — each recorded as a named follow-up
 
 | Id | What | Why deferred |
 |---|---|---|
-| `healthBuckets` | `HKStatisticsCollectionQueryDescriptor` (per-day buckets) | Doubles the result surface (scalar → array with bucket bounds) for a 7-invoke workaround. **Strongest of these**: 7 round trips × HealthKit query cost is a real watch battery argument. |
-| `workoutRecovery` | Survive a runtime reload + `recoverActiveWorkoutSession` | v1 does the deterministic teardown the queue asked for: end + save + report via `getWorkoutState`. Keeping the session alive would let an OTA bundle inherit a workout it never started. The API is also the right answer for the **crash** case, which is worth doing regardless. |
+| `workoutReloadSurvival` | Keep a workout alive **across a runtime reload**, re-attaching instead of ending | The other half of the old `workoutRecovery` row, and still a no: end + save + report via `getWorkoutState` is the deterministic teardown ARCH-08 asked for, and surviving would let an OTA bundle inherit a workout it never started. Recovery does **not** weaken this — it covers process death, where no runtime exists to inherit anything. |
 | `healthBackground` | `HKObserverQuery` + `enableBackgroundDelivery` | A third entitlement (`…healthkit.background-delivery`) needing a provisioning change; delivery lands on the extension delegate with no live JS runtime to receive it (the same cold-launch case remote push documented as a v1 drop); and `scheduleBackgroundRefresh` already gives a bounded wake in which a health query can run. Must reuse the `background` feature's wake plumbing, not invent a second one. |
 | `workoutPlans` | WorkoutKit (`WorkoutPlan`, `WorkoutScheduler`) | Floor-clean at watchOS 10.0 and fully additive, but it hands plans to **Apple's Workout app** (`openInWorkoutApp()`) — zero overlap with `HKWorkoutSession`, and a whole second model tree. |
-| `pumpKillIsInvisible` | Suppress `workout.state` for a **pump** killed from outside | The teardown-site detach cannot reach it: that session was never ours to detach, and the trailing `didChangeTo(.ended)` after `didFailWithError` still passes the `.ended` escape hatch with `claim` already nil. Closing it needs identity tracking (which session's transitions are still owed to JS) rather than a claim read, so it wants its own change — half-fixing it at `didFailWithError` alone changes nothing observable, since the trailing transition leaks anyway. Impact is one spurious `workout.state{ended}` for an app that started no workout; the *stream* recovery is fixed (foreground restore). |
+| `healthHourlyBuckets` | A bucket size other than a day | Deliberately not a parameter today. `intervalComponents` would take one line, but the *contract* questions are real — an hourly ceiling is not the daily one, and hour buckets make the anchor's time zone visible in a way a day boundary hides — and nothing has asked. Adding it later is one schema field. |
 | `pedometerStreamErrors` | Surface a CoreMotion denial on `startPedometer` too | The invoke path now reports `PERMISSION_DENIED`, but the push channel drops its error like `startMotion`/`startGyroscope` do. Giving it an error carrier changes the `sensor` channel contract for all five kinds — a design change, not a surgical fix. |
 | — | `HKQueryOptions` (`.strictStartDate`/`.strictEndDate`) | Not exposed; default `[]`. |
 | — | `swimmingLocationType` / `lapLength`, `HKWorkoutActivity` multisport, `startEventUpdates`/`CMPedometerEvent`, `heartRateVariabilitySDNN`, `CMMotionActivityManager` | Additive surface with no caller yet. `CMMotionActivityManager` in particular needs no new grant — same consent — if it is ever wanted. |
@@ -278,31 +371,41 @@ A health-driven complication is fed by the **app** publishing a timeline through
 
 Everything decidable without HealthKit is in `ReactWatchSupport` and runs under
 `swift test` on Linux: the unit table, the statistic/type legality, the window
-and limit rules, the workout request validation and the metrics-interval floor,
-and the pedometer payload assembly. The ARCH-11 fixtures cross the language
-boundary in both directions. `codegen.test.ts` pins every vocabulary against
-its Swift enum, and `health-package-guards.test.ts` scans the watchOS-only
-sources for the invariants no Linux job can compile (single construction site,
-teardown order, the synchronous refusals, the crash guard, and — since the
-2026-07-29 review — the UPGRADE's end-before-start, the cancellable pending
-start, the pump-invisible teardown, the background block on the downgrade, the
-absence of an uncalled recovery entry point, the terminal-state route stop and
-the heart-rate gate).
+and limit rules, the daily-bucket ceiling and the bucket-boundary rule, the
+workout request validation, the metrics-interval floor, the recovered-session
+defaults, and the pedometer payload assembly. The ARCH-11 fixtures cross the
+language boundary in both directions. `codegen.test.ts` pins every vocabulary
+against its Swift enum — including the activity table in *both* directions
+since the reverse map landed — and `health-package-guards.test.ts` scans the
+watchOS-only sources for the invariants no Linux job can compile (single
+construction site, teardown order, the synchronous refusals, the crash guard,
+the UPGRADE's end-before-start, the cancellable pending start, the
+pump-invisible teardown, the background block on the downgrade, the absence of
+an uncalled recovery entry point, the terminal-state route stop, the heart-rate
+gate, and — since the follow-up wave — the identity guard replacing the `.ended`
+escape hatch, the claim-gated `start()` catch, recovery's process scope and its
+pump deferral, the adopt-only-when-free rule, and the contiguous-bucket
+enumeration).
 
 `WorkoutSessionOwner` still has **no `swift test` coverage** — it is
 `#if os(watchOS)`, so SwiftPM drops the whole target on Linux and the textual
-scan is the only in-repo gate. The state-machine revision was verified by
-*executing* the real sources instead: `WorkoutBridge.swift` and
-`SensorBridge.swift` compile unmodified on Linux once the `#if os(watchOS)` gate
-and the framework imports are stripped, against shims that keep the properties
-the machine depends on (`requestAuthorization` parks its completion — that *is*
-the auth window; `startActivity`/`end` report asynchronously through the
-delegate, with no completion handler; `delegate` weak on both session and
-builder; `endCollection`/`finishWorkout` call back off-main; `didFailWithError`
-before the trailing `didChangeTo(.ended)`, per Apple). That harness is a
-scratch artifact, not committed — it needs `ReactWatchHost` transcribed, which
-would rot. **Standing gap unchanged:** the session, the save, the route, the
-sheet and any real sample are still device-only ③.
+scan is the only in-repo gate. The state machine is verified by *executing* the
+real sources instead: `WorkoutBridge.swift`, `SensorBridge.swift`,
+`PedometerBridge.swift` and the generated `WorkoutActivityName.swift` compile
+unmodified on Linux once the `#if os(watchOS)` gate is stripped (diff = exactly
+those two lines each), against shim modules literally named
+`HealthKit`/`CoreMotion`/`CoreLocation` and a transcription of the host's
+workout wiring. The shims keep the properties the machine depends on:
+`requestAuthorization` **and** `recoverActiveWorkoutSession` park their
+completions — those *are* the two windows; `startActivity`/`end` report
+asynchronously through the delegate with no completion handler; `delegate` weak
+on both session and builder; `endCollection`/`finishWorkout` call back off-main;
+and an outside kill delivers `didFailWithError` before the trailing
+`didChangeTo(.ended)`, per Apple. 45 checks, red/green against the pre-fix
+delegate rule and against a missing pump deferral. That harness is a scratch
+artifact, not committed — it needs `ReactWatchHost` transcribed, which would
+rot. **Standing gap unchanged:** the session, the save, the route, the sheet
+and any real sample are still device-only ③.
 
 What is **not** proven at any level: the session lifecycle, the save, the route,
 the authorization sheet, and any real sample. `docs/running-on-sim.md` signs the

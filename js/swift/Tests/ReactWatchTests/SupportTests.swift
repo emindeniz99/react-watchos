@@ -2867,6 +2867,27 @@ final class WorkoutPlanTests: XCTestCase {
         XCTAssertTrue(error.message.contains("indoor"))
     }
 
+    func testARecoveredSessionTakesTheDefaultsItCannotKnow() {
+        // A workout recovered after a crash has no wire payload behind it: the
+        // request died with the process, and the HKWorkoutConfiguration is all
+        // that survived. The two knobs a caller would have chosen are decided
+        // here rather than in the watchOS-only owner, so they are provable.
+        let plan = WorkoutStartPlan.recovered(
+            activityType: "running", location: .outdoor)
+        XCTAssertEqual(plan.activityType, "running")
+        XCTAssertEqual(plan.location, .outdoor)
+        // The crashed launch's period is unknowable; the default is the
+        // battery-safe end of the range.
+        XCTAssertEqual(plan.metricsIntervalMs, WorkoutStartPlan.defaultMetricsIntervalMs)
+        // The load-bearing one: a route resumed here would begin wherever the
+        // app relaunched and look complete, which is worse than no route.
+        XCTAssertFalse(plan.collectRoute)
+        // An unknown location is legitimate — HKWorkoutConfiguration's own
+        // default is `.unknown`, which has no wire name.
+        XCTAssertNil(
+            WorkoutStartPlan.recovered(activityType: "yoga", location: nil).location)
+    }
+
     func testEndReasonsIncludeTheOneNoCallerCanCause() {
         // `runtimeReload` is what a dev reload / OTA apply reports: the fresh
         // runtime never started that workout, and this is how it finds out the

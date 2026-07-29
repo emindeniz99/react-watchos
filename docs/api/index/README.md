@@ -310,6 +310,7 @@
 - [playHaptic](functions/playHaptic.md)
 - [publishWidgets](functions/publishWidgets.md)
 - [purchase](functions/purchase.md)
+- [queryHealthDailyStatistics](functions/queryHealthDailyStatistics.md)
 - [queryHealthSamples](functions/queryHealthSamples.md)
 - [queryHealthStatistics](functions/queryHealthStatistics.md)
 - [queryPedometer](functions/queryPedometer.md)

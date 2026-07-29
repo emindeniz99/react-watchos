@@ -184,6 +184,136 @@ describe("the workout owner is the only HKWorkoutSession construction site", () 
     expect(body).not.toContain("builder.delegate = nil");
   });
 
+  it("the delegate publishes by session IDENTITY, not by a claim read", () => {
+    // The rule the `|| toState == .ended` escape hatch used to stand in for,
+    // and could not enforce: `endSession` clears `claim` synchronously, so it
+    // is nil when the EXPLICIT session's own terminal callback lands — which
+    // is why the disjunct existed, and why an externally killed PUMP published
+    // a `workout.state: "ended"` at an app that started no workout. Its
+    // `didFailWithError` is followed by a trailing `didChangeTo(.ended)` (the
+    // order Apple documents), and that session was never ours to detach, so
+    // the teardown-site detach could not reach it either. Naming the session
+    // JS was told about is the only test that survives both.
+    const src = read("ReactWatchHost/WorkoutBridge.swift");
+    expect(src).toContain("private weak var publishedSession: HKWorkoutSession?");
+    // Set at the ONE construction site, and only for the explicit claim.
+    expect(src).toContain("if claim == .workout { publishedSession = session }");
+    const code = src
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("//"))
+      .join("\n");
+    // The escape hatch must be GONE, not merely supplemented: while it is
+    // there, the identity check is dead weight and the leak is still open.
+    expect(code).not.toContain("toState == .ended else { return }");
+    const transitions = code.slice(
+      code.indexOf("didChangeTo toState: HKWorkoutSessionState"),
+      code.indexOf("didFailWithError error: Error"),
+    );
+    expect(transitions).toContain("guard session === this.publishedSession");
+    // Cleared on the terminal transition — which is also what stops an outside
+    // kill publishing "ended" twice, once per callback.
+    expect(transitions).toContain("if name == .ended { this.publishedSession = nil }");
+    const failure = code.slice(code.indexOf("didFailWithError error: Error"));
+    expect(failure).toContain("guard session === this.publishedSession");
+  });
+
+  it("a pump that fails to START is invisible too", () => {
+    // The same leak one door over: `start()`'s catch emits the terminal state
+    // itself, because a throw produces no delegate callback and would hang a
+    // parked invoke. No invoke is ever parked on a PUMP start, so emitting for
+    // one publishes a workout ending to an app that started no workout.
+    const src = read("ReactWatchHost/WorkoutBridge.swift");
+    const start = src.slice(
+      src.indexOf("    private func start("),
+      src.indexOf("    /// The one teardown path."),
+    );
+    expect(start).toContain("if claim == .workout {");
+    expect(start).toContain("emitState(\"ended\", error.localizedDescription, epoch)");
+  });
+
+  it("crash recovery is scoped to the PROCESS, not to a runtime generation", () => {
+    // The distinction the whole feature rests on. A runtime reload still ends
+    // its workout deterministically — the process is alive and an incoming
+    // bundle must not inherit a workout it never started — while recovery is
+    // process DEATH, where no runtime exists to hand the session back to.
+    // Calling it from boot() (which runs again on every reload) would blur
+    // exactly that, and would re-adopt across a hot-reload loop.
+    const host = read("ReactWatchHost/ReactWatchHost.swift");
+    const code = host
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("//"))
+      .join("\n");
+    const startFn = code.slice(
+      code.indexOf("    func start() {"),
+      code.indexOf("    private func boot("),
+    );
+    expect(startFn).toContain("workout.recoverOrphanedSession()");
+    // Before boot(), so the pump deferral is armed before the bundle's first
+    // startHeartRate can take the single slot.
+    expect(startFn.indexOf("workout.recoverOrphanedSession()")).toBeLessThan(
+      startFn.indexOf("boot()"),
+    );
+    const teardown = code.slice(
+      code.indexOf("private func tearDownGeneration() {"),
+    );
+    expect(teardown).not.toContain("recoverOrphanedSession");
+    // Exactly one call site in the whole host.
+    expect(code.match(/recoverOrphanedSession\(\)/g) ?? []).toHaveLength(1);
+  });
+
+  it("the pump is deferred for the recovery window, and never dropped", () => {
+    // A pump started inside the healthd round trip takes the single slot and,
+    // by the same Apple rule this file exists for, ENDS the session being
+    // recovered — losing the user's real workout to a heart-rate stream. The
+    // guard sits at the one choke point every pump start goes through, so
+    // claim / resume / restore are all covered by one line.
+    const src = read("ReactWatchHost/WorkoutBridge.swift");
+    const begin = src.slice(
+      src.indexOf("    private func beginPumpSession() {"),
+      src.indexOf("    // MARK: - Explicit workout"),
+    );
+    expect(begin).toContain("guard !recovering else { return }");
+    // Deferred is only honest if something lifts it: the completion clears the
+    // flag and restores on EVERY path, including "nothing to recover".
+    const recover = src.slice(
+      src.indexOf("    func recoverOrphanedSession() {"),
+      src.indexOf("    private func adopt("),
+    );
+    expect(recover).toContain("this.recovering = false");
+    expect(recover).toContain("this.restorePumpIfWanted()");
+  });
+
+  it("recovery adopts only when the single slot is free", () => {
+    // A `startWorkout` from the freshly booted bundle can land inside the
+    // window, and by Apple's rule that newer start has already ended the
+    // recovered one. Ending it explicitly releases the daemon's handle instead
+    // of leaving a session no code path can reach.
+    // Comments stripped: the `beginCollection` assertion below is about the
+    // CODE, and the comment above it explains why the call is absent.
+    const src = read("ReactWatchHost/WorkoutBridge.swift")
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("//"))
+      .join("\n");
+    const adopt = src.slice(
+      src.indexOf("    private func adopt(_ session: HKWorkoutSession) {"),
+      src.indexOf("    deinit {"),
+    );
+    expect(adopt).toContain("guard self.session == nil, pendingStart == nil else {");
+    expect(adopt).toContain("session.end()");
+    // Apple: "you must access its builder and set up your data source and
+    // delegates again" — all three, or the adopted session collects nothing
+    // and reports nothing.
+    expect(adopt).toContain("session.associatedWorkoutBuilder()");
+    expect(adopt).toContain("builder.dataSource = HKLiveWorkoutDataSource(");
+    expect(adopt).toContain("session.delegate = self");
+    expect(adopt).toContain("builder.delegate = self");
+    // It is a real workout to JS, so it is named for the delegate too.
+    expect(adopt).toContain("publishedSession = session");
+    // No beginCollection: the crashed launch already began it, and that data
+    // is exactly what this recovers.
+    expect(adopt).not.toContain("beginCollection");
+  });
+
   it("no recovery entry point is left uncalled", () => {
     // `resumeHeartRateIfWanted()` was written, was correct, and had zero call
     // sites anywhere in the package — so a pump killed from OUTSIDE (Apple ends
@@ -201,6 +331,11 @@ describe("the workout owner is the only HKWorkoutSession construction site", () 
     expect(read("ReactWatchHost/SensorBridge.swift")).toContain(
       "workoutOwner?.resumeHeartRateIfWanted()",
     );
+    // Same shape for the crash-recovery entry point, which has the same
+    // failure mode: written, correct, and reachable from nothing.
+    expect(
+      (sources.match(/recoverOrphanedSession/g) ?? []).length,
+    ).toBeGreaterThan(1);
   });
 
   it("the DOWNGRADE cannot revive the background heart-rate drain", () => {
@@ -310,6 +445,42 @@ describe("refusals that produce no delegate callback are synchronous", () => {
     expect(bridge).toContain("`motion: true`");
     const host = read("ReactWatchHost/ReactWatchHost.swift");
     expect(host).toContain("PedometerBridge.missingUsageDescriptionMessage");
+  });
+});
+
+describe("the daily statistics collection is contiguous, not sparse", () => {
+  it("enumerates every interval instead of only the ones with samples", () => {
+    // `HKStatisticsCollection.statistics()` skips intervals with no samples
+    // ("there may be arbitrarily large gaps"), so a week the user rested twice
+    // would come back as five buckets and every caller would re-derive which
+    // days were missing. `enumerateStatistics(from:to:)` calls the block once
+    // per interval with a nil-valued quantity, which is exactly the
+    // `value: null` the scalar query already means. That is the difference
+    // between "results.length is the number of days you asked for" and not.
+    const src = read("ReactWatchHost/HealthQueryBridge.swift");
+    const body = src.slice(
+      src.indexOf("func dailyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {"),
+    );
+    expect(body).toContain("collection.enumerateStatistics(");
+    expect(body).not.toContain("collection.statistics()");
+    // Day granularity, anchored on the caller's own window start — that is
+    // what keeps the time zone in JS, where the calendar actually is.
+    expect(body).toContain("anchorDate: plan.window.start");
+    expect(body).toContain("intervalComponents: DateComponents(day: 1)");
+    // The off-by-one Apple's contract introduces (the final interval is the
+    // one CONTAINING the end date) is dropped by the Linux-tested rule, not
+    // re-derived here.
+    expect(body).toContain("window.containsBucketStart(startMs)");
+  });
+
+  it("shares one statistic->quantity table with the scalar query", () => {
+    // Two hand-written switches would both compile while answering "average"
+    // with different accessors, and no fixture could tell.
+    const src = read("ReactWatchHost/HealthQueryBridge.swift");
+    expect(src).toContain(
+      "private static func quantity(\n        _ statistic: HealthStatistic, from statistics: HKStatistics\n    ) -> HKQuantity? {",
+    );
+    expect(src.match(/Self\.quantity\(/g) ?? []).toHaveLength(2);
   });
 });
 

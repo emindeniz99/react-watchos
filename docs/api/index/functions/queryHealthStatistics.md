@@ -18,8 +18,8 @@ Rejects `INVALID_REQUEST` when `statistic` is illegal for `type` (see
 `{ value: null }` when HealthKit has nothing to report — which, again, is
 *not* distinguishable from a denied read.
 
-For per-day buckets, call this once per day:
-`HKStatisticsCollectionQueryDescriptor` is a recorded follow-up, not v1.
+For a chart, use [queryHealthDailyStatistics](queryHealthDailyStatistics.md) instead of calling this
+once per day — it is one HealthKit query rather than seven.
 
 ## Parameters
 
