@@ -14,6 +14,20 @@ export type Unsubscribe = () => void;
 const listeners = new Map<string, Set<NativeEventHandler>>();
 
 /**
+ * Level-triggered events: state that *is*, not something that *happened*. Their
+ * last payload is kept and replayed to a listener that registers after the
+ * push, so a screen mounted mid-state learns it instead of waiting for the next
+ * change — native pushes `luminanceReduced` once at boot and then only on
+ * wrist movement, so a conditionally-mounted consumer would otherwise believe
+ * luminance is normal while the display is dimmed.
+ *
+ * Edge-triggered events (sensor samples, incoming messages, transfers) must NOT
+ * be listed: replaying one fabricates an event that did not occur.
+ */
+const REPLAYED_EVENTS = new Set<string>(["luminanceReduced"]);
+const lastReplayed = new Map<string, Record<string, unknown> | undefined>();
+
+/**
  * Subscribes `handler` to native event `name`. Multiple handlers per event are
  * supported — each fires. Returns an unsubscribe function; use it as a React
  * effect's cleanup so unmounting a screen drops its listener (and doesn't
@@ -33,6 +47,9 @@ export function registerNativeListener(
     listeners.set(name, set);
   }
   set.add(handler);
+  // Level-triggered state: hand the newcomer what native last said, in its own
+  // call stack (a throw belongs to the caller here, unlike the fan-out below).
+  if (lastReplayed.has(name)) handler(lastReplayed.get(name));
   return () => {
     const current = listeners.get(name);
     current?.delete(handler);
@@ -42,6 +59,7 @@ export function registerNativeListener(
 
 export function unregisterAllNativeListeners(): void {
   listeners.clear();
+  lastReplayed.clear();
 }
 
 /** Invokes every listener for `name`; returns false if none is registered. */
@@ -49,6 +67,10 @@ export function dispatchNativeEvent(
   name: string,
   payload?: Record<string, unknown>,
 ): boolean {
+  // Recorded before the no-listener bail: the boot push lands whether or not
+  // anything is subscribed yet, and that is precisely the value a later
+  // subscriber needs.
+  if (REPLAYED_EVENTS.has(name)) lastReplayed.set(name, payload);
   const set = listeners.get(name);
   if (!set || set.size === 0) return false;
   // Snapshot: a handler that (un)subscribes during dispatch mustn't disturb

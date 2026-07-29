@@ -46,6 +46,20 @@ describe("Always-On luminance", () => {
     expect(host.lastCommit?.root?.props.text).toBe("dimmed");
   });
 
+  it("replays the last state to a listener that mounts later", () => {
+    // The JSDoc promises the handler runs "once on mount with the current
+    // state". Native pushes only at boot() and on wrist movement, so without a
+    // replay a screen mounted while the wrist is ALREADY down would render
+    // bright and keep its timers running until the wrist moves — the exact
+    // drain this signal exists to remove. There is deliberately no getter, so
+    // the replay is the only way a late subscriber can learn the state.
+    mountApp(<Text>x</Text>, new MemoryHost());
+    push()(LUMINANCE_REDUCED_EVENT, JSON.stringify({ reduced: true }));
+    const seen: boolean[] = [];
+    onLuminanceReduced((reduced) => seen.push(reduced));
+    expect(seen).toEqual([true]);
+  });
+
   it("is a PUSH event only — no invoke, no host method, no feature", async () => {
     // Recorded as a test because it is a design decision that would be easy to
     // "fix" later by adding a getter. The state is only ever pushed; there is
