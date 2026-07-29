@@ -1597,6 +1597,24 @@ export const hostMethods: HostMethod[] = [
     response: "HealthStatisticsResult",
   },
   {
+    // The bucketed sibling, and deliberately the SAME request and result
+    // shapes: a bucket IS the scalar aggregate over one day, so
+    // `HealthStatisticsResult` already carries everything a bucket needs
+    // (value + unit + its own bounds). That removes the whole reason this was
+    // deferred out of v1 ("doubles the result surface, scalar -> array with
+    // bucket bounds") — the surface does not double, it arrays. What it buys
+    // is the battery argument: a week chart was 7 separate invokes, each a
+    // full HealthKit query round trip, and this is one.
+    name: "queryHealthDailyStatistics",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "One aggregate per DAY over the window (HKStatisticsCollectionQueryDescriptor), instead of one invoke per day. Buckets are contiguous and anchored on startMs — an empty day is a bucket with value: null, not a gap.",
+    request: "HealthStatisticsRequest",
+    response: "HealthStatisticsResult[]",
+  },
+  {
     name: "queryHealthSamples",
     targets: ["watch"],
     feature: "health",

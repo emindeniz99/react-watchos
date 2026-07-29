@@ -189,6 +189,7 @@ public enum HostInvokeFeatures {
         "pauseWorkout": "workouts",
         "playAudio": "audio",
         "purchase": "iap",
+        "queryHealthDailyStatistics": "health",
         "queryHealthSamples": "health",
         "queryHealthStatistics": "health",
         "queryPedometer": "sensors",

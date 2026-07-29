@@ -142,6 +142,18 @@ const PRODUCERS: Record<string, Producer> = {
       calls: "bridge.statistics(plan)",
     },
   },
+  queryHealthDailyStatistics: {
+    sites: [
+      {
+        file: HEALTH,
+        decl: "func dailyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleQueryHealthDailyStatistics(id: Int, payload: String) {",
+      calls: "bridge.dailyStatistics(plan)",
+    },
+  },
   queryHealthSamples: {
     sites: [
       {

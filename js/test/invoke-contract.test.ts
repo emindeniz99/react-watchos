@@ -58,6 +58,7 @@ import type {
   SleepSample,
 } from "../src/health";
 import {
+  queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,
@@ -201,6 +202,23 @@ const healthStatistics: HealthStatisticsResult = {
   startMs: 1_768_396_800_000,
   endMs: 1_768_483_200_000,
 };
+// Two contiguous daily buckets, the second EMPTY — `value: null` is what a
+// rest day looks like, and it has to ride a fixture or the Swift decoder never
+// sees the one field a bucketed series adds beyond the scalar query's.
+const healthDailyStatistics: HealthStatisticsResult[] = [
+  {
+    value: 8412,
+    unit: "count",
+    startMs: 1_768_396_800_000,
+    endMs: 1_768_483_200_000,
+  },
+  {
+    value: null,
+    unit: "count",
+    startMs: 1_768_483_200_000,
+    endMs: 1_768_569_600_000,
+  },
+];
 const healthSamples: HealthSample[] = [
   {
     startMs: 1_768_480_000_000,
@@ -301,6 +319,7 @@ const RESULTS: Record<string, unknown> = {
   searchPOI: poiResults,
   getCurrentLocation: coordinate,
   queryHealthStatistics: healthStatistics,
+  queryHealthDailyStatistics: healthDailyStatistics,
   queryHealthSamples: healthSamples,
   querySleepSamples: sleepSamples,
   endWorkout: workoutState,
@@ -405,6 +424,15 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       statistic: "sum",
       startMs: 1_768_396_800_000,
       endMs: 1_768_483_200_000,
+    });
+    // Same declared request shape as the scalar query — a bucket IS that
+    // aggregate over one day — so this fixture proves the bucketed wrapper
+    // still sends the identical payload rather than growing a private one.
+    await queryHealthDailyStatistics({
+      type: "stepCount",
+      statistic: "sum",
+      startMs: 1_768_396_800_000,
+      endMs: 1_769_001_600_000,
     });
     await queryHealthSamples({
       type: "heartRate",
@@ -553,6 +581,18 @@ describe("invoke contract fixtures (ARCH-11)", () => {
           statistic: "sum",
           startMs: 1_768_396_800_000,
           endMs: 1_768_483_200_000,
+        }),
+      ),
+    );
+    writeFixture(
+      "queryHealthDailyStatistics",
+      "response",
+      JSON.stringify(
+        await queryHealthDailyStatistics({
+          type: "stepCount",
+          statistic: "sum",
+          startMs: 1_768_396_800_000,
+          endMs: 1_768_569_600_000,
         }),
       ),
     );

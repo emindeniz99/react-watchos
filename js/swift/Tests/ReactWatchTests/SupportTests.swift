@@ -2706,6 +2706,64 @@ final class HealthQueryPlanTests: XCTestCase {
             try? HealthWindow.decode(startMs: 1, endMs: 2, limit: 0).get())
     }
 
+    func testADailyBucketBelongsToTheWindowItStartsInside() {
+        // The off-by-one Apple's own contract introduces, and the reason this
+        // rule is code: enumerateStatistics(from:to:) calls its block for "the
+        // time interval that CONTAINS the end date", so a week chart over
+        // [midnight, midnight + 7d) gets an eighth bucket starting exactly at
+        // endMs. Seven days in has to mean seven buckets out, or every caller
+        // re-derives the trim.
+        let day = 86_400_000.0
+        let window = try? HealthWindow.decode(
+            startMs: 0, endMs: 7 * day, limit: nil
+        ).get()
+        XCTAssertEqual(window?.containsBucketStart(0), true)
+        XCTAssertEqual(window?.containsBucketStart(6 * day), true)
+        // The boundary bucket: it STARTS where the window ends, so it is the
+        // eighth day of a seven-day question.
+        XCTAssertEqual(window?.containsBucketStart(7 * day), false)
+        XCTAssertEqual(window?.containsBucketStart(-day), false)
+    }
+
+    func testDailyPlanRefusesAWindowWiderThanTheBucketCeiling() {
+        // REFUSED, not clamped, unlike `limit`: a truncated series is a chart
+        // that lies about the range it was asked for. And the ceiling is the
+        // sample ceiling — a bucket costs the wire what a sample does, so there
+        // is one number here, not two rules to learn.
+        let day = 86_400_000.0
+        let ok = try? HealthStatisticsPlan.decodeDaily(
+            json: #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":604800000}"#
+        ).get()
+        XCTAssertEqual(ok?.window.dayCount, 7)
+        let past = Int(Double(HealthWindow.maxDailyBuckets + 1) * day)
+        let tooWide = HealthStatisticsPlan.decodeDaily(
+            json: #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":\#(past)}"#
+        )
+        guard case .failure(let error) = tooWide else {
+            return XCTFail("a window past the bucket ceiling must be refused")
+        }
+        XCTAssertTrue(error.message.contains("ceiling"))
+        // A partial day still counts as a bucket, so the count rounds UP.
+        let partial = try? HealthWindow.decode(
+            startMs: 0, endMs: day + 1, limit: nil
+        ).get()
+        XCTAssertEqual(partial?.dayCount, 2)
+    }
+
+    func testDailyPlanKeepsEveryRuleTheScalarQueryHas() {
+        // Chopping the window into buckets does not change which statistics
+        // HealthKit will compute for a type — the pairing still throws — so the
+        // bucketed decoder must not become a second, laxer door.
+        XCTAssertNil(
+            try? HealthStatisticsPlan.decodeDaily(
+                json: #"{"type":"stepCount","statistic":"average","startMs":0,"endMs":1}"#
+            ).get())
+        XCTAssertNil(
+            try? HealthStatisticsPlan.decodeDaily(
+                json: #"{"type":"stepCount","statistic":"sum","startMs":2,"endMs":1}"#
+            ).get())
+    }
+
     func testSamplesAndSleepPlansShareTheWindowRules() {
         let samples = try? HealthSamplesPlan.decode(
             json: #"{"type":"heartRate","startMs":1000,"endMs":2000,"limit":5}"#

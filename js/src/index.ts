@@ -207,6 +207,7 @@ export type {
   SleepStage,
 } from "./health";
 export {
+  queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,

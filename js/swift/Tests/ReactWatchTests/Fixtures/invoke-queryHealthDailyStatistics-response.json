@@ -1,0 +1,14 @@
+[
+  {
+    "value": 8412,
+    "unit": "count",
+    "startMs": 1768396800000,
+    "endMs": 1768483200000
+  },
+  {
+    "value": null,
+    "unit": "count",
+    "startMs": 1768483200000,
+    "endMs": 1768569600000
+  }
+]

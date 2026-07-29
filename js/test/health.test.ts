@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,
@@ -70,6 +71,54 @@ describe("health reads", () => {
     });
     expect(result.value).toBeNull();
     expect(result.unit).toBe("kcal");
+  });
+
+  it("asks for a week of buckets with ONE invoke, not seven", () => {
+    // The whole reason this method exists: the same chart used to cost seven
+    // queryHealthStatistics round trips, and seven HealthKit queries on a watch
+    // is a battery cost. The payload must stay the scalar query's payload —
+    // a bucket IS that aggregate over one day — so a private request shape
+    // here would be the drift this asserts against.
+    const day = 86_400_000;
+    const calls = installHost([]);
+    queryHealthDailyStatistics({
+      type: "stepCount",
+      statistic: "sum",
+      startMs: day,
+      endMs: 8 * day,
+    });
+    expect(calls).toEqual([
+      {
+        method: "queryHealthDailyStatistics",
+        payload: {
+          type: "stepCount",
+          statistic: "sum",
+          startMs: day,
+          endMs: 8 * day,
+        },
+      },
+    ]);
+  });
+
+  it("keeps an empty day as a null bucket rather than a gap", async () => {
+    // Contiguity is the contract: `enumerateStatistics` fills an empty interval
+    // with a nil quantity, so index n is day n and `.length` is the number of
+    // days asked for. `statistics()` would have skipped the rest day and made
+    // every caller re-derive which one it was.
+    const day = 86_400_000;
+    installHost([
+      { value: 8412, unit: "count", startMs: 0, endMs: day },
+      { value: null, unit: "count", startMs: day, endMs: 2 * day },
+    ]);
+    const buckets = await queryHealthDailyStatistics({
+      type: "stepCount",
+      statistic: "sum",
+      startMs: 0,
+      endMs: 2 * day,
+    });
+    expect(buckets).toHaveLength(2);
+    expect(buckets[1]?.value).toBeNull();
+    expect(buckets[1]?.startMs).toBe(day);
   });
 
   it("omits limit when the caller didn't set one", () => {

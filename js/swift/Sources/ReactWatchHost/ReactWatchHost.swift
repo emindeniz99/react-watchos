@@ -741,6 +741,8 @@ final class ReactWatchModel {
             handleRequestHealthAuthorization(id: id, payload: payload)
         case "queryHealthStatistics":
             handleQueryHealthStatistics(id: id, payload: payload)
+        case "queryHealthDailyStatistics":
+            handleQueryHealthDailyStatistics(id: id, payload: payload)
         case "queryHealthSamples":
             handleQueryHealthSamples(id: id, payload: payload)
         case "querySleepSamples":
@@ -2890,6 +2892,24 @@ extension ReactWatchModel {
             Task { [weak self] in
                 guard let bridge = self?.health else { return }
                 let outcome = await bridge.statistics(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// The bucketed sibling. Same request shape and the same validation, plus
+    /// the one rule only a collection has — a ceiling on the number of buckets
+    /// — which is why it decodes through `decodeDaily` rather than `decode`.
+    private func handleQueryHealthDailyStatistics(id: Int, payload: String) {
+        switch HealthStatisticsPlan.decodeDaily(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.dailyStatistics(plan)
                 self?.settleHealth(id: id, generation: gen, outcome)
             }
         }

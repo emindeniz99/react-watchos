@@ -93,6 +93,22 @@ import ReactWatchSupport
         }
     }
 
+    /// The quantity a given statistic reads off an `HKStatistics`. Shared by the
+    /// scalar and the bucketed query so the two cannot answer `"average"` with
+    /// different accessors — the class of drift the `options(for:)` table above
+    /// would not catch, because both halves compile either way.
+    private static func quantity(
+        _ statistic: HealthStatistic, from statistics: HKStatistics
+    ) -> HKQuantity? {
+        switch statistic {
+        case .sum: statistics.sumQuantity()
+        case .average: statistics.averageQuantity()
+        case .min: statistics.minimumQuantity()
+        case .max: statistics.maximumQuantity()
+        case .mostRecent: statistics.mostRecentQuantity()
+        }
+    }
+
     // MARK: - Authorization
 
     /// Runs the permission sheet for `plan` and reports the only honest signal
@@ -170,14 +186,9 @@ import ReactWatchSupport
         do {
             let result = try await descriptor.result(for: store)
             let unit = Self.unit(for: plan.kind)
-            let quantity: HKQuantity? =
-                switch plan.statistic {
-                case .sum: result?.sumQuantity()
-                case .average: result?.averageQuantity()
-                case .min: result?.minimumQuantity()
-                case .max: result?.maximumQuantity()
-                case .mostRecent: result?.mostRecentQuantity()
-                }
+            let quantity = result.flatMap {
+                Self.quantity(plan.statistic, from: $0)
+            }
             return .ok(
                 Self.json([
                     "value": quantity.map { $0.doubleValue(for: unit) } ?? NSNull(),
@@ -185,6 +196,66 @@ import ReactWatchSupport
                     "startMs": plan.window.startMs,
                     "endMs": plan.window.endMs,
                 ]))
+        } catch {
+            return .error(error.localizedDescription)
+        }
+    }
+
+    /// The same aggregate, once per DAY — `HKStatisticsCollectionQueryDescriptor`
+    /// (watchOS 8.5), which is one HealthKit round trip for a week chart that
+    /// used to cost seven `queryHealthStatistics` invokes. That is the whole
+    /// reason this exists: seven queries' worth of HealthKit work on a watch is
+    /// a battery cost, not a style preference.
+    ///
+    /// Two choices worth naming:
+    ///
+    /// - `anchorDate` is the window's OWN start, so the caller decides where a
+    ///   "day" begins by choosing `startMs`. That keeps the time zone in JS,
+    ///   where the calendar actually is — a `Calendar.current`-derived midnight
+    ///   here would silently disagree with the labels the caller renders.
+    /// - `enumerateStatistics(from:to:)`, not `statistics()`. Apple documents
+    ///   the latter as skipping intervals with no samples ("there may be
+    ///   arbitrarily large gaps"), which would return five buckets for a week
+    ///   the user rested twice and leave every caller re-deriving which days
+    ///   are missing. The former "calls the block once for each time interval"
+    ///   with a `nil`-valued quantity when a day is empty, which is exactly the
+    ///   `value: null` the scalar query already means.
+    func dailyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {
+        let type = Self.quantityType(for: plan.kind)
+        await ensureRequested([type])
+        let descriptor = HKStatisticsCollectionQueryDescriptor(
+            predicate: HKSamplePredicate.quantitySample(
+                type: type,
+                predicate: HKQuery.predicateForSamples(
+                    withStart: plan.window.start, end: plan.window.end)),
+            options: Self.options(for: plan.statistic),
+            anchorDate: plan.window.start,
+            intervalComponents: DateComponents(day: 1))
+        let unit = Self.unit(for: plan.kind)
+        let unitName = plan.kind.unit
+        let statistic = plan.statistic
+        let window = plan.window
+        do {
+            let collection = try await descriptor.result(for: store)
+            var buckets: [[String: Any]] = []
+            collection.enumerateStatistics(
+                from: window.start, to: window.end
+            ) { statistics, _ in
+                let startMs = statistics.startDate.timeIntervalSince1970 * 1000
+                // The off-by-one Apple's own contract introduces: the last
+                // interval is the one CONTAINING `end`, so a window ending on a
+                // bucket boundary yields one bucket too many. The rule lives in
+                // ReactWatchSupport so it is proven on Linux, not asserted here.
+                guard window.containsBucketStart(startMs) else { return }
+                let quantity = Self.quantity(statistic, from: statistics)
+                buckets.append([
+                    "value": quantity.map { $0.doubleValue(for: unit) } ?? NSNull(),
+                    "unit": unitName,
+                    "startMs": startMs,
+                    "endMs": statistics.endDate.timeIntervalSince1970 * 1000,
+                ])
+            }
+            return .ok(Self.json(buckets))
         } catch {
             return .error(error.localizedDescription)
         }

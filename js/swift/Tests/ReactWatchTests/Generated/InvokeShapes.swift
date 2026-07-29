@@ -493,6 +493,7 @@ enum InvokeShapes {
             try decodeStrict(HealthAuthorizationRequest.self, from: $0)
         },
         "queryHealthStatistics": { try decodeStrict(HealthStatisticsRequest.self, from: $0) },
+        "queryHealthDailyStatistics": { try decodeStrict(HealthStatisticsRequest.self, from: $0) },
         "queryHealthSamples": { try decodeStrict(HealthSamplesRequest.self, from: $0) },
         "querySleepSamples": { try decodeStrict(SleepSamplesRequest.self, from: $0) },
         "startWorkout": { try decodeStrict(StartWorkoutRequest.self, from: $0) },
@@ -524,6 +525,9 @@ enum InvokeShapes {
         "readReceivedFile": { try decodeStrict(ReceivedFileChunk.self, from: $0) },
         "queryPedometer": { try decodeStrict(PedometerData.self, from: $0) },
         "queryHealthStatistics": { try decodeStrict(HealthStatisticsResult.self, from: $0) },
+        "queryHealthDailyStatistics": {
+            try decodeStrict(arrayOf: HealthStatisticsResult.self, from: $0)
+        },
         "queryHealthSamples": { try decodeStrict(arrayOf: HealthSample.self, from: $0) },
         "querySleepSamples": { try decodeStrict(arrayOf: SleepSample.self, from: $0) },
         "endWorkout": { try decodeStrict(WorkoutState.self, from: $0) },

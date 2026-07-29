@@ -118,6 +118,35 @@ public struct HealthWindow: Equatable, Sendable {
     /// heart rate" is an out-of-memory kill, not a slow query.
     public static let maxLimit = 1000
 
+    /// Ceiling on the buckets one daily-collection query may return — the same
+    /// number as `maxLimit`, on purpose: a bucket costs the wire exactly what a
+    /// sample does, so there is ONE ceiling here, not two rules a caller has to
+    /// learn. Unlike `limit` this is not clamped but REFUSED (rule 12): a
+    /// silently truncated series is a chart that lies about the range it was
+    /// asked for, where a rejection names the window that was too wide.
+    public static var maxDailyBuckets: Int { maxLimit }
+
+    /// Whole days this window spans, rounded UP. Deliberately arithmetic rather
+    /// than calendar: this feeds a CEILING check, and a 23- or 25-hour DST day
+    /// cannot move a 1000-day window under the bar — while a `Calendar` here
+    /// would make the refusal depend on the device's time zone.
+    public var dayCount: Int {
+        Int(((endMs - startMs) / 86_400_000).rounded(.up))
+    }
+
+    /// Whether a bucket that STARTS at `bucketStartMs` belongs to this window.
+    ///
+    /// `HKStatisticsCollection.enumerateStatistics(from:to:)` calls its block
+    /// once per interval "between the start and end dates", and Apple documents
+    /// the final one as "the time interval that CONTAINS the end date" — so a
+    /// window ending exactly on a bucket boundary, which every
+    /// `[midnight, midnight + 7d)` week chart is, yields an eighth bucket
+    /// starting at `endMs`. Dropping it here is what makes "seven days in,
+    /// seven buckets out" true.
+    public func containsBucketStart(_ bucketStartMs: Double) -> Bool {
+        bucketStartMs >= startMs && bucketStartMs < endMs
+    }
+
     /// nil (with a reason) when the window is unusable. `endMs > startMs` is
     /// required rather than tolerated: an inverted or empty range resolves an
     /// empty result that a caller cannot tell from "no data", which is the one
@@ -183,6 +212,25 @@ public struct HealthStatisticsPlan: Equatable, Sendable {
         )
         .map {
             HealthStatisticsPlan(kind: kind, statistic: statistic, window: $0)
+        }
+    }
+
+    /// The same request, for the BUCKETED query — one aggregate per day rather
+    /// than one over the whole window. Every rule above still applies (the
+    /// statistic/type legality Apple enforces by throwing does not change
+    /// because the window is chopped up), plus the one rule only this query
+    /// has: a bound on how many buckets come back.
+    public static func decodeDaily(
+        json: String
+    ) -> Result<HealthStatisticsPlan, HealthRequestError> {
+        decode(json: json).flatMap { plan in
+            guard plan.window.dayCount <= HealthWindow.maxDailyBuckets else {
+                return invalid(
+                    "queryHealthDailyStatistics spans \(plan.window.dayCount) days, "
+                        + "over the \(HealthWindow.maxDailyBuckets)-bucket ceiling — "
+                        + "ask for a narrower window rather than a truncated series")
+            }
+            return .success(plan)
         }
     }
 }
