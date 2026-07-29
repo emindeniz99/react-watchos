@@ -527,7 +527,15 @@ extension WorkoutSessionOwner: HKLiveWorkoutBuilderDelegate {
         // uses for the off-main HealthKit reading callback.
         nonisolated(unsafe) let this = self
         DispatchQueue.main.async {
-            if let heartRate { this.onHeartRate?(heartRate) }
+            // Gated on the pump's desired-state latch, because `sensor.heartRate`
+            // is `startHeartRate`'s stream and an EXPLICIT workout collects heart
+            // rate whether or not anyone subscribed to it. Ungated, a workout
+            // started without startHeartRate pushed a listener-less event per
+            // collected sample for the whole session — the exact per-sample
+            // bridge cost `emitMetricsIfDue` coalescing exists to avoid. The
+            // latch is already the one that decides whether the pump comes back
+            // (restorePumpIfWanted), so this reuses it rather than adding a flag.
+            if this.wantHeartRate, let heartRate { this.onHeartRate?(heartRate) }
             this.emitMetricsIfDue()
         }
     }
