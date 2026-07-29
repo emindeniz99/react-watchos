@@ -5,9 +5,9 @@
 // (no Node/browser globals; one self-contained script the runtime evals).
 //
 // The preset resolves its OWN install-shims.ts, so a consumer only supplies
-// their entry + outfile. `nodePaths` should point at the consumer's
-// node_modules so the renderer's react/react-reconciler imports resolve to
-// the consumer's single copy (see README — React dedupe).
+// their entry + outfile. Every build through the preset is gated by
+// `singleCopyPlugin`: two copies of react in one bundle break hooks at boot,
+// and only the module graph can prove there is one (see single-copy.mts).
 
 import { mkdirSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
@@ -15,8 +15,14 @@ import { fileURLToPath } from "node:url";
 import type { BuildOptions, Plugin } from "esbuild";
 import { type OTAManifest, writeOTAManifest } from "./manifest.mts";
 import { reactCompilerPlugin } from "./react-compiler.mts";
+import { singleCopyPlugin } from "./single-copy.mts";
 
 export { reactCompilerPlugin } from "./react-compiler.mts";
+export {
+  findDuplicateCopies,
+  SINGLE_COPY_PACKAGES,
+  singleCopyPlugin,
+} from "./single-copy.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -39,7 +45,12 @@ export interface WatchBuildOptions {
    * fewer commits). Needs Babel dev deps — see esbuild/react-compiler.mts.
    */
   reactCompiler?: boolean;
-  /** Extra resolution roots (consumer's node_modules, for single-React dedupe). */
+  /**
+   * Extra resolution roots. This is an esbuild *fallback*, consulted only when
+   * normal walk-up resolution fails — it cannot override a react the renderer
+   * already has next to it, so it is not a dedupe mechanism. Matching version
+   * ranges are; `singleCopyPlugin` is what proves it.
+   */
   nodePaths?: string[] | undefined;
   /** Extra esbuild plugins. */
   plugins?: Plugin[];
@@ -76,7 +87,9 @@ export function watchBuildOptions({
       "process.env.NODE_ENV": '"production"',
       "process.env.BUNDLE_VERSION": '"1"',
     },
-    plugins,
+    plugins: [...plugins, singleCopyPlugin()],
+    // Read by singleCopyPlugin to count react copies in the module graph.
+    metafile: true,
     ...(nodePaths ? { nodePaths } : {}),
     minify,
     logLevel: "info",

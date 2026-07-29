@@ -259,7 +259,15 @@ packing the tarball and type-checking a consumer app against it.
 
 ## React dedupe (single instance)
 
-Inside this repo's pnpm workspace, `workspace:*` dedupes React automatically.
+What dedupes React is **overlapping version ranges**, not `workspace:*` and not
+the preset's `nodePaths` (an esbuild fallback, consulted only when normal
+walk-up resolution fails). A `react` your app pins exactly next to a different
+`react` the renderer resolves gives you two copies in one bundle even inside
+this workspace — which is why every build through `watchBuildOptions` /
+`buildBundles` fails loudly if the module graph contains more than one
+(`esbuild/single-copy.mts`). Keep your `react` range overlapping the one
+`react-watchos` resolves.
+
 Consuming from **outside** the workspace (a `file:`/`link:` dependency, which
 resolves via realpath) needs three settings — esbuild `nodePaths`, vitest
 `resolve.dedupe`, and tsc `preserveSymlinks: true` — see

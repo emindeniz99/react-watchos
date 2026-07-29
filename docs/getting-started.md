@@ -82,9 +82,12 @@ import { watchBuildOptions } from "react-watchos/build"; // esbuild preset
 ```
 
 - **Single React instance:** react / react-reconciler are peers — your app
-  provides the one copy. In this workspace `workspace:*` dedupes it
-  automatically; published, a normal install + the build preset's `nodePaths`
-  does the same. Two copies silently break hooks/context.
+  provides the one copy. What makes an install produce one copy is your
+  `react` range *overlapping* the renderer's, in this workspace as much as
+  outside it (`workspace:*` and the preset's `nodePaths` do not dedupe on
+  their own). Two copies break hooks: the reconciler binds the dispatcher to
+  one and your components read the other. The build preset checks the module
+  graph and fails rather than emitting such a bundle.
 - **No copied build config:** `watchBuildOptions({ entry, outfile })` is the
   QuickJS-correct esbuild preset (shim inject, es2020, neutral IIFE).
 - **Extending natively:** `getHost()` + `QuickJSHostGlobal` are public — see

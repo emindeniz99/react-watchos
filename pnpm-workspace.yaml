@@ -4,9 +4,12 @@
 #   examples/*    consumer apps that depend on it via `workspace:*`
 #   app           the reference Expo iPhone app + watch target (native host)
 #
-# The workspace is what makes `import "react-watchos"` resolve with a
-# single React instance for every consumer — no esbuild alias / nodePaths /
-# tsconfig-paths glue.
+# The workspace is what makes `import "react-watchos"` resolve without esbuild
+# alias / nodePaths / tsconfig-paths glue. It does NOT by itself give every
+# consumer a single React: that needs each member's `react` range to overlap
+# js/'s (an exact pin here next to a caret floor there resolves to two copies,
+# and both land in the member's watch bundle). The build preset's single-copy
+# check is what proves it — see js/esbuild/single-copy.mts.
 packages:
   - js
   - examples/*
