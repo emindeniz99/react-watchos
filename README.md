@@ -30,14 +30,17 @@ function App() {
 Four reasons to pick this over writing SwiftUI by hand, in the order they
 actually matter:
 
-1. **The complication is the product, and it's fully bound.** Watch usage
-   has moved from the app grid to the face and the Smart Stack. Here the
+1. **The complication is the product, and the whole surface is bound.** Watch
+   usage has moved from the app grid to the face and the Smart Stack. Here the
    *app's React* renders WidgetKit timelines — including future-dated entries
    and Smart Stack relevance clues (all 8 RelevanceKit families) — and the
    widget extension embeds its own QuickJS, so a Control Center button or an
    AppIntent can update shared state and republish **with the app closed**.
    Payloads carry provenance (`stateRevision` + `releaseId`), so a widget can
-   tell fresh data from stale.
+   tell fresh data from stale. ("Bound" = the API surface exists and is
+   tested; how far each piece is *verified* — Linux, watch-compiled, on a
+   device — is [docs/status.md](./docs/status.md)'s job, and Smart Stack
+   surfacing itself stays device-only.)
 2. **It runs without the phone.** Standalone by default
    (`WKRunsIndependentlyOfCompanionApp`), `fetch` over the watch's own radio,
    the watch's own APNs token, App-Group storage shared with the widget. The
