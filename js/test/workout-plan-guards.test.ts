@@ -165,6 +165,28 @@ describe("every scheduler mutation is verified by read-back", () => {
     expect(src).toContain("the scheduler removed nothing");
   });
 
+  it("refuses an (id, minute) already scheduled, so the read-back is not vacuous", () => {
+    // `matches` is a KEY test — id plus minute, nothing about the composition.
+    // So if that pair is ALREADY stored when `schedule` is called, the read-back
+    // below finds the old entry no matter what the write did, and the invoke
+    // resolves a summary whether WorkoutKit replaced the plan, ignored the
+    // second call, or stored a duplicate. Apple documents none of the three:
+    // `schedule(_:at:)`'s docs JSON says only "Schedules the provided workout at
+    // the specified date." Refusing the collision BEFORE the mutation is what
+    // makes the pair provably absent beforehand — which is the only thing that
+    // turns "it is there afterwards" into "this call stored it".
+    const body = code(functionBody(read(BRIDGE), "    func schedule("));
+    const refused = body.indexOf("!existing.contains(where:");
+    expect(
+      refused,
+      "the (id, minute) collision is not refused — the read-back confirms itself",
+    ).toBeGreaterThan(-1);
+    expect(
+      body.indexOf("await scheduler.schedule("),
+      "the collision refusal must precede the mutation, like the quota does",
+    ).toBeGreaterThan(refused);
+  });
+
   it("the read-back keys on the plan id, not just the minute", () => {
     // The other half of the `(id, minute)` key, and the half with teeth: drop
     // it and `matches` answers "yes" for ANY plan sitting at that minute. The

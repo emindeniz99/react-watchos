@@ -132,6 +132,24 @@ import WorkoutKit
                 "the scheduler already holds \(existing.count) of its \(quota) "
                     + "allowed scheduled workouts — remove one first")
         }
+        // Refused BEFORE the mutation for the same reason as the quota, and it
+        // is what keeps the read-back below from confirming itself: `matches`
+        // is an `(id, minute)` KEY test, so if that pair is already stored, a
+        // post-write read finds the OLD entry whether the write replaced it,
+        // was ignored, or stored a second copy — and Apple documents none of
+        // the three. Refusing the collision makes the pair provably absent
+        // before the write, so finding it after really does mean this call
+        // landed. The caller re-saving an edited plan removes it first, with
+        // `removeScheduledWorkoutPlan`, which is itself read-back verified.
+        guard
+            !existing.contains(where: {
+                Self.matches($0, id: plan.id, atMs: spec.atMs, calendar: calendar)
+            })
+        else {
+            return .invalid(
+                "a plan with id \(plan.id.uuidString) is already scheduled at "
+                    + "that minute — remove it first")
+        }
         let at = WorkoutPlanSchedule.components(fromMs: spec.atMs, calendar: calendar)
         await scheduler.schedule(plan, at: at)
         let stored = await scheduler.scheduledWorkouts

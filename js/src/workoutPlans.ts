@@ -395,6 +395,12 @@ export function requestWorkoutPlanAuthorization(): Promise<WorkoutPlanAuthorizat
  * - Every goal and alert is put through Apple's `supports*` checks before the
  *   plan is built, so an illegal combination rejects `INVALID_REQUEST` naming
  *   the failing path.
+ * - Scheduling an `id` that is **already scheduled at that same minute**
+ *   rejects `INVALID_REQUEST` — remove it first. Apple documents nothing about
+ *   what a second `schedule` of the same pair does (replace it, ignore it, or
+ *   store a duplicate), and the read-back below is an `(id, minute)` test, so
+ *   allowing it would resolve a "saved" that could not be verified. Re-saving
+ *   an edited plan is {@link removeScheduledWorkoutPlan} then this.
  * - If the scheduler stores nothing, this rejects `UNAVAILABLE` saying so
  *   rather than resolving a success that did not happen.
  *

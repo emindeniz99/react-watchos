@@ -8,7 +8,7 @@
 
 > **scheduleWorkoutPlan**(`plan`, `at`): `Promise`\<[`ScheduledWorkoutSummary`](../interfaces/ScheduledWorkoutSummary.md)\>
 
-Defined in: [js/src/workoutPlans.ts:404](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L404)
+Defined in: [js/src/workoutPlans.ts:410](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L410)
 
 Schedules `plan` at `at` and resolves the summary the scheduler actually
 holds — **read back after writing**, never assumed.
@@ -22,6 +22,12 @@ holds — **read back after writing**, never assumed.
 - Every goal and alert is put through Apple's `supports*` checks before the
   plan is built, so an illegal combination rejects `INVALID_REQUEST` naming
   the failing path.
+- Scheduling an `id` that is **already scheduled at that same minute**
+  rejects `INVALID_REQUEST` — remove it first. Apple documents nothing about
+  what a second `schedule` of the same pair does (replace it, ignore it, or
+  store a duplicate), and the read-back below is an `(id, minute)` test, so
+  allowing it would resolve a "saved" that could not be verified. Re-saving
+  an edited plan is [removeScheduledWorkoutPlan](removeScheduledWorkoutPlan.md) then this.
 - If the scheduler stores nothing, this rejects `UNAVAILABLE` saying so
   rather than resolving a success that did not happen.
 

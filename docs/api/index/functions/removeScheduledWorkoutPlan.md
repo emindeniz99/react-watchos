@@ -8,7 +8,7 @@
 
 > **removeScheduledWorkoutPlan**(`id`, `at`): `Promise`\<`boolean`\>
 
-Defined in: [js/src/workoutPlans.ts:435](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L435)
+Defined in: [js/src/workoutPlans.ts:441](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L441)
 
 Removes one scheduled plan by the `(id, at)` pair it was scheduled with, and
 resolves **whether it was there**.
