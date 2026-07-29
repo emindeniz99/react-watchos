@@ -62,11 +62,45 @@ describe("an inbound file is moved before anything else can happen", () => {
       "/// Terminal state of an OUTBOUND transfer",
     );
     const adopt = body.indexOf("inbox.adopt(");
-    const prune = body.indexOf("inbox.prune()");
+    const prune = body.indexOf("inbox.prune(");
     const hop = body.indexOf("deliver(");
     expect(adopt).toBeGreaterThan(-1);
     expect(prune).toBeGreaterThan(adopt);
     expect(hop).toBeGreaterThan(prune);
+  });
+
+  it("never prunes a file whose event is still queued on main", () => {
+    // The other half of the same hazard, and it is silent in BOTH directions.
+    // `deliver` only SCHEDULES onto main while this delegate runs on
+    // WatchConnectivity's background thread, so a backlog (WCSession's file
+    // queue survives suspension) can outrun main by more than `maxFiles` and
+    // prune a path JS has not been handed yet. Nothing reports it, and
+    // `FileInbox.resolve` still accepts the dead path, so `deleteReceivedFile`
+    // on it returns success. The protected set is the coupling: taken BEFORE
+    // the prune, released only after the handler has actually run.
+    const body = slice(
+      read(CONNECTIVITY),
+      "func session(_: WCSession, didReceive file: WCSessionFile) {",
+      "/// Terminal state of an OUTBOUND transfer",
+    );
+    const insert = body.indexOf("pendingReceipts.insert(landed)");
+    const prune = body.indexOf("inbox.prune(protecting: protected)");
+    const release = body.indexOf("pendingReceipts.release(landed)");
+    expect(insert).toBeGreaterThan(-1);
+    expect(prune).toBeGreaterThan(insert);
+    // The release must be the delivery's COMPLETION, not another statement on
+    // this background thread — releasing here would restore the whole race.
+    expect(release).toBeGreaterThan(prune);
+    expect(body).toContain("then: { [pendingReceipts] in");
+    // And `deliver` has to actually run it after the handler, on main.
+    const deliver = slice(
+      read(CONNECTIVITY),
+      "then completion: (@Sendable () -> Void)? = nil",
+      "\n    }\n",
+    );
+    expect(deliver.indexOf("completion?()")).toBeGreaterThan(
+      deliver.indexOf("handler?(event, payload)"),
+    );
   });
 
   it("reduces the sender's metadata to JSON before it crosses the bridge", () => {

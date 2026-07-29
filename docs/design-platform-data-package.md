@@ -106,6 +106,26 @@ through `FileInbox.resolve`, which standardizes `..` away *before* comparing
 prefixes — without it a bundle could ask the host to delete anything in the
 container.
 
+`deleteReceivedFile` alone is not a sufficient mitigation, though, and the gap
+is the one place the LRU could bite hardest: an app **cannot** release a file
+whose event it has not received yet. The prune runs inline on the delegate's
+background thread while `deliver` only *schedules* onto main, so a backlog —
+WCSession's file queue survives suspension, so a relaunch can deliver one
+back-to-back — can outrun main by more than 32 and delete a path JS was never
+handed. Silent in both directions: nothing reports it, and `FileInbox.resolve`
+still accepts the dead path, so `deleteReceivedFile` on it returns success.
+
+So retention takes a **protected set**: `FileInbox.victims`/`prune` accept URLs
+that are never dropped, and `PhoneConnectivity` holds a path protected from the
+moment it lands until its `watchConnectivity.file` event has actually *run* on
+main (`deliver`'s `then:` completion, not its scheduling). Protected entries
+keep their place in the newest-first ordering, so an empty set behaves
+identically to the plain rule. The trade-off is deliberate: while a burst is
+undelivered the inbox may exceed 32, collapsing back as soon as main drains —
+bounded by burst size. Capping the protected set would give a hard 2× ceiling
+but reintroduce the dead path for the oldest undelivered file, which is the bug
+the set exists to close.
+
 `FileInbox` lives in `ReactWatchSupport` and is unit-tested on Linux against a
 real temporary directory: sanitization of the sender-supplied name, the
 retention rule, and the containment check.

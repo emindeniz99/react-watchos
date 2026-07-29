@@ -3121,6 +3121,66 @@ final class FileInboxTests: XCTestCase {
             FileInbox.victims(stale, now: now, maxFiles: 32, maxAge: 100).isEmpty)
     }
 
+    func testRetentionNeverDropsAFileWhoseEventIsStillInFlight() {
+        // `session(_:didReceive:)` adopts on WatchConnectivity's background
+        // thread but only SCHEDULES the `watchConnectivity.file` event onto
+        // main, so a burst can outrun main by more than `maxFiles` and prune a
+        // path JS was never handed. That loss is silent in both directions —
+        // no diagnostic fires, and `resolve` still accepts the dead path, so
+        // `deleteReceivedFile` on it returns success. `protected` is the
+        // coupling that stops it.
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let entries = (0..<5).map { index in
+            FileInbox.Entry(
+                url: URL(fileURLWithPath: "/inbox/\(index)"),
+                modified: now.addingTimeInterval(Double(-index)))
+        }
+        // Both rules must yield to it: "4" is past the count bound AND stale.
+        XCTAssertEqual(
+            FileInbox.victims(
+                entries, now: now, maxFiles: 3, maxAge: 2,
+                protected: [URL(fileURLWithPath: "/inbox/4")]
+            ).map(\.lastPathComponent),
+            ["3"])
+        // Protecting everything drops nothing, however old.
+        XCTAssertTrue(
+            FileInbox.victims(
+                entries, now: now, maxFiles: 1, maxAge: 0,
+                protected: Set(entries.map(\.url))
+            ).isEmpty)
+        // An empty set is byte-identical to the plain rule: protected entries
+        // keep their PLACE in the newest-first ordering rather than being
+        // lifted out of it, so nothing shifts when the set is empty.
+        XCTAssertEqual(
+            FileInbox.victims(entries, now: now, maxFiles: 3, maxAge: 2, protected: []),
+            FileInbox.victims(entries, now: now, maxFiles: 3, maxAge: 2))
+    }
+
+    func testPruneProtectsAnUndeliveredFileOnDisk() throws {
+        let box = inbox()
+        var landed: [URL] = []
+        for index in 0..<3 {
+            landed.append(
+                try box.adopt(
+                    try makeFile("f\(index).txt"), receivedAtMs: 1000 + index,
+                    sequence: index, name: "f\(index).txt"))
+        }
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        for url in landed {
+            try FileManager.default.setAttributes(
+                [.modificationDate: now.addingTimeInterval(-FileInbox.maxAge - 60)],
+                ofItemAtPath: url.path)
+        }
+        // Every file is stale, but the one still in flight survives on disk.
+        let removed = box.prune(now: now, protecting: [landed[0]])
+        XCTAssertEqual(Set(removed), Set(landed.dropFirst()))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: landed[0].path))
+        // Once its event has run and the protection is dropped, the ordinary
+        // rule reclaims it — the bound is delayed, not abandoned.
+        XCTAssertEqual(box.prune(now: now), [landed[0]])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: landed[0].path))
+    }
+
     func testPruneDeletesOnDiskAndSurvivesAMissingInbox() throws {
         let box = inbox()
         var landed: [URL] = []

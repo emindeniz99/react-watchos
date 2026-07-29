@@ -241,8 +241,15 @@ export function deleteReceivedFile(path: string): Promise<void> {
 /**
  * Runs `handler` for each file the iPhone sends. The file has already been
  * moved out of the system's temporary directory into this app's inbox (native
- * must do that synchronously or the system deletes it), so `path` is readable
- * for as long as you keep it. Returns an unsubscribe.
+ * must do that synchronously or the system deletes it), so `path` is live when
+ * your handler runs. Returns an unsubscribe.
+ *
+ * **It is not yours forever.** The inbox keeps the newest 32 files / 7 days and
+ * prunes on every receive, exactly as {@link deleteReceivedFile} describes.
+ * Native will not delete a file whose event has not reached you yet — that is
+ * guaranteed — but once this handler returns, the next burst of arrivals can
+ * reclaim it. Copy the bytes out if you need them past the current burst, and
+ * call {@link deleteReceivedFile} when you are done.
  */
 export function onReceivedFile(
   handler: (file: ReceivedFile) => void,

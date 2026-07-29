@@ -391,7 +391,13 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         }
     }
 
-    private func deliver(_ event: String, _ message: [String: Any]) {
+    /// Hops to main and runs `onPush`. `completion` runs on main immediately
+    /// AFTER the handler, which is the only moment a caller can know JS has
+    /// actually been handed the event rather than merely scheduled to be.
+    private func deliver(
+        _ event: String, _ message: [String: Any],
+        then completion: (@Sendable () -> Void)? = nil
+    ) {
         // WCSession delegate callbacks arrive off the main queue; hop to main
         // for onPush. The payload is plain JSON and the handler runs only on
         // main, so transferring them is safe — under Swift 6 strict concurrency
@@ -399,8 +405,40 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         // into the @Sendable closure without sending `self`.
         nonisolated(unsafe) let handler = onPush
         nonisolated(unsafe) let payload = message
-        DispatchQueue.main.async { handler?(event, payload) }
+        DispatchQueue.main.async {
+            handler?(event, payload)
+            completion?()
+        }
     }
+
+    /// The inbox paths whose `watchConnectivity.file` event has been scheduled
+    /// but not yet run. Written from WatchConnectivity's background thread
+    /// (`didReceive`) and cleared on main (after the handler), so it carries
+    /// its own lock rather than borrowing `transferLock`, which guards the
+    /// OUTBOUND maps. A small `Sendable` box so the delivery closure can
+    /// capture it instead of `self` — the same constraint `deliver` documents
+    /// for its `nonisolated(unsafe)` captures.
+    private final class PendingReceipts: @unchecked Sendable {
+        private let lock = NSLock()
+        private var urls: Set<URL> = []
+
+        /// Adds `url` and returns the whole in-flight set, so the caller reads
+        /// a consistent snapshot under the same acquisition as the write.
+        func insert(_ url: URL) -> Set<URL> {
+            lock.lock()
+            defer { lock.unlock() }
+            urls.insert(url)
+            return urls
+        }
+
+        func release(_ url: URL) {
+            lock.lock()
+            defer { lock.unlock() }
+            urls.remove(url)
+        }
+    }
+
+    private let pendingReceipts = PendingReceipts()
 
     func session(
         _: WCSession, didReceiveMessage message: [String: Any]
@@ -452,8 +490,17 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
             return
         }
         // Bound the inbox AFTER the file is safe, never before: a prune that
-        // threw would otherwise take the delivery down with it.
-        inbox.prune()
+        // threw would otherwise take the delivery down with it. And never at
+        // the cost of a file whose event is still in flight — `deliver` only
+        // SCHEDULES onto main, while this runs on WatchConnectivity's
+        // background thread, so a burst of receives (WCSession's file queue
+        // survives suspension, so a relaunch can deliver a backlog back-to-back)
+        // can outrun main by more than `maxFiles` and prune a path JS has not
+        // been handed yet. That loss is silent twice over: nothing reports it,
+        // and `resolve` still accepts the dead path, so `deleteReceivedFile` on
+        // it returns success.
+        let protected = pendingReceipts.insert(landed)
+        inbox.prune(protecting: protected)
         let attributes = try? FileManager.default.attributesOfItem(
             atPath: landed.path)
         deliver(
@@ -475,7 +522,11 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
                 // survive and only the offending leaf is dropped.
                 "metadata": RemotePushWire.sanitize(file.metadata ?? [:]),
                 "receivedAt": receivedAtMs,
-            ])
+            ],
+            // Released only once JS has actually run, so the next receive's
+            // prune is free to bound the inbox again. Captured by value so the
+            // closure never sends `self`.
+            then: { [pendingReceipts] in pendingReceipts.release(landed) })
     }
 
     /// Terminal state of an OUTBOUND transfer. Called on a background thread,

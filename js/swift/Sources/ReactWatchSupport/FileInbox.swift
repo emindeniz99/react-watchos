@@ -142,13 +142,30 @@ public struct FileInbox: Sendable, Equatable {
     /// Which entries retention drops: everything past `maxFiles` newest-first,
     /// plus everything older than `maxAge`. Pure, so the rule is testable
     /// without a filesystem.
+    ///
+    /// `protected` is never dropped, whatever its age or position. The caller
+    /// that receives files delivers their events ASYNCHRONOUSLY, so a file can
+    /// be on disk before JS has been handed its path; deleting it then is
+    /// silent loss the app cannot even report, because `deleteReceivedFile`
+    /// needs the path it never got. Protected entries keep their place in the
+    /// newest-first ordering rather than being lifted out of it, so an empty
+    /// set behaves byte-identically to the plain rule.
+    ///
+    /// The bound this relaxes is a bound on STEADY state, not a hard ceiling:
+    /// while a burst is still undelivered the inbox may hold more than
+    /// `maxFiles`, collapsing back as soon as the events drain. That overshoot
+    /// is bounded by the burst size. Capping the protected set instead would
+    /// give a hard 2x ceiling but would reintroduce the dead path for the
+    /// oldest undelivered file, which is the bug this parameter exists to fix.
     public static func victims(
         _ entries: [Entry], now: Date,
-        maxFiles: Int = FileInbox.maxFiles, maxAge: TimeInterval = FileInbox.maxAge
+        maxFiles: Int = FileInbox.maxFiles, maxAge: TimeInterval = FileInbox.maxAge,
+        protected: Set<URL> = []
     ) -> [URL] {
         let newestFirst = entries.sorted { $0.modified > $1.modified }
         var drop: [URL] = []
         for (index, entry) in newestFirst.enumerated() {
+            if protected.contains(entry.url) { continue }
             if index >= maxFiles
                 || now.timeIntervalSince(entry.modified) > maxAge
             {
@@ -163,7 +180,8 @@ public struct FileInbox: Sendable, Equatable {
     /// housekeeping on the receive path and must never fail a delivery.
     @discardableResult
     public func prune(
-        now: Date = Date(), fileManager: FileManager = .default
+        now: Date = Date(), protecting protected: Set<URL> = [],
+        fileManager: FileManager = .default
     ) -> [URL] {
         guard
             let contents = try? fileManager.contentsOfDirectory(
@@ -178,7 +196,7 @@ public struct FileInbox: Sendable, Equatable {
                 ).contentModificationDate) ?? .distantPast)
         }
         var removed: [URL] = []
-        for url in Self.victims(entries, now: now) {
+        for url in Self.victims(entries, now: now, protected: protected) {
             if (try? fileManager.removeItem(at: url)) != nil { removed.append(url) }
         }
         return removed
