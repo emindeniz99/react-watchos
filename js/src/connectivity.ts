@@ -23,6 +23,26 @@ import {
  * dashboard data) → updateApplicationContext; must-not-drop event streams
  * (logged workouts, purchases) → transferUserInfo; bytes that aren't a
  * property list (an audio clip, an export, an image) → transferFile.
+ *
+ * ### Everything INBOUND is reduced to JSON, per key and silently
+ *
+ * Apple's contract for these channels is that the sender's dictionary holds
+ * PROPERTY LIST values, and WatchConnectivity hands each delegate that
+ * dictionary verbatim. A property list is a wider type than JSON, so a `Date`,
+ * a `Data`, or a non-finite number is the sending iPhone using Apple's API
+ * exactly as documented — and this bridge cannot carry it. The host DROPS such
+ * a leaf and delivers the rest, rather than losing the whole payload.
+ *
+ * That reduction applies to every inbound plist — {@link onPhoneMessage},
+ * {@link onApplicationContext}, {@link onUserInfo}, {@link ReceivedFile.metadata},
+ * and the reply {@link sendToPhone} resolves — and it is **not reported**:
+ * nothing rejects, no `onError`/diagnostic fires, and the key is simply absent,
+ * indistinguishable from one the sender never set. A container is reduced, never
+ * dropped, so an all-unbridgeable object/array arrives as `{}`/`[]`.
+ *
+ * Send `completedAt` as `Date.now()` (a number) or an ISO string, not a `Date`,
+ * and bytes as {@link transferFile} rather than a `Data` leaf. Background:
+ * `docs/design-platform-data-package.md` §"Everything inbound is a property list".
  */
 export const PHONE_MESSAGE_EVENT = "watchConnectivity";
 export const APPLICATION_CONTEXT_EVENT = "watchConnectivity.applicationContext";
@@ -40,6 +60,10 @@ export const CONNECTIVITY_STATE_EVENT = "watchConnectivity.state";
  * couldn't be delivered, or there's no connectivity-capable host — so a failed
  * send no longer vanishes. Uses WCSession.sendMessage under the hood, which
  * needs the counterpart reachable.
+ *
+ * The REPLY is reduced to JSON like every other inbound plist — a `Date`/`Data`
+ * leaf the phone legitimately replied with is dropped per-key and silently; see
+ * the inbound reduction note at the top of this module.
  */
 export function sendToPhone(
   message: Record<string, unknown>,
@@ -47,7 +71,10 @@ export function sendToPhone(
   return invoke("sendToPhone", message);
 }
 
-/** Registers a handler for messages pushed from the iPhone. Returns an unsubscribe. */
+/** Registers a handler for messages pushed from the iPhone. Returns an
+ *  unsubscribe. The payload is reduced to JSON — a `Date`/`Data` leaf the phone
+ *  legitimately sent is dropped per-key and silently; see the inbound reduction
+ *  note at the top of this module. */
 export function onPhoneMessage(handler: NativeEventHandler): Unsubscribe {
   return registerNativeListener(PHONE_MESSAGE_EVENT, handler);
 }
@@ -80,13 +107,18 @@ export function transferUserInfo(
 }
 
 /** Latest-wins context pushed from the iPhone (its `updateApplicationContext`).
- *  Returns an unsubscribe. */
+ *  Returns an unsubscribe. The payload is reduced to JSON — a `Date`/`Data` leaf
+ *  the phone legitimately sent is dropped per-key and silently; see the inbound
+ *  reduction note at the top of this module. */
 export function onApplicationContext(handler: NativeEventHandler): Unsubscribe {
   return registerNativeListener(APPLICATION_CONTEXT_EVENT, handler);
 }
 
 /** Queued userInfo transfers from the iPhone, delivered in order (its
- *  `transferUserInfo`). Returns an unsubscribe. */
+ *  `transferUserInfo`). Returns an unsubscribe. Every ITEM is delivered, but
+ *  each is reduced to JSON — a `Date`/`Data` leaf the phone legitimately sent is
+ *  dropped per-key and silently; see the inbound reduction note at the top of
+ *  this module. */
 export function onUserInfo(handler: NativeEventHandler): Unsubscribe {
   return registerNativeListener(USER_INFO_EVENT, handler);
 }
@@ -151,7 +183,11 @@ export interface ReceivedFile {
   /** The name the sender gave the file. */
   name: string;
   size: number;
-  /** Whatever the sender passed as `metadata`; `{}` when it sent none. */
+  /** What the sender passed as `metadata`, REDUCED TO JSON — see the inbound
+   *  reduction note at the top of this module. A `Date`/`Data`/non-finite leaf
+   *  the sender legitimately put in this property list is dropped per-key and
+   *  silently, so a key it set can be missing here, and `{}` means EITHER "sent
+   *  none" OR "every value was unbridgeable". */
   metadata: Record<string, unknown>;
   /** ms since epoch, stamped when the file landed. */
   receivedAt: number;
