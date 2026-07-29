@@ -25,6 +25,83 @@ on-device (Xcode) verification rather than ground out blind. Done-ness is also i
 Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Support`
 (`swift test`). NOT in-loop: `ReactWatchHost`/widget UI, target wiring (Xcode).
 
+### Session 2026-07-29 — PLATFORM-DATA hardening (the five follow-ups the package recorded)
+
+Five items, five commits, no new subsystem: everything here was already written
+down — three as follow-ups in the package's own build-log entry and design
+record, two as "not part of this minimal fix" notes on the blockers that shipped
+before them. **The through-line is that four of the five are the same failure
+mode: a rule that was applied at ONE site when it belonged at the boundary, or a
+default that chose deletion when it could not decide.**
+
+- **The plist→JSON reduction moved to the boundary.** `didReceiveMessage` /
+  `…ApplicationContext` / `…UserInfo` handed their dictionaries to `deliver`
+  verbatim; a `Date` or `Data` leaf — the WatchConnectivity API used exactly as
+  Apple documents it, from an iPhone app this library cannot constrain — makes
+  the WHOLE payload unserializable, so JS gets `undefined` and the event is lost
+  with no diagnostic. The file channel had this closed at the call site, and
+  that is precisely the shape that failed. It now lives in `deliver`, the one
+  place a payload leaves `PhoneConnectivity`, with a guard pinning that `onPush`
+  is called nowhere else. **Also fixed, same class, one line:** the phone's
+  `sendMessage` REPLY, which settles an invoke rather than travelling through
+  `deliver` — and is the worse instance, since Apple documents
+  `data(withJSONObject:)` as raising an uncatchable ObjC exception on an invalid
+  type where Linux merely degrades to `{}`.
+- **Retention fails closed on an unknown date.** `prune` fell back to
+  `.distantPast` when `contentModificationDateKey` was unreadable — "older than
+  everything", i.e. DELETE, on the receive path, decided by an attribute the app
+  cannot read, with nothing reporting it. Unknown now means newest. The rule is
+  extracted to `FileInbox.retentionDate` because the unreadable state cannot be
+  synthesized on Linux (probed: a broken symlink still reports the link's own
+  date), so the DECISION is tested rather than the I/O. Trade-off recorded: such
+  an entry occupies a `maxFiles` slot, which keeps the inbox bounded.
+- **`readReceivedFile` — the recorded fallback, built.** `fetch(path)` was the
+  only documented way to read a received file and it failed three ways:
+  `status: 0` / `ok === false` on a read that succeeded (a `file://` load is not
+  an `HTTPURLResponse`), a 5 MiB body cap with no matching cap on the sending
+  phone and no Range on `file://` (so a larger file was **permanently
+  unreadable** — a functional hole, not a doc gap), and a `network` feature gate
+  while every file op is `connectivity` (so a narrowed bundle received files it
+  could not open). One op answers all three: gated on `connectivity` with the
+  receive, **chunked** so the ceiling bounds a chunk and not the file, and
+  rejecting `INVALID_REQUEST` by name instead of resolving something
+  failure-shaped. The ceiling REFERENCES `FetchResponse.defaultMaxBodyBytes`
+  rather than repeating it and is deliberately not a `BudgetPolicy` entry —
+  budgets are soft because `WCError` is the authority there; the QuickJS heap is
+  a hard one. Non-final chunks are trimmed to a multiple of 3 so successive
+  `base64` strings CONCATENATE; untrimmed, `atob(a + b)` returns quietly wrong
+  bytes at every boundary. Containment, clamp, ceiling and decode all sit in
+  `FileInbox` under `swift test`; a guard fails if the watchOS adapter starts
+  deciding anything.
+- **`onScenePhase`** — the typed wrapper `appState.ts` was named as the home
+  for. An allowlist, not a cast: an unnameable phase reports `active`, making
+  such a push equivalent to no push. It joins `REPLAYED_EVENTS` on that
+  mechanism's own test (level-triggered state, pushed on every transition, so
+  the last payload IS the current phase), with the asymmetry written down —
+  there is no boot-time push for `scenePhase`, so replay covers "subscribed
+  after a transition", not "before the first one". Adding that push is a native
+  change with a `handleScenePhase` side effect at boot and was not smuggled in.
+- **`widgetRenderingMode`** — the widget-dimming follow-up, and the one whose
+  premise needed correcting. `.accented` is not "our colours are ignored":
+  Apple states the system treats the views as template images and replaces the
+  colour *"while preserving the view's alpha channel"*, so a filled `background`
+  survives as an OPAQUE block in the face's colour with the same-group text
+  invisible on it. `WidgetBackground` now strokes instead of filling when
+  accented. Read in the modifier, not `WidgetNodeView` — the inverse of the
+  luminance placement, because there the signal was global and here the decision
+  is per node. Kept to a modifier + the doc, as recorded; `.widgetAccentable()`
+  would be a new PROP (schema + both interpreters + the parity golden) and is
+  not this change.
+
+Counts: `swift test` 343 → 349, vitest 579 → 588, tsc/biome/`swift format lint`
+clean, codegen no drift, check:size and embed-smoke green, published API pages
+regenerated. Every guard was negative-checked individually — revert the fix,
+exactly that test goes red — with two honest exceptions recorded rather than
+papered over: computing `eof` from the read rather than the request is
+defensive-only (a short read on a local file cannot be synthesized), and the
+accented rendering's visual outcome is device-gated (no simulator renders an
+accented complication).
+
 ### Session 2026-06-26 (overnight) — shipped + remaining
 
 Shipped this batch (each its own commit, all suites green, watchOS host +

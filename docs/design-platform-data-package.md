@@ -115,6 +115,18 @@ back-to-back — can outrun main by more than 32 and delete a path JS was never
 handed. Silent in both directions: nothing reports it, and `FileInbox.resolve`
 still accepts the dead path, so `deleteReceivedFile` on it returns success.
 
+Retention also **fails closed on an unknown date**. `prune` reads each entry's
+`contentModificationDate` and used to fall back to `.distantPast` when it could
+not — i.e. "older than everything", i.e. delete. That is a fail-open-to-delete,
+on the receive path, decided by an attribute the app cannot read; and since
+nothing reports a prune, the loss is silent and irreversible. The unknown case
+now counts as the *newest* thing in the inbox. The cost is stated rather than
+hidden: a sentinel that new also sorts ahead of real files, so an unreadable
+entry occupies a `maxFiles` slot and can displace a genuinely-newest file — but
+that keeps the inbox BOUNDED, which is the reason retention exists at all.
+Skipping such entries entirely would fail closed harder and trade one silent
+failure for unbounded growth.
+
 So retention takes a **protected set**: `FileInbox.victims`/`prune` accept URLs
 that are never dropped, and `PhoneConnectivity` holds a path protected from the
 moment it lands until its `watchConnectivity.file` event has actually *run* on
@@ -129,6 +141,33 @@ the set exists to close.
 `FileInbox` lives in `ReactWatchSupport` and is unit-tested on Linux against a
 real temporary directory: sanitization of the sender-supplied name, the
 retention rule, and the containment check.
+
+### Everything inbound is a property list, and the reduction is at the boundary
+
+Apple's contract for `sendMessage` / `updateApplicationContext` /
+`transferUserInfo` / `transferFile(_:metadata:)` is that "the values of the
+dictionary must all be property list object types", and every delegate passes
+the sender's dictionary through verbatim. So a `Date` or `Data` leaf is the API
+used exactly as documented, by an iPhone app this library cannot constrain —
+and one such leaf makes the whole payload unserializable: `pushNativeEvent`
+hands JS `undefined` and the event is lost with no diagnostic anywhere.
+
+That was first closed at the file channel's `metadata`, at the call site. Which
+is the shape that failed: the file channel got it, its three siblings did not.
+The reduction now lives in **`deliver`**, the one place a payload leaves
+`PhoneConnectivity` for the bridge, so it is a property of the boundary rather
+than of each author's memory — and a guard test pins that `onPush` is called
+nowhere else. `RemotePushWire.sanitize` DROPS rather than stringifies (its own
+doc comment: `"<CFData 0x…>"` junk must not enter app logic as a real value),
+which is what preserves the delivery: only the offending leaf goes, and the
+file's `path`/`name`/`size` still arrive.
+
+The one inbound plist that cannot travel through `deliver` is the phone's
+`sendMessage` **reply**, which settles the `sendToPhone` invoke instead. It
+carries the same reduction explicitly. It is also the worse instance: on Linux
+an unserializable reply degrades to `{}`, but Apple documents
+`data(withJSONObject:options:)` as raising an ObjC exception for an invalid
+type, which `try?` does not catch.
 
 ### Reachability is observability, not a gate
 
@@ -310,6 +349,39 @@ No schema entry, no host method, no invoke, no HostPolicy feature — the
 which are policy-gated. There is deliberately no getter, so there is no second
 source of truth for a value that is only ever pushed.
 
+The absent getter is what forced the other half of the answer: a late
+subscriber has no way to *ask*. So `nativeEvents` keeps the last payload of
+**level-triggered** events only (`REPLAYED_EVENTS`) and hands it to a listener
+that registers after the push. Caching every event would re-deliver stale sensor
+samples and completed transfers to new subscribers — fabricating events that
+never happened — so the set is an opt-in allowlist with the rule written on it.
+
+### `onScenePhase` — the second follow-up, now built
+
+`scenePhase` pushed natively from the start with no JS wrapper: consumers wrote
+`registerNativeListener("scenePhase", …)` and `String(p?.phase ?? "active")`,
+which spells no union and re-derives the same defaulting per call site.
+`onScenePhase` is the `onLuminanceReduced` shape over the same push — unwrapped
+to the bare value, with an **allowlist rather than a cast**: a phase this binary
+cannot name reports `active`, which makes such a push equivalent to no push at
+all (the state a caller already has). Guessing `background` would stand an app
+down for a phase that may be on screen.
+
+It joins `REPLAYED_EVENTS`, qualifying on that set's own test — `background` is
+a state the app *is* in and native pushes on every transition, so the last
+payload *is* the current phase. One asymmetry with luminance is documented at
+the set rather than left to be discovered: there is **no boot-time push** here
+(`.onChange(of: scenePhase)` carries no `initial: true`, and nothing re-pushes
+after `jsReady`), so replay covers "subscribed after a transition", not
+"subscribed before the first one". Adding the initial push is a native change
+that would also fire `handleScenePhase` at boot, so it was not smuggled in with
+a JS wrapper.
+
+And the JSDoc says outright that this is **not** the Always-On signal — a
+wrist-down app stays `active`. The two wrappers now sit in one file, which makes
+consolidating them a plausible mistake; a test pins that they do not share a
+stream.
+
 ### No widget-side luminance in v1
 
 Three reasons, in order of force:
@@ -324,8 +396,42 @@ Three reasons, in order of force:
 3. `TimelineView` + `TimelineScheduleMode.lowFrequency` is the Always-On cadence
    mechanism for **app** views; this project's widgets are timeline-entry based.
 
-**Follow-up recorded:** `widgetRenderingMode` → the `WidgetNodeView` modifier
-chain, as its own item with its own device verification.
+### `widgetRenderingMode` — the follow-up, now built
+
+Reasons 1 and 3 above still stand; what changed is reason 2, which named the
+right knob and left it. `EnvironmentValues.widgetRenderingMode` is WidgetKit,
+**watchOS 9.0, `beta: false`** (docs JSON), well under the floor.
+
+The load-bearing quote is what makes this a defect and not a polish item. On
+`.accented`, Apple: the system *"treats the widget's views as if they were
+template images. It replaces the view's color — rendering the new colors while
+**preserving the view's alpha channel**."* So a node's `background` does not get
+ignored under accented rendering; it survives as an **opaque block** in whatever
+colour the face assigns, and the text on it sits in the same (default) group and
+is assigned the same colour. It disappears. Which colours each group gets varies
+per face — Infograph, X-Large and Solar Dial all differ — so no choice of colour
+avoids it.
+
+So `WidgetBackground` reads the mode and **strokes** the shape when accented
+instead of filling it, which stays legible at every pairing a face can pick and
+matches Apple's own dimmed-rendering guidance ("change large, filled shapes to
+be stroked"). `.fullColor` is untouched; `.vibrant` exists but is the iPhone
+Lock Screen, not a watch complication.
+
+Read in the **modifier**, not in `WidgetNodeView` — the inverse of the luminance
+placement, and for the same underlying reason. Luminance is a global signal, so
+reading it per node would multiply one event across the tree; here the mode is
+global but the *decision* is per node, and only a node that declares a
+`background` needs it, so the modifier is where the cost is already being paid.
+
+Kept to one modifier and this note, as recorded. The step up —
+`.widgetAccentable()` so a bundle chooses its own accent group — is a new PROP:
+schema, both interpreters, the prop-parity golden. That is a different change.
+
+🔴 **Device-gated, and stated rather than implied:** what is verified is the API,
+its availability, and the alpha rule above, all from the docs JSON. The visual
+outcome needs a watch face that renders accented, which no simulator reproduces
+— the same list as file transfer and wrist-down.
 
 ## What is verified, and what is not
 
@@ -333,8 +439,9 @@ Everything Linux can decide is decided on Linux: `FileInbox` (sanitization,
 retention, containment) and `CalendarPlan` (entity vocabulary, window rules,
 limit clamp) are `ReactWatchSupport` and run under `swift test`; the ARCH-11
 fixtures round-trip in both directions; the native producers and the routing
-are pinned by textual scans; and `platform-data-guards.test.ts` holds the ten
-rules whose violation is silent.
+are pinned by textual scans; and `platform-data-guards.test.ts` holds the
+rules whose violation is silent — 26 of them after the hardening pass, each
+negative-checked individually.
 
 The Mac/device gaps, stated plainly:
 
@@ -344,16 +451,11 @@ The Mac/device gaps, stated plainly:
    `session(_:didReceive:)` method in Simulator". This needs **paired physical
    devices** and belongs on the same owner-blocked list as the battery-drain run
    in [performance-measurement.md](./performance-measurement.md) §5.
-2. 🔴 **`fetch("file:///…")` against a received file** is the one link in the
-   read path that could not be proven from docs. `FetchPlan` requires only an
-   absolute URL with a scheme and `js/src/fetch.ts` documents that it does not
-   restrict schemes, so the chain *should* hold — but URLSession data tasks
-   against `file://` need a device/sim check. If it fails, the fallback is a
-   `readReceivedFile` invoke returning base64, which is a separate decision.
-
-   Three things about this path are **not** device questions and are now stated
-   on `ReceivedFile.path` itself, because that JSDoc is the source of the
-   published API page and was asserting the read path flatly:
+2. ✅ **Reading a received file is `readReceivedFile`, not `fetch`.** The
+   `file://` leg was the one link in the read path that could not be proven
+   from docs, and while chasing whether it *works* three defects turned up that
+   are not device questions at all — so the fallback recorded here was built
+   rather than waiting on hardware to decide the first one.
 
    - A `file://` load is not an `HTTPURLResponse`, so `performFetch`'s
      `http?.statusCode ?? 0` reports `status: 0` — `ok === false`,
@@ -363,14 +465,46 @@ The Mac/device gaps, stated plainly:
      subset that exposes `ok`.
    - `FetchResponse.classifyBody` caps a bridged body at 5 MiB (QuickJS heap
      protection) and the sending phone is under no matching cap, so a larger
-     file lands, fires `onReceivedFile` with an accurate `size`, and is
-     **permanently unreadable** — there is no other byte-reading API and
-     `file://` honours no Range. This is a functional hole, not a doc gap; the
-     `readReceivedFile` fallback above is what closes it.
+     file landed, fired `onReceivedFile` with an accurate `size`, and was
+     **permanently unreadable** — no other byte-reading API, and `file://`
+     honours no Range. A functional hole, not a doc gap.
    - `fetch` is gated on the `network` feature while the file ops are
-     `connectivity`, so a bundle policy-limited to `connectivity` receives
-     files it cannot open. A `connectivity`-gated `readReceivedFile` would
-     close this at the same time.
+     `connectivity`, so a bundle policy-limited to `connectivity` received
+     files it had no permitted way to open.
+
+   `readReceivedFile(path, { offset, length })` → a base64 `ReceivedFileChunk`
+   answers all three. It is gated on **`connectivity`**, with the receive — a
+   read is the same privilege as the `deleteReceivedFile` that already sits
+   there, not a network one, which closes the third by construction. It is
+   **chunked**, which closes the second: the ceiling bounds one chunk, not the
+   file. And it either resolves the range asked for or rejects
+   `INVALID_REQUEST` naming the rule, which closes the first — there is no
+   failure-shaped success left to teach callers to ignore.
+
+   Two decisions inside it are worth the record:
+
+   - **The ceiling references `FetchResponse.defaultMaxBodyBytes` rather than
+     repeating 5 MiB**, and is deliberately *not* a `BudgetPolicy` entry.
+     Budget caps are soft (ARCH-13: warn once, proceed) because the real
+     authority is elsewhere — `WCError`, not our number, decides what is too
+     large to transfer. Here the authority is the QuickJS heap, which is a hard
+     limit, so it joins the hard ceilings. It bounds the identical thing
+     `fetch` bounds: one string, base64-inflated, JSON-wrapped, copied into the
+     runtime's heap.
+   - **A chunk that does not END the file is trimmed to a multiple of 3.** Base
+     64 pads a partial 3-byte group, so untrimmed chunks make `atob(a + b)`
+     return quietly wrong bytes at every boundary — a silent corruption, which
+     is the class this whole op exists to remove. Trimmed, the `base64` strings
+     concatenate and a caller never has to know.
+
+   Every rule that can be got wrong — the plan decode, the containment check
+   (`resolve`, unchanged: a read cannot reach further than a delete can), the
+   range clamp, the ceiling — lives in `FileInbox` and is decided under
+   `swift test` on Linux. The watchOS adapter only maps the error code onto the
+   invoke channel, and a guard test fails if it starts deciding anything.
+
+   Still 🔴 and unchanged: whether `fetch("file:///…")` works on a device. It is
+   no longer on the read path, so it is now a curiosity rather than a blocker.
 3. **EventKit prompts** — the TCC sheet, the `.writeOnly` vs `.fullAccess`
    mapping, and that the `NSCalendars*FullAccess*` keys actually reach the built
    `Info.plist` after `expo prebuild`.
