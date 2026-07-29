@@ -72,7 +72,7 @@ so this list cannot drift from what the interpreters actually read.
 | *(any)* | `glass` | Liquid Glass is applied in NodeView's shared modifier chain; the widget's applyLayout mirrors LayoutModifier only, so it is a no-op in complications. |
 | `Button` | `buttonStyle` | The widget's interactive Button hard-codes .buttonStyle(.plain); glass/glassProminent/plain are all no-ops in complications. |
 
-## Host methods (69) by capability feature
+## Host methods (75) by capability feature
 
 An OTA bundle's `requiredFeatures` must be a subset of the binary's
 feature set (ARCH-01); `since` is the bridge-protocol version the method
@@ -124,6 +124,12 @@ appeared in. "invoke" methods route through the generic invoke channel
 |  | `resumeWorkout` | watch | invoke | 1 |
 |  | `endWorkout` | watch | invoke | 1 |
 |  | `getWorkoutState` | watch | invoke | 1 |
+| `workoutPlans` | `requestWorkoutPlanAuthorization` | watch | invoke | 1 |
+|  | `scheduleWorkoutPlan` | watch | invoke | 1 |
+|  | `listScheduledWorkoutPlans` | watch | invoke | 1 |
+|  | `removeScheduledWorkoutPlan` | watch | invoke | 1 |
+|  | `removeAllScheduledWorkoutPlans` | watch | invoke | 1 |
+|  | `openWorkoutPlanInWorkoutApp` | watch | invoke | 1 |
 | `calendar` | `requestCalendarAccess` | watch | invoke | 1 |
 |  | `getCalendarEvents` | watch | invoke | 1 |
 |  | `getReminders` | watch | invoke | 1 |

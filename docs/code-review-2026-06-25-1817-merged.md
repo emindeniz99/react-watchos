@@ -25,6 +25,73 @@ on-device (Xcode) verification rather than ground out blind. Done-ness is also i
 Verifiable in-loop (Linux/macOS): JS (`pnpm test`) + `ReactWatchRuntime`/`Support`
 (`swift test`). NOT in-loop: `ReactWatchHost`/widget UI, target wiring (Xcode).
 
+### Session 2026-07-29 — the WORKOUT-PLANS package (WorkoutKit)
+
+Five commits, one new subsystem, and the `workoutPlans` follow-up the HEALTH
+package recorded the same day now taken. Full record:
+[design-workout-plans.md](./design-workout-plans.md).
+
+**What shipped:** six invoke ops under a **new `workoutPlans` feature** —
+`requestWorkoutPlanAuthorization`, `scheduleWorkoutPlan`,
+`listScheduledWorkoutPlans`, `removeScheduledWorkoutPlan`,
+`removeAllScheduledWorkoutPlans`, `openWorkoutPlanInWorkoutApp`. A caller
+composes a `CustomWorkout` (interval blocks + warmup/cooldown),
+`SingleGoalWorkout` or `PacerWorkout` from a real TS discriminated union, with
+the four watchOS-10.0 goals and all nine alert types.
+
+**The finding the design turns on, and it is the same one this project keeps
+re-learning:** `WorkoutScheduler.schedule` / `remove` / `removeAllWorkouts` are
+`async`, **non-throwing, and return `Void`**. A naked `await schedule(...)`
+resolves identically whether the plan was stored, the user denied
+authorization, the device is over quota, or `isSupported` is false — the exact
+`ok == true` meaning "the sheet completed" dishonesty the HEALTH package spent
+four commits removing, one framework over. So **every mutation is verified by
+read-back**: re-read `scheduledWorkouts`, confirm the `(id, minute)` pair, and
+only then settle; a scheduler that stored nothing rejects `UNAVAILABLE` with
+text that says so. Three guards pin the read-after-write ordering, and a fourth
+pins that the comparison goes through the minute rather than raw
+`DateComponents` (Apple may normalise what it stores, and a false negative here
+would be reported to the caller as "the scheduler accepted nothing").
+
+**The standing uncertainty, recorded rather than papered over.** Every
+`WorkoutScheduler` member is documented watchOS 10.0 with no caveat — but
+Apple's own sample schedules from **iPhone** and only *reads* on the watch, and
+`openInWorkoutApp()` is the one API that is watchOS+macOS and not iOS. Nothing
+in 124 pages of docs JSON contradicts watch-side scheduling; nothing confirms
+it. The original plan was to spike first; the owner overrode that because the
+read-back makes the runtime self-honest either way. So the scheduling family is
+**③ device-unverified** in status.md, with a 7-step sim spike as the recorded
+next Mac-session step, and `openWorkoutPlanInWorkoutApp` is the confirmed
+watch-native half. If the spike says scheduling is phone-only in practice, the
+shipped package already degrades to exactly the open-in-Workout shape *at
+runtime* — the follow-up would be to document it, not to rebuild.
+
+**Three decisions worth carrying forward:**
+
+- **A new feature id, and a convention break taken deliberately.** Both halves
+  of the ARCH-07 authorization-unit test pass decisively: a plan writes no
+  health data, occupies no system resource, grants no background execution —
+  and carries its **own independently-grantable OS consent**, which is exactly
+  the axis on which the pedometer *stayed* under `sensors`. `workoutPlans` is
+  the first camelCase feature id; the break is recorded at the declaration site
+  rather than buried.
+- **The legality matrix is the one rule our code cannot own.** Activity ×
+  location × goal × alert is documented nowhere and is not stable (energy goals
+  are silently illegal on a custom workout; pace alerts are illegal for indoor
+  running). So the bridge asks Apple's `supports*` before building, cheapest
+  first, and a refusal names the failing element by path. The tests pin that we
+  ask and that the message names the path — **nothing at any level can prove
+  the matrix**, and the docs say so instead of implying coverage.
+- **Zero new vocabulary.** WorkoutKit takes an `HKWorkoutActivityType`, so the
+  generated 81-name switch and `WorkoutLocation` are reused verbatim — the
+  largest piece of the "whole second model tree" the deferral worried about was
+  already paid for.
+
+Five follow-ups recorded with their reversal paths, all additive behind the
+flat wire shape: `workoutPlanStepNames` (watchOS 11 per-step names — the top
+one), `workoutPlanSwimBikeRun`, `workoutPlanMarkComplete`,
+`workoutPlanSupportQuery`, `workoutPlanPowerMetric`.
+
 ### Session 2026-07-29 — PLATFORM-DATA hardening (the five follow-ups the package recorded)
 
 Five items, five commits, no new subsystem: everything here was already written

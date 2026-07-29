@@ -86,6 +86,19 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   one `@available` gate), and the four named follow-ups. Also records why
   health is **device-only ③**: the sim run script signs without the `healthkit`
   entitlement on purpose.
+- [design-workout-plans.md](./design-workout-plans.md) — the WORKOUT-PLANS
+  package (WorkoutKit: compose a structured workout, hand it to Apple's Workout
+  app, schedule it), shipped 2026-07-29 as the `workoutPlans` follow-up the
+  health package recorded. Records the 124-page availability sweep (the package
+  is `@available`-free, and the four symbols above the watchOS 10 floor are cut
+  for exactly that reason), the new `workoutPlans` feature + the camelCase
+  convention break it takes deliberately, the naming hazard around Apple's own
+  `WorkoutPlan` type, and — the design's spine — that
+  `WorkoutScheduler`'s mutators are **non-throwing and return nothing**, so
+  every mutation is verified by READ-BACK. Also records the standing
+  uncertainty plainly: `openInWorkoutApp()` is watch-native beyond doubt,
+  while **watch-side scheduling is ③ device-unverified** (Apple's own sample
+  schedules from iPhone), with a 7-step sim spike as the next Mac-session step.
 - [design-platform-data-package.md](./design-platform-data-package.md) — the
   PLATFORM-DATA package (WatchConnectivity file transfer + session state,
   EventKit reads, Always-On `isLuminanceReduced`), shipped 2026-07-29. Records

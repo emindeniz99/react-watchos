@@ -50,7 +50,10 @@ gyroscope, location and pedometer — **HealthKit reads** (`queryHealthStatistic
 steps, active energy, distance, SpO2, sleep stages, and a whole week's daily
 buckets in one query) and **real workout control** (`startWorkout` / `pause` /
 `resume` / `endWorkout` with a saved `HKWorkout`, live metrics and an optional
-route) — **calendar + reminder reads** (`getCalendarEvents` /
+route) — **WorkoutKit plans** (`scheduleWorkoutPlan` /
+`openWorkoutPlanInWorkoutApp`: compose an interval, single-goal or pacer
+workout with goals and alerts, hand it to Apple's Workout app, and
+schedule/list/remove it) — **calendar + reminder reads** (`getCalendarEvents` /
 `getReminders` over EventKit) — a BLE central (`bleConnect` /
 `bleWrite` / `bleSubscribe` + state/notify pushes), the full
 WatchConnectivity surface (`sendToPhone`, `updateApplicationContext`,
@@ -114,6 +117,17 @@ radio or sensor hot is bounded or opt-in:
   `CLLocationManager` `startLocation` uses instead of starting a second one.
   If a launch crashes mid-workout, the next one adopts the session that
   outlived it rather than leaving the slot occupied and the workout unsaved.
+- **A scheduled plan is verified by reading it back.** WorkoutKit's
+  `schedule`/`remove`/`removeAllWorkouts` are non-throwing and return nothing —
+  they look identical whether the plan was stored, the user denied
+  authorization, or the device is over its quota. So the bridge re-reads the
+  scheduler and settles on what is actually there; a scheduler that stored
+  nothing rejects `UNAVAILABLE` saying so, rather than resolving a success that
+  did not happen. Scheduling instants are keyed to the **minute**, and the
+  device's own quota is read at runtime (never a hardcoded number).
+  `openWorkoutPlanInWorkoutApp` **launches the Workout app**, so your app
+  leaves the foreground and resolving means "the plan was handed over", never
+  "the user started it".
 - **A week chart is one health query, not seven.**
   `queryHealthDailyStatistics` returns one aggregate per day from a single
   `HKStatisticsCollectionQueryDescriptor`; a loop of `queryHealthStatistics`
