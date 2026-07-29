@@ -1,0 +1,12 @@
+{
+  "plan": {
+    "kind": "singleGoal",
+    "activityType": "cycling",
+    "location": "indoor",
+    "goal": {
+      "kind": "energy",
+      "kilocalories": 400
+    }
+  },
+  "atMs": 1768563000000
+}

@@ -1975,6 +1975,79 @@ export const hostMethods: HostMethod[] = [
     via: "invoke",
     response: "WorkoutState",
   },
+  // --- WorkoutKit plans (feature "workoutPlans"), SEPARATE from "workouts" on
+  //     the same ARCH-07 authorization-unit rule — and here BOTH halves of the
+  //     test pass decisively. A plan writes no health data and occupies no
+  //     system resource; it is a scheduled DOCUMENT plus a branded placement at
+  //     the top of Apple's Workout app, and — the clinching point — it carries
+  //     its own independently-grantable OS consent
+  //     (`WorkoutScheduler.requestAuthorization()` returns a real verdict,
+  //     unlike HealthKit's reads). That is exactly the axis on which the
+  //     pedometer STAYED under `sensors`: a feature id mapping to no separate
+  //     consent is a taxonomy, not an authorization unit. This one maps to
+  //     precisely one, its own.
+  //
+  //     CONVENTION BREAK, recorded rather than buried: every other feature id
+  //     is a single lowercase word. `workoutPlans` is the first camelCase one.
+  //     `workoutplans` reads badly and `plans` says nothing, and this id is
+  //     already written into docs/design-health-package.md and docs/roadmap.md
+  //     as the deferred follow-up — matching it is worth more than lowercase
+  //     purity. One schema edit to change if that judgement ever flips. ---
+  {
+    name: "requestWorkoutPlanAuthorization",
+    targets: ["watch"],
+    feature: "workoutPlans",
+    since: 1,
+    via: "invoke",
+    doc: "Runs the WorkoutKit scheduling permission sheet; resolves \"authorized\" | \"denied\" | \"notDetermined\" | \"restricted\". Unlike HealthKit reads this is a REAL verdict — Apple's `AuthorizationState`. Reads the standing state first and prompts only when it is notDetermined, so calling it again never re-prompts.",
+    // No `request`/`response`: no payload, and the result is a bare string
+    // (the requestCalendarAccess / requestHealthAuthorization precedent).
+  },
+  {
+    name: "scheduleWorkoutPlan",
+    targets: ["watch"],
+    feature: "workoutPlans",
+    since: 1,
+    via: "invoke",
+    doc: "Schedules a plan at an instant and READS IT BACK before settling — `WorkoutScheduler.schedule` is non-throwing and returns nothing, so the read-back is the only honest confirmation that anything was stored.",
+    request: "ScheduleWorkoutPlanRequest",
+    response: "ScheduledWorkoutSummary",
+  },
+  {
+    name: "listScheduledWorkoutPlans",
+    targets: ["watch"],
+    feature: "workoutPlans",
+    since: 1,
+    via: "invoke",
+    response: "ScheduledWorkoutSummary[]",
+  },
+  {
+    name: "removeScheduledWorkoutPlan",
+    targets: ["watch"],
+    feature: "workoutPlans",
+    since: 1,
+    via: "invoke",
+    doc: "Removes one scheduled plan by (id, atMs); resolves whether it was there. An id that is not scheduled resolves false rather than rejecting — a stale UI removing an already-completed plan is normal.",
+    request: "RemoveScheduledWorkoutRequest",
+    // Resolves a boolean — a scalar no struct can describe and drift can't
+    // hide in, so no `response` shape.
+  },
+  {
+    name: "removeAllScheduledWorkoutPlans",
+    targets: ["watch"],
+    feature: "workoutPlans",
+    since: 1,
+    via: "invoke",
+  },
+  {
+    name: "openWorkoutPlanInWorkoutApp",
+    targets: ["watch"],
+    feature: "workoutPlans",
+    since: 1,
+    via: "invoke",
+    doc: "Hands a plan to the Workout app (`WorkoutPlan.openInWorkoutApp()`, watchOS + macOS only). On watchOS this LAUNCHES the Workout app, so our app leaves the foreground; resolving means the plan was handed over, never that the user started it.",
+    request: "OpenWorkoutPlanRequest",
+  },
   // --- EventKit READS (feature "calendar"): its own authorization unit, and
   //     ONE feature for both entities. events and reminders each carry their
   //     own OS-level TCC prompt, so the OS already gates them per entity and

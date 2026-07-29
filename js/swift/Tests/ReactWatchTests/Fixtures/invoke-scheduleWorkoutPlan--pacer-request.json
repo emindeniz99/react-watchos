@@ -1,0 +1,9 @@
+{
+  "plan": {
+    "kind": "pacer",
+    "activityType": "running",
+    "distanceMeters": 5000,
+    "durationSeconds": 1500
+  },
+  "atMs": 1768649400000
+}

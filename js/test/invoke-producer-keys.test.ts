@@ -54,6 +54,7 @@ const CONNECTIVITY = "ReactWatchHost/PhoneConnectivity.swift";
 const CALENDAR = "ReactWatchHost/CalendarBridge.swift";
 const HEALTH = "ReactWatchHost/HealthQueryBridge.swift";
 const WORKOUT = "ReactWatchHost/WorkoutBridge.swift";
+const WORKOUT_PLANS = "ReactWatchHost/WorkoutPlanBridge.swift";
 // The pedometer payload is assembled in ReactWatchSupport, not the watchOS
 // bridge: that makes the omit-when-unavailable rule Linux-testable AND puts
 // this scan on a file `swift test` actually compiles.
@@ -270,6 +271,34 @@ const PRODUCERS: Record<string, Producer> = {
     delegates: {
       decl: "private func handleQuerySleepSamples(id: Int, payload: String) {",
       calls: "bridge.sleepSamples(plan)",
+    },
+  },
+  // Both plan methods resolve the SAME shape from the SAME producer, on
+  // purpose: a scheduled workout is a scheduled workout whether you just wrote
+  // it or are listing them, and two hand-built dictionaries would be two
+  // chances to disagree about a key name.
+  scheduleWorkoutPlan: {
+    sites: [
+      {
+        file: WORKOUT_PLANS,
+        decl: "static func summary(",
+      },
+    ],
+    delegates: {
+      decl: "private func handleScheduleWorkoutPlan(id: Int, payload: String) {",
+      calls: "bridge.schedule(spec, calendar: .current)",
+    },
+  },
+  listScheduledWorkoutPlans: {
+    sites: [
+      {
+        file: WORKOUT_PLANS,
+        decl: "static func summary(",
+      },
+    ],
+    delegates: {
+      decl: "private func handleListScheduledWorkoutPlans(id: Int) {",
+      calls: "bridge.scheduledSummaries(calendar: .current)",
     },
   },
 };

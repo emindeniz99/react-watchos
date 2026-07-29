@@ -1,0 +1,104 @@
+{
+  "plan": {
+    "kind": "custom",
+    "activityType": "running",
+    "id": "3F2504E0-4F89-41D3-9A0C-0305E82C3301",
+    "location": "outdoor",
+    "displayName": "6 × 400m",
+    "warmup": {
+      "goal": {
+        "kind": "time",
+        "seconds": 600
+      }
+    },
+    "blocks": [
+      {
+        "steps": [
+          {
+            "purpose": "work",
+            "goal": {
+              "kind": "distance",
+              "meters": 400
+            },
+            "alert": {
+              "kind": "heartRateRange",
+              "lowerBpm": 150,
+              "upperBpm": 170
+            }
+          },
+          {
+            "purpose": "recovery",
+            "alert": {
+              "kind": "heartRateZone",
+              "zone": 2
+            }
+          },
+          {
+            "purpose": "work",
+            "goal": {
+              "kind": "time",
+              "seconds": 180
+            },
+            "alert": {
+              "kind": "speedRange",
+              "lowerMetersPerSecond": 3.1,
+              "upperMetersPerSecond": 3.9,
+              "metric": "average"
+            }
+          },
+          {
+            "purpose": "work",
+            "alert": {
+              "kind": "speedThreshold",
+              "metersPerSecond": 3.33,
+              "metric": "current"
+            }
+          },
+          {
+            "purpose": "work",
+            "alert": {
+              "kind": "cadenceRange",
+              "lowerCountPerMinute": 170,
+              "upperCountPerMinute": 185
+            }
+          },
+          {
+            "purpose": "recovery",
+            "alert": {
+              "kind": "cadenceThreshold",
+              "countPerMinute": 160
+            }
+          },
+          {
+            "purpose": "work",
+            "alert": {
+              "kind": "powerRange",
+              "lowerWatts": 210,
+              "upperWatts": 260
+            }
+          },
+          {
+            "purpose": "work",
+            "alert": {
+              "kind": "powerThreshold",
+              "watts": 240
+            }
+          },
+          {
+            "purpose": "recovery",
+            "alert": {
+              "kind": "powerZone",
+              "zone": 3
+            }
+          }
+        ],
+        "iterations": 6
+      }
+    ],
+    "cooldown": {
+      "goal": {
+        "kind": "open"
+      }
+    }
+  }
+}

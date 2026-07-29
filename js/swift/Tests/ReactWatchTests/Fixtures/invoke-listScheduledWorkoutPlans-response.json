@@ -1,0 +1,13 @@
+[
+  {
+    "id": "3F2504E0-4F89-41D3-9A0C-0305E82C3301",
+    "atMs": 1768476600000,
+    "complete": false,
+    "activityType": "running"
+  },
+  {
+    "id": "9B1DEB4D-3B7D-4BAD-9BDD-2B0D7B3DCB6D",
+    "atMs": 1768563000000,
+    "complete": true
+  }
+]

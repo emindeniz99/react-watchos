@@ -400,6 +400,26 @@ export {
   WORKOUT_METRICS_EVENT,
   WORKOUT_STATE_EVENT,
 } from "./workout";
+export type {
+  ScheduledWorkoutSummary,
+  WorkoutPlanAlert,
+  WorkoutPlanAuthorizationState,
+  WorkoutPlanBlock,
+  WorkoutPlanCommon,
+  WorkoutPlanGoal,
+  WorkoutPlanIntervalStep,
+  WorkoutPlanSpec,
+  WorkoutPlanStep,
+} from "./workoutPlans";
+export {
+  listScheduledWorkoutPlans,
+  openWorkoutPlanInWorkoutApp,
+  paceToMetersPerSecond,
+  removeAllScheduledWorkoutPlans,
+  removeScheduledWorkoutPlan,
+  requestWorkoutPlanAuthorization,
+  scheduleWorkoutPlan,
+} from "./workoutPlans";
 
 /**
  * ARCH-08: the one root `runApp` has mounted and not yet disposed. A second

@@ -142,6 +142,11 @@ final class ReactWatchModel {
     /// per-launch authorization cache; deliberately NOT the same store as the
     /// workout side, which asks for a SHARE grant this one never wants.
     private let health = HealthQueryBridge()
+    /// WorkoutKit plans (js/src/workoutPlans.ts). STATELESS, and deliberately
+    /// nothing like `workout` below: WorkoutKit is a document API, so there is
+    /// no session, no claim and no teardown here — see the header of
+    /// WorkoutPlanBridge.swift.
+    private let workoutPlans = WorkoutPlanBridge()
     /// EventKit reads (js/src/calendar.ts). Owns the process's one long-lived
     /// `EKEventStore` — Apple warns that releasing a store before the objects
     /// it vended is an error, so a per-call store would free itself while the
@@ -775,6 +780,18 @@ final class ReactWatchModel {
             handleEndWorkout(id: id, payload: payload)
         case "getWorkoutState":
             handleGetWorkoutState(id: id)
+        case "requestWorkoutPlanAuthorization":
+            handleRequestWorkoutPlanAuthorization(id: id)
+        case "scheduleWorkoutPlan":
+            handleScheduleWorkoutPlan(id: id, payload: payload)
+        case "listScheduledWorkoutPlans":
+            handleListScheduledWorkoutPlans(id: id)
+        case "removeScheduledWorkoutPlan":
+            handleRemoveScheduledWorkoutPlan(id: id, payload: payload)
+        case "removeAllScheduledWorkoutPlans":
+            handleRemoveAllScheduledWorkoutPlans(id: id)
+        case "openWorkoutPlanInWorkoutApp":
+            handleOpenWorkoutPlanInWorkoutApp(id: id, payload: payload)
         case "queryPedometer":
             handleQueryPedometer(id: id, payload: payload)
         default:
@@ -3169,6 +3186,116 @@ extension ReactWatchModel {
         if ok {
             runtime?.resolveInvoke(id: id, resultJson: "null")
         } else {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: .unavailable, message: message))
+        }
+    }
+
+    // MARK: - WorkoutKit plans (js/src/workoutPlans.ts)
+    //
+    // Same two-step shape as the HealthKit reads: validate in Linux-tested
+    // ReactWatchSupport (`WorkoutPlanSpec`), then hand a VALIDATED spec to the
+    // watchOS-only bridge and settle generation-guarded (CX-008). The bridge is
+    // stateless, so nothing here parks, claims or tears down — every op is one
+    // `WorkoutScheduler.shared` round trip.
+    //
+    // `Calendar.current` is read HERE and passed in rather than inside the
+    // bridge, so the atMs <-> DateComponents conversion stays a pure function
+    // of its arguments and `swift test` can prove the round trip on Linux.
+
+    /// Runs the WorkoutKit permission sheet. Unlike HealthKit reads this
+    /// resolves a REAL verdict; the bridge reads the standing state first so a
+    /// second call cannot re-prompt. User-mediated, so JS raises the watchdog
+    /// to `USER_MEDIATED_INVOKE_TIMEOUT_MS` for it.
+    private func handleRequestWorkoutPlanAuthorization(id: Int) {
+        let gen = generation
+        Task { [weak self] in
+            guard let bridge = self?.workoutPlans else { return }
+            let outcome = await bridge.requestAuthorization()
+            self?.settleWorkoutPlan(id: id, generation: gen, outcome)
+        }
+    }
+
+    private func handleScheduleWorkoutPlan(id: Int, payload: String) {
+        switch WorkoutPlanScheduleSpec.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let spec):
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.workoutPlans else { return }
+                let outcome = await bridge.schedule(spec, calendar: .current)
+                self?.settleWorkoutPlan(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    private func handleListScheduledWorkoutPlans(id: Int) {
+        let gen = generation
+        Task { [weak self] in
+            guard let bridge = self?.workoutPlans else { return }
+            let outcome = await bridge.scheduledSummaries(calendar: .current)
+            self?.settleWorkoutPlan(id: id, generation: gen, outcome)
+        }
+    }
+
+    private func handleRemoveScheduledWorkoutPlan(id: Int, payload: String) {
+        switch ScheduledWorkoutRefSpec.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let ref):
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.workoutPlans else { return }
+                let outcome = await bridge.remove(ref, calendar: .current)
+                self?.settleWorkoutPlan(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    private func handleRemoveAllScheduledWorkoutPlans(id: Int) {
+        let gen = generation
+        Task { [weak self] in
+            guard let bridge = self?.workoutPlans else { return }
+            let outcome = await bridge.removeAll()
+            self?.settleWorkoutPlan(id: id, generation: gen, outcome)
+        }
+    }
+
+    /// Hands a plan to the Workout app, which on watchOS LAUNCHES it — so this
+    /// backgrounds us while the invoke is in flight. No `isSupported` gate:
+    /// that flag answers whether the device supports SCHEDULED workouts, a
+    /// different question from whether a plan can be opened now.
+    private func handleOpenWorkoutPlanInWorkoutApp(id: Int, payload: String) {
+        switch WorkoutPlanSpec.decodeOpen(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let spec):
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.workoutPlans else { return }
+                let outcome = await bridge.open(spec)
+                self?.settleWorkoutPlan(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// The `settleHealth` shape plus the two arms WorkoutKit genuinely has: a
+    /// plan Apple's own legality checks refused is INVALID_REQUEST (a code
+    /// change), and a device or scheduler that said no is UNAVAILABLE (not).
+    /// The `isSupported` refusal is the bridge's — one gate, in the file that
+    /// knows the answer, rather than a second copy here.
+    private func settleWorkoutPlan(
+        id: Int, generation gen: Int, _ outcome: WorkoutPlanBridge.Outcome
+    ) {
+        guard gen == generation else { return }
+        switch outcome {
+        case .ok(let json):
+            runtime?.resolveInvoke(id: id, resultJson: json)
+        case .invalid(let message):
+            rejectInvalid(id: id, message: message)
+        case .unavailable(let message):
             runtime?.rejectInvoke(
                 id: id,
                 errorJson: Self.errorJSON(code: .unavailable, message: message))

@@ -47,6 +47,7 @@ import type {
   ReceivedFileChunk as WireReceivedFileChunk,
   Reminder as WireReminder,
   SaveUpdateResult as WireSaveUpdateResult,
+  ScheduledWorkoutSummary as WireScheduledWorkoutSummary,
   SleepSample as WireSleepSample,
   UpdateState as WireUpdateState,
   WorkoutState as WireWorkoutState,
@@ -76,6 +77,19 @@ import type { SaveUpdateResult, UpdateState } from "../src/update";
 import { applyUpdate, getUpdateState, markUpdateHealthy } from "../src/update";
 import type { WorkoutState } from "../src/workout";
 import { endWorkout, getWorkoutState, startWorkout } from "../src/workout";
+import type {
+  ScheduledWorkoutSummary,
+  WorkoutPlanIntervalStep,
+  WorkoutPlanSpec,
+} from "../src/workoutPlans";
+import {
+  listScheduledWorkoutPlans,
+  openWorkoutPlanInWorkoutApp,
+  removeAllScheduledWorkoutPlans,
+  removeScheduledWorkoutPlan,
+  requestWorkoutPlanAuthorization,
+  scheduleWorkoutPlan,
+} from "../src/workoutPlans";
 
 /**
  * ARCH-11: the invoke channel's shape contract, checked against REAL traffic
@@ -258,6 +272,93 @@ const sleepSamples: SleepSample[] = [
     stage: "asleepDeep",
   },
 ];
+// WorkoutKit plans. The id is a real UUID on purpose: native REJECTS a
+// non-UUID rather than minting a replacement, so a fixture carrying a
+// made-up string would encode the opposite of the contract.
+const scheduledWorkoutSummary: ScheduledWorkoutSummary = {
+  id: "3F2504E0-4F89-41D3-9A0C-0305E82C3301",
+  atMs: 1_768_476_600_000,
+  complete: false,
+  activityType: "running",
+};
+const scheduledWorkoutSummaries: ScheduledWorkoutSummary[] = [
+  scheduledWorkoutSummary,
+  // The second is COMPLETE and carries no activityType — the two states the
+  // first one cannot show: `complete` is set by the Workout app (nothing in
+  // this API writes it), and the activity is omitted rather than guessed when
+  // this binary's vocabulary has no name for the stored case.
+  {
+    id: "9B1DEB4D-3B7D-4BAD-9BDD-2B0D7B3DCB6D",
+    atMs: 1_768_563_000_000,
+    complete: true,
+  },
+];
+/** Every alert kind, one per step, so the flat alert shape is exercised in
+ *  full by a single custom plan rather than by nine near-identical fixtures. */
+const everyAlertStep: WorkoutPlanIntervalStep[] = [
+  {
+    purpose: "work",
+    goal: { kind: "distance", meters: 400 },
+    alert: { kind: "heartRateRange", lowerBpm: 150, upperBpm: 170 },
+  },
+  { purpose: "recovery", alert: { kind: "heartRateZone", zone: 2 } },
+  {
+    purpose: "work",
+    goal: { kind: "time", seconds: 180 },
+    alert: {
+      kind: "speedRange",
+      lowerMetersPerSecond: 3.1,
+      upperMetersPerSecond: 3.9,
+      metric: "average",
+    },
+  },
+  {
+    purpose: "work",
+    alert: { kind: "speedThreshold", metersPerSecond: 3.33, metric: "current" },
+  },
+  {
+    purpose: "work",
+    alert: {
+      kind: "cadenceRange",
+      lowerCountPerMinute: 170,
+      upperCountPerMinute: 185,
+    },
+  },
+  {
+    purpose: "recovery",
+    alert: { kind: "cadenceThreshold", countPerMinute: 160 },
+  },
+  {
+    purpose: "work",
+    alert: { kind: "powerRange", lowerWatts: 210, upperWatts: 260 },
+  },
+  { purpose: "work", alert: { kind: "powerThreshold", watts: 240 } },
+  { purpose: "recovery", alert: { kind: "powerZone", zone: 3 } },
+];
+const customWorkoutPlan: WorkoutPlanSpec = {
+  kind: "custom",
+  id: "3F2504E0-4F89-41D3-9A0C-0305E82C3301",
+  activityType: "running",
+  location: "outdoor",
+  displayName: "6 × 400m",
+  warmup: { goal: { kind: "time", seconds: 600 } },
+  blocks: [{ steps: everyAlertStep, iterations: 6 }],
+  cooldown: { goal: { kind: "open" } },
+};
+const singleGoalWorkoutPlan: WorkoutPlanSpec = {
+  kind: "singleGoal",
+  activityType: "cycling",
+  location: "indoor",
+  // The ONE kind where an energy goal is legal — Apple's own
+  // CustomWorkout.supportsGoal(.energy, …) is false for every combination.
+  goal: { kind: "energy", kilocalories: 400 },
+};
+const pacerWorkoutPlan: WorkoutPlanSpec = {
+  kind: "pacer",
+  activityType: "running",
+  distanceMeters: 5000,
+  durationSeconds: 1500,
+};
 const fileTransferHandle: FileTransferHandle = { id: 3 };
 const fileTransfers: FileTransferStatus[] = [
   // Two entries on purpose: the id-bearing one (queued by this launch) and the
@@ -331,6 +432,10 @@ const RESULTS: Record<string, unknown> = {
   readReceivedFile: receivedFileChunk,
   getCalendarEvents: calendarEvents,
   getReminders: reminders,
+  scheduleWorkoutPlan: scheduledWorkoutSummary,
+  listScheduledWorkoutPlans: scheduledWorkoutSummaries,
+  requestWorkoutPlanAuthorization: "authorized",
+  removeScheduledWorkoutPlan: true,
 };
 
 /**
@@ -486,6 +591,19 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       limit: 20,
     });
     await getReminders({ dueBeforeMs: 1_768_550_400_000, limit: 20 });
+    // WorkoutKit: the canonical fixture is the CUSTOM plan carrying every
+    // alert kind, a warmup, a cooldown and an iteration count — the flat
+    // alert/step/block shapes have no other way to be exercised in full.
+    await scheduleWorkoutPlan(customWorkoutPlan, 1_768_476_600_000);
+    await removeScheduledWorkoutPlan(
+      "3F2504E0-4F89-41D3-9A0C-0305E82C3301",
+      new Date(1_768_476_600_000),
+    );
+    await openWorkoutPlanInWorkoutApp(customWorkoutPlan);
+    // No payload at all — driven here so the "declares a request shape for
+    // every wrapper that sends payload fields" check sees them as empty.
+    await requestWorkoutPlanAuthorization();
+    await removeAllScheduledWorkoutPlans();
 
     for (const [method, payloadJson] of payloads) {
       if (!(method in INVOKE_SHAPES)) continue;
@@ -514,6 +632,33 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       "request",
       payloads.get("scheduleNotification") as string,
       "at",
+    );
+
+    // The other two plan KINDS. Same reason as the `at` variant above: one
+    // payload cannot carry `goal` and `distanceMeters` and `blocks` — the wire
+    // struct is flat with a `kind` discriminator, and native REJECTS a field
+    // belonging to another kind rather than ignoring it, so each kind needs
+    // its own fixture or two thirds of the declared shape rides nothing.
+    await scheduleWorkoutPlan(singleGoalWorkoutPlan, 1_768_563_000_000);
+    writeFixture(
+      "scheduleWorkoutPlan",
+      "request",
+      payloads.get("scheduleWorkoutPlan") as string,
+      "singleGoal",
+    );
+    await scheduleWorkoutPlan(pacerWorkoutPlan, 1_768_649_400_000);
+    writeFixture(
+      "scheduleWorkoutPlan",
+      "request",
+      payloads.get("scheduleWorkoutPlan") as string,
+      "pacer",
+    );
+    await openWorkoutPlanInWorkoutApp(pacerWorkoutPlan);
+    writeFixture(
+      "openWorkoutPlanInWorkoutApp",
+      "request",
+      payloads.get("openWorkoutPlanInWorkoutApp") as string,
+      "pacer",
     );
   });
 
@@ -654,6 +799,18 @@ describe("invoke contract fixtures (ARCH-11)", () => {
         }),
       ),
     );
+    writeFixture(
+      "scheduleWorkoutPlan",
+      "response",
+      JSON.stringify(
+        await scheduleWorkoutPlan(customWorkoutPlan, 1_768_476_600_000),
+      ),
+    );
+    writeFixture(
+      "listScheduledWorkoutPlans",
+      "response",
+      JSON.stringify(await listScheduledWorkoutPlans()),
+    );
   });
 
   it("covers every shape the schema declares (no method left un-fixtured)", () => {
@@ -782,6 +939,10 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
     > = true;
     const calendarEventExact: Exact<CalendarEvent, WireCalendarEvent> = true;
     const reminderExact: Exact<Reminder, WireReminder> = true;
+    const scheduledWorkoutExact: Exact<
+      ScheduledWorkoutSummary,
+      WireScheduledWorkoutSummary
+    > = true;
     expect([
       deviceInfoExact,
       updateStateExact,
@@ -800,6 +961,7 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       receivedFileChunkExact,
       calendarEventExact,
       reminderExact,
-    ]).toEqual(Array(17).fill(true));
+      scheduledWorkoutExact,
+    ]).toEqual(Array(18).fill(true));
   });
 });

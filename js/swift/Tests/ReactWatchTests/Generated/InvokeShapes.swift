@@ -605,6 +605,11 @@ enum InvokeShapes {
         "querySleepSamples": { try decodeStrict(SleepSamplesRequest.self, from: $0) },
         "startWorkout": { try decodeStrict(StartWorkoutRequest.self, from: $0) },
         "endWorkout": { try decodeStrict(EndWorkoutRequest.self, from: $0) },
+        "scheduleWorkoutPlan": { try decodeStrict(ScheduleWorkoutPlanRequest.self, from: $0) },
+        "removeScheduledWorkoutPlan": {
+            try decodeStrict(RemoveScheduledWorkoutRequest.self, from: $0)
+        },
+        "openWorkoutPlanInWorkoutApp": { try decodeStrict(OpenWorkoutPlanRequest.self, from: $0) },
         "requestCalendarAccess": { try decodeStrict(CalendarAccessRequest.self, from: $0) },
         "getCalendarEvents": { try decodeStrict(CalendarEventsRequest.self, from: $0) },
         "getReminders": { try decodeStrict(RemindersRequest.self, from: $0) },
@@ -639,6 +644,10 @@ enum InvokeShapes {
         "querySleepSamples": { try decodeStrict(arrayOf: SleepSample.self, from: $0) },
         "endWorkout": { try decodeStrict(WorkoutState.self, from: $0) },
         "getWorkoutState": { try decodeStrict(WorkoutState.self, from: $0) },
+        "scheduleWorkoutPlan": { try decodeStrict(ScheduledWorkoutSummary.self, from: $0) },
+        "listScheduledWorkoutPlans": {
+            try decodeStrict(arrayOf: ScheduledWorkoutSummary.self, from: $0)
+        },
         "getCalendarEvents": { try decodeStrict(arrayOf: CalendarEvent.self, from: $0) },
         "getReminders": { try decodeStrict(arrayOf: Reminder.self, from: $0) },
         "saveUpdate": { try decodeStrict(SaveUpdateResult.self, from: $0) },

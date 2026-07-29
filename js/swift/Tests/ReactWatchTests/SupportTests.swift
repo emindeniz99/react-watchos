@@ -971,6 +971,38 @@ final class HostPolicyTests: XCTestCase {
         )
     }
 
+    func testWorkoutPlansIsDeniableSeparatelyFromWorkouts() {
+        // The ARCH-07 authorization-unit test, and here BOTH halves pass
+        // decisively. A WorkoutKit plan writes no health data and occupies no
+        // system resource — it is a scheduled document plus a branded
+        // placement in Apple's Workout app — and, the clinching point, it has
+        // its OWN independently-grantable consent
+        // (WorkoutScheduler.requestAuthorization returns a real verdict). A
+        // training-plan app needs zero live-session capability; a meditation
+        // timer that records a workout needs zero scheduling.
+        XCTAssertEqual(
+            HostPolicy.allow(["workouts"]).authorize(
+                bundleFeatures: ["workouts", "workoutPlans"],
+                native: HostFeatures.watch),
+            .denied(byPolicy: ["workoutPlans"])
+        )
+        XCTAssertEqual(
+            HostPolicy.allow(["workoutPlans"]).authorize(
+                bundleFeatures: ["workouts", "workoutPlans"],
+                native: HostFeatures.watch),
+            .denied(byPolicy: ["workouts"])
+        )
+        // ...and it does not ride in on `health` either: reading the user's
+        // health history and scheduling a document in another app's UI are
+        // different disclosures with different OS consents.
+        XCTAssertEqual(
+            HostPolicy.allow(["health"]).authorize(
+                bundleFeatures: ["health", "workoutPlans"],
+                native: HostFeatures.watch),
+            .denied(byPolicy: ["workoutPlans"])
+        )
+    }
+
     func testTheWatchProvidesHealthAndWorkoutsAndTheWidgetDoesNot() {
         // Widget exposure is handled for free rather than special-cased: the
         // methods are watch-only, so they never enter HostFeatures.widget and
@@ -981,8 +1013,14 @@ final class HostPolicyTests: XCTestCase {
         // battery and the WidgetKit refresh budget.
         XCTAssertTrue(HostFeatures.watch.contains("health"))
         XCTAssertTrue(HostFeatures.watch.contains("workouts"))
+        XCTAssertTrue(HostFeatures.watch.contains("workoutPlans"))
         XCTAssertFalse(HostFeatures.widget.contains("health"))
         XCTAssertFalse(HostFeatures.widget.contains("workouts"))
+        // Free, not special-cased: the methods are watch-only, so the feature
+        // never enters HostFeatures.widget and WidgetIntentRuntime's typed
+        // rejecter answers UNAVAILABLE. A widget presenting a permission sheet
+        // inside getTimeline is a non-starter anyway.
+        XCTAssertFalse(HostFeatures.widget.contains("workoutPlans"))
         XCTAssertTrue(HostFeatures.widget.isSubset(of: HostFeatures.watch))
     }
 }

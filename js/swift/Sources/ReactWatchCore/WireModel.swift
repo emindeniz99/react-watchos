@@ -153,7 +153,7 @@ public enum HostFeatures {
     public static let watch: Set<String> = [
         "ai", "audio", "background", "bluetooth", "calendar", "connectivity", "core", "device",
         "haptics", "health", "iap", "keychain", "location", "network", "notifications", "ota",
-        "push", "runtime", "sensors", "speech", "storage", "widgets", "workouts",
+        "push", "runtime", "sensors", "speech", "storage", "widgets", "workoutPlans", "workouts",
     ]
     public static let widget: Set<String> = ["core", "storage", "widgets"]
 }
@@ -184,7 +184,9 @@ public enum HostInvokeFeatures {
         "keychainDelete": "keychain",
         "keychainGet": "keychain",
         "keychainSet": "keychain",
+        "listScheduledWorkoutPlans": "workoutPlans",
         "markUpdateHealthy": "ota",
+        "openWorkoutPlanInWorkoutApp": "workoutPlans",
         "outstandingFileTransfers": "connectivity",
         "pauseWorkout": "workouts",
         "playAudio": "audio",
@@ -196,14 +198,18 @@ public enum HostInvokeFeatures {
         "querySleepSamples": "health",
         "readReceivedFile": "connectivity",
         "registerForRemoteNotifications": "push",
+        "removeAllScheduledWorkoutPlans": "workoutPlans",
+        "removeScheduledWorkoutPlan": "workoutPlans",
         "requestCalendarAccess": "calendar",
         "requestHealthAuthorization": "health",
         "requestNotificationPermission": "notifications",
+        "requestWorkoutPlanAuthorization": "workoutPlans",
         "restorePurchases": "iap",
         "resumeWorkout": "workouts",
         "saveUpdate": "ota",
         "scheduleBackgroundRefresh": "background",
         "scheduleNotification": "notifications",
+        "scheduleWorkoutPlan": "workoutPlans",
         "searchPOI": "location",
         "sendToPhone": "connectivity",
         "speak": "speech",
