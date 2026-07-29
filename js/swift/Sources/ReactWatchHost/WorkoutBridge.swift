@@ -38,10 +38,17 @@
 //             precedent verbatim, for the identical reason — it is the one
 //             refusal that produces NO delegate callback, so a parked invoke
 //             would otherwise hang to its 30 s watchdog.
+//   RECOVERY  a session that outlived the process that started it, because that
+//             process CRASHED mid-workout. Adopted once per launch, before any
+//             claim is taken. Deliberately NOT the reload path — a runtime
+//             reload still ends its workout deterministically; see
+//             recoverOrphanedSession().
 //
 // The pump is INVISIBLE to the workout API in both directions: it publishes no
 // `workout.state` and it never writes the `lastEnded` snapshot. Only the
-// EXPLICIT claim is a "workout" as far as js/src/workout.ts is concerned.
+// EXPLICIT claim is a "workout" as far as js/src/workout.ts is concerned, and
+// what enforces that at the delegate is SESSION IDENTITY (`publishedSession`) —
+// not a `claim` read, which is nil by the time a terminal callback lands.
 #if os(watchOS)
 import CoreLocation
 import Foundation
@@ -77,6 +84,24 @@ final class WorkoutSessionOwner: NSObject {
     /// the state snapshot (HKWorkoutSession exposes it, but not the wire names).
     private var activePlan: WorkoutStartPlan?
 
+    /// The one session whose transitions JS is still owed — i.e. the EXPLICIT
+    /// one. This is identity, not state, and that distinction is the whole
+    /// point: `claim` describes the session that is live NOW and is cleared
+    /// synchronously at every teardown, so by the time a terminal delegate
+    /// callback lands it is nil for the explicit session too. Reading `claim`
+    /// there could therefore never separate "the workout JS is watching ended"
+    /// from "the hidden pump ended", which is why an `|| toState == .ended`
+    /// escape hatch used to stand in for it — and why a pump killed from
+    /// OUTSIDE (Apple ends ours when a second workout starts elsewhere) slipped
+    /// through: `didFailWithError`'s trailing `didChangeTo(.ended)` passed that
+    /// disjunct and published a `workout.state: "ended"` at an app that never
+    /// started a workout. A session this owner never published cannot publish
+    /// its death, whoever killed it.
+    ///
+    /// Weak, like `HKWorkoutSession.delegate` itself: this names a session, it
+    /// does not keep one alive.
+    private weak var publishedSession: HKWorkoutSession?
+
     /// Monotonic id of the session made by the last accepted start; 0 = none.
     /// A delegate callback carries the epoch of the session it belongs to, so a
     /// stale session's terminal callback can never settle a start parked for
@@ -104,6 +129,12 @@ final class WorkoutSessionOwner: NSObject {
     /// exact drain `keepAliveInBackground: false` asked to avoid, arrived at
     /// through the one door the backstop doesn't watch.
     private var pumpBlockedByBackground = false
+
+    /// A `recoverActiveWorkoutSession` round trip is in flight — see
+    /// `recoverOrphanedSession()`. The pump is deferred for its duration:
+    /// starting one would take the single system slot and, per Apple's own
+    /// rule, END the very session being recovered.
+    private var recovering = false
 
     /// Metrics coalescing: `didCollectDataOf` fires per collected sample.
     private var lastMetricsAt: Date = .distantPast
@@ -193,6 +224,14 @@ final class WorkoutSessionOwner: NSObject {
     }
 
     private func beginPumpSession() {
+        // The crash-recovery window, guarded at the ONE choke point every pump
+        // start goes through (claim / resume / restore all land here). A pump
+        // started inside it would occupy the single slot and, per Apple, end
+        // the session `recoverActiveWorkoutSession` is in the middle of handing
+        // back — losing the user's real workout to a heart-rate stream. The
+        // completion calls `restorePumpIfWanted()` on every path, so the pump is
+        // DEFERRED by one healthd round trip, never dropped.
+        guard !recovering else { return }
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = .other
         epoch += 1
@@ -357,6 +396,109 @@ final class WorkoutSessionOwner: NSObject {
             discard: !wasWorkout, completion: nil)
     }
 
+    // MARK: - Crash recovery (a session that outlived its process)
+
+    /// Adopts a workout left running by a launch that CRASHED mid-session.
+    ///
+    /// Apple, `recoverActiveWorkoutSession(completion:)` (watchOS 5.0, below the
+    /// v10 floor): *"If your app crashes during an active workout session, the
+    /// system calls your extension delegate's … method the next time your app
+    /// launches. To recover the workout session, call … As soon as you receive
+    /// the session object, you must access its builder and set up your data
+    /// source and delegates again."*
+    ///
+    /// THIS IS NOT THE RELOAD PATH, and conflating the two would undo the
+    /// ARCH-08 decision `tearDownForReload` implements:
+    ///
+    ///  - a JS runtime **reload** (dev hot-reload, OTA apply) still ends the
+    ///    workout DETERMINISTICALLY — end, save, park the snapshot for the
+    ///    fresh runtime's first `getWorkoutState()`. The process is alive, the
+    ///    workout belongs to the bundle that started it, and an incoming bundle
+    ///    must not inherit one it never started. Unchanged.
+    ///  - this is process **DEATH**. Nothing ended that session and nothing
+    ///    saved it; it is still running on the user's wrist and still holding
+    ///    the one slot watchOS allows. There is no runtime it could be handed
+    ///    back to — the one that started it no longer exists — so the choice is
+    ///    adopt it or strand it, and stranding it burns the slot for the whole
+    ///    next launch and loses the workout.
+    ///
+    /// Called ONCE per process, from `ReactWatchModel.start()`. Never from
+    /// `boot()`, which runs again on every reload: a second recovery per launch
+    /// is the shape that would blur the distinction above. Whether the
+    /// completion lands before or after a reload is deliberately NOT guarded on
+    /// the generation — a recovered session was started by neither runtime, so
+    /// "the runtime that started it" has no meaning here, and the live one is
+    /// the only one that can report it. The next reload ends and saves it like
+    /// any other.
+    func recoverOrphanedSession() {
+        guard HKHealthStore.isHealthDataAvailable() else { return }
+        recovering = true
+        nonisolated(unsafe) let this = self
+        healthStore.recoverActiveWorkoutSession { session, _ in
+            // The error arm carries nothing actionable — "no session to
+            // recover" is the overwhelmingly common answer and is reported the
+            // same way — and there is no invoke parked on this, so there is
+            // nothing to reject. What must happen on EVERY path is lifting the
+            // pump deferral below.
+            DispatchQueue.main.async {
+                this.recovering = false
+                if let session { this.adopt(session) }
+                // Owed on every path: `beginPumpSession` refused for the whole
+                // window. A no-op when the adopted workout now owns the slot
+                // (its own `session == nil` guard), the pump otherwise.
+                this.restorePumpIfWanted()
+            }
+        }
+    }
+
+    /// Re-attaches a recovered session: builder, data source, delegates, claim.
+    private func adopt(_ session: HKWorkoutSession) {
+        // The slot is single-occupancy, so a session we ALREADY own outranks
+        // the recovered one. `beginPumpSession` defers for the window, but a
+        // `startWorkout` from the freshly booted bundle can still land inside
+        // it, and by Apple's rule that newer start has already ended this one.
+        // Ending it explicitly releases the daemon's handle instead of leaving
+        // a zombie no code path can reach.
+        guard self.session == nil, pendingStart == nil else {
+            session.end()
+            return
+        }
+        let configuration = session.workoutConfiguration
+        let builder = session.associatedWorkoutBuilder()
+        builder.dataSource = HKLiveWorkoutDataSource(
+            healthStore: healthStore, workoutConfiguration: configuration)
+        session.delegate = self
+        builder.delegate = self
+        self.session = session
+        self.builder = builder
+        claim = .workout
+        publishedSession = session
+        // `nil` only if a PREVIOUS binary's vocabulary had a name this one
+        // dropped (our own `startWorkout` can't start an activity outside the
+        // 81). The snapshot then omits `activityType` rather than naming the
+        // wrong workout, and the metrics push — which needs the plan's interval
+        // — stays quiet; the session itself is still adopted, because holding
+        // the slot open matters more than the label.
+        activePlan = WorkoutActivityName.name(for: configuration.activityType)
+            .map {
+                WorkoutStartPlan.recovered(
+                    activityType: $0,
+                    location: configuration.locationType == .indoor
+                        ? .indoor
+                        : configuration.locationType == .outdoor ? .outdoor : nil)
+            }
+        lastMetricsAt = .distantPast
+        // No `beginCollection`: the crashed launch already began it and the
+        // builder has been collecting ever since — that is the data this
+        // recovers. And no epoch settle to worry about: the bump gives the
+        // adopted session an identity no parked start can match, because no
+        // start was ever parked for it.
+        epoch += 1
+        emitState(
+            Self.stateName(session.state).rawValue,
+            "recovered a workout left running by a previous launch", epoch)
+    }
+
     deinit {
         // Releasing the single system slot is the safety property P0-3 bought
         // and it must not regress: a discarded owner must not leak the
@@ -392,6 +534,13 @@ final class WorkoutSessionOwner: NSObject {
             self.session = session
             self.builder = builder
             self.claim = claim
+            // The identity half of "the pump is invisible": only an EXPLICIT
+            // session is ever named here, so only its transitions can be
+            // published — including the ones that arrive after `claim` has been
+            // cleared, and the ones nobody on this side asked for (an outside
+            // kill). Set at the construction site, because that is the only
+            // place the claim and the session object are known together.
+            if claim == .workout { publishedSession = session }
             activePlan = plan
             lastMetricsAt = .distantPast
             if plan?.collectRoute == true {
@@ -405,8 +554,14 @@ final class WorkoutSessionOwner: NSObject {
             activePlan = nil
             self.claim = nil
             // A start that throws produces no delegate callback, so emit the
-            // terminal state ourselves or the parked invoke hangs.
-            emitState("ended", error.localizedDescription, epoch)
+            // terminal state ourselves or the parked invoke hangs. Only for the
+            // EXPLICIT claim: no invoke is ever parked on a pump start, so
+            // emitting here for one would publish `workout.state: "ended"` to an
+            // app that started no workout — the same leak the delegate's
+            // identity check closes, one door over.
+            if claim == .workout {
+                emitState("ended", error.localizedDescription, epoch)
+            }
         }
     }
 
@@ -435,12 +590,15 @@ final class WorkoutSessionOwner: NSObject {
         self.builder = nil
         routeBuilder = nil
         // The pump is an implementation detail of `startHeartRate` and JS never
-        // saw it start, so its teardown must publish nothing: detaching the
-        // SESSION delegate (the `tearDownForReload` idiom — `delegate` is weak
-        // and this file already nils it in `deinit` and `detachDelegates`)
-        // stops the dying pump's `.ended` from reaching the escape hatch and
-        // firing a `workout.state: "ended"` at a screen that never started a
-        // workout. Only the session delegate: `builder.delegate` stays attached
+        // saw it start, so its teardown must publish nothing. `publishedSession`
+        // is what GUARANTEES that at the delegate (a session never named there
+        // can never publish, whoever ends it); this detach is the cheap early
+        // out that keeps a dying pump from scheduling main-queue work per
+        // transition at all — the `tearDownForReload` idiom, `delegate` being
+        // weak and already nil'd in `deinit` and `detachDelegates`. It covers
+        // only the teardowns WE run, which is why it is not the rule: an
+        // outside kill hands us a session we were never given the chance to
+        // detach. Only the session delegate — `builder.delegate` stays attached
         // so the pump's last heart-rate readings still reach `sensor.heartRate`.
         if wasPump { session.delegate = nil }
         claim = nil
@@ -519,6 +677,9 @@ final class WorkoutSessionOwner: NSObject {
     private func detachDelegates() {
         session?.delegate = nil
         builder?.delegate = nil
+        // A detached session can no longer publish anything; leaving it named
+        // would make the identity invariant read as though it still could.
+        publishedSession = nil
     }
 
     // MARK: - Route
@@ -621,21 +782,25 @@ extension WorkoutSessionOwner: HKWorkoutSessionDelegate {
         // publishing its lifecycle would invent events nobody subscribed to.
         // The epoch still goes out for the parked-start settle.
         //
-        // `toState == .ended` is an ESCAPE HATCH, not a second rule: `claim` is
-        // already nil by the time the explicit session's own terminal callback
-        // lands (`endSession` clears it synchronously), so without the disjunct
-        // a workout would never publish "ended" at all. What keeps the pump out
-        // of it is that `endSession` detaches the pump's session delegate, so a
-        // pump teardown produces no callback here in the first place. KNOWN GAP,
-        // recorded rather than half-fixed: a pump killed from OUTSIDE still
-        // reaches here through `didFailWithError`'s trailing `.ended`, because
-        // that session was never ours to detach; see the design doc's follow-up
-        // table.
+        // The test is IDENTITY — is this the session JS was told about? — and
+        // not a `claim` read, which cannot answer it: `endSession` clears
+        // `claim` synchronously, so it is already nil when the explicit
+        // session's own terminal callback lands. The `|| toState == .ended`
+        // escape hatch that used to stand in for it is what let an externally
+        // killed PUMP publish an "ended" at an app that started no workout: its
+        // `didFailWithError` is followed by a trailing `didChangeTo(.ended)`
+        // (Apple documents that order), and that session was never ours to
+        // detach, so the teardown-site detach could not reach it either.
+        // Clearing the name on the terminal transition is also what stops an
+        // outside kill publishing "ended" TWICE — once from the failure, once
+        // from the transition behind it.
         let epoch = self.epoch(of: session)
         nonisolated(unsafe) let this = self
         DispatchQueue.main.async {
-            guard this.claim == .workout || toState == .ended else { return }
-            this.emitState(Self.stateName(toState).rawValue, nil, epoch)
+            guard session === this.publishedSession else { return }
+            let name = Self.stateName(toState)
+            if name == .ended { this.publishedSession = nil }
+            this.emitState(name.rawValue, nil, epoch)
         }
     }
 
@@ -655,6 +820,16 @@ extension WorkoutSessionOwner: HKWorkoutSessionDelegate {
                 this.claim = nil
                 this.activePlan = nil
             }
+            // Published only for the session JS knows about, same rule as the
+            // transition above. A killed PUMP is fully invisible here: JS never
+            // saw it start, so it must not see it die — and it doesn't need to,
+            // because `sensor.heartRate` recovers on its own (the owner's
+            // `wantHeartRate` survives, and `resumeHeartRateIfWanted` brings the
+            // pump back at the next foreground — the one moment when re-taking
+            // the slot is both legal and wanted, since the app that took it had
+            // to be frontmost).
+            guard session === this.publishedSession else { return }
+            this.publishedSession = nil
             this.emitState("ended", error.localizedDescription, epoch)
         }
     }

@@ -420,6 +420,18 @@ final class ReactWatchModel {
         extendedRuntime.onWillExpire = { [weak self] in
             self?.pushNativeEvent("runtimeSession.willExpire")
         }
+        // Crash recovery, and deliberately HERE — once per PROCESS, in the
+        // method guarded by `runtime == nil` — rather than in boot(), which
+        // runs again on every reload. The two are different events and must
+        // stay so: a reload ends its workout deterministically
+        // (`tearDownForReload`, below), because the process is alive and an
+        // incoming bundle must not inherit a workout it never started; this
+        // adopts a session whose process DIED, which no runtime can be handed
+        // back to and which is still holding the one system slot. Issued before
+        // boot() so the owner's deferral is armed before the bundle's first
+        // `startHeartRate` can take that slot and, per Apple, end the session
+        // being recovered.
+        workout.recoverOrphanedSession()
         boot()
         #if DEBUG
         startDevReload()

@@ -98,4 +98,26 @@ public struct WorkoutStartPlan: Equatable, Sendable {
                 metricsIntervalMs: Swift.max(minMetricsIntervalMs, interval),
                 collectRoute: payload.collectRoute ?? false))
     }
+
+    /// The plan for a session RECOVERED from a launch that crashed mid-workout
+    /// (`HKHealthStore.recoverActiveWorkoutSession`, watchOS 5.0). There is no
+    /// wire payload behind it — the crashed launch's request died with it, and
+    /// the session's `HKWorkoutConfiguration` is all that survived — so the two
+    /// knobs a caller would have chosen are decided here, in the file `swift
+    /// test` can reach, rather than inside the watchOS-only owner:
+    ///
+    /// - the metrics period is the default one. The crashed launch's choice is
+    ///   unknowable, and the default is the battery-safe end of the range.
+    /// - `collectRoute` is **false**, and this is the load-bearing one: the
+    ///   route is not recoverable. The location stream is not running, the dead
+    ///   process's `HKWorkoutRouteBuilder` went with it, and attaching a fresh
+    ///   one here would save a route that begins wherever the app happened to
+    ///   relaunch — a worse artifact than no route, because it looks complete.
+    public static func recovered(
+        activityType: String, location: WorkoutLocation?
+    ) -> WorkoutStartPlan {
+        WorkoutStartPlan(
+            activityType: activityType, location: location,
+            metricsIntervalMs: defaultMetricsIntervalMs, collectRoute: false)
+    }
 }
