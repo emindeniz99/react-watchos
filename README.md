@@ -82,6 +82,40 @@ ecosystem libraries won't run here** — and the component vocabulary is
 SwiftUI-like (41 primitives, `VStack`/`List`/`Gauge`/`Chart`/`NavigationStack`
 and the rest), with SwiftUI layout rather than flexbox.
 
+## Why QuickJS, and not Hermes
+
+The fair question: shipping a second JS engine looks like gratuitous risk when
+React Native already has one. The short answer is that **Hermes has no watchOS
+target and no ILP32 story**, and that second half is the load-bearing one.
+
+Apple Watch models before S9 run **`arm64_32`** — 64-bit registers, 32-bit
+pointers. quickjs-ng is plain portable C that compiles for `arm64_32` today
+(and for `arm64`, and for your Linux CI box, which is why the production
+bundle is testable in the exact target engine). Hermes has no ILP32 support
+story, so a Hermes port would either **drop every pre-S9 watch** or fund an
+ILP32 port of a JIT-less VM — to gain AOT bytecode and a better GC, and we
+already have the first half: `build:bytecode` precompiles the bundle to
+QuickJS bytecode so cold start skips the parser.
+
+The other candidates fail earlier. **JavaScriptCore** isn't shipped on
+watchOS at all, and a static WebKit build is enormous — with no JIT allowed,
+JSC loses most of its advantage anyway. **Moddable XS** is technically
+excellent but LGPLv3: on a signed, statically-linked App Store binary the
+relinking obligation has no clean discharge, and because this is an npm
+package that obligation would flow to **every consumer's app**. quickjs-ng is
+MIT; consumers inherit nothing.
+
+Residual risks, named rather than waved away: `.qbc` bytecode is coupled to
+the vendored engine version (mitigated by hash-refusal and regenerating at
+package time), quickjs-ng is a community fork of Bellard's QuickJS (the
+vendoring script isolates us from either's churn), and there is no JIT —
+which is not a differentiator, because Apple forbids JIT for everyone.
+
+Full analysis, including what a migration would actually cost:
+[docs/system-architecture-review-2026-07-01-alternatives.md](./docs/system-architecture-review-2026-07-01-alternatives.md)
+§2.1. The engine seam (`HostBridge` / `JSRuntime`) is kept clean so the
+decision stays reversible.
+
 ## How it works
 
 ```
@@ -239,6 +273,47 @@ can't claim) is
 - **CI has never run.** GitHub Actions is disabled at the repo level, so the
   Linux and macOS workflows have never executed — the gates are run locally.
   Recorded in [docs/status.md](./docs/status.md).
+
+## When NOT to use this
+
+Limitations are things you work around; these are reasons to pick something
+else. Five, honestly:
+
+- **You need custom native views.** The op channel has a documented escape
+  hatch (`getHost()` — install and call your own native op). **Views have
+  none.** `NodeView.swift` renders the tree with a closed `switch` whose
+  `default:` arm skips the node, so the set of renderable node types is fixed
+  in the Swift you built from — an app cannot register a new one, and neither
+  can an OTA bundle. That is deliberate (the same node type must mean the same
+  thing in the app, the widget extension and the codegen schema), but if your
+  design needs a bespoke SwiftUI view *inside* the React tree, this renderer
+  is the wrong layer for that part of your UI. The workarounds — compose
+  `ReactWatchRootView` inside your own SwiftUI, or contribute the primitive —
+  are in [docs/extending.md](./docs/extending.md#the-hatch-is-for-ops-not-views).
+- **Your app is a pure sensor pipeline and every milliwatt counts.** If the
+  product is mostly background data collection with a thin UI, the JS layer
+  buys you little and costs a bridge crossing per reading. Native Swift is the
+  better trade. This renderer earns its keep where there is real UI and real
+  state to manage.
+- **Your team is already fluent in SwiftUI and doesn't want JSX.** SwiftUI on
+  watchOS is genuinely good. The reason to reach for this is a React codebase,
+  React ergonomics, or the OTA update path — not because SwiftUI is hard. If
+  none of those apply, you are adding an engine for nothing.
+- **You want one JS codebase for iPhone *and* watch today.** You will not get
+  it here. React Native runs the phone; this runs the watch; they share no
+  component vocabulary, no layout model, and no ecosystem libraries. Sharing
+  is realistic for your *logic* (plain TypeScript, compiled into both
+  bundles), not your UI — the watch screens get written separately, and
+  budgeting for that up front is the honest plan.
+- **Your tolerance for App-Review risk is zero and you need OTA.** Signed OTA
+  is the differentiator, and it has **not been through App Review yet**. The
+  carve-out that makes CodePush/expo-updates routine on iOS is written around
+  WebKit and JavaScriptCore — neither of which exists on watchOS — so our
+  reading of the rules ([docs/ota-signing.md](./docs/ota-signing.md) maps the
+  design to DPLA §3.3.1(B) and Guideline 2.5.2) is a *reading*, not a
+  precedent. The renderer works fine with OTA switched off, so this is a
+  reason to defer the update pipe rather than the whole library — but if a
+  rejection would be expensive for you, wait for the receipt.
 
 ## Versioning & stability
 
