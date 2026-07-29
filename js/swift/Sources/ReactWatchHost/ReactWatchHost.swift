@@ -473,6 +473,11 @@ final class ReactWatchModel {
                 try load(into: js)
             }
             jsReady = true
+            // The incoming generation has registered its listeners but has
+            // never seen a wrist-down, so tell it the state the root view
+            // already knows. See pushLuminanceReduced for why this is not
+            // redundant with the view's `.onChange(initial: true)`.
+            pushLuminanceReduced()
         } catch {
             report(
                 code: "boot.startupFailed", severity: .fatal, subsystem: .boot,
@@ -1871,6 +1876,32 @@ final class ReactWatchModel {
         runtime?.pushNativeEvent(name, payload: payload)
     }
 
+    /// Last Always-On luminance state the root view observed. Kept so a fresh
+    /// JS generation can be told it at boot — see `pushLuminanceReduced`.
+    @ObservationIgnored private var luminanceReduced = false
+
+    /// The root view's `.onChange(of: isLuminanceReduced, initial: true)` sink.
+    /// A pure push event: no host method, no invoke, no HostPolicy feature —
+    /// like `scenePhase`, `openURL` and `backgroundRefresh`, none of which are
+    /// policy-gated either.
+    func setLuminanceReduced(_ reduced: Bool) {
+        luminanceReduced = reduced
+        pushLuminanceReduced()
+    }
+
+    /// Pushes the CURRENT luminance state to whatever JS generation is live.
+    ///
+    /// Called from `boot()` as well as from the environment change, and that
+    /// second call site is the point: `pushNativeEvent` reaches nobody while
+    /// `jsReady == false` (there is no `__pushNativeEvent` global before the
+    /// bundle evaluates), and SwiftUI does not order `.onChange(initial:)`
+    /// against `.onAppear { model.start() }`. Without the re-push the initial
+    /// value races the runtime and is silently dropped — and an OTA hot-reload
+    /// would never learn the state at all, because the wrist has not moved.
+    private func pushLuminanceReduced() {
+        pushNativeEvent("luminanceReduced", payload: ["reduced": luminanceReduced])
+    }
+
     /// Trailing-edge debounce for the widget-extension wake (P1-3). Main-
     /// confined like the bridge callbacks that schedule it.
     @ObservationIgnored private var widgetReloadDebounce: DispatchWorkItem?
@@ -2282,6 +2313,14 @@ private struct UpdateRequiredView: View {
 public struct ReactWatchRootView: View {
     @State private var model: ReactWatchModel
     @Environment(\.scenePhase) private var scenePhase
+    /// Always-On: true when the user lowers their wrist and the display stays
+    /// on at reduced luminance (watchOS 8+ keeps your view visible by default).
+    ///
+    /// Read HERE, once, and never in `NodeView`: NodeView is instantiated per
+    /// node, so reading the environment there would fan one global signal out
+    /// across the whole tree and re-evaluate every node's body on every
+    /// wrist-down — the opposite of what this signal exists to save.
+    @Environment(\.isLuminanceReduced) private var isLuminanceReduced
 
     public init(
         appGroupId: String? = nil, ota: OTAConfig = .init(),
@@ -2338,6 +2377,18 @@ public struct ReactWatchRootView: View {
             case .active: model.handleScenePhase(background: false)
             default: break
             }
+        }
+        // `initial: true` (watchOS 10.0, exactly the floor) is half of the
+        // answer to the initial-value problem: a plain .onChange fires only on
+        // CHANGE, so a bundle that mounts while the wrist is already down would
+        // believe luminance is normal and keep its timers running — precisely
+        // the failure this signal exists to prevent. The other half is the
+        // re-push at the end of boot(), because this push lands before the
+        // bundle has evaluated (pushNativeEvent is inert until then) and
+        // SwiftUI does not guarantee this fires after .onAppear's model.start().
+        // BOTH are needed; neither is redundant.
+        .onChange(of: isLuminanceReduced, initial: true) {
+            model.setLuminanceReduced(isLuminanceReduced)
         }
         .onOpenURL { url in
             model.pushNativeEvent("openURL", payload: ["url": url.absoluteString])

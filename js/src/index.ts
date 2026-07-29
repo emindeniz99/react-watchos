@@ -5,6 +5,7 @@ import { WatchRoot } from "./renderer";
 
 export type { GenerateOptions } from "./ai";
 export { generateText, isOnDeviceAIAvailable } from "./ai";
+export { LUMINANCE_REDUCED_EVENT, onLuminanceReduced } from "./appState";
 export type { PlayAudioOptions } from "./audio";
 export {
   AUDIO_FINISHED_EVENT,
