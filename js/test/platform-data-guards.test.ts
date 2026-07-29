@@ -69,6 +69,28 @@ describe("an inbound file is moved before anything else can happen", () => {
     expect(hop).toBeGreaterThan(prune);
   });
 
+  it("reduces the sender's metadata to JSON before it crosses the bridge", () => {
+    // The sender's metadata is a PROPERTY LIST, not JSON. Apple's contract for
+    // `transferFile(_:metadata:)` is "the values of the dictionary must all be
+    // property list object types", and `WCSessionFile.metadata` is a verbatim
+    // passthrough — so a Date or Data leaf is the API used exactly as
+    // documented, from an iPhone app this library cannot constrain. One such
+    // leaf makes the ENTIRE payload unserializable: JS gets `undefined`, and
+    // with it loses `path` for a file already landed in the inbox. There is no
+    // enumeration op, `deleteReceivedFile("")` cannot address it, and nothing
+    // reports — the file just sits until the prune eats it. Sanitizing HERE
+    // rather than guarding in `jsonString` is what preserves the delivery: a
+    // guard would only downgrade the failure and still orphan the file.
+    const body = slice(
+      read(CONNECTIVITY),
+      "func session(_: WCSession, didReceive file: WCSessionFile) {",
+      "/// Terminal state of an OUTBOUND transfer",
+    );
+    expect(code(body)).toContain(
+      '"metadata": RemotePushWire.sanitize(file.metadata ?? [:])',
+    );
+  });
+
   it("reports a receive it could not land instead of dropping it silently", () => {
     // There is no invoke to reject — nobody asked for this file — so a failure
     // has exactly one place to go (rule 12). Both failure paths must reach it.

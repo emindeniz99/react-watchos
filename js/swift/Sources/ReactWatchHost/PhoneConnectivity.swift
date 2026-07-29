@@ -464,7 +464,16 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
                 "path": landed.absoluteString,
                 "name": name,
                 "size": (attributes?[.size] as? Int) ?? 0,
-                "metadata": file.metadata ?? [:],
+                // The sender's metadata is a PROPERTY LIST, not JSON: Apple
+                // lets `transferFile(_:metadata:)` carry any property-list
+                // type, and a Date or Data leaf makes the WHOLE payload
+                // unserializable — `JSONSerialization` rejects the dictionary,
+                // `pushNativeEvent` hands JS `undefined`, and the file already
+                // sitting in the inbox is orphaned with no path, no
+                // enumeration op and no diagnostic. Reduce to JSON-encodable
+                // values (the same rule remote push applies) so path/name/size
+                // survive and only the offending leaf is dropped.
+                "metadata": RemotePushWire.sanitize(file.metadata ?? [:]),
                 "receivedAt": receivedAtMs,
             ])
     }
