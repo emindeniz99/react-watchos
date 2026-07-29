@@ -350,6 +350,27 @@ The Mac/device gaps, stated plainly:
    restrict schemes, so the chain *should* hold — but URLSession data tasks
    against `file://` need a device/sim check. If it fails, the fallback is a
    `readReceivedFile` invoke returning base64, which is a separate decision.
+
+   Three things about this path are **not** device questions and are now stated
+   on `ReceivedFile.path` itself, because that JSDoc is the source of the
+   published API page and was asserting the read path flatly:
+
+   - A `file://` load is not an `HTTPURLResponse`, so `performFetch`'s
+     `http?.statusCode ?? 0` reports `status: 0` — `ok === false`,
+     `statusText === "Server Error"` — on a read that fully succeeded.
+     `arrayBuffer()` still returns the bytes, so this is failure-shaped success
+     signalling rather than a broken read, but the module advertises a WHATWG
+     subset that exposes `ok`.
+   - `FetchResponse.classifyBody` caps a bridged body at 5 MiB (QuickJS heap
+     protection) and the sending phone is under no matching cap, so a larger
+     file lands, fires `onReceivedFile` with an accurate `size`, and is
+     **permanently unreadable** — there is no other byte-reading API and
+     `file://` honours no Range. This is a functional hole, not a doc gap; the
+     `readReceivedFile` fallback above is what closes it.
+   - `fetch` is gated on the `network` feature while the file ops are
+     `connectivity`, so a bundle policy-limited to `connectivity` receives
+     files it cannot open. A `connectivity`-gated `readReceivedFile` would
+     close this at the same time.
 3. **EventKit prompts** — the TCC sheet, the `.writeOnly` vs `.fullAccess`
    mapping, and that the `NSCalendars*FullAccess*` keys actually reach the built
    `Info.plist` after `expo prebuild`.

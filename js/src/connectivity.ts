@@ -128,8 +128,26 @@ export interface ConnectivityState {
 
 /** A file received from the iPhone, as delivered to {@link onReceivedFile}. */
 export interface ReceivedFile {
-  /** Absolute `file://`-readable path inside this app's inbox. Read it with
-   *  `fetch(path)` → `arrayBuffer()`, then {@link deleteReceivedFile} it. */
+  /** Absolute `file://` path inside this app's inbox. Read it with
+   *  `fetch(path)` → `arrayBuffer()`, then {@link deleteReceivedFile} it —
+   *  with three caveats. (The `file://` leg itself is still device-unverified:
+   *  see `docs/design-platform-data-package.md` §"What is verified".)
+   *
+   *  - **Ignore `response.ok` and `response.status`.** A `file://` load is not
+   *    an `HTTPURLResponse`, so the host reports `status: 0` — making
+   *    `ok === false` and `statusText === "Server Error"` on a read that fully
+   *    succeeded. `arrayBuffer()` still returns the bytes; a rejected promise
+   *    is the only real failure signal here.
+   *  - **Over 5 MiB is unreadable.** The host caps a bridged body at
+   *    `FetchResponse.defaultMaxBodyBytes` and rejects past it, to keep an
+   *    unbounded body out of the watch's tight QuickJS heap — and the sending
+   *    phone is under no matching cap. Check {@link ReceivedFile.size} first;
+   *    `file://` honours no HTTP Range, so there is no chunked read and no
+   *    other byte-reading API in this package.
+   *  - **Reading needs the `network` feature**, not `connectivity`. `fetch` is
+   *    gated separately, so a bundle policy-limited to `connectivity` receives
+   *    files it has no way to open.
+   */
   path: string;
   /** The name the sender gave the file. */
   name: string;
