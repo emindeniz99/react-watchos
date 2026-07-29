@@ -362,6 +362,25 @@ final class ReactWatchModel {
             // publishing, so `await startWorkout()` means "running" rather than
             // "the request was submitted" — the extended-runtime precedent.
             self?.settleWorkoutStarts(state: state, reason: reason, epoch: epoch)
+            // `endWorkout` is NOT the only way a session dies: Apple ends ours
+            // when another app starts a workout (didFailWithError), a start
+            // that throws never reaches the endWorkout completion, and a start
+            // cancelled inside the authorization window never had a session.
+            // The route rides the GPS at kCLLocationAccuracyBest with no
+            // distance filter, so stopping it only in that completion leaves
+            // full-rate GPS running until the next reload — and the stranded
+            // `routeTracking` latch also makes the app's own `stopLocation()`
+            // a permanent no-op. Idempotent, and `stopLocationIfIdle` still
+            // leaves a live `startLocation` subscription alone.
+            //
+            // `!isWorkoutActive` is what makes this safe next to the UPGRADE:
+            // a stale "ended" (an externally killed pump, say) must not stop
+            // the route of a workout that has since started. It is false for
+            // every legitimate terminal push — the owner clears its state
+            // before emitting.
+            if state == "ended", self?.workout.isWorkoutActive == false {
+                self?.sensors.stopRouteTracking()
+            }
             var payload: [String: Any] = ["state": state]
             if let reason { payload["reason"] = reason }
             self?.pushNativeEvent("workout.state", payload: payload)
