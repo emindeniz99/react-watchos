@@ -12,6 +12,16 @@ import Foundation
 import ReactWatchSupport
 
 final class PedometerBridge {
+    /// Why a read produced nothing. Mirrors `OneShotLocation.Failure`, for the
+    /// same reason it exists: `denied` is the USER's decision
+    /// (PERMISSION_DENIED — re-calling won't help, Settings will), anything
+    /// else is a genuine "no data". Collapsing both told the caller the window
+    /// was empty for a state only Settings can change.
+    enum Failure: Error, Equatable {
+        case denied
+        case unavailable
+    }
+
     /// One reading, JSON-safe. Wired to `sensor.pedometer` for the live stream.
     var onReading: (([String: Any]) -> Void)?
 
@@ -61,18 +71,48 @@ final class PedometerBridge {
         pedometer.stopUpdates()
     }
 
-    /// The historical query (~7 days of on-device history). `nil` = the crash
+    /// The ONE honest consent signal CoreMotion offers. A HealthKit *read* is
+    /// deliberately built so a denial is indistinguishable from "no samples"
+    /// (HealthQueryBridge says so); CoreMotion is not, so there is no excuse
+    /// for reporting a refusal as an empty window. watchOS 4.0+ — far under
+    /// the package's watchOS 10 floor, and already listed in the availability
+    /// table of docs/design-health-package.md.
+    ///
+    /// `.notDetermined` must NOT count as denial: CoreMotion has no
+    /// request-authorization call, so the first query IS the prompt. Refusing
+    /// on undetermined would make consent permanently unreachable.
+    private static var authorizationDenied: Bool {
+        switch CMPedometer.authorizationStatus() {
+        case .denied, .restricted: true
+        default: false
+        }
+    }
+
+    /// The historical query (~7 days of on-device history). `false` = the crash
     /// guard refused; the caller turns that into UNAVAILABLE.
     func query(
         _ plan: PedometerQueryPlan,
-        completion: @escaping ([String: Any]?) -> Void
+        completion: @escaping (Result<[String: Any], Failure>) -> Void
     ) -> Bool {
         guard !Self.usageDescriptionMissing else { return false }
         guard CMPedometer.isStepCountingAvailable() else { return false }
         nonisolated(unsafe) let settle = completion
         pedometer.queryPedometerData(from: plan.start, to: plan.end) { data, _ in
-            let payload = data.map { Self.reading(from: $0, live: false).payload() }
-            DispatchQueue.main.async { settle(payload) }
+            // A window the user simply didn't walk comes back as CMPedometerData
+            // with zero steps, never nil — so nil here is a FAILURE, and the
+            // authorization status is what says which kind. Asking it inside the
+            // completion (rather than pre-flighting) covers both orderings with
+            // one check: denied in Settings before the call, and denied at the
+            // prompt this very call raised (status is already updated by then).
+            let outcome: Result<[String: Any], Failure> =
+                if let data {
+                    .success(Self.reading(from: data, live: false).payload())
+                } else if Self.authorizationDenied {
+                    .failure(.denied)
+                } else {
+                    .failure(.unavailable)
+                }
+            DispatchQueue.main.async { settle(outcome) }
         }
         return true
     }

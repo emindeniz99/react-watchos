@@ -2916,18 +2916,33 @@ extension ReactWatchModel {
             rejectInvalid(id: id, message: error.message)
         case .success(let plan):
             let gen = generation
-            let started = sensors.pedometer.query(plan) { [weak self] reading in
+            let started = sensors.pedometer.query(plan) { [weak self] outcome in
                 guard let self, gen == self.generation else { return }
-                guard let reading else {
+                switch outcome {
+                case .success(let reading):
+                    self.runtime?.resolveInvoke(
+                        id: id, resultJson: Self.jsonObject(reading))
+                // A denied "Motion & Fitness" used to reject INTERNAL with the
+                // no-data message — the third instance of the mistake
+                // InvokeErrorJSON's enum was introduced to stop (after
+                // `AUDIO_FAILED` and `LOCATION_UNAVAILABLE`): the code compiled,
+                // but it told the caller "you didn't walk" for the one state a
+                // caller can act on. PERMISSION_DENIED is what `getCurrentLocation`
+                // already reports for the same class of refusal.
+                case .failure(.denied):
+                    self.runtime?.rejectInvoke(
+                        id: id,
+                        errorJson: Self.errorJSON(
+                            code: .permissionDenied,
+                            message: "Motion & Fitness permission denied — "
+                                + "re-enable it for this app in Settings"))
+                case .failure(.unavailable):
                     self.runtime?.rejectInvoke(
                         id: id,
                         errorJson: Self.errorJSON(
                             code: .internal,
                             message: "CoreMotion returned no pedometer data"))
-                    return
                 }
-                self.runtime?.resolveInvoke(
-                    id: id, resultJson: Self.jsonObject(reading))
             }
             if !started {
                 runtime?.rejectInvoke(

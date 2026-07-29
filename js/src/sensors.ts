@@ -182,6 +182,11 @@ export function startPedometer(
  * CMPedometer without it **crashes the app**, so native refuses rather than
  * calling. `currentPace*`/`currentCadence*` are always absent here — Apple
  * documents them as nil on a historical query.
+ *
+ * Rejects `PERMISSION_DENIED` when "Motion & Fitness" is denied or restricted
+ * (`CMPedometer.authorizationStatus()`). Switch on it: only a Settings change
+ * fixes that, so a retry is pointless — unlike a window that genuinely has no
+ * data, which RESOLVES with `steps: 0` rather than rejecting.
  */
 export function queryPedometer(range: {
   startMs: number;
