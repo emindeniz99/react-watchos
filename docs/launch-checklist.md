@@ -1,10 +1,13 @@
 # Launch-readiness checklist (pre-marketing gates)
 
-Date: 2026-07-02. Owner-facing: this is the honest list of what must be true
-before announcing the project publicly. Each gate has a status and the
-evidence that flips it. Statuses: ✅ done · 🟡 ready-to-run (needs one action)
-· ⛔ blocked (needs hardware/accounts). Keep this file updated as gates flip —
-stale "done" claims here defeat its purpose (Rule 12).
+Date: 2026-07-02 (E3 revised 2026-07-29 — see the row). Owner-facing: this is
+the honest list of what must be true before announcing the project publicly.
+Each gate has a status and the evidence that flips it. Statuses: ✅ done · 🟡
+ready-to-run (needs one action) · ⛔ blocked (needs hardware/accounts). Keep
+this file updated as gates flip — a stale claim here defeats its purpose
+(Rule 12), and that cuts **both** ways: E3 sat at ⛔ for three weeks after the
+device run that cleared it, which cost the project a true claim it had already
+earned.
 
 ## 1. Engineering gates
 
@@ -12,7 +15,7 @@ stale "done" claims here defeat its purpose (Rule 12).
 |---|---|---|---|
 | E1 | Linux CI green on the main line (js + swift-package jobs, examples gate live) | 🟡 | The examples CI step was dark (wrong script name + stale lockfile, NF-26) — fixed on this branch; **verify the first post-merge run actually passes**. |
 | E2 | macOS build workflow green (prebuild + xcodebuild watch & widget + sim tests) | 🟡 | Now scheduled nightly (NF-30). **One green run after this branch merges is the gate** — it also compile-verifies the watchOS-gated Swift changes (NF-09/10/22, allowUnsignedUpdates wiring) that Linux cannot. |
-| E3 | Physical-device verification (code signing, App Groups, `WKRunsIndependentlyOfCompanionApp` on hardware, BLE against a real peripheral) | ⛔ | Needs a Mac + paired watch + Apple Developer team. Until then, marketing copy must say "verified on the watchOS simulator" — do NOT claim device support. BLE result-reporting (CX-022 remainder) stays device-gated by decision. |
+| E3 | Physical-device verification (code signing, App Groups, `WKRunsIndependentlyOfCompanionApp` on hardware, BLE against a real peripheral) | ✅ **at a stated scope** | **2026-07-05 run on a physical Apple Watch Ultra 3** (watchOS 26.5, paired iPhone 14 Pro), *properly* automatic-signed against real team `D68Q862K33` with the App Group provisioned by the portal — no ad-hoc/entitlement-stripping hacks. The QuickJS + renderer → SwiftUI stack **boots and renders on-wrist** ([status.md](./status.md) row 1). **Verified scope is exactly "boots + renders"** — copy may claim device support at that scope and no further. Still UNVERIFIED on hardware: Taptic haptics, Digital Crown feel, HealthKit heart-rate + GPS location streams, a complication on the live watch face, and BLE against a real peripheral (CX-022 remainder stays device-gated by decision). |
 | E4 | Interpreter perf numbers on-device | ⛔ | CI produces vendored-engine numbers via `bench:qjs` (NF-20): ~1.5 ms/dispatch on x86 over the current 138-node demo tree (was 1.06 ms at NF-20; the demo grew). The on-device profile is the honest number to quote — until then, quote the x86 figure with its caveat. Full method (harness, `os_signpost`, Instruments-on-watch, MetricKit-is-phone-only): [performance-measurement.md](./performance-measurement.md). *(2026-07-16: baseline moved — ARCH-09 lazy navigation cut the launch tree to 48 nodes / 4.1 KB, ~0.52 ms/dispatch on x86; run locally, Actions still disabled. On-device stays the gate.)* |
 | E5 | Suspense/animation/design-token gaps acknowledged | ✅ | README limitations + review §2.4; the announcement should link the honest list rather than bury it. |
 
@@ -59,15 +62,18 @@ stale "done" claims here defeat its purpose (Rule 12).
   React-authored complications."
 - [ ] **Claims NOT to make** (each has bitten a reviewer already): not React
   Native core (no RN ecosystem libraries — README says it first, so should
-  the announcement); no device verification yet (E3); on-device AI is
+  the announcement); no device claim beyond "boots + renders" (E3 — haptics,
+  Digital Crown feel, HealthKit/GPS streams and the live-face complication are
+  still unverified on hardware); on-device AI is
   blocked on watchOS 27 SDK (status.md ⛔); Suspense unsupported by design.
 - [ ] **Where the deep answers live**: architecture + alternatives → the
   2026-07-01 review; "is X real?" → status.md; security → ota-signing.md; the
   2026-07-02 self-review cycles (5 adversarial passes, 32 fixes) →
   code-review-2026-07-02-self-review-cycles.md. The widget OTA signature
   re-verification is now implemented (fail-closed); like the ~4k lines of
-  reviewed SwiftUI-host Swift it awaits the macOS `swift build` (E3) to compile
-  — the one remaining gate, blocked on `actions:write` to dispatch it.
+  reviewed SwiftUI-host Swift it awaits the macOS `swift build` (E2 — this
+  pointer said E3, which is the device gate, not the build one) to compile —
+  the one remaining gate, blocked on `actions:write` to dispatch it.
 
 ## 5. Suggested order of operations
 
@@ -75,5 +81,8 @@ stale "done" claims here defeat its purpose (Rule 12).
 2. R2 (name check + token) → merge the release-please PR → R3/R4 rehearsal.
 3. Record §4 demo assets on the simulator.
 4. Draft the announcement against §4's claims lists.
-5. Device pass (E3/E4) when hardware is available — upgrade the copy then,
-   not before.
+5. E3's first device pass is **done** (boots + renders, 2026-07-05) — the copy
+   may be upgraded to that scope now. The remaining device work is E3's
+   unverified list (haptics, crown, HealthKit/GPS streams, live-face
+   complication, BLE peripheral) plus E4's on-device perf numbers; upgrade the
+   copy further only as each lands.

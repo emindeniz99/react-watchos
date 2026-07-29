@@ -2,9 +2,12 @@
 
 Working copy for the launch post. Written against the claims-discipline list
 in [launch-checklist.md](./launch-checklist.md) §4 — every number cites its
-source, and nothing here claims device verification until gate E3 clears.
-Update the bracketed gates before publishing; do not publish while any
-bracket remains.
+source. Gate E3 cleared on 2026-07-05 at a **stated scope**: the app boots
+and renders on a physical Apple Watch Ultra 3, properly signed. Device claims
+here are held to exactly that scope — haptics, Digital Crown feel,
+HealthKit/GPS streams and the live-face complication remain unverified on
+hardware. Update the bracketed gates before publishing; do not publish while
+any bracket remains.
 
 ---
 
@@ -33,9 +36,10 @@ HN title options (pick one, don't oversell):
 
 ## Blog-post outline
 
-1. **The hook** — the counter demo GIF (simulator; gate E3 pending, say so
-   in the caption). "This is React 19, running in QuickJS, on the watch,
-   rendering native SwiftUI."
+1. **The hook** — the counter demo GIF (simulator capture; say so in the
+   caption — the on-wrist run of the same stack is real but wasn't filmed).
+   "This is React 19, running in QuickJS, on the watch, rendering native
+   SwiftUI."
 2. **Why a fork was impossible** — the research.md table (no public UIKit,
    no JSC, no JIT). What we built instead: reconciler → JSON tree →
    SwiftUI interpreter, events + seq-ack back. ~500-line renderer core, not
@@ -57,8 +61,9 @@ HN title options (pick one, don't oversell):
    1.06 ms/dispatch on x86 quickjs-ng [replace with on-device number when
    gate E4 clears — until then keep the caveat "x86, CI-class hardware"].
 5. **The honest list** — link README Limitations and status.md verbatim:
-   not RN core, no RN ecosystem libraries, physical-device path
-   [unverified — update when E3 clears], on-device AI blocked on the
+   not RN core, no RN ecosystem libraries, physical-device path verified to
+   "boots + renders" only (haptics, crown, HealthKit/GPS streams and the
+   live-face complication untested on hardware), on-device AI blocked on the
    watchOS 27 SDK, Suspense unsupported by design.
 6. **Try it** — quickstart (the README consumer path), examples, and the
    architecture review for the deep readers.
@@ -99,10 +104,15 @@ patch protocol needs, and Raycast ships React + JSON-patch at scale. The
 protocol seam is where that evolution happens, without changing the
 product's API.
 
-**"Does it work on a real watch?"** [Gate E3 — until it clears:] "Verified
-on the watchOS simulator (Xcode build + package tests on the watch arch);
-the physical-device path — code signing, App Groups on hardware — is the
-documented remaining step." Do not soften this answer.
+**"Does it work on a real watch?"** "Yes, at a scope we'll state exactly: on
+2026-07-05 it ran on a physical Apple Watch Ultra 3 (watchOS 26.5), properly
+automatic-signed against a real team with the App Group provisioned by the
+portal — the QuickJS + renderer → SwiftUI stack boots and renders on-wrist.
+What we have NOT verified on hardware: Taptic haptics, Digital Crown feel,
+the HealthKit heart-rate and GPS location streams, a complication on the live
+watch face, and BLE against a real peripheral. Everything else is simulator +
+package tests on the watch arch." Do not soften this answer, and do not round
+"boots + renders" up to "works".
 
 ## Assets to produce before publishing (checklist §4)
 

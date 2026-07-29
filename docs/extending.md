@@ -73,6 +73,48 @@ arbitrary native code, only the ops the host installed. Events commit through
 Keep payloads JSON-serializable — strings are all that cross the QuickJS↔Swift
 boundary.
 
+## The hatch is for ops, not views
+
+The recipe above extends the app in **one** direction. Being explicit about
+that, because the shape of this page otherwise implies a symmetry that does
+not exist:
+
+| | Escape hatch | Where |
+|---|---|---|
+| **Ops** (do a thing / stream a value) | **Yes** — `getHost()` is exported, and an app can install and call its own `__host` op without touching the renderer | the recipe above |
+| **Views** (new node types in the React tree) | **None** | — |
+
+`NodeView.swift` renders the tree with a `switch node.type` whose `default:`
+arm calls `unsupportedNode(type)`: the node is skipped, siblings keep
+rendering, and the type is logged once. There is no view registry, no
+`register(nodeType:)` seam, no protocol an app can conform to — the set of
+renderable node types is fixed in the Swift the app was built from.
+
+**This is a design property, not an oversight.** The renderer's contract is
+that a node type means the same thing in the app, in the widget extension, and
+in the drift-guarded codegen schema that both are generated from. A runtime
+view registry would fork that contract three ways and put an OTA bundle in a
+position to reference a view the reviewed binary cannot draw. The `default:`
+arm exists to make the *other* direction safe: a newer JS bundle degrades
+gracefully on an older interpreter instead of failing the whole commit.
+
+**What you can do instead.** The boundary is the React tree, not the screen:
+
+- **Write your own SwiftUI next to the tree.** `ReactWatchRootView` is an
+  ordinary SwiftUI view — compose it in a `VStack`, put it in a
+  `NavigationStack`, present it in a `.sheet`, or wrap it in your own chrome.
+  Anything React doesn't need to own can just be hand-written SwiftUI.
+- **Drive that SwiftUI from React over the op channel.** Push state out with a
+  custom op and events back in with `__pushNativeEvent` — the same recipe
+  above, with your view reading the state instead of a bridge.
+- **Contribute the node type.** A genuinely general primitive belongs in
+  `codegen/schema.ts` + `NodeView.swift`, where it gets the widget-parity and
+  drift checks. That is a PR, not an app-level extension.
+
+What you **cannot** do is inject a node type into the tree from your app or
+from an OTA bundle. If your design needs that, the honest answer is that this
+renderer is the wrong layer for that part of your UI.
+
 ## Built-in capabilities (2026-07 additions)
 
 Beyond the recipe above, these ship as first-class modules — all routed
