@@ -878,6 +878,112 @@ watchOS entry** at all — confirming the existing note in
 
 ---
 
+## Deferred with a revive trigger — dependency upgrade wave (2026-07-29)
+
+Same template: **measured, deferred, revive trigger named**, so a later
+reader can tell "we tried it and it broke" from "nobody got to it". Taken in
+the same wave and NOT listed here: `@types/react-reconciler` 0.33.0 (see
+[reconciler-version-matrix.md](./reconciler-version-matrix.md)), biome 2.5.5,
+vitest 4.1.10, typedoc 0.28.20, react 19.2.8 (dev), esbuild 0.28.1,
+`@types/node` 26.1.1.
+
+### [~] DEP-D1 — typescript 5.9.3 → 7.0.2 (the Go port) → **deferred: typedoc**
+
+*What was measured.* TypeScript 7.0.2 was installed and the gates run.
+**Our own code is ready**: `tsc -p tsconfig.json`, `tsconfig.test.json` and
+`tsconfig.tooling.json` all pass clean under 7.0.2, `strict` +
+`exactOptionalPropertyTypes` + `noUncheckedIndexedAccess` included. biome
+2.5.5 (own parser) and vitest 4.1.10 (esbuild transform, no typecheck) are
+unaffected — 640/640 still passed under 7.0.2.
+
+*The single blocker is the docs pipeline.* `typedoc@0.28.20` declares
+`peerDependencies.typescript` as `5.0.x || … || 5.9.x || 6.0.x` — no 7.x —
+and it does not merely warn, it dies on import:
+
+```
+TypeError: Cannot read properties of undefined (reading 'PropertyDeclaration')
+    at node_modules/typedoc/dist/index.js:537:18
+      ts4.SyntaxKind.PropertyDeclaration,
+```
+
+`pnpm run docs:api` exits 1 before emitting anything. A broken docs pipeline
+is worse than an old compiler, so the compiler stays at 5.9.3.
+
+*Revive trigger:* a **typedoc release whose `typescript` peer accepts 7.x**.
+At the time of writing typedoc's newest stable is 0.28.20 (peer caps at
+6.0.x); there are `1.0.0-dev.*` prereleases, which are not something to put
+under a docs pipeline. Re-check typedoc's peer range first — if it accepts
+7.x, this becomes a clean take, because nothing else objected.
+
+*Also recorded:* `app/` already runs `typescript: ~6.0.3` while `js/` and both
+examples run `^5.9.0`. That skew is pre-existing and harmless (the app has no
+shared tsconfig with the package), but 6.0.x is inside typedoc's supported
+range, so moving `js/` to 6.x is available as a smaller intermediate step if
+a TS bump is ever wanted before typedoc catches up.
+
+### [~] DEP-D2 — plist 3.1.1 → 5.0.0 → **deferred: ESM-only vs our CommonJS plugin**
+
+*What was measured.* plist went ESM-only at **4.0.0** (`"type": "module"`),
+and 5.0.0's `exports` map offers only `browser` and `import` conditions — no
+`require`, no top-level `default`. There is no CJS-compatible intermediate
+between 3.x and 5.x. Verified directly:
+
+```
+> require('plist')   // plist@5.0.0
+ERR_PACKAGE_PATH_NOT_EXPORTED
+No "exports" main defined in .../node_modules/plist/package.json
+```
+
+Our consumer is CommonJS by construction: `js/plugin/package.json` is
+`{"type": "commonjs"}`, every plugin file is `.cts`, and
+`plugin/peerDeps.cts`'s `loadTransitive()` reaches plist through a
+synchronous `require(require.resolve(id, …))`.
+
+*Second, independent reason.* That same `loadTransitive()` deliberately
+resolves plist from `@expo/config-plugins` / `@bacons/apple-targets` rather
+than from us — and both currently supply **plist 3.1.1**, the version we
+already declare. So bumping our `dependencies` entry would not change which
+copy the plugin loads at prebuild time; it would only break the bare
+`require("plist")` fallback and introduce a skew between what we declare and
+what runs.
+
+*Revive trigger:* the plugin stops being CommonJS (an `.mts` plugin entry
+that Expo can load), **or** the Expo/apple-targets chain itself moves to
+plist ≥ 5 — at which point `loadTransitive()` would be handing us an ESM
+module through `require()` anyway and the migration becomes forced, not
+optional. Watch the Expo SDK 57 bump (DEP-D3) for that.
+
+### [~] DEP-D3 — the Expo SDK 56 → 57 family → **deferred: out of this wave's risk budget**
+
+*What was measured.* `app/` and `examples/expo-watch-app` have a coordinated
+major wave available: `expo` 56.0.12 → 57.0.8, `@expo/config-plugins` 56.0.9
+→ 57.0.6, `@bacons/apple-targets` 4.0.7 → 5.0.0, `react-native` 0.85.3 →
+0.86.0 (plus the `react` 19.2.3 → 19.2.8 those apps pin exactly, which is why
+react moved only in `js/` and `examples/minimal-watch-app` this wave).
+
+*Why not now.* Three reasons, in order of weight:
+
+1. **It cannot be validated here.** Every one of these changes lands in the
+   native prebuild path — `expo prebuild -p ios`, target generation, Xcode
+   build. None of that runs in this environment, so "the tests pass" would
+   prove nothing about the thing being changed.
+2. **`@bacons/apple-targets` 4 → 5 is a contract change we encode.** Our
+   published `peerDependencies` pins `"@bacons/apple-targets": "^4.0.0"`, and
+   `plugin/mergeInfoPlist.cts` is written against where *4.x* writes
+   `targets/<name>/`. Taking 5.0.0 means re-reading that layout, changing the
+   peer range, and re-verifying the Info.plist merge — a task, not a bump.
+3. **It is a fan-out, not an upgrade.** `@expo/config-plugins` and `expo`
+   majors move together with the SDK; our peers declare `>=56.0.0` for both,
+   so consumers on 57 are already permitted. Nothing is blocked by waiting.
+
+*Revive trigger:* a session with a working iOS/watchOS build (Xcode +
+simulator) that can run `expo prebuild` and the reference app end to end.
+Do `@bacons/apple-targets` 4 → 5 **first and alone**, since it is the one
+that touches our own plugin contract, then the SDK trio, then react 19.2.8
+across the Expo apps to converge the workspace on one react copy.
+
+---
+
 ## Summary counts
 
 - ✅ REAL (act): **23** — CX-001,002,003,004,005,006,007,008,009,010,011,012,014,015,016,018,020,021,022,023,026,027 + OP-2.
