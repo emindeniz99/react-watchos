@@ -106,9 +106,14 @@ function watchTargetConfig(opts: ResolvedOptions) {
     infoPlist.NSHealthUpdateUsageDescription =
       infoPlist.NSHealthUpdateUsageDescription ??
       "Save your workouts to Health.";
-    infoPlist.NSHealthShareUsageDescription =
-      infoPlist.NSHealthShareUsageDescription ??
-      "Read your heart rate while a workout is active.";
+    if (!opts.healthKit) {
+      // Workout-only reads ARE heart-rate-only. When `healthKit` is also on the
+      // block below owns this key — it must not be pre-filled here, or its `??`
+      // no-ops and the sheet promises heart rate while health.ts reads sleep.
+      infoPlist.NSHealthShareUsageDescription =
+        infoPlist.NSHealthShareUsageDescription ??
+        "Read your heart rate while a workout is active.";
+    }
   }
   if (opts.healthKit) {
     // Reads are no longer heart-rate-only (js/src/health.ts adds steps, active

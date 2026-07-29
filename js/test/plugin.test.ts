@@ -326,6 +326,39 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(on.infoPlist.NSHealthUpdateUsageDescription).toBeTruthy();
   });
 
+  it("healthKit's broad read string survives workouts being on too", () => {
+    // Both blocks write NSHealthShareUsageDescription, and `workouts` runs
+    // first — so its `??` used to pre-fill the key and make the healthKit
+    // block's fallback a no-op. A fitness app (reads sleep + steps via
+    // health.ts, saves workouts) then shipped the heart-rate-only sheet: the
+    // exact "sheet says heart rate while the app asks for sleep history"
+    // mismatch the healthKit default was reworded to remove.
+    const both = watchTargetConfig({
+      ...demoOpts,
+      healthKit: true,
+      workouts: true,
+    });
+    expect(both.infoPlist.NSHealthShareUsageDescription).toContain("sleep");
+    // Workouts alone genuinely IS heart-rate-only — don't over-promise there.
+    expect(
+      watchTargetConfig({ ...demoOpts, healthKit: false, workouts: true })
+        .infoPlist.NSHealthShareUsageDescription,
+    ).toBe("Read your heart rate while a workout is active.");
+    // The workout write string still wins over healthKit's, and a consumer
+    // override still beats both.
+    expect(both.infoPlist.NSHealthUpdateUsageDescription).toBe(
+      "Save your workouts to Health.",
+    );
+    expect(
+      watchTargetConfig({
+        ...demoOpts,
+        healthKit: true,
+        workouts: true,
+        infoPlist: { NSHealthShareUsageDescription: "Mine." },
+      }).infoPlist.NSHealthShareUsageDescription,
+    ).toBe("Mine.");
+  });
+
   it("omits the background mode when workouts is off", () => {
     // Least privilege: background execution is a capability an app that never
     // starts a workout must not carry.
