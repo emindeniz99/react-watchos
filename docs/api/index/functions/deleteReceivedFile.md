@@ -8,7 +8,7 @@
 
 > **deleteReceivedFile**(`path`): `Promise`\<`void`\>
 
-Defined in: [js/src/connectivity.ts:231](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L231)
+Defined in: [js/src/connectivity.ts:255](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L255)
 
 Deletes a file this app received, by the `path` its
 [onReceivedFile](onReceivedFile.md) event carried. Call it once you've read the bytes.
