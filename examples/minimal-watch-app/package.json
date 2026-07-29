@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "react": "^19.2.0",
+    "react": "^19.2.8",
     "react-watchos": "workspace:*",
     "react-reconciler": "0.33.0"
   },

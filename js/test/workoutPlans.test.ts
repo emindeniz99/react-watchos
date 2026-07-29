@@ -45,6 +45,27 @@ function installHost(results: Record<string, unknown> = {}) {
   return calls;
 }
 
+/**
+ * The `index`-th recorded call's payload, typed. Reading it through
+ * `calls[i]?.payload as T` and then touching a field is what
+ * lint/correctness/noUnsafeOptionalChaining (new in biome 2.5.5) rightly
+ * rejects: when the wrapper never reached the host the chain yields
+ * `undefined` and the field access dies with a TypeError, hiding WHICH
+ * expectation broke. Failing here names the real problem instead.
+ */
+function payloadAt<T>(
+  calls: { method: string; payload: unknown }[],
+  index: number,
+): T {
+  const call = calls[index];
+  if (!call) {
+    throw new Error(
+      `expected a host call at index ${index}, but only ${calls.length} were recorded`,
+    );
+  }
+  return call.payload as T;
+}
+
 const customPlan: WorkoutPlanSpec = {
   kind: "custom",
   id: "3F2504E0-4F89-41D3-9A0C-0305E82C3301",
@@ -118,7 +139,7 @@ describe("the plan narrowing", () => {
       },
       1_768_476_600_000,
     );
-    const plan = (calls[0]?.payload as { plan: Record<string, unknown> }).plan;
+    const plan = payloadAt<{ plan: Record<string, unknown> }>(calls, 0).plan;
     expect(plan).toEqual({
       kind: "pacer",
       activityType: "running",
@@ -157,11 +178,9 @@ describe("the plan narrowing", () => {
       },
       1_768_476_600_000,
     );
-    const blocks = (
-      calls[0]?.payload as {
-        plan: { blocks: { steps: { alert: object }[] }[] };
-      }
-    ).plan.blocks;
+    const blocks = payloadAt<{
+      plan: { blocks: { steps: { alert: object }[] }[] };
+    }>(calls, 0).plan.blocks;
     expect(blocks[0]?.steps[0]?.alert).toEqual({
       kind: "speedThreshold",
       metersPerSecond: 3.33,
@@ -180,12 +199,8 @@ describe("the plan narrowing", () => {
       "3F2504E0-4F89-41D3-9A0C-0305E82C3301",
       1_768_476_600_000,
     );
-    expect((calls[0]?.payload as { atMs: number }).atMs).toBe(
-      1_768_476_600_000,
-    );
-    expect((calls[1]?.payload as { atMs: number }).atMs).toBe(
-      1_768_476_600_000,
-    );
+    expect(payloadAt<{ atMs: number }>(calls, 0).atMs).toBe(1_768_476_600_000);
+    expect(payloadAt<{ atMs: number }>(calls, 1).atMs).toBe(1_768_476_600_000);
   });
 });
 
