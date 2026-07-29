@@ -153,8 +153,8 @@ REACT_WATCH_OTA_URL=http://127.0.0.1:8788 pnpm build:targets  # new releaseId
 ```
 
 Sign manifests for production with the renderer's `ota:sign` (the private
-`OTA_SIGNING_KEY` is yours and is never committed); see the renderer README's
-OTA section.
+`OTA_SIGNING_KEY` is yours and is never committed); see
+[`docs/ota-signing.md`](../../docs/ota-signing.md).
 
 See [`../minimal-watch-app`](../minimal-watch-app) for the smallest possible
 consumer (watch UI only, no iPhone app).

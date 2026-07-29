@@ -5,8 +5,9 @@ in QuickJS *on the watch*, and render to native SwiftUI. Not a fork of React
 Native — a `react-reconciler` renderer that does the same category of thing
 (JS engine on device + JSX/hooks + native widgets + an event bridge).
 
-See the [project README](../README.md) for the full architecture, the Swift
-host (`../swift`, a SwiftPM package), and the macOS build steps.
+See the [project README](../README.md) for the architecture and the honest
+limitations, and [docs/getting-started.md](../docs/getting-started.md) for the
+Swift host (`../swift`, a SwiftPM package) and the macOS build steps.
 
 ## Install
 
@@ -262,8 +263,8 @@ Inside this repo's pnpm workspace, `workspace:*` dedupes React automatically.
 Consuming from **outside** the workspace (a `file:`/`link:` dependency, which
 resolves via realpath) needs three settings — esbuild `nodePaths`, vitest
 `resolve.dedupe`, and tsc `preserveSymlinks: true` — see
-[From outside the workspace](../README.md#from-outside-the-workspace) in the
-project README.
+[From outside the workspace](../docs/getting-started.md#from-outside-the-workspace)
+in the project docs.
 
 ## Docs
 

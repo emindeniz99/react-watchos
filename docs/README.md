@@ -147,6 +147,22 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   console, the quickjs stack-guard fix — plus the package's **first-ever Swift
   compile + `swift test`, on Linux**.
 
+## Using it (the README's deep content lives here)
+
+The project README was restructured on 2026-07-29 into a front door; the deep
+material moved here **unchanged in substance**, each page focused on one job:
+
+- [getting-started.md](./getting-started.md) — repo layout, workspace commands,
+  consuming the package (Expo plugin + scaffold), host policy, the consumer
+  tsconfig contract, the macOS/Xcode build and its first-build friction.
+- [ui-guide.md](./ui-guide.md) — writing screens: instant/periodic/smooth
+  update mechanisms, theming, navigation + deep links, React-authored
+  complications/widgets/controls, formatting without `Intl`, optimistic input.
+- [battery-defaults.md](./battery-defaults.md) — every power-related default
+  and the reason behind it (policy, not benchmarks).
+- [engineering-notes.md](./engineering-notes.md) — the non-obvious learnings
+  (React-in-QuickJS, bytecode, threading, the React Compiler).
+
 ## Reference / background
 
 - [api/](./api/README.md) — **generated API reference** (M12): every export +
