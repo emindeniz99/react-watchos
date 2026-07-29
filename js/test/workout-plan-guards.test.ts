@@ -92,23 +92,29 @@ describe("every scheduler mutation is verified by read-back", () => {
   // denied authorization, the device is over quota, or `isSupported` is false.
   // That is the `ok == true` meaning "the sheet completed" bug the health
   // package spent four commits removing, one framework over.
-  const MUTATIONS: { decl: string; call: string }[] = [
+  // `bind` is the name the re-read is stored under, and it is pinned on
+  // purpose: the outcome has to be DERIVED from the read, and a name is the
+  // cheapest textual evidence that it was.
+  const MUTATIONS: { decl: string; call: string; bind: string }[] = [
     {
       decl: "    func schedule(",
       call: "await scheduler.schedule(plan, at: at)",
+      bind: "stored",
     },
     {
       decl: "    func remove(",
       call: "await scheduler.remove(target.plan, at: target.date)",
+      bind: "after",
     },
     {
       decl: "    func removeAll() async -> Outcome {",
       call: "await scheduler.removeAllWorkouts()",
+      bind: "after",
     },
   ];
 
-  for (const { decl, call } of MUTATIONS) {
-    it(`${call} re-reads scheduledWorkouts before settling`, () => {
+  for (const { decl, call, bind } of MUTATIONS) {
+    it(`${call} settles on a re-read of scheduledWorkouts`, () => {
       const body = code(functionBody(read(BRIDGE), decl));
       const mutation = body.indexOf(call);
       expect(
@@ -118,13 +124,33 @@ describe("every scheduler mutation is verified by read-back", () => {
       // The read-back has to come AFTER the write. A read before it (the quota
       // check, the remove target lookup) proves nothing about what landed.
       const readBack = body.indexOf(
-        "await scheduler.scheduledWorkouts",
+        `let ${bind} = await scheduler.scheduledWorkouts`,
         mutation,
       );
       expect(
         readBack,
         `${call} settles without re-reading the scheduler`,
       ).toBeGreaterThan(mutation);
+      // ...and ORDER IS NOT ENOUGH. `_ = await scheduler.scheduledWorkouts`
+      // sits after the write and proves nothing: the op would resolve success
+      // for a scheduler that stored nothing, which is the one bug this whole
+      // package's read-back exists to prevent and the one no Linux job can
+      // compile its way to. So the read is bound, the guard's CONDITION names
+      // that binding, and the arm it falls into can actually refuse.
+      const guarded = body.indexOf("guard", readBack);
+      expect(
+        guarded,
+        `${call} discards the read-back instead of guarding on it`,
+      ).toBeGreaterThan(readBack);
+      const otherwise = body.indexOf("else", guarded);
+      expect(
+        body.slice(guarded, otherwise),
+        `${call}'s guard does not test \`${bind}\` — the read-back is decorative`,
+      ).toContain(bind);
+      expect(
+        body.slice(otherwise),
+        `${call} has no refusal arm — a failed read-back cannot reject`,
+      ).toContain(".unavailable(");
     });
   }
 
@@ -137,6 +163,19 @@ describe("every scheduler mutation is verified by read-back", () => {
     expect(src).toContain("the scheduler accepted nothing");
     expect(src).toContain("watch-side scheduling may be");
     expect(src).toContain("the scheduler removed nothing");
+  });
+
+  it("the read-back keys on the plan id, not just the minute", () => {
+    // The other half of the `(id, minute)` key, and the half with teeth: drop
+    // it and `matches` answers "yes" for ANY plan sitting at that minute. The
+    // read-back would then confirm a DIFFERENT plan's write as this one's, and
+    // `remove(_:calendar:)` would resolve `true` after deleting somebody else's
+    // scheduled workout — silent, user-visible data loss, in the one file no
+    // Linux job compiles.
+    const matches = code(
+      functionBody(read(BRIDGE), "    private static func matches("),
+    );
+    expect(matches).toContain("scheduled.plan.id == id");
   });
 
   it("the read-back compares the minute, not raw DateComponents", () => {
