@@ -103,25 +103,68 @@ describe("an inbound file is moved before anything else can happen", () => {
     );
   });
 
-  it("reduces the sender's metadata to JSON before it crosses the bridge", () => {
-    // The sender's metadata is a PROPERTY LIST, not JSON. Apple's contract for
-    // `transferFile(_:metadata:)` is "the values of the dictionary must all be
-    // property list object types", and `WCSessionFile.metadata` is a verbatim
-    // passthrough — so a Date or Data leaf is the API used exactly as
-    // documented, from an iPhone app this library cannot constrain. One such
-    // leaf makes the ENTIRE payload unserializable: JS gets `undefined`, and
-    // with it loses `path` for a file already landed in the inbox. There is no
-    // enumeration op, `deleteReceivedFile("")` cannot address it, and nothing
-    // reports — the file just sits until the prune eats it. Sanitizing HERE
-    // rather than guarding in `jsonString` is what preserves the delivery: a
-    // guard would only downgrade the failure and still orphan the file.
+  it("reduces every inbound plist to JSON at the ONE bridge boundary", () => {
+    // Everything WatchConnectivity hands this class is a PROPERTY LIST, not
+    // JSON. Apple's contract for sendMessage / updateApplicationContext /
+    // transferUserInfo / transferFile is "the values of the dictionary must all
+    // be property list object types", and each delegate passes the sender's
+    // dictionary through verbatim — so a Date or Data leaf is the API used
+    // exactly as documented, by an iPhone app this library cannot constrain.
+    // One such leaf makes the ENTIRE payload unserializable: `pushNativeEvent`
+    // hands JS `undefined` and the whole event is lost, silently. For the file
+    // channel that also orphans a file already on disk (no enumeration op,
+    // `deleteReceivedFile("")` cannot address it).
+    //
+    // The rule lives in `deliver` because that is the ONE place a payload
+    // leaves this class for the bridge. Per-call-site sanitizing is what failed
+    // the first time: the file channel got it and its three siblings did not.
+    const src = read(CONNECTIVITY);
+    const deliver = slice(
+      src,
+      "then completion: (@Sendable () -> Void)? = nil",
+      "\n    }\n",
+    );
+    expect(code(deliver)).toContain(
+      "let payload = RemotePushWire.sanitize(message)",
+    );
+    // …and it is only the one boundary while `onPush` is called nowhere else:
+    // one mention declares it, one reads it inside `deliver`. A third would be
+    // a payload reaching JS around the rule.
+    expect(code(src).match(/onPush/g)).toHaveLength(2);
+    // The three plist channels must therefore route through `deliver` — a
+    // delegate that pushed some other way would bypass it.
+    for (const [decl, event] of [
+      [
+        "_: WCSession, didReceiveMessage message: [String: Any]",
+        '"watchConnectivity"',
+      ],
+      [
+        "_: WCSession, didReceiveApplicationContext context: [String: Any]",
+        '"watchConnectivity.applicationContext"',
+      ],
+      [
+        "_: WCSession, didReceiveUserInfo userInfo: [String: Any] = [:]",
+        '"watchConnectivity.userInfo"',
+      ],
+    ]) {
+      expect(code(slice(src, decl as string, "\n    }\n"))).toContain(
+        `deliver(${event}`,
+      );
+    }
+  });
+
+  it("reduces the phone's sendMessage REPLY too — it settles an invoke", () => {
+    // The one inbound plist that does not travel through `deliver`: the reply
+    // resolves the `sendToPhone` invoke instead. Same sender, same contract,
+    // same defect — and worse on Darwin, where JSONSerialization's documented
+    // "Invalid type in JSON write" is an ObjC exception `try?` cannot catch.
     const body = slice(
       read(CONNECTIVITY),
-      "func session(_: WCSession, didReceive file: WCSessionFile) {",
-      "/// Terminal state of an OUTBOUND transfer",
+      "replyHandler: { reply in",
+      "errorHandler:",
     );
     expect(code(body)).toContain(
-      '"metadata": RemotePushWire.sanitize(file.metadata ?? [:])',
+      "withJSONObject: RemotePushWire.sanitize(reply)",
     );
   });
 

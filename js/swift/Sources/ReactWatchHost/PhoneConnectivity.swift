@@ -112,8 +112,15 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         session.sendMessage(
             message,
             replyHandler: { reply in
+                // The phone's REPLY is a property list too, and this is the one
+                // inbound plist that does not travel through `deliver` — it
+                // settles an invoke instead. Without the same reduction a Date
+                // or Data leaf takes the whole reply down to `{}` (Linux) or
+                // trips JSONSerialization's documented "Invalid type in JSON
+                // write" ObjC exception (Darwin), which `try?` does not catch.
                 let replyJson =
-                    (try? JSONSerialization.data(withJSONObject: reply))
+                    (try? JSONSerialization.data(
+                        withJSONObject: RemotePushWire.sanitize(reply)))
                     .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
                 completion(.success(replyJson))
             },
@@ -394,6 +401,25 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
     /// Hops to main and runs `onPush`. `completion` runs on main immediately
     /// AFTER the handler, which is the only moment a caller can know JS has
     /// actually been handed the event rather than merely scheduled to be.
+    ///
+    /// THE SANITIZE BELONGS HERE, not at the call sites. Everything WatchConnectivity
+    /// hands this class is a PROPERTY LIST, not JSON: Apple's contract for
+    /// `sendMessage`/`updateApplicationContext`/`transferUserInfo`/`transferFile`
+    /// is "the values of the dictionary must all be property list object types",
+    /// and the delegate passes the sender's dictionary through verbatim. A Date
+    /// or Data leaf — the API used exactly as documented, by an iPhone app this
+    /// library cannot constrain — makes the WHOLE payload unserializable:
+    /// `pushNativeEvent` hands JS `undefined` and the entire event is lost, with
+    /// no diagnostic anywhere. Reducing to JSON-encodable values (the same rule
+    /// remote push applies) keeps the event and drops only the offending leaf.
+    ///
+    /// Per-call-site sanitizing was tried first and is what made this a
+    /// follow-up: one of the four inbound channels got it and the other three
+    /// did not. `deliver` is the ONE place a payload leaves this class for the
+    /// bridge, so putting the rule here makes it a property of the boundary
+    /// rather than something each new delegate method must remember. It is a
+    /// no-op for the host-built `state`/`fileTransfer` payloads, which are
+    /// JSON-legal by construction.
     private func deliver(
         _ event: String, _ message: [String: Any],
         then completion: (@Sendable () -> Void)? = nil
@@ -404,7 +430,7 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         // nonisolated(unsafe) is needed to capture these non-Sendable values
         // into the @Sendable closure without sending `self`.
         nonisolated(unsafe) let handler = onPush
-        nonisolated(unsafe) let payload = message
+        nonisolated(unsafe) let payload = RemotePushWire.sanitize(message)
         DispatchQueue.main.async {
             handler?(event, payload)
             completion?()
@@ -511,16 +537,12 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
                 "path": landed.absoluteString,
                 "name": name,
                 "size": (attributes?[.size] as? Int) ?? 0,
-                // The sender's metadata is a PROPERTY LIST, not JSON: Apple
-                // lets `transferFile(_:metadata:)` carry any property-list
-                // type, and a Date or Data leaf makes the WHOLE payload
-                // unserializable — `JSONSerialization` rejects the dictionary,
-                // `pushNativeEvent` hands JS `undefined`, and the file already
-                // sitting in the inbox is orphaned with no path, no
-                // enumeration op and no diagnostic. Reduce to JSON-encodable
-                // values (the same rule remote push applies) so path/name/size
-                // survive and only the offending leaf is dropped.
-                "metadata": RemotePushWire.sanitize(file.metadata ?? [:]),
+                // Carried verbatim HERE and reduced to JSON in `deliver`, with
+                // the other three inbound plist channels — see the rule on
+                // `deliver`. This one is the costliest instance (losing the
+                // event orphans a file already on disk, with no enumeration op
+                // to find it again), not a different rule.
+                "metadata": file.metadata ?? [:],
                 "receivedAt": receivedAtMs,
             ],
             // Released only once JS has actually run, so the next receive's
