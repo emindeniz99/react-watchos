@@ -18,7 +18,7 @@ The fields every plan kind carries, whatever its `kind`. Exported because
 
 > **activityType**: [`WorkoutActivityType`](../type-aliases/WorkoutActivityType.md)
 
-Defined in: [js/src/workoutPlans.ts:164](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L164)
+Defined in: [js/src/workoutPlans.ts:166](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L166)
 
 ***
 
@@ -26,13 +26,15 @@ Defined in: [js/src/workoutPlans.ts:164](https://github.com/emindeniz99/playgrou
 
 > `optional` **id?**: `string`
 
-Defined in: [js/src/workoutPlans.ts:163](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L163)
+Defined in: [js/src/workoutPlans.ts:165](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L165)
 
 A **UUID**, and the identity `scheduleWorkoutPlan` /
 `removeScheduledWorkoutPlan` / `listScheduledWorkoutPlans` all key on.
 Omit it and native mints one, reported back in the summary. A non-UUID
 string rejects `INVALID_REQUEST` rather than being silently replaced —
-a substitution would make removal a no-op you could never see.
+a substitution would make removal a no-op you could never see. Whatever
+you pass, the summary spells it back in canonical lower-case; see
+[ScheduledWorkoutSummary.id](ScheduledWorkoutSummary.md#id).
 
 ***
 
@@ -40,6 +42,6 @@ a substitution would make removal a no-op you could never see.
 
 > `optional` **location?**: `"indoor"` \| `"outdoor"`
 
-Defined in: [js/src/workoutPlans.ts:166](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L166)
+Defined in: [js/src/workoutPlans.ts:168](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L168)
 
 Omitted maps to WorkoutKit's own "unknown" default.

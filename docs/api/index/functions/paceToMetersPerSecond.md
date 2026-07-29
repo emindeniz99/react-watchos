@@ -8,7 +8,7 @@
 
 > **paceToMetersPerSecond**(`minutesPerKilometer`): `number`
 
-Defined in: [js/src/workoutPlans.ts:239](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L239)
+Defined in: [js/src/workoutPlans.ts:247](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L247)
 
 Converts a running **pace** (minutes per kilometer) to the **speed**
 (meters per second) the alert fields take.

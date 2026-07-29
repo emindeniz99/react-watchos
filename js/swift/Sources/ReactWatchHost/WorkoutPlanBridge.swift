@@ -147,8 +147,8 @@ import WorkoutKit
             })
         else {
             return .invalid(
-                "a plan with id \(plan.id.uuidString) is already scheduled at "
-                    + "that minute — remove it first")
+                "a plan with id \(plan.id.uuidString.lowercased()) is already "
+                    + "scheduled at that minute — remove it first")
         }
         let at = WorkoutPlanSchedule.components(fromMs: spec.atMs, calendar: calendar)
         await scheduler.schedule(plan, at: at)
@@ -306,6 +306,19 @@ import WorkoutKit
 
     /// The wire `ScheduledWorkoutSummary`. `nil` when the stored components
     /// cannot be turned back into an instant — see `scheduledSummaries`.
+    ///
+    /// The id goes out LOWER-CASED, which is RFC 9562 canonical form and
+    /// exactly what `crypto.randomUUID()` emits. `UUID.uuidString` is always
+    /// upper-case (Apple's own docs spell it
+    /// `E621E1F8-C36C-495A-93FC-0C247A3E6E5F`), and `UUID(uuidString:)` accepts
+    /// any casing but keeps none of it — so the natural JS flow
+    /// `const id = crypto.randomUUID()` then `summary.id === id`, or
+    /// `plans.find(p => p.id === myId)`, was silently FALSE and the UI
+    /// concluded the plan had vanished while it sat in the scheduler. The
+    /// caller's own spelling cannot be echoed: `scheduledWorkouts` holds a UUID
+    /// VALUE, the string does not survive a relaunch, and invariant #1 above is
+    /// that this bridge is stateless — so `schedule` and `list` would disagree
+    /// with each other, which is worse. One canonical form, documented.
     static func summary(
         _ scheduled: ScheduledWorkoutPlan, calendar: Calendar
     ) -> [String: Any]? {
@@ -314,7 +327,7 @@ import WorkoutKit
                 from: scheduled.date, calendar: calendar)
         else { return nil }
         var summary: [String: Any] = [
-            "id": scheduled.plan.id.uuidString,
+            "id": scheduled.plan.id.uuidString.lowercased(),
             "atMs": atMs,
             "complete": scheduled.complete,
         ]

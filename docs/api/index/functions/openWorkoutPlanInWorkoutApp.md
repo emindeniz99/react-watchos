@@ -8,7 +8,7 @@
 
 > **openWorkoutPlanInWorkoutApp**(`plan`): `Promise`\<`void`\>
 
-Defined in: [js/src/workoutPlans.ts:475](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L475)
+Defined in: [js/src/workoutPlans.ts:483](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L483)
 
 Hands `plan` to the Workout app (`WorkoutPlan.openInWorkoutApp()`), which on
 watchOS **launches it** — your app leaves the foreground.

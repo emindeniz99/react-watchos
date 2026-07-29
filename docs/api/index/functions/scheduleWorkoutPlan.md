@@ -8,7 +8,7 @@
 
 > **scheduleWorkoutPlan**(`plan`, `at`): `Promise`\<[`ScheduledWorkoutSummary`](../interfaces/ScheduledWorkoutSummary.md)\>
 
-Defined in: [js/src/workoutPlans.ts:415](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L415)
+Defined in: [js/src/workoutPlans.ts:423](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L423)
 
 Schedules `plan` at `at` and resolves the summary the scheduler actually
 holds — **read back after writing**, never assumed.

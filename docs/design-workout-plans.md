@@ -240,9 +240,16 @@ bridge never reads it itself.
   documented in the JSDoc and the wire doc: schedule at `…:30.500`, list
   `…:30.000`.
 - **`id` is a UUID or the request is refused.** JS may omit it (native mints one
-  and echoes it back in the summary); a non-UUID string rejects
+  and reports it back in the summary); a non-UUID string rejects
   `INVALID_REQUEST`. A silent substitution would make removal a permanent no-op
   the caller could never see — the silent-lie class this codebase keeps killing.
+  The summary spells the id in **RFC 9562 canonical lower-case**, the form
+  `crypto.randomUUID()` emits — not an echo of the caller's spelling, which
+  cannot be one: `UUID.uuidString` is always upper-case, `UUID(uuidString:)`
+  keeps no casing, and `scheduledWorkouts` holds a UUID value with no memory of
+  the string, so `list` could not echo even if `schedule` did. Echoing on
+  `schedule` alone would make the two disagree. `summary.id === myId` is the
+  natural JS check and it now holds for the natural JS id.
 - **Removing something absent resolves `false`, it does not reject.** A stale UI
   removing an already-completed plan is normal. Only a malformed UUID rejects.
 - **The quota is read from `maxAllowedScheduledWorkoutCount` at runtime**,

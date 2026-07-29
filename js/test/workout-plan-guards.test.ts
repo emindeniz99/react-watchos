@@ -436,6 +436,21 @@ describe("a plan id is a UUID or the request is refused", () => {
       "scheduling, listing and removal all key on it",
     );
   });
+
+  it("the summary spells the id back in canonical lower-case", () => {
+    // `UUID.uuidString` is ALWAYS upper-case; `crypto.randomUUID()` is always
+    // lower-case. So the obvious JS — `const id = crypto.randomUUID()`, then
+    // `summary.id === id` or `plans.find(p => p.id === myId)` — compares false
+    // for a plan that is sitting right there, and the UI concludes it vanished.
+    // The caller's own spelling is not recoverable to echo (the scheduler holds
+    // a UUID value and this bridge is stateless), so the contract canonicalises
+    // one way. Pinned here because no Linux job compiles this file.
+    const body = code(functionBody(read(BRIDGE), "    static func summary("));
+    expect(
+      body,
+      "the summary emits UUID.uuidString raw — upper-case, so `summary.id === crypto.randomUUID()` is false",
+    ).toContain("scheduled.plan.id.uuidString.lowercased()");
+  });
 });
 
 describe("the workoutPlans feature is watch-only and its own unit", () => {

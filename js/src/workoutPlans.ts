@@ -158,7 +158,9 @@ export interface WorkoutPlanCommon {
    * `removeScheduledWorkoutPlan` / `listScheduledWorkoutPlans` all key on.
    * Omit it and native mints one, reported back in the summary. A non-UUID
    * string rejects `INVALID_REQUEST` rather than being silently replaced —
-   * a substitution would make removal a no-op you could never see.
+   * a substitution would make removal a no-op you could never see. Whatever
+   * you pass, the summary spells it back in canonical lower-case; see
+   * {@link ScheduledWorkoutSummary.id}.
    */
   id?: string;
   activityType: WorkoutActivityType;
@@ -198,7 +200,13 @@ export type WorkoutPlanSpec =
 
 /** One plan the Workout app is holding. */
 export interface ScheduledWorkoutSummary {
-  /** The plan's UUID — the one you passed, or the one native minted. */
+  /**
+   * The plan's UUID — the one you passed, or the one native minted, always in
+   * RFC 9562 **canonical lower-case** (the form `crypto.randomUUID()` emits).
+   * Native parses your id to a UUID value and keeps no spelling, so an
+   * upper-case id you passed comes back lower-cased: compare
+   * case-insensitively if you may have sent one.
+   */
   id: string;
   /**
    * When it is scheduled, ms since epoch. **Minute granularity**: the
