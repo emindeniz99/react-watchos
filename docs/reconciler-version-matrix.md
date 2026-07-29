@@ -3,8 +3,8 @@
 React reconciler internals are **not a stable public renderer API**: host
 config members, factory exports and even the event-priority lane values
 move between `react-reconciler` minors, and the published typings
-(`@types/react-reconciler`) lag a full major behind. The mitigation is
-three-legged:
+(`@types/react-reconciler`) describe a different contract than the runtime
+they are numbered for. The mitigation is three-legged:
 
 1. **One adapter boundary** — [`js/src/reconcilerAdapter.ts`](../js/src/reconcilerAdapter.ts)
    is the only module allowed to import `react-reconciler` /
@@ -27,49 +27,86 @@ watch.
 | react | react-reconciler | @types/react-reconciler | status |
 | --- | --- | --- | --- |
 | `^19.2.0` (19.2.3 in lockfile) | `0.33.0` (exact) | `^0.32.0` (0.32.3) | ✅ tested 2026-07-17 — vitest suite (410) + `tools/embed-smoke/run.sh` (quickjs-ng: app + widget + bytecode boot, dispatch/nav transaction, heap + boot budgets) |
+| `^19.2.0` (19.2.3 in lockfile) | `0.33.0` (exact) | `^0.33.0` (0.33.0) | ✅ tested 2026-07-29 — vitest suite (640) + swift 374 + `tools/embed-smoke/run.sh` (quickjs-ng: app + widget + bytecode boot, dispatch/nav transaction, heap 2.1 MB, boot 36.9 ms) |
 
 `react` and `react-reconciler` are a lockstep pair (0.33.0 is cut from the
 React 19.2 tree and reports `reconcilerVersion: "19.2.0"` to DevTools);
 never bump one without the other.
 
-## The types/runtime mismatch (why the adapter casts)
+## The types/runtime mismatch (why the adapter still casts)
 
-`@types/react-reconciler@0.32` describes react-reconciler 0.32; the pinned
-runtime is 0.33. Verified against the installed
-`cjs/react-reconciler.{development,production}.js` (grep the factory's
-`$$$config.*` reads and the call sites), 2026-07-17:
+**Measured 2026-07-29 at `@types/react-reconciler@0.33.0`.** The typings
+finally carry the runtime's own version number — so the obvious question is
+whether ARCH-14's single unsafe cast can go. It cannot. The method: delete
+the cast (`const createReconcilerInstance = Reconciler;`), run
+`tsc -p tsconfig.json`, and read what the compiler says; then check every
+claim below against the installed
+`node_modules/@types/react-reconciler/index.d.ts` and the runtime's
+`cjs/react-reconciler.{development,production}.js`.
 
-- **Instance exports:** 0.33 exports `updateContainerSync`, `flushSyncWork`
-  and `defaultOn{Caught,Recoverable,Uncaught}Error` — absent from 0.32's
-  `Reconciler` interface (whose `flushSync(fn)` overload is gone in 0.33).
-- **`createContainer`:** 10 parameters ending in
-  `onDefaultTransitionIndicator`; 0.32 declares 11 (a trailing
-  `transitionCallbacks` that 0.33 does not accept).
-- **`injectIntoDevTools()`:** takes **no arguments** in 0.33 — bundleType
-  comes from which build (dev/prod) is bundled, and the identity from the
-  host config's `rendererVersion` / `rendererPackageName` /
-  `extraDevToolsConfig` (fields the 0.32 `HostConfig` doesn't have). The
-  0.32 signature (`injectIntoDevTools(devToolsConfig)`) typechecks an
-  argument object that 0.33 silently ignores — the pre-ARCH-14 renderer
-  was passing exactly such a dead object.
-- **HostConfig membership:** 0.32 *requires* members 0.33 tolerates missing
-  (`getInstanceFromNode`, `beforeActiveInstanceBlur`,
-  `afterActiveInstanceBlur`, `prepareScopeUpdate`, `getInstanceFromScope`)
-  — one reason the old `as never` existed — and *lacks* members 0.33 reads
-  (`maySuspendCommitOnUpdate`, `maySuspendCommitInSyncRender`,
-  `bindToConsole`, `suspendOnActiveViewTransition`, the DevTools identity
-  fields, the view-transition/fragment/gesture families).
-- **Signature drift:** `getChildHostContext` is `(parent, type)` (the
-  `rootContainer` argument is gone); `preloadInstance` gained a leading
-  `instance`; `suspendInstance` is `(suspendedState, instance, type,
-  props)`; `waitForCommitToBeReady` takes `(suspendedState,
-  timeoutOffsetMs)`; `bindToConsole` is called `(methodName, args,
-  badgeName)`.
-- **Stale constant values:** 0.32's `constants.d.ts` declares
-  Discrete/Continuous/Default/Idle as `1 / 4 / 16 / 2^30`; the 0.33 runtime
-  ships `2 / 8 / 32 / 2^28`. Runtime values are correct (they come from the
-  real module); the adapter's re-exports erase the stale literal *types*,
-  and the adapter test pins the runtime values.
+### Resolved by @types 0.33.0
+
+Two of the old rows are genuinely fixed, and the notes for them have been
+deleted from `reconcilerAdapter.ts`:
+
+- **Reconciler instance exports** — `updateContainerSync`, `flushSyncWork`
+  and `flushPassiveEffects` are now declared on the `Reconciler`
+  interface (they were absent in 0.32).
+- **`createContainer` arity** — now declares the real 10 parameters ending
+  in `onDefaultTransitionIndicator`. 0.32 declared 11, with a trailing
+  `transitionCallbacks` the 0.33 runtime does not accept.
+
+### Surviving drift — each proven by a tsc error
+
+Removing the cast produces **six** errors, not zero:
+
+| # | Error | What is wrong |
+| --- | --- | --- |
+| 1 | `TS2345` on the host config | `HostConfig` still **requires** `getInstanceFromNode`, `beforeActiveInstanceBlur`, `afterActiveInstanceBlur`, `prepareScopeUpdate`, `getInstanceFromScope` (no `?`). The 0.33 runtime tolerates all five missing — this renderer provides none, and the suite + embed smoke prove absence is fine. |
+| 2 | `TS2554` at `injectIntoDevTools()` | Typings still declare `injectIntoDevTools(devToolsConfig)`. The runtime's function has `.length === 0` — it takes **no** arguments, and reads the renderer identity from the host config's `rendererVersion` / `rendererPackageName` / `extraDevToolsConfig` instead. |
+| 3–4 | `TS2339` ×2 | `defaultOnCaughtError` / `defaultOnRecoverableError` **are** declared in 0.33 — but as module-level functions. At runtime they live on the reconciler **instance** (confirmed: they appear in `Object.keys(instance)`, and the module namespace has no such export), which is where the adapter reads them. |
+| 5 | `TS2345` at `onDefaultTransitionIndicator` | Typed non-nullable `() => void`; the runtime accepts `null`, which is what this renderer passes (no pending-transition UI). |
+| 6 | `TS6196` | `ReconcilerExports` becomes unused — the bookkeeping consequence of the above, not an independent finding. |
+
+Beyond what tsc reports, still wrong but not load-bearing at the call sites
+we use:
+
+- **HostConfig lacks members the runtime reads.** Absent from the 0.33
+  typings, present as `$$$config.*` reads in *both* runtime builds:
+  `maySuspendCommitOnUpdate`, `maySuspendCommitInSyncRender`,
+  `bindToConsole`, `suspendOnActiveViewTransition`, `rendererVersion`,
+  `rendererPackageName`, `extraDevToolsConfig`.
+- **Signature drift**, verified at the runtime's invocation sites:
+  `getChildHostContext(context, fiber.type)` — 2 args, the typings still
+  declare 3; `preloadInstance(stateNode, type, props)` — gained a leading
+  instance, typings declare `(type, props)`; `suspendInstance(suspendedState,
+  instance, type, props)` — typings declare `(type, props)`;
+  `waitForCommitToBeReady(suspendedState, timeoutOffsetMs)` — typings
+  declare no parameters.
+- **Stale constant VALUES.** `constants.d.ts` ships **byte-identical** to
+  0.32: Discrete/Continuous/Default/Idle as `1 / 4 / 16 / 2^30`, where the
+  runtime module really exports `2 / 8 / 32 / 2^28`. This is the row most
+  likely to bite a consumer who imports the constants directly; the adapter
+  re-exports erase the stale literal types and
+  `test/reconcilerAdapter.test.ts` pins the runtime values.
+- **`OpaqueRoot` is `any`.** Adopting the library's root type would be a
+  *downgrade* — the adapter's branded `OpaqueRoot` is what stops an
+  arbitrary value being passed back into `updateContainerSync`.
+- **Generic erasure.** The factory infers `HostConfig<unknown × 14>`, so
+  even a host config that satisfied row 1 would yield
+  `Reconciler<unknown, …>` with `createContainer(containerInfo: unknown)` —
+  losing the `Container` typing this adapter provides.
+
+### Verdict
+
+The cast **stays**, and so does the exact pin. Routing through the library
+types would need *two* casts (host config in, instance out) and would lose
+the branded root plus the `Container` generic — strictly worse than the one
+cast at the factory. What the upgrade did buy is a shorter, sharper drift
+list: the reasons are now concentrated in the HostConfig and DevTools
+surfaces rather than spread across the instance API too. Upstream fixing
+rows 1, 2 and 3–4 would be enough to revisit this decision; rows 1 and 2 are
+the load-bearing ones.
 
 Why keep `@types/react-reconciler` at all: it types the
 `react-reconciler/constants` import inside the adapter (without it the

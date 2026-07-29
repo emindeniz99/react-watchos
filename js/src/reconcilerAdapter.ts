@@ -6,39 +6,51 @@
  * the runtime constants.
  *
  * WHY THIS FILE EXISTS — the types/runtime version mismatch:
- * the runtime peer is pinned EXACTLY to react-reconciler@0.33.0, but the
- * newest published typings are @types/react-reconciler@0.32 (kept: they
- * still type the `react-reconciler/constants` module shape and satisfy the
- * "prefer a published type package" project rule). The 0.32 typings
- * describe a contract 0.33 no longer has; trusting them would typecheck
- * calls that are wrong at runtime. The concrete drift (verified against
- * cjs/react-reconciler.{development,production}.js, 2026-07-17):
+ * the runtime peer is pinned EXACTLY to react-reconciler@0.33.0, and the
+ * typings are now @types/react-reconciler@0.33.0 — the SAME major, and
+ * still not the same contract. 0.33.0 of the typings fixed the two rows
+ * that were about the reconciler *instance*, but left the HostConfig
+ * essentially at 0.32. Re-measured against @types 0.33.0 and
+ * cjs/react-reconciler.{development,production}.js on 2026-07-29 by
+ * deleting the cast and reading tsc:
  *
- *  - Reconciler instance: 0.33 exports `updateContainerSync`,
- *    `flushSyncWork` and `defaultOn{Caught,Recoverable,Uncaught}Error`,
- *    none of which the 0.32 `Reconciler` interface has; 0.32's
- *    `flushSync(fn)` overload is gone.
- *  - `createContainer` takes 10 args ending in
- *    `onDefaultTransitionIndicator` — 0.32 declares 11 (a trailing
- *    `transitionCallbacks` that 0.33 does not accept).
- *  - `injectIntoDevTools()` takes NO arguments in 0.33; the renderer's
- *    DevTools identity comes from the host config's `rendererVersion` /
- *    `rendererPackageName` / `extraDevToolsConfig` fields (which the 0.32
- *    HostConfig lacks) and `bundleType` from which build (dev/prod) was
- *    bundled. 0.32 instead declares injectIntoDevTools(devToolsConfig) —
- *    passing that object is silently ignored by 0.33.
- *  - HostConfig: 0.32 *requires* members 0.33 tolerates missing
- *    (getInstanceFromNode, beforeActiveInstanceBlur,
- *    afterActiveInstanceBlur, prepareScopeUpdate, getInstanceFromScope)
- *    and lacks members 0.33 reads (maySuspendCommitOnUpdate,
+ * FIXED by @types 0.33.0 (no longer reasons to cast):
+ *  - Reconciler instance: `updateContainerSync`, `flushSyncWork` and
+ *    `flushPassiveEffects` are now declared on the `Reconciler` interface.
+ *  - `createContainer` now declares the real 10 args ending in
+ *    `onDefaultTransitionIndicator` (0.32 declared 11).
+ *
+ * STILL WRONG in @types 0.33.0 (each one proven by a tsc error when the
+ * cast is removed — full list in docs/reconciler-version-matrix.md):
+ *  - HostConfig still *requires* five members the 0.33 runtime tolerates
+ *    missing — getInstanceFromNode, beforeActiveInstanceBlur,
+ *    afterActiveInstanceBlur, prepareScopeUpdate, getInstanceFromScope
+ *    (TS2345), and still *lacks* members both runtime builds read:
+ *    maySuspendCommitOnUpdate, maySuspendCommitInSyncRender,
  *    bindToConsole, suspendOnActiveViewTransition, rendererVersion,
- *    rendererPackageName, extraDevToolsConfig, …). Several signatures
- *    drifted too — see WatchHostConfig below, whose members document the
- *    REAL 0.33 call shapes.
- *  - The constants module's declared VALUES are stale: 0.32 declares
- *    Discrete/Continuous/Default/Idle as 1/4/16/2^30, the 0.33 runtime
- *    ships 2/8/32/2^28. Correct at runtime (values come from the real
- *    module); the re-exports below erase the stale literal types.
+ *    rendererPackageName, extraDevToolsConfig.
+ *  - `injectIntoDevTools(devToolsConfig)` still declares a REQUIRED arg;
+ *    the 0.33 runtime's takes none (`.length === 0`) and the renderer's
+ *    DevTools identity comes from the host config's rendererVersion /
+ *    rendererPackageName / extraDevToolsConfig instead (TS2554).
+ *  - `defaultOn{Caught,Recoverable,Uncaught}Error` are declared, but as
+ *    MODULE-level functions; at runtime they live on the reconciler
+ *    INSTANCE, which is where this adapter reads them (TS2339).
+ *  - `onDefaultTransitionIndicator` is typed non-nullable `() => void`;
+ *    the runtime accepts (and this renderer passes) `null` (TS2345).
+ *  - Signature drift: getChildHostContext is `(parent, type)` at runtime
+ *    but 3 args in the types; preloadInstance gained a leading `instance`;
+ *    suspendInstance is `(suspendedState, instance, type, props)`;
+ *    waitForCommitToBeReady takes `(suspendedState, timeoutOffsetMs)`.
+ *    See WatchHostConfig below, whose members document the REAL shapes.
+ *  - The constants module's declared VALUES are still stale — 0.33 ships
+ *    constants.d.ts byte-identical to 0.32: Discrete/Continuous/Default/
+ *    Idle as 1/4/16/2^30 where the runtime has 2/8/32/2^28. Correct at
+ *    runtime (values come from the real module); the re-exports below
+ *    erase the stale literal types.
+ *  - `OpaqueRoot` is `any` in the typings; the branded OpaqueRoot below is
+ *    strictly stronger, and the factory infers HostConfig<unknown × 14>,
+ *    so adopting the library's generics would erase Container typing too.
  *
  * That mismatch is why ONE unsafe cast exists in this package — the
  * factory bridge below. Everything on both sides of it is typed.
@@ -61,8 +73,8 @@ import {
 
 /**
  * Priority lane an update is scheduled at. Values are the 0.33 runtime's
- * (the @types 0.32 literals are stale — see header); treat them as opaque
- * numbers, compare only against the constants below.
+ * (the @types literals are stale in 0.33 too — see header); treat them as
+ * opaque numbers, compare only against the constants below.
  */
 export type EventPriority = number;
 
@@ -78,9 +90,9 @@ export const DefaultEventPriority: EventPriority = RuntimeDefaultEventPriority;
  * The host-config contract react-reconciler@0.33 ACTUALLY exercises for a
  * mutation-mode, non-hydrating renderer — every member the renderer
  * provides, with the argument lists the 0.33 runtime really passes
- * (several differ from the 0.32 typings; implementations may declare
- * fewer/narrower parameters as usual). Members the runtime reads but this
- * renderer does not provide (hydration, persistence, resources,
+ * (several still differ from the @types 0.33 typings; implementations may
+ * declare fewer/narrower parameters as usual). Members the runtime reads
+ * but this renderer does not provide (hydration, persistence, resources,
  * singletons, view transitions, fragment instances, test selectors,
  * getInstanceFromNode & friends) are deliberately absent: the flags below
  * gate their code paths off, and the suite + embed smoke prove absence is
@@ -109,9 +121,9 @@ export interface WatchHostConfig<Type, Props, Container, Instance> {
 
   // Host context. Non-null objects only: React's context stack rejects
   // null when crossing a Suspense boundary ("Expected host context to
-  // exist"), so the type forbids the null the 0.32 typings allow.
+  // exist"), so the type forbids the null the @types typings allow.
   getRootHostContext(rootContainer: Container): object;
-  /** 0.33 passes (parent, type) — the 0.32 rootContainer arg is gone. */
+  /** 0.33 passes (parent, type); the typings' 3rd rootContainer arg is stale. */
   getChildHostContext(parentHostContext: object, type: Type): object;
 
   getPublicInstance(instance: Instance): Instance;
@@ -203,7 +215,7 @@ export interface WatchHostConfig<Type, Props, Container, Instance> {
 
   // Suspensey-commit surface. maySuspendCommit returning false keeps every
   // deeper member unreachable; signatures still document the real 0.33
-  // shapes (0.32 declares preloadInstance/suspendInstance without the
+  // shapes (@types 0.33 still declares preloadInstance/suspendInstance without the
   // instance/state arguments).
   maySuspendCommit(type: Type, props: Props): boolean;
   maySuspendCommitOnUpdate(
@@ -254,7 +266,7 @@ export interface OpaqueRoot {
 /**
  * What the 0.33 factory really returns — the slice this package consumes,
  * with the runtime's true signatures (verified against the cjs builds;
- * see the header for how 0.32 disagrees). This is the contract THE CAST
+ * see the header for how @types 0.33 still disagrees). This is the contract THE CAST
  * below asserts, so keep it honest: the compiler checks every use against
  * it, and only the suite + embed smoke check IT against the runtime.
  */
@@ -301,10 +313,15 @@ interface ReconcilerExports<Container> {
  * THE one unsafe cast in this package — the bridge between our typed
  * contract and the mistyped library.
  *
- * WHY: @types/react-reconciler@0.32 lags the pinned 0.33 runtime (full
- * drift list in the header). Its factory type would reject our valid host
- * config (it demands members 0.33 dropped) and type the returned instance
- * without updateContainerSync/flushSyncWork — so we bypass it entirely.
+ * WHY: @types/react-reconciler@0.33 still mis-describes the pinned 0.33
+ * runtime (full drift list in the header). Measured 2026-07-29 by deleting
+ * this cast: its factory type rejects our valid host config (it demands
+ * five members 0.33 tolerates missing), rejects `injectIntoDevTools()`
+ * with no args, cannot see `defaultOn*Error` on the instance, and rejects
+ * a null `onDefaultTransitionIndicator` — six tsc errors. It also infers
+ * `HostConfig<unknown × 14>` and types roots as `any`, so routing through
+ * it would need TWO casts and would lose the Container/OpaqueRoot typing
+ * this file provides. One cast here is the cheapest honest bridge.
  *
  * WHAT IT HIDES: the compiler no longer connects the library to
  * WatchHostConfig / ReconcilerExports. If a future react-reconciler stops

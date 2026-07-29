@@ -8,11 +8,13 @@ import {
 } from "../src/reconcilerAdapter";
 
 // ARCH-14: react-reconciler internals are not a stable public renderer API,
-// and the installed typings (@types/react-reconciler@0.32) describe a
-// different contract than the pinned runtime (react-reconciler@0.33). The
-// whole mitigation is ONE adapter file + exact pinned versions + the tested
-// matrix (docs/reconciler-version-matrix.md). These tests are the upgrade
-// fixtures: they fail the moment either half of that story drifts.
+// and the installed typings (@types/react-reconciler@0.33) STILL describe a
+// different contract than the pinned runtime (react-reconciler@0.33) — the
+// 0.33 typings fixed the instance exports and createContainer's arity but
+// kept the HostConfig stale (see docs/reconciler-version-matrix.md for the
+// surviving rows). The whole mitigation is ONE adapter file + exact pinned
+// versions + the tested matrix. These tests are the upgrade fixtures: they
+// fail the moment either half of that story drifts.
 
 const srcDir = join(__dirname, "..", "src");
 const ADAPTER = "reconcilerAdapter.ts";
@@ -54,12 +56,13 @@ describe("ARCH-14: the adapter is the only reconciler boundary", () => {
     expect(pkg.peerDependencies["react-reconciler"]).toBe("0.33.0");
     expect(pkg.devDependencies["react-reconciler"]).toBe("0.33.0");
     expect(pkg.peerDependencies.react).toBe("^19.2.0");
-    expect(pkg.dependencies["@types/react-reconciler"]).toBe("^0.32.0");
+    expect(pkg.dependencies["@types/react-reconciler"]).toBe("^0.33.0");
   });
 
   it("re-exported priority constants carry the 0.33 runtime values", () => {
     // Pinned to the RUNTIME's lane values — deliberately not the stale
-    // @types/react-reconciler@0.32 literals (Discrete 1, Default 16). A
+    // @types/react-reconciler literals (Discrete 1, Default 16), which 0.33
+    // ships byte-identical to 0.32 and are still wrong. A
     // failure here means the installed reconciler changed its lane
     // encoding: re-verify the adapter per the version-matrix procedure.
     expect(NoEventPriority).toBe(0);

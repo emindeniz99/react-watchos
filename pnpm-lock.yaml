@@ -134,8 +134,8 @@ importers:
         specifier: ^1.0.5
         version: 1.0.5
       '@types/react-reconciler':
-        specifier: ^0.32.0
-        version: 0.32.3(@types/react@19.2.17)
+        specifier: ^0.33.0
+        version: 0.33.0(@types/react@19.2.17)
       expo:
         specifier: '>=56.0.0'
         version: 56.0.12(@babel/core@8.0.1)(@expo/dom-webview@56.0.5)(react-native@0.85.3(@babel/core@8.0.1)(@types/react@19.2.17)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
@@ -1359,8 +1359,8 @@ packages:
   '@types/plurals-cldr@1.0.5':
     resolution: {integrity: sha512-HSBNGq7vbdOrusN9NnmXpDBwqbyYKW9R5eJth1PFN40G08XxG1BQrkGodptWDSKd1lPd2eF0W3axQ3IRR907mA==}
 
-  '@types/react-reconciler@0.32.3':
-    resolution: {integrity: sha512-cMi5ZrLG7UtbL7LTK6hq9w/EZIRk4Mf1Z5qHoI+qBh7/WkYkFXQ7gOto2yfUvPzF5ERMAhaXS5eTQ2SAnHjLzA==}
+  '@types/react-reconciler@0.33.0':
+    resolution: {integrity: sha512-HZOXsKT0tGI9LlUw2LuedXsVeB88wFa536vVL0M6vE8zN63nI+sSr1ByxmPToP5K5bukaVscyeCJcF9guVNJ1g==}
     peerDependencies:
       '@types/react': '*'
 
@@ -4676,7 +4676,7 @@ snapshots:
 
   '@types/plurals-cldr@1.0.5': {}
 
-  '@types/react-reconciler@0.32.3(@types/react@19.2.17)':
+  '@types/react-reconciler@0.33.0(@types/react@19.2.17)':
     dependencies:
       '@types/react': 19.2.17
 
