@@ -175,6 +175,29 @@ public struct FileInbox: Sendable, Equatable {
         return drop
     }
 
+    /// The retention date for a directory entry, FAIL-CLOSED: an entry whose
+    /// `contentModificationDate` could not be read counts as the newest thing
+    /// in the inbox, never the oldest.
+    ///
+    /// This is the whole rule, extracted so it is decidable on Linux — the
+    /// unreadable state itself cannot be synthesized here (even a broken
+    /// symlink reports the link's own date), so the decision is tested rather
+    /// than the I/O. It used to fall back to `.distantPast`, which made an
+    /// unreadable attribute mean "older than everything" and therefore
+    /// "delete": a fail-OPEN-to-delete, on the receive path, for a file this
+    /// app cannot say anything about. Deleting received user data is
+    /// irreversible and silent (nothing reports a prune), so the unknown case
+    /// has to keep the file, not drop it.
+    ///
+    /// The cost is stated rather than hidden: a sentinel this new also sorts
+    /// AHEAD of real files, so an unreadable entry occupies a `maxFiles` slot
+    /// and can displace a genuinely-newest file. That keeps the inbox BOUNDED
+    /// (skipping such entries entirely would not — and the bound is why
+    /// retention exists at all), at the price of one slot per unreadable entry.
+    public static func retentionDate(_ modified: Date?) -> Date {
+        modified ?? .distantFuture
+    }
+
     /// Applies `victims` to the real directory. Returns what it removed. A
     /// missing/unreadable inbox prunes nothing rather than throwing: pruning is
     /// housekeeping on the receive path and must never fail a delivery.
@@ -191,9 +214,10 @@ public struct FileInbox: Sendable, Equatable {
         let entries = contents.map { url in
             Entry(
                 url: url,
-                modified: (try? url.resourceValues(
-                    forKeys: [.contentModificationDateKey]
-                ).contentModificationDate) ?? .distantPast)
+                modified: Self.retentionDate(
+                    try? url.resourceValues(
+                        forKeys: [.contentModificationDateKey]
+                    ).contentModificationDate))
         }
         var removed: [URL] = []
         for url in Self.victims(entries, now: now, protected: protected) {

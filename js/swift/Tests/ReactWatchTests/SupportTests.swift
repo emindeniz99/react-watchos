@@ -3121,6 +3121,49 @@ final class FileInboxTests: XCTestCase {
             FileInbox.victims(stale, now: now, maxFiles: 32, maxAge: 100).isEmpty)
     }
 
+    func testAnUnreadableModificationDateKeepsTheFileInsteadOfDeletingIt() throws {
+        // Retention is the only code in this package that destroys received
+        // user data, it runs on the RECEIVE path, and nothing reports what it
+        // removed. So the unknown case has to fail CLOSED. The fallback used to
+        // be `.distantPast`, which is "older than everything" — i.e. an
+        // attribute the app could not read decided to delete the file.
+        XCTAssertEqual(FileInbox.retentionDate(nil), .distantFuture)
+        // A readable date is passed through untouched — the fail-closed branch
+        // must not become the rule.
+        let real = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertEqual(FileInbox.retentionDate(real), real)
+
+        let unknown = FileInbox.Entry(
+            url: URL(fileURLWithPath: "/inbox/unreadable"),
+            modified: FileInbox.retentionDate(nil))
+        let old = FileInbox.Entry(
+            url: URL(fileURLWithPath: "/inbox/old"),
+            modified: real.addingTimeInterval(-FileInbox.maxAge - 60))
+        // The age rule cannot reach it, however long the inbox has been alive…
+        XCTAssertEqual(
+            FileInbox.victims([unknown, old], now: real, maxAge: FileInbox.maxAge)
+                .map(\.lastPathComponent),
+            ["old"])
+        // …and it is not exempt from the COUNT bound, which is what keeps the
+        // inbox bounded rather than trading one silent failure for growth.
+        XCTAssertEqual(
+            FileInbox.victims(
+                [unknown, old], now: real, maxFiles: 1, maxAge: FileInbox.maxAge
+            ).map(\.lastPathComponent),
+            ["old"])
+        // On disk: a file whose date IS readable and IS stale still goes, so
+        // this did not disable age pruning.
+        let box = inbox()
+        let landed = try box.adopt(
+            try makeFile("stale.txt"), receivedAtMs: 1, sequence: 1,
+            name: "stale.txt")
+        let now = Date(timeIntervalSince1970: 2_000_000)
+        try FileManager.default.setAttributes(
+            [.modificationDate: now.addingTimeInterval(-FileInbox.maxAge - 60)],
+            ofItemAtPath: landed.path)
+        XCTAssertEqual(box.prune(now: now), [landed])
+    }
+
     func testRetentionNeverDropsAFileWhoseEventIsStillInFlight() {
         // `session(_:didReceive:)` adopts on WatchConnectivity's background
         // thread but only SCHEDULES the `watchConnectivity.file` event onto
