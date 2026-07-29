@@ -724,10 +724,24 @@ public enum WorkoutPlanSchedule {
     /// The inverse, for `listScheduledWorkoutPlans`. `nil` when the calendar
     /// cannot build a date from the components — reported as an omitted entry
     /// rather than a guessed timestamp.
+    ///
+    /// Only `fields` are read, and they are interpreted in the CALLER'S
+    /// calendar. That is not tidiness: `Calendar.date(from:)` honours a
+    /// `timeZone` carried on the components in preference to the calendar's
+    /// own, so a stored entry that came back with a zone we never set would
+    /// convert to an instant offset by the difference — the exact false
+    /// negative the round trip exists to prevent (`era`, `second` and a
+    /// stapled `calendar` really are inert; `timeZone` is not).
     public static func milliseconds(
         from components: DateComponents, calendar: Calendar
     ) -> Double? {
-        calendar.date(from: components).map { $0.timeIntervalSince1970 * 1000 }
+        var wallClock = DateComponents()
+        wallClock.year = components.year
+        wallClock.month = components.month
+        wallClock.day = components.day
+        wallClock.hour = components.hour
+        wallClock.minute = components.minute
+        return calendar.date(from: wallClock).map { $0.timeIntervalSince1970 * 1000 }
     }
 
     /// The round trip COMPOSED: `ms -> components -> ms`, i.e. the instant

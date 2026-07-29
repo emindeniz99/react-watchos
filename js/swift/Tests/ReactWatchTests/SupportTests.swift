@@ -3284,6 +3284,40 @@ final class WorkoutPlanScheduleTests: XCTestCase {
             ms)
     }
 
+    func testAStoredZoneOrCalendarCannotMOVETheInstantTheBridgeMatchesOn() {
+        // The read-back in WorkoutPlanBridge.matches compares `minuteMs` of the
+        // REQUESTED atMs against `milliseconds(from:)` of Apple's stored
+        // components, precisely because Apple may normalise what it stores
+        // ("an era, a calendar, a time zone we never set"). Two of those three
+        // are inert under `Calendar.date(from:)` — a `timeZone` is NOT: it wins
+        // over the calendar's own, so an entry that came back tagged UTC would
+        // convert five hours off in New York and every comparison would fail.
+        // That is a schedule() falsely reporting "the scheduler accepted
+        // nothing" for a plan that landed, a remove() reporting `false` for a
+        // plan that is there, and a list reporting every atMs shifted.
+        var newYork = Calendar(identifier: .gregorian)
+        newYork.timeZone = TimeZone(identifier: "America/New_York")!
+        let ms: Double = 1_768_476_600_000
+        let asked = WorkoutPlanSchedule.minuteMs(fromMs: ms, calendar: newYork)
+        XCTAssertEqual(asked, ms)
+
+        var stored = WorkoutPlanSchedule.components(fromMs: ms, calendar: newYork)
+        // Nothing we build ever carries these — only a normalisation would.
+        XCTAssertNil(stored.timeZone)
+        XCTAssertNil(stored.calendar)
+        XCTAssertNil(stored.era)
+
+        stored.timeZone = TimeZone(identifier: "UTC")!
+        stored.era = 1
+        stored.second = 0
+        var tokyo = Calendar(identifier: .gregorian)
+        tokyo.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        stored.calendar = tokyo
+        XCTAssertEqual(
+            WorkoutPlanSchedule.milliseconds(from: stored, calendar: newYork), asked,
+            "a normalised entry must still resolve to the minute we asked for")
+    }
+
     func testRefusesANonFiniteOrAbsurdInstant() {
         // `Date(timeIntervalSince1970:)` accepts any finite Double, and handing
         // a 1e300 one to Calendar is a crash on the invoke dispatch path rather
