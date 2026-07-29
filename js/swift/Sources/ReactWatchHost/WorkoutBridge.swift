@@ -20,14 +20,28 @@
 //   UPGRADE   startWorkout while the pump is live: END the pump session, start
 //             the configured one, re-attach the heart-rate reading to the new
 //             builder. JS sees one uninterrupted `sensor.heartRate`
-//             subscription with a one-transition gap.
+//             subscription with a one-transition gap. It happens in the
+//             authorization completion, which is the only place that can reach
+//             `start()` with a session already live.
 //   DOWNGRADE endWorkout while startHeartRate is still subscribed: end + save
-//             the explicit session, then start a fresh pump.
+//             the explicit session, then start a fresh pump — unless the app is
+//             backgrounded without `keepAliveInBackground`, in which case the
+//             restore is parked for the next foreground rather than reviving
+//             the drain the background backstop exists to remove.
+//   CANCEL    endWorkout while a start is still inside the authorization
+//             window: there is no session yet, but that pending start IS the
+//             workout being ended, so it is dropped and its parked invoke
+//             settled. Refusing it would let the workout start anyway after
+//             the caller was told nothing was running.
 //   REFUSAL   startWorkout while an explicit workout is live: refuse
 //             SYNCHRONOUSLY. That is the ExtendedRuntimeBridge.start() -> Bool
 //             precedent verbatim, for the identical reason — it is the one
 //             refusal that produces NO delegate callback, so a parked invoke
 //             would otherwise hang to its 30 s watchdog.
+//
+// The pump is INVISIBLE to the workout API in both directions: it publishes no
+// `workout.state` and it never writes the `lastEnded` snapshot. Only the
+// EXPLICIT claim is a "workout" as far as js/src/workout.ts is concerned.
 #if os(watchOS)
 import CoreLocation
 import Foundation
@@ -82,6 +96,15 @@ final class WorkoutSessionOwner: NSObject {
     /// still subscribed) has to know whether to bring the pump back.
     private var wantHeartRate = false
 
+    /// scenePhase mirror for the pump, and the half `pauseForBackground` can
+    /// NOT cover: that one only ends a session that exists at the moment of
+    /// backgrounding, while the DOWNGRADE runs later, when the save settles. A
+    /// workout ended while the app is away would otherwise start a fresh
+    /// `.other` session that keeps the app alive sampling heart rate — the
+    /// exact drain `keepAliveInBackground: false` asked to avoid, arrived at
+    /// through the one door the backstop doesn't watch.
+    private var pumpBlockedByBackground = false
+
     /// Metrics coalescing: `didCollectDataOf` fires per collected sample.
     private var lastMetricsAt: Date = .distantPast
 
@@ -127,6 +150,12 @@ final class WorkoutSessionOwner: NSObject {
     /// the face, and the `workout-processing` background mode is what makes it
     /// legal. One rule, rather than a second flag parallel to the first.
     @discardableResult func pauseForBackground(keepAlive: Bool) -> Bool {
+        // Recorded BEFORE the guards, because the guards are about what is live
+        // NOW and the flag is about what may be restored LATER: an explicit
+        // workout pins the session at this moment, but it can end while the app
+        // is still away, and the pump the DOWNGRADE would bring back is the one
+        // this flag speaks for.
+        pumpBlockedByBackground = !keepAlive
         guard !isWorkoutActive, !keepAlive else { return false }
         guard claim == .heartRate, session != nil else { return false }
         // Keeps `wantHeartRate`: the caller's restart latch is what decides
@@ -138,8 +167,27 @@ final class WorkoutSessionOwner: NSObject {
         return true
     }
 
-    /// scenePhase -> .active: bring the pump back if nothing else owns the slot.
+    /// scenePhase -> .active: lift the background block and bring the pump back
+    /// if nothing else owns the slot.
+    ///
+    /// Called unconditionally by `SensorBridge.resumeFromForeground`, because
+    /// it is the only way back for the two restores that bridge's own
+    /// `heartRatePendingRestart` latch cannot see:
+    ///  - a DOWNGRADE parked while the app was away (the pause ended nothing,
+    ///    because an explicit workout pinned the session, so the latch is
+    ///    false — but the workout then ended in the background);
+    ///  - a session killed from OUTSIDE. Apple ends ours when a second workout
+    ///    starts elsewhere, and suspends a backgrounded app that never declared
+    ///    `workout-processing`; `didFailWithError` clears the session without
+    ///    setting any latch, so the pump would otherwise stay dead forever with
+    ///    `wantHeartRate` still true. Foreground is the one moment when
+    ///    re-taking the single system slot is both legal and wanted — restarting
+    ///    inside the failure would either fight the app that just took the slot
+    ///    or loop against the suspension that caused it — and it is where the
+    ///    app lands in practice, since the app that took the slot had to be
+    ///    frontmost.
     func resumeHeartRateIfWanted() {
+        pumpBlockedByBackground = false
         guard wantHeartRate, !isWorkoutActive, session == nil else { return }
         beginPumpSession()
     }
@@ -189,12 +237,35 @@ final class WorkoutSessionOwner: NSObject {
             // without the save permission still streams metrics — the save is
             // what fails, loudly, at endWorkout.
             DispatchQueue.main.async {
-                // Dropped if the start was superseded or torn down inside the
-                // authorization window (the SensorBridge auth-window guard,
-                // generalized): starting now would occupy the single system
-                // slot for a runtime that no longer wants it.
+                // Dropped if the start was superseded, CANCELLED by endWorkout,
+                // or torn down inside the authorization window (the
+                // SensorBridge auth-window guard, generalized): starting now
+                // would occupy the single system slot for a runtime that no
+                // longer wants it — or that just asked for it to stop.
                 guard this.pendingStart != nil, this.epoch == attempt else { return }
                 this.pendingStart = nil
+                // The UPGRADE, and it has to happen HERE: this is the only call
+                // site that can reach `start()` with a session already live, and
+                // `start()` is idempotent against one (its `guard session ==
+                // nil` is the real double-auth-completion guard). Without ending
+                // the pump first the configured session is never built, no
+                // delegate callback ever fires, and the parked invoke hangs to
+                // its 30 s watchdog. A live session here can only BE the pump:
+                // `startWorkout` refused if a workout was already active, and
+                // `claimHeartRate` no-ops for the whole window. The pump goes
+                // first rather than second, per Apple — a second workout started
+                // while one runs ends the first, which would kill the workout we
+                // are trying to start. No restore race: `endSession` nils
+                // `session`/`claim` synchronously and queues its
+                // `restorePumpIfWanted` behind us on main, by which time the
+                // configured session owns the slot, so it stands down.
+                // `wantHeartRate` is untouched, so the DOWNGRADE still works,
+                // and heart rate needs no explicit re-attach — the new builder's
+                // `didCollectDataOf` feeds the same `sensor.heartRate` push.
+                if this.session != nil {
+                    this.endSession(
+                        reason: .requested, discard: true, completion: nil)
+                }
                 this.start(configuration: configuration, claim: .workout, plan: plan)
             }
         }
@@ -218,12 +289,46 @@ final class WorkoutSessionOwner: NSObject {
     }
 
     /// Ends the explicit workout, saving unless `discard`. `completion` gets the
-    /// state snapshot the invoke resolves with. Returns false when there is no
-    /// explicit workout to end — again a refusal with no callback, so the
-    /// caller rejects synchronously rather than parking forever.
+    /// state snapshot the invoke resolves with. Also CANCELS a start that has
+    /// not finished starting — see the branch below. Returns false only when
+    /// there is genuinely nothing to end, neither pending nor live — again a
+    /// refusal with no callback, so the caller rejects synchronously rather
+    /// than parking forever.
     func endWorkout(
         discard: Bool, completion: @escaping ([String: Any]) -> Void
     ) -> Bool {
+        // A start still inside the HealthKit authorization window IS the workout
+        // this call is ending — there is just no session yet. Clearing the plan
+        // makes the auth completion's `pendingStart != nil` guard fail, so no
+        // session is ever created. Without this the cancel is refused ("no
+        // workout is running") while `isWorkoutActive` is simultaneously true,
+        // and the workout starts anyway once the round trip completes — the
+        // caller told nothing is running while a session (and, with
+        // `collectRoute`, full-power GPS) runs unattended on the one system
+        // slot. The window is not just the first-ever sheet: Apple calls the
+        // completion without prompting once the types are decided, and a React
+        // effect cleanup lands in it with no tap at all.
+        if pendingStart != nil {
+            pendingStart = nil
+            // Required, not decoration: nothing else will ever produce a
+            // callback for a session that was never created, so the parked
+            // `startWorkout` would hang to its 30 s watchdog. This is the same
+            // escape hatch `start()`'s catch uses, and the host turns it into
+            // the "ended before it started" rejection. No `recordEnded`:
+            // nothing ran, so `getWorkoutState()` stays `notStarted` rather
+            // than overwriting a genuinely completed earlier workout with a
+            // zero-duration, id-less entry. `discard` is deliberately unused —
+            // nothing was collected, so there is nothing to save or throw away.
+            emitState(
+                "ended", "endWorkout() was called while it was still starting",
+                epoch)
+            completion(stateSnapshot())
+            // `claimHeartRate()` no-ops while a start is pending, so a
+            // subscriber that arrived inside the window has no session; now
+            // that the start is gone, the pump is owed one.
+            restorePumpIfWanted()
+            return true
+        }
         guard claim == .workout, session != nil else { return false }
         endSession(
             reason: discard ? .discarded : .requested, discard: discard,
@@ -320,9 +425,24 @@ final class WorkoutSessionOwner: NSObject {
         let energy = quantity(.activeEnergyBurned, from: builder, unit: .kilocalorie())
         let distance = distanceMeters(from: builder)
         let route = routeBuilder
+        // Whose teardown this is has to be captured HERE, because `claim` is
+        // nil'd two lines down and the delegate callback that follows cannot
+        // tell the two apart on its own — `claim` is already nil by then for
+        // the EXPLICIT session too, which is why the `.ended` escape hatch at
+        // the delegate exists and why the fix has to live at this site.
+        let wasPump = claim == .heartRate
         self.session = nil
         self.builder = nil
         routeBuilder = nil
+        // The pump is an implementation detail of `startHeartRate` and JS never
+        // saw it start, so its teardown must publish nothing: detaching the
+        // SESSION delegate (the `tearDownForReload` idiom — `delegate` is weak
+        // and this file already nils it in `deinit` and `detachDelegates`)
+        // stops the dying pump's `.ended` from reaching the escape hatch and
+        // firing a `workout.state: "ended"` at a screen that never started a
+        // workout. Only the session delegate: `builder.delegate` stays attached
+        // so the pump's last heart-rate readings still reach `sensor.heartRate`.
+        if wasPump { session.delegate = nil }
         claim = nil
         activePlan = nil
         session.end()
@@ -331,9 +451,20 @@ final class WorkoutSessionOwner: NSObject {
         builder.endCollection(withEnd: endedAt) { _, _ in
             guard !discard else {
                 DispatchQueue.main.async {
-                    this.recordEnded(
-                        reason: reason, durationMs: duration, workoutId: nil,
-                        energyKcal: energy, distanceMeters: distance)
+                    // The other half of the same rule: `lastEnded` is the
+                    // `getWorkoutState()` snapshot, so recording a pump end
+                    // there reports `state: "ended"`, `endedReason: "requested"`
+                    // and the pump's duration for a workout that never ran —
+                    // permanently, since `lastEnded` is deliberately sticky —
+                    // and, after an UPGRADE, alongside a live `state: "running"`.
+                    // The save branch below needs no such guard: it is reached
+                    // only with `discard == false`, which only `endWorkout` (a
+                    // `.workout` claim) can ask for.
+                    if !wasPump {
+                        this.recordEnded(
+                            reason: reason, durationMs: duration, workoutId: nil,
+                            energyKcal: energy, distanceMeters: distance)
+                    }
                     settle?(this.stateSnapshot())
                     this.restorePumpIfWanted()
                 }
@@ -361,6 +492,13 @@ final class WorkoutSessionOwner: NSObject {
     /// fully saved.
     private func restorePumpIfWanted() {
         guard wantHeartRate, session == nil, pendingStart == nil else { return }
+        // Backgrounded without `keepAliveInBackground`: park the restore for the
+        // next foreground rather than starting a fresh `.other` session that
+        // re-grants background execution and re-arms heart-rate sampling for an
+        // app the user has already left. `pauseForBackground` cannot cover this
+        // — it only ends what is live at the moment of backgrounding, and the
+        // workout whose end triggers this restore was still running then.
+        guard !pumpBlockedByBackground else { return }
         beginPumpSession()
     }
 
@@ -482,6 +620,17 @@ extension WorkoutSessionOwner: HKWorkoutSessionDelegate {
         // implementation detail of startHeartRate and always has been, so
         // publishing its lifecycle would invent events nobody subscribed to.
         // The epoch still goes out for the parked-start settle.
+        //
+        // `toState == .ended` is an ESCAPE HATCH, not a second rule: `claim` is
+        // already nil by the time the explicit session's own terminal callback
+        // lands (`endSession` clears it synchronously), so without the disjunct
+        // a workout would never publish "ended" at all. What keeps the pump out
+        // of it is that `endSession` detaches the pump's session delegate, so a
+        // pump teardown produces no callback here in the first place. KNOWN GAP,
+        // recorded rather than half-fixed: a pump killed from OUTSIDE still
+        // reaches here through `didFailWithError`'s trailing `.ended`, because
+        // that session was never ours to detach; see the design doc's follow-up
+        // table.
         let epoch = self.epoch(of: session)
         nonisolated(unsafe) let this = self
         DispatchQueue.main.async {

@@ -147,12 +147,28 @@ final class SensorBridge: NSObject, CLLocationManagerDelegate {
             ?? false
     }
 
-    /// scenePhase -> .active: restart exactly what the background pause (or a
-    /// background-deferred auth completion) put on hold.
+    /// scenePhase -> .active: restart what the background pause (or a
+    /// background-deferred auth completion) put on hold, and let the OWNER
+    /// restart what only it can see.
     func resumeFromForeground() {
         isBackgrounded = false
+        // Unconditional and FIRST, because this latch is decided at PAUSE time
+        // and two restores are invisible to it. A pause that ended nothing —
+        // an explicit workout pinned the session — leaves it false, but that
+        // workout can end while the app is still away, and the owner parks the
+        // pump rather than reviving the background drain. And an externally
+        // killed session (Apple ends ours when a second workout starts
+        // elsewhere) sets no latch at all. The owner keeps its own background
+        // mirror and its own guards; this is what lifts the block and lets it
+        // decide. Safe against the hazard the latch exists for — a session begun
+        // pre-authorization can occupy the slot dead — because the owner's
+        // `wantHeartRate` is only ever set inside `claimHeartRate()`, i.e. after
+        // the auth sheet resolved.
+        workoutOwner?.resumeHeartRateIfWanted()
         guard wantHeartRate, heartRatePendingRestart else { return }
         heartRatePendingRestart = false
+        // A no-op if the call above already brought the pump back (its
+        // `guard session == nil`); the two paths cannot produce two sessions.
         workoutOwner?.claimHeartRate()
     }
 

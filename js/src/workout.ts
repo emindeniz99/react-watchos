@@ -30,9 +30,17 @@ import {
  *   session in place. Your `sensor.heartRate` subscription keeps firing, with a
  *   one-transition gap while the session is swapped.
  * - `endWorkout` while `startHeartRate` is still subscribed **downgrades** back
- *   to the pump.
+ *   to the pump — deferred to the next foreground if the app is backgrounded
+ *   and the subscription did not ask for `keepAliveInBackground`.
  * - `startWorkout` while a workout is already running rejects `UNAVAILABLE`
  *   immediately — it does not stack, and it does not kill the running one.
+ * - `endWorkout` while a `startWorkout` is still in flight **cancels** it: no
+ *   session is ever created, the pending `startWorkout` rejects, and the
+ *   `endWorkout` resolves.
+ *
+ * The pump is invisible to this API in both directions. {@link WORKOUT_STATE_EVENT}
+ * and {@link getWorkoutState} describe the **explicit** session only, so a plain
+ * `stopHeartRate()` never looks like a workout ending.
  *
  * ### Background execution
  *
@@ -149,6 +157,13 @@ export function resumeWorkout(): Promise<void> {
  * `discard: true` throws it away instead. Apple's HIG requires an app to either
  * save automatically or offer an explicit save/discard choice; saving is the
  * default because it is the half that cannot lose the user's data.
+ *
+ * Also **cancels** a {@link startWorkout} that has not finished starting — the
+ * HealthKit authorization round trip is a real window, and an effect cleanup
+ * that unmounts mid-start lands in it. That call resolves (with a `notStarted`
+ * snapshot, since nothing ran and nothing was saved) and the pending
+ * `startWorkout` rejects `UNAVAILABLE`. Rejects `UNAVAILABLE` only when there
+ * is genuinely nothing to end.
  */
 export function endWorkout(options?: {
   discard?: boolean;

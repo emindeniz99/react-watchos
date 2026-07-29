@@ -490,6 +490,23 @@ final class ReactWatchModel {
             task.cancel()
         }
         fetchTasks.removeAll()
+        // ARCH-08: the workout slot is a single-occupancy SYSTEM resource, so
+        // the outgoing generation must not leave one running for a runtime that
+        // never started it. `tearDownForReload` ends AND saves it, parking the
+        // summary for the fresh runtime's first getWorkoutState() — pushing an
+        // event into a dying context would reach nobody.
+        //
+        // MUST run BEFORE sensors.stopAll(). stopAll() -> stopHeartRate() ->
+        // releaseHeartRate() ends the heart-rate pump itself and nils the
+        // owner's session/builder, after which tearDownForReload()'s
+        // `guard session != nil` returns before detachDelegates() and the
+        // outgoing session keeps this owner as its delegate — its trailing
+        // callbacks then push a stale `workout.state` (and a late
+        // `sensor.heartRate`) into the runtime boot() is about to install,
+        // which is name-routed with no generation guard. Running it first also
+        // makes the owner's `wasWorkout == false` branch reachable, which is
+        // what ends a pump-only session on reload.
+        workout.tearDownForReload()
         sensors.stopAll()
         bluetooth.resetPendingForReload()
         // Stop native media/session resources tied to the outgoing generation so
@@ -500,14 +517,6 @@ final class ReactWatchModel {
         audioBridge.stop()
         speechBridge.stop(silent: true)
         extendedRuntime.stop(silent: true)
-        // ARCH-08: the workout slot is a single-occupancy SYSTEM resource, so
-        // the outgoing generation must not leave one running for a runtime that
-        // never started it. `tearDownForReload` ends AND saves it, parking the
-        // summary for the fresh runtime's first getWorkoutState() — pushing an
-        // event into a dying context would reach nobody. Ordered after
-        // sensors.stopAll() (which releases the heart-rate claim) and before
-        // the QuickJS shutdown below.
-        workout.tearDownForReload()
         pendingWorkoutStarts.removeAll()
         // ARCH-08: free QuickJS explicitly, and ORDERED relative to the native
         // teardown above, instead of leaving it implicit in ARC. Both callers are
