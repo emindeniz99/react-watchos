@@ -290,6 +290,77 @@ export interface EndWorkoutRequest {
   discard?: boolean; // throw the workout away instead of saving it (default: save)
 }
 
+/** A WorkoutKit `WorkoutGoal`; the unit is fixed by `kind`. */
+export interface WorkoutPlanGoalRequest {
+  kind: "open" | "distance" | "time" | "energy";
+  meters?: number;
+  seconds?: number;
+  kilocalories?: number;
+}
+
+/** A WorkoutKit `WorkoutAlert`; one alert per step (Apple's own limit). */
+export interface WorkoutPlanAlertRequest {
+  kind: "heartRateRange" | "heartRateZone" | "speedRange" | "speedThreshold" | "cadenceRange" | "cadenceThreshold" | "powerRange" | "powerThreshold" | "powerZone";
+  metric?: "current" | "average"; // speedRange / speedThreshold only; default is Apple's .current
+  lowerBpm?: number;
+  upperBpm?: number;
+  zone?: number; // heartRateZone / powerZone; 1-based, no documented ceiling
+  lowerMetersPerSecond?: number;
+  upperMetersPerSecond?: number;
+  metersPerSecond?: number;
+  lowerCountPerMinute?: number;
+  upperCountPerMinute?: number;
+  countPerMinute?: number;
+  lowerWatts?: number;
+  upperWatts?: number;
+  watts?: number;
+}
+
+/** A `WorkoutStep`; `purpose` is present only inside an interval block. */
+export interface WorkoutPlanStepRequest {
+  purpose?: "work" | "recovery"; // IntervalStep.Purpose — required in a block, refused outside one
+  goal?: WorkoutPlanGoalRequest;
+  alert?: WorkoutPlanAlertRequest;
+}
+
+/** An `IntervalBlock`: the repeated work/recovery steps of a custom workout. */
+export interface WorkoutPlanBlockRequest {
+  steps: WorkoutPlanStepRequest[];
+  iterations?: number;
+}
+
+/** The plan document itself — a CustomWorkout, SingleGoalWorkout or PacerWorkout. */
+export interface WorkoutPlanRequest {
+  kind: "custom" | "singleGoal" | "pacer";
+  id?: string; // a UUID; omitted means native mints one and reports it back
+  activityType: WorkoutActivityType;
+  location?: "indoor" | "outdoor";
+  displayName?: string; // CustomWorkout only — the other two initializers take no name
+  warmup?: WorkoutPlanStepRequest;
+  blocks?: WorkoutPlanBlockRequest[]; // custom only, and at least one — an unstructured plan is a singleGoal
+  cooldown?: WorkoutPlanStepRequest;
+  goal?: WorkoutPlanGoalRequest; // singleGoal only — and the ONE kind where an energy goal is legal
+  distanceMeters?: number; // pacer only
+  durationSeconds?: number; // pacer only
+}
+
+/** js/src/workoutPlans.ts scheduleWorkoutPlan -> WorkoutPlanScheduleSpec. */
+export interface ScheduleWorkoutPlanRequest {
+  plan: WorkoutPlanRequest;
+  atMs: number; // absolute ms since epoch; truncated to the minute
+}
+
+/** openWorkoutPlanInWorkoutApp — the plan to hand to the Workout app. */
+export interface OpenWorkoutPlanRequest {
+  plan: WorkoutPlanRequest;
+}
+
+/** removeScheduledWorkoutPlan — the (id, date) pair WorkoutKit keys on. */
+export interface RemoveScheduledWorkoutRequest {
+  id: string; // the plan's UUID
+  atMs: number;
+}
+
 /** js/src/sensors.ts queryPedometer -> CMPedometer.queryPedometerData. */
 export interface PedometerQueryRequest {
   startMs: number;
@@ -431,6 +502,14 @@ export interface WorkoutState {
   endedWorkoutId?: string; // the saved HKWorkout's UUID; absent when discarded or unsaved
   endedTotalEnergyKcal?: number;
   endedDistanceMeters?: number;
+}
+
+/** One `ScheduledWorkoutPlan` the Workout app is holding — what schedule/list report. */
+export interface ScheduledWorkoutSummary {
+  id: string; // WorkoutPlan.id — echoed back, so a caller who omitted it learns the minted one
+  atMs: number;
+  complete: boolean;
+  activityType?: WorkoutActivityType;
 }
 
 /** ONE shape on both carriers: the sensor.pedometer push AND queryPedometer. */

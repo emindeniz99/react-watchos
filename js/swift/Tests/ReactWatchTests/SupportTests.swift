@@ -2916,6 +2916,352 @@ final class WorkoutPlanTests: XCTestCase {
     }
 }
 
+/// WorkoutKit plan validation (js/src/workoutPlans.ts). The bridge that builds
+/// the real `CustomWorkout`/`WorkoutPlan` is `#if os(watchOS)` and unreachable
+/// here, so this is the whole in-repo proof that a malformed plan is REFUSED —
+/// and refused with a message naming the element that failed, because
+/// `WorkoutScheduler.schedule` has no error channel and would otherwise
+/// swallow it.
+final class WorkoutPlanSpecTests: XCTestCase {
+    /// A custom plan with a warmup, one block and a cooldown.
+    private func customJSON(
+        blocks: String = #"""
+        [{"iterations":6,"steps":[
+          {"purpose":"work","goal":{"kind":"distance","meters":400},
+           "alert":{"kind":"heartRateRange","lowerBpm":150,"upperBpm":170}},
+          {"purpose":"recovery","goal":{"kind":"time","seconds":90}}]}]
+        """#
+    ) -> String {
+        #"""
+        {"plan":{"kind":"custom","id":"3F2504E0-4F89-41D3-9A0C-0305E82C3301",
+         "activityType":"running","location":"outdoor","displayName":"6 × 400m",
+         "warmup":{"goal":{"kind":"time","seconds":600}},
+         "blocks":\#(blocks),
+         "cooldown":{"goal":{"kind":"open"}}},
+         "atMs":1768476600000}
+        """#
+    }
+
+    func testDecodesAFullCustomPlan() {
+        guard
+            case .success(let spec) = WorkoutPlanScheduleSpec.decode(
+                json: customJSON())
+        else { return XCTFail("a full custom plan must decode") }
+        XCTAssertEqual(spec.plan.kind, .custom)
+        XCTAssertEqual(
+            spec.plan.id, UUID(uuidString: "3F2504E0-4F89-41D3-9A0C-0305E82C3301"))
+        XCTAssertTrue(spec.plan.idWasSupplied)
+        XCTAssertEqual(spec.plan.activityType, "running")
+        XCTAssertEqual(spec.plan.location, .outdoor)
+        XCTAssertEqual(spec.plan.displayName, "6 × 400m")
+        XCTAssertEqual(spec.plan.warmup?.goal?.kind, .time)
+        XCTAssertEqual(spec.plan.warmup?.goal?.value, 600)
+        XCTAssertEqual(spec.plan.blocks.count, 1)
+        XCTAssertEqual(spec.plan.blocks.first?.iterations, 6)
+        XCTAssertEqual(spec.plan.blocks.first?.steps.count, 2)
+        XCTAssertEqual(spec.plan.blocks.first?.steps.first?.purpose, .work)
+        XCTAssertEqual(
+            spec.plan.blocks.first?.steps.first?.step.alert?.kind, .heartRateRange)
+        XCTAssertEqual(spec.plan.blocks.first?.steps.first?.step.alert?.lower, 150)
+        XCTAssertEqual(spec.plan.blocks.first?.steps.first?.step.alert?.upper, 170)
+        XCTAssertEqual(spec.plan.cooldown?.goal?.kind, .open)
+        XCTAssertNil(spec.plan.cooldown?.goal?.value)
+        XCTAssertEqual(spec.atMs, 1_768_476_600_000)
+    }
+
+    func testAnOmittedIdIsMintedAndAnInvalidOneIsRefused() {
+        // The silent-substitution bug this rejection exists to prevent:
+        // schedule/list/remove all key on the id, so a non-UUID quietly
+        // becoming a fresh random one makes removal a permanent no-op the
+        // caller cannot see.
+        guard
+            case .success(let spec) = WorkoutPlanScheduleSpec.decode(
+                json: #"""
+                    {"plan":{"kind":"singleGoal","activityType":"cycling",
+                     "goal":{"kind":"energy","kilocalories":400}},
+                     "atMs":1768476600000}
+                    """#)
+        else { return XCTFail("an id-less plan must decode") }
+        XCTAssertFalse(spec.plan.idWasSupplied)
+        guard
+            case .failure(let error) = WorkoutPlanScheduleSpec.decode(
+                json: #"""
+                    {"plan":{"kind":"singleGoal","id":"plan-1",
+                     "activityType":"cycling","goal":{"kind":"open"}},
+                     "atMs":1768476600000}
+                    """#)
+        else { return XCTFail("a non-UUID id must be refused") }
+        XCTAssertTrue(error.message.contains("plan.id"))
+        XCTAssertTrue(error.message.contains("is not a UUID"))
+    }
+
+    func testACustomPlanNeedsAtLeastOneBlock() {
+        // TrainingPeaks rejects unstructured plans outright, and a custom
+        // workout with no blocks is a singleGoal wearing the wrong kind.
+        for blocks in ["[]", "null"] {
+            guard
+                case .failure(let error) = WorkoutPlanScheduleSpec.decode(
+                    json: customJSON(blocks: blocks))
+            else { return XCTFail("a block-less custom plan must be refused") }
+            XCTAssertTrue(error.message.contains("plan.blocks"))
+            XCTAssertTrue(error.message.contains("singleGoal"))
+        }
+    }
+
+    func testRefusesEmptyStepsAndZeroIterations() {
+        guard
+            case .failure(let steps) = WorkoutPlanScheduleSpec.decode(
+                json: customJSON(blocks: #"[{"steps":[]}]"#))
+        else { return XCTFail("a step-less block must be refused") }
+        XCTAssertTrue(steps.message.contains("plan.blocks[0].steps"))
+        guard
+            case .failure(let iterations) = WorkoutPlanScheduleSpec.decode(
+                json: customJSON(
+                    blocks: #"[{"iterations":0,"steps":[{"purpose":"work"}]}]"#))
+        else { return XCTFail("0 iterations must be refused") }
+        XCTAssertTrue(iterations.message.contains("iterations"))
+    }
+
+    func testTheRejectionNamesTheFailingPath() {
+        // The whole point of validating here rather than letting Apple's
+        // non-throwing scheduler swallow it: a caller must be able to find the
+        // element, not just learn "bad request".
+        guard
+            case .failure(let error) = WorkoutPlanScheduleSpec.decode(
+                json: customJSON(
+                    blocks: #"""
+                        [{"steps":[{"purpose":"work"},
+                          {"purpose":"recovery",
+                           "alert":{"kind":"heartRateRange","lowerBpm":180,
+                                    "upperBpm":120}}]}]
+                        """#))
+        else { return XCTFail("an inverted range must be refused") }
+        XCTAssertTrue(
+            error.message.contains("plan.blocks[0].steps[1].alert.lowerBpm"),
+            "the message must name the path, got: \(error.message)")
+    }
+
+    func testRefusesAFieldThatBelongsToAnotherKind() {
+        // The flat wire shape has a `kind` discriminator and optional
+        // siblings, so nothing structural stops a caller sending `goal` on a
+        // pacer. Ignoring it would build a workout the caller did not describe.
+        guard
+            case .failure(let error) = WorkoutPlanScheduleSpec.decode(
+                json: #"""
+                    {"plan":{"kind":"pacer","activityType":"running",
+                     "distanceMeters":5000,"durationSeconds":1500,
+                     "goal":{"kind":"open"}},"atMs":1768476600000}
+                    """#)
+        else { return XCTFail("a foreign field must be refused") }
+        XCTAssertTrue(error.message.contains("plan.goal"))
+        XCTAssertTrue(error.message.contains("singleGoal"))
+    }
+
+    func testEachKindRequiresItsOwnFields() {
+        // pacer without its two measurements, and singleGoal without a goal.
+        for (json, expected) in [
+            (
+                #"""
+                {"plan":{"kind":"pacer","activityType":"running",
+                 "durationSeconds":1500},"atMs":1768476600000}
+                """#, "plan.distanceMeters"
+            ),
+            (
+                #"""
+                {"plan":{"kind":"singleGoal","activityType":"cycling"},
+                 "atMs":1768476600000}
+                """#, "plan.goal"
+            ),
+        ] {
+            guard case .failure(let error) = WorkoutPlanScheduleSpec.decode(json: json)
+            else { return XCTFail("\(expected) must be required") }
+            XCTAssertTrue(
+                error.message.contains(expected),
+                "expected \(expected) in: \(error.message)")
+        }
+    }
+
+    func testGoalValuesMustBeFiniteAndPositive() {
+        // A zero-distance goal is a workout that is complete before it starts,
+        // which Apple would accept silently.
+        for value in ["0", "-1"] {
+            guard
+                case .failure = WorkoutPlanScheduleSpec.decode(
+                    json: #"""
+                        {"plan":{"kind":"singleGoal","activityType":"running",
+                         "goal":{"kind":"distance","meters":\#(value)}},
+                         "atMs":1768476600000}
+                        """#)
+            else { return XCTFail("meters \(value) must be refused") }
+        }
+    }
+
+    func testZonesAreOneBasedAndTheSpeedMetricIsSpeedOnly() {
+        guard
+            case .failure(let zone) = WorkoutPlanScheduleSpec.decode(
+                json: customJSON(
+                    blocks: #"""
+                        [{"steps":[{"purpose":"work",
+                          "alert":{"kind":"heartRateZone","zone":0}}]}]
+                        """#))
+        else { return XCTFail("zone 0 must be refused") }
+        XCTAssertTrue(zone.message.contains("zone"))
+        // The 10.4 power selector is cut, so asking for it on a power alert
+        // must fail loudly rather than be dropped — a caller that asked for
+        // average power and got current would never learn.
+        guard
+            case .failure(let metric) = WorkoutPlanScheduleSpec.decode(
+                json: customJSON(
+                    blocks: #"""
+                        [{"steps":[{"purpose":"work",
+                          "alert":{"kind":"powerThreshold","watts":240,
+                                   "metric":"average"}}]}]
+                        """#))
+        else { return XCTFail("a power metric must be refused") }
+        XCTAssertTrue(metric.message.contains("metric"))
+        XCTAssertTrue(metric.message.contains("10.0"))
+    }
+
+    func testPurposeIsRequiredInsideABlockAndRefusedOutsideOne() {
+        guard
+            case .failure(let missing) = WorkoutPlanScheduleSpec.decode(
+                json: customJSON(blocks: #"[{"steps":[{"goal":{"kind":"open"}}]}]"#))
+        else { return XCTFail("a purpose-less interval step must be refused") }
+        XCTAssertTrue(missing.message.contains("purpose"))
+        guard
+            case .failure(let stray) = WorkoutPlanScheduleSpec.decode(
+                json: #"""
+                    {"plan":{"kind":"custom","activityType":"running",
+                     "warmup":{"purpose":"work"},
+                     "blocks":[{"steps":[{"purpose":"work"}]}]},
+                     "atMs":1768476600000}
+                    """#)
+        else { return XCTFail("a purpose outside a block must be refused") }
+        XCTAssertTrue(stray.message.contains("plan.warmup.purpose"))
+    }
+
+    func testRemoveNeedsAUUIDAndAFiniteInstant() {
+        guard
+            case .success(let ref) = ScheduledWorkoutRefSpec.decode(
+                json: #"""
+                    {"id":"3F2504E0-4F89-41D3-9A0C-0305E82C3301",
+                     "atMs":1768476600000}
+                    """#)
+        else { return XCTFail("a well-formed ref must decode") }
+        XCTAssertEqual(ref.atMs, 1_768_476_600_000)
+        XCTAssertNil(
+            try? ScheduledWorkoutRefSpec.decode(
+                json: #"{"id":"nope","atMs":1768476600000}"#
+            ).get())
+        XCTAssertNil(
+            try? ScheduledWorkoutRefSpec.decode(
+                json: #"{"id":"3F2504E0-4F89-41D3-9A0C-0305E82C3301"}"#
+            ).get())
+    }
+
+    func testTheOpenEnvelopeIsThePlanAlone() {
+        guard
+            case .success(let spec) = WorkoutPlanSpec.decodeOpen(
+                json: #"""
+                    {"plan":{"kind":"pacer","activityType":"running",
+                     "distanceMeters":5000,"durationSeconds":1500}}
+                    """#)
+        else { return XCTFail("an open payload must decode") }
+        XCTAssertEqual(spec.kind, .pacer)
+        XCTAssertEqual(spec.distanceMeters, 5000)
+        XCTAssertEqual(spec.durationSeconds, 1500)
+        XCTAssertNil(try? WorkoutPlanSpec.decodeOpen(json: "{}").get())
+    }
+}
+
+/// The `atMs` <-> `DateComponents` round trip — the one part of this family
+/// that is genuinely Linux-provable, which is exactly why the conversion is a
+/// pure pair taking its `Calendar` as a parameter instead of being written
+/// inline in the watchOS-only bridge against `Calendar.current`.
+final class WorkoutPlanScheduleTests: XCTestCase {
+    /// A fixed calendar, so the test does not depend on where it runs.
+    private func calendar(_ secondsFromGMT: Int = 0) -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: secondsFromGMT) ?? .gmt
+        return calendar
+    }
+
+    func testRoundTripsAnInstantThroughTheComponentsTheSchedulerKeysOn() {
+        let calendar = calendar()
+        // 2026-01-15T11:30:00Z
+        let ms: Double = 1_768_476_600_000
+        let components = WorkoutPlanSchedule.components(fromMs: ms, calendar: calendar)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 1)
+        XCTAssertEqual(components.day, 15)
+        XCTAssertEqual(components.hour, 11)
+        XCTAssertEqual(components.minute, 30)
+        XCTAssertEqual(
+            WorkoutPlanSchedule.milliseconds(from: components, calendar: calendar), ms)
+    }
+
+    func testGranularityIsOneMinute() {
+        // Documented, and the reason `remove` matches `schedule` by
+        // construction: a caller who schedules at …:30.500 lists …:30.000.
+        let calendar = calendar()
+        let exact: Double = 1_768_476_600_000
+        for offset in [0.0, 500, 30_000, 59_999] {
+            XCTAssertEqual(
+                WorkoutPlanSchedule.minuteMs(fromMs: exact + offset, calendar: calendar),
+                exact,
+                "\(offset) ms past the minute must land on the same minute")
+        }
+        // ...and the next minute is a different key.
+        XCTAssertEqual(
+            WorkoutPlanSchedule.minuteMs(fromMs: exact + 60_000, calendar: calendar),
+            exact + 60_000)
+    }
+
+    func testTheComponentSetIsExactlyTheSchedulingFields() {
+        // Fixed at year..minute. A wider set would make `remove` miss (seconds
+        // never match); a narrower one would collide two plans an hour apart.
+        XCTAssertEqual(
+            WorkoutPlanSchedule.fields, [.year, .month, .day, .hour, .minute])
+        let components = WorkoutPlanSchedule.components(
+            fromMs: 1_768_476_630_500, calendar: calendar())
+        XCTAssertNil(components.second)
+        XCTAssertNil(components.nanosecond)
+    }
+
+    func testTheCalendarIsAPARAMETERSoTheSameInstantMovesWithTheZone() {
+        // The reason `Calendar` is passed in: the components are wall-clock,
+        // so the same instant is a different (day, hour) in another zone —
+        // which is exactly what a device-local scheduler means. Reading
+        // `Calendar.current` inside the helper would make this untestable.
+        let ms: Double = 1_768_476_600_000
+        let utc = WorkoutPlanSchedule.components(fromMs: ms, calendar: calendar())
+        let plusThree = WorkoutPlanSchedule.components(
+            fromMs: ms, calendar: calendar(3 * 3600))
+        XCTAssertEqual(utc.hour, 11)
+        XCTAssertEqual(plusThree.hour, 14)
+        // Each round-trips within its OWN calendar, which is the invariant the
+        // bridge relies on when it compares a stored entry against a request.
+        XCTAssertEqual(
+            WorkoutPlanSchedule.milliseconds(from: plusThree, calendar: calendar(3 * 3600)),
+            ms)
+    }
+
+    func testRefusesANonFiniteOrAbsurdInstant() {
+        // `Date(timeIntervalSince1970:)` accepts any finite Double, and handing
+        // a 1e300 one to Calendar is a crash on the invoke dispatch path rather
+        // than the refusal every other rule in this family produces.
+        for atMs in ["null", "1e300"] {
+            XCTAssertNil(
+                try? ScheduledWorkoutRefSpec.decode(
+                    json: #"""
+                        {"id":"3F2504E0-4F89-41D3-9A0C-0305E82C3301","atMs":\#(atMs)}
+                        """#
+                ).get(),
+                "atMs \(atMs) must be refused")
+        }
+    }
+}
+
 /// CMPedometer's wire shape (js/src/sensors.ts startPedometer / queryPedometer).
 /// The assembly rule is here rather than in the watchOS bridge precisely so it
 /// is provable on Linux: what gets OMITTED is the whole contract, and a

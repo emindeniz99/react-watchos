@@ -206,6 +206,103 @@ struct EndWorkoutRequest: InvokeShape {
     static let declaredKeys: Set<String> = ["discard"]
 }
 
+/// A WorkoutKit `WorkoutGoal`; the unit is fixed by `kind`.
+struct WorkoutPlanGoalRequest: InvokeShape {
+    let kind: String
+    let meters: Double?
+    let seconds: Double?
+    let kilocalories: Double?
+    static let declaredKeys: Set<String> = ["kind", "meters", "seconds", "kilocalories"]
+}
+
+/// A WorkoutKit `WorkoutAlert`; one alert per step (Apple's own limit).
+struct WorkoutPlanAlertRequest: InvokeShape {
+    let kind: String
+    /// speedRange / speedThreshold only; default is Apple's .current
+    let metric: String?
+    let lowerBpm: Double?
+    let upperBpm: Double?
+    /// heartRateZone / powerZone; 1-based, no documented ceiling
+    let zone: Int?
+    let lowerMetersPerSecond: Double?
+    let upperMetersPerSecond: Double?
+    let metersPerSecond: Double?
+    let lowerCountPerMinute: Double?
+    let upperCountPerMinute: Double?
+    let countPerMinute: Double?
+    let lowerWatts: Double?
+    let upperWatts: Double?
+    let watts: Double?
+    static let declaredKeys: Set<String> = [
+        "kind", "metric", "lowerBpm", "upperBpm", "zone", "lowerMetersPerSecond",
+        "upperMetersPerSecond", "metersPerSecond", "lowerCountPerMinute", "upperCountPerMinute",
+        "countPerMinute", "lowerWatts", "upperWatts", "watts",
+    ]
+}
+
+/// A `WorkoutStep`; `purpose` is present only inside an interval block.
+struct WorkoutPlanStepRequest: InvokeShape {
+    /// IntervalStep.Purpose — required in a block, refused outside one
+    let purpose: String?
+    let goal: WorkoutPlanGoalRequest?
+    let alert: WorkoutPlanAlertRequest?
+    static let declaredKeys: Set<String> = ["purpose", "goal", "alert"]
+}
+
+/// An `IntervalBlock`: the repeated work/recovery steps of a custom workout.
+struct WorkoutPlanBlockRequest: InvokeShape {
+    let steps: [WorkoutPlanStepRequest]
+    let iterations: Int?
+    static let declaredKeys: Set<String> = ["steps", "iterations"]
+}
+
+/// The plan document itself — a CustomWorkout, SingleGoalWorkout or PacerWorkout.
+struct WorkoutPlanRequest: InvokeShape {
+    let kind: String
+    /// a UUID; omitted means native mints one and reports it back
+    let id: String?
+    let activityType: String
+    let location: String?
+    /// CustomWorkout only — the other two initializers take no name
+    let displayName: String?
+    let warmup: WorkoutPlanStepRequest?
+    /// custom only, and at least one — an unstructured plan is a singleGoal
+    let blocks: [WorkoutPlanBlockRequest]?
+    let cooldown: WorkoutPlanStepRequest?
+    /// singleGoal only — and the ONE kind where an energy goal is legal
+    let goal: WorkoutPlanGoalRequest?
+    /// pacer only
+    let distanceMeters: Double?
+    /// pacer only
+    let durationSeconds: Double?
+    static let declaredKeys: Set<String> = [
+        "kind", "id", "activityType", "location", "displayName", "warmup", "blocks", "cooldown",
+        "goal", "distanceMeters", "durationSeconds",
+    ]
+}
+
+/// js/src/workoutPlans.ts scheduleWorkoutPlan -> WorkoutPlanScheduleSpec.
+struct ScheduleWorkoutPlanRequest: InvokeShape {
+    let plan: WorkoutPlanRequest
+    /// absolute ms since epoch; truncated to the minute
+    let atMs: Double
+    static let declaredKeys: Set<String> = ["plan", "atMs"]
+}
+
+/// openWorkoutPlanInWorkoutApp — the plan to hand to the Workout app.
+struct OpenWorkoutPlanRequest: InvokeShape {
+    let plan: WorkoutPlanRequest
+    static let declaredKeys: Set<String> = ["plan"]
+}
+
+/// removeScheduledWorkoutPlan — the (id, date) pair WorkoutKit keys on.
+struct RemoveScheduledWorkoutRequest: InvokeShape {
+    /// the plan's UUID
+    let id: String
+    let atMs: Double
+    static let declaredKeys: Set<String> = ["id", "atMs"]
+}
+
 /// js/src/sensors.ts queryPedometer -> CMPedometer.queryPedometerData.
 struct PedometerQueryRequest: InvokeShape {
     let startMs: Double
@@ -386,6 +483,16 @@ struct WorkoutState: InvokeShape {
         "state", "elapsedMs", "activityType", "location", "endedReason", "endedDurationMs",
         "endedWorkoutId", "endedTotalEnergyKcal", "endedDistanceMeters",
     ]
+}
+
+/// One `ScheduledWorkoutPlan` the Workout app is holding — what schedule/list report.
+struct ScheduledWorkoutSummary: InvokeShape {
+    /// WorkoutPlan.id — echoed back, so a caller who omitted it learns the minted one
+    let id: String
+    let atMs: Double
+    let complete: Bool
+    let activityType: String?
+    static let declaredKeys: Set<String> = ["id", "atMs", "complete", "activityType"]
 }
 
 /// ONE shape on both carriers: the sensor.pedometer push AND queryPedometer.

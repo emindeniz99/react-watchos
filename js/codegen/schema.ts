@@ -721,6 +721,262 @@ export const invokeShapes: StructDef[] = [
       },
     ],
   },
+  // --- WorkoutKit plans (feature "workoutPlans"). FLAT structs with a `kind`
+  //     discriminator and optional siblings — the `PublishedRelevantContext`
+  //     idiom — because the generator emits `public let` Codable structs and a
+  //     Swift enum-with-payload is not expressible. Flat also buys the property
+  //     that makes every cut in the design reversible: adding a `kind` value or
+  //     an optional field never changes an existing one, so it invalidates no
+  //     shipped ARCH-11 fixture. Units are FIXED and named in the field
+  //     (`meters`, `seconds`, `watts`, `metersPerSecond`) — the shipped
+  //     units-fixed-natively rule plus PedometerData's unit-in-the-name
+  //     convention. ---
+  {
+    swift: "WorkoutPlanGoalRequest",
+    ts: "WorkoutPlanGoalRequest",
+    doc: "A WorkoutKit `WorkoutGoal`; the unit is fixed by `kind`.",
+    fields: [
+      {
+        // poolSwimDistanceWithTime is watchOS 11.0 and cut — it would be this
+        // package family's first @available gate. Keep in sync with
+        // WorkoutPlanGoalKind in ReactWatchSupport (codegen.test.ts pins them).
+        name: "kind",
+        swift: "String",
+        ts: '"open" | "distance" | "time" | "energy"',
+      },
+      { name: "meters", swift: "Double?", ts: "number", optional: true },
+      { name: "seconds", swift: "Double?", ts: "number", optional: true },
+      { name: "kilocalories", swift: "Double?", ts: "number", optional: true },
+    ],
+  },
+  {
+    swift: "WorkoutPlanAlertRequest",
+    ts: "WorkoutPlanAlertRequest",
+    doc: "A WorkoutKit `WorkoutAlert`; one alert per step (Apple's own limit).",
+    fields: [
+      {
+        // All nine conformers, all watchOS 10.0 — none cut. Keep in sync with
+        // WorkoutPlanAlertKind in ReactWatchSupport.
+        name: "kind",
+        swift: "String",
+        ts:
+          '"heartRateRange" | "heartRateZone" | "speedRange" | "speedThreshold"'
+          + ' | "cadenceRange" | "cadenceThreshold" | "powerRange"'
+          + ' | "powerThreshold" | "powerZone"',
+      },
+      {
+        // SPEED alerts only, and that asymmetry is Apple's: `speed(_:unit:
+        // metric:)` takes it at watchOS 10.0 while `power(_:unit:metric:)` is
+        // 10.4 — so the speed selector is free at our floor and the power one
+        // would be this package family's first @available gate. Keep in sync
+        // with WorkoutPlanAlertMetric in ReactWatchSupport.
+        name: "metric",
+        swift: "String?",
+        ts: '"current" | "average"',
+        optional: true,
+        doc: "speedRange / speedThreshold only; default is Apple's .current",
+      },
+      { name: "lowerBpm", swift: "Double?", ts: "number", optional: true },
+      { name: "upperBpm", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "zone",
+        swift: "Int?",
+        ts: "number",
+        optional: true,
+        doc: "heartRateZone / powerZone; 1-based, no documented ceiling",
+      },
+      {
+        // Apple's API is SPEED (UnitSpeed), even though WWDC and every consumer
+        // app calls it "pace". The wire says what it is; paceToMetersPerSecond
+        // in js/src/workoutPlans.ts converts for a caller who thinks in min/km.
+        name: "lowerMetersPerSecond",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+      {
+        name: "upperMetersPerSecond",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+      { name: "metersPerSecond", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "lowerCountPerMinute",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+      {
+        name: "upperCountPerMinute",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+      { name: "countPerMinute", swift: "Double?", ts: "number", optional: true },
+      { name: "lowerWatts", swift: "Double?", ts: "number", optional: true },
+      { name: "upperWatts", swift: "Double?", ts: "number", optional: true },
+      { name: "watts", swift: "Double?", ts: "number", optional: true },
+    ],
+  },
+  {
+    swift: "WorkoutPlanStepRequest",
+    ts: "WorkoutPlanStepRequest",
+    doc: "A `WorkoutStep`; `purpose` is present only inside an interval block.",
+    fields: [
+      {
+        name: "purpose",
+        swift: "String?",
+        ts: '"work" | "recovery"',
+        optional: true,
+        doc: "IntervalStep.Purpose — required in a block, refused outside one",
+      },
+      {
+        name: "goal",
+        swift: "WorkoutPlanGoalRequest?",
+        ts: "WorkoutPlanGoalRequest",
+        optional: true,
+      },
+      {
+        // A single optional, not an array: Apple's WorkoutStep.alert is
+        // `(any WorkoutAlert)?`.
+        name: "alert",
+        swift: "WorkoutPlanAlertRequest?",
+        ts: "WorkoutPlanAlertRequest",
+        optional: true,
+      },
+    ],
+  },
+  {
+    swift: "WorkoutPlanBlockRequest",
+    ts: "WorkoutPlanBlockRequest",
+    doc: "An `IntervalBlock`: the repeated work/recovery steps of a custom workout.",
+    fields: [
+      {
+        name: "steps",
+        swift: "[WorkoutPlanStepRequest]",
+        ts: "WorkoutPlanStepRequest[]",
+      },
+      { name: "iterations", swift: "Int?", ts: "number", optional: true },
+    ],
+  },
+  {
+    swift: "WorkoutPlanRequest",
+    ts: "WorkoutPlanRequest",
+    doc: "The plan document itself — a CustomWorkout, SingleGoalWorkout or PacerWorkout.",
+    fields: [
+      {
+        // swimBikeRun is cut (no consumer in the prior-art survey ships
+        // multisport); adding it is one `kind` value + one array field. Keep in
+        // sync with WorkoutPlanSpecKind in ReactWatchSupport.
+        name: "kind",
+        swift: "String",
+        ts: '"custom" | "singleGoal" | "pacer"',
+      },
+      {
+        // WorkoutPlan.id. A non-UUID string REJECTS rather than silently
+        // becoming a fresh random id: schedule/list/remove all key on it, so a
+        // substitution would make removal a no-op the caller cannot see.
+        name: "id",
+        swift: "String?",
+        ts: "string",
+        optional: true,
+        doc: "a UUID; omitted means native mints one and reports it back",
+      },
+      { name: "activityType", swift: "String", ts: "WorkoutActivityType" },
+      {
+        // Omitted maps to WorkoutKit's own `.unknown` default — not a third
+        // wire value, so the shipped WorkoutLocation enum is reused unchanged.
+        name: "location",
+        swift: "String?",
+        ts: '"indoor" | "outdoor"',
+        optional: true,
+      },
+      {
+        name: "displayName",
+        swift: "String?",
+        ts: "string",
+        optional: true,
+        doc: "CustomWorkout only — the other two initializers take no name",
+      },
+      {
+        name: "warmup",
+        swift: "WorkoutPlanStepRequest?",
+        ts: "WorkoutPlanStepRequest",
+        optional: true,
+      },
+      {
+        name: "blocks",
+        swift: "[WorkoutPlanBlockRequest]?",
+        ts: "WorkoutPlanBlockRequest[]",
+        optional: true,
+        doc: "custom only, and at least one — an unstructured plan is a singleGoal",
+      },
+      {
+        name: "cooldown",
+        swift: "WorkoutPlanStepRequest?",
+        ts: "WorkoutPlanStepRequest",
+        optional: true,
+      },
+      {
+        name: "goal",
+        swift: "WorkoutPlanGoalRequest?",
+        ts: "WorkoutPlanGoalRequest",
+        optional: true,
+        doc: "singleGoal only — and the ONE kind where an energy goal is legal",
+      },
+      {
+        name: "distanceMeters",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+        doc: "pacer only",
+      },
+      {
+        name: "durationSeconds",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+        doc: "pacer only",
+      },
+    ],
+  },
+  {
+    swift: "ScheduleWorkoutPlanRequest",
+    ts: "ScheduleWorkoutPlanRequest",
+    doc: "js/src/workoutPlans.ts scheduleWorkoutPlan -> WorkoutPlanScheduleSpec.",
+    fields: [
+      { name: "plan", swift: "WorkoutPlanRequest", ts: "WorkoutPlanRequest" },
+      {
+        // Absolute ms (the ScheduleNotificationRequest.at convention). Native
+        // derives the DateComponents WorkoutKit keys on through ONE pure
+        // helper, and the list derives atMs back through its inverse.
+        // Granularity is one MINUTE — the field set is year..minute, which is
+        // what makes `remove` match `schedule` by construction.
+        name: "atMs",
+        swift: "Double",
+        ts: "number",
+        doc: "absolute ms since epoch; truncated to the minute",
+      },
+    ],
+  },
+  {
+    swift: "OpenWorkoutPlanRequest",
+    ts: "OpenWorkoutPlanRequest",
+    doc: "openWorkoutPlanInWorkoutApp — the plan to hand to the Workout app.",
+    fields: [
+      { name: "plan", swift: "WorkoutPlanRequest", ts: "WorkoutPlanRequest" },
+    ],
+  },
+  {
+    swift: "RemoveScheduledWorkoutRequest",
+    ts: "RemoveScheduledWorkoutRequest",
+    doc: "removeScheduledWorkoutPlan — the (id, date) pair WorkoutKit keys on.",
+    fields: [
+      { name: "id", swift: "String", ts: "string", doc: "the plan's UUID" },
+      { name: "atMs", swift: "Double", ts: "number" },
+    ],
+  },
   {
     swift: "PedometerQueryRequest",
     ts: "PedometerQueryRequest",
@@ -1032,6 +1288,45 @@ export const invokeShapes: StructDef[] = [
         name: "endedDistanceMeters",
         swift: "Double?",
         ts: "number",
+        optional: true,
+      },
+    ],
+  },
+  {
+    swift: "ScheduledWorkoutSummary",
+    ts: "ScheduledWorkoutSummary",
+    doc: "One `ScheduledWorkoutPlan` the Workout app is holding — what schedule/list report.",
+    fields: [
+      {
+        name: "id",
+        swift: "String",
+        ts: "string",
+        doc: "WorkoutPlan.id — echoed back, so a caller who omitted it learns the minted one",
+      },
+      {
+        // The inverse of the schedule direction, through the same pure helper.
+        // Minute granularity: schedule at …:30.500 and this reads …:30.000.
+        name: "atMs",
+        swift: "Double",
+        ts: "number",
+      },
+      {
+        // ScheduledWorkoutPlan.complete — set by the WORKOUT APP when the user
+        // finishes it, which is why `markComplete` is cut: the signal consumers
+        // need is this read, and Apple's own sample reads it rather than
+        // setting it.
+        name: "complete",
+        swift: "Bool",
+        ts: "boolean",
+      },
+      {
+        // Omitted rather than guessed when the vocabulary excludes the case —
+        // the WorkoutState.activityType rule verbatim, for the same reason: a
+        // plan scheduled by another launch arrives as an HKWorkoutActivityType
+        // and naming the wrong workout is worse than naming none.
+        name: "activityType",
+        swift: "String?",
+        ts: "WorkoutActivityType",
         optional: true,
       },
     ],

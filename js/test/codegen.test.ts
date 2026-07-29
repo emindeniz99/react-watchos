@@ -291,3 +291,87 @@ describe("health vocabularies match the Swift enums", () => {
     ).toEqual(schemaUnion("StartWorkoutRequest", "location"));
   });
 });
+
+// The WorkoutKit plan vocabularies, pinned the same way and for the same
+// reason: the wire shape is FLAT with a `kind` discriminator (the codegen emits
+// `public let` Codable structs, so a Swift enum-with-payload is not
+// expressible), which means the discriminator's legal values live in a TS union
+// on one side and a Swift enum on the other with nothing structural connecting
+// them. A divergence would be a plan that type-checks in JS and rejects on a
+// watch — and every one of these enums is also where a deferred variant would
+// be added back, so drift is a live risk rather than a hypothetical.
+describe("workout-plan vocabularies match their Swift enums", () => {
+  const spec = readFileSync(
+    join(swiftRoot, "Sources/ReactWatchSupport/WorkoutPlanSpec.swift"),
+    "utf8",
+  );
+
+  it("the plan kinds match — and swimBikeRun is absent from both", () => {
+    expect(
+      swiftEnumCases(
+        spec,
+        "public enum WorkoutPlanSpecKind: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("WorkoutPlanRequest", "kind"));
+    // Cut in v1 (no surveyed consumer ships multisport). Adding it back is one
+    // `kind` value plus one array field — additive on the flat wire shape, so
+    // it invalidates no shipped fixture. This is the row to delete then.
+    expect(schemaUnion("WorkoutPlanRequest", "kind")).not.toContain(
+      "swimBikeRun",
+    );
+  });
+
+  it("the goal kinds match — and the watchOS 11 pool-swim goal is absent", () => {
+    expect(
+      swiftEnumCases(
+        spec,
+        "public enum WorkoutPlanGoalKind: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("WorkoutPlanGoalRequest", "kind"));
+    // `poolSwimDistanceWithTime` is watchOS 11.0 — it would be this package
+    // family's first @available gate, which is the property being protected.
+    expect(schemaUnion("WorkoutPlanGoalRequest", "kind")).not.toContain(
+      "poolSwimDistanceWithTime",
+    );
+  });
+
+  it("all nine alert kinds match", () => {
+    expect(
+      swiftEnumCases(
+        spec,
+        "public enum WorkoutPlanAlertKind: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("WorkoutPlanAlertRequest", "kind"));
+  });
+
+  it("the step purposes and the speed-alert metric match", () => {
+    expect(
+      swiftEnumCases(
+        spec,
+        "public enum WorkoutPlanStepPurpose: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("WorkoutPlanStepRequest", "purpose"));
+    expect(
+      swiftEnumCases(
+        spec,
+        "public enum WorkoutPlanAlertMetric: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("WorkoutPlanAlertRequest", "metric"));
+  });
+
+  it("reuses the shipped location and activity vocabularies unchanged", () => {
+    // The single largest already-paid-for win in the package: WorkoutKit takes
+    // an HKWorkoutActivityType, so the generated 81-name switch already covers
+    // it and there is zero new vocabulary to drift. Same for the two-value
+    // location enum — absent maps to WorkoutKit's own `.unknown` default, so
+    // no third wire value was invented for it.
+    expect(schemaUnion("WorkoutPlanRequest", "location")).toEqual([
+      "indoor",
+      "outdoor",
+    ]);
+    const plan = invokeShapes.find((s) => s.ts === "WorkoutPlanRequest");
+    expect(plan?.fields.find((f) => f.name === "activityType")?.ts).toBe(
+      "WorkoutActivityType",
+    );
+  });
+});
