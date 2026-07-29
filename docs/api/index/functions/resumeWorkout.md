@@ -1,0 +1,17 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / resumeWorkout
+
+# Function: resumeWorkout()
+
+> **resumeWorkout**(): `Promise`\<`void`\>
+
+Defined in: [js/src/workout.ts:140](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L140)
+
+Resumes a paused workout. Rejects `UNAVAILABLE` if none is paused.
+
+## Returns
+
+`Promise`\<`void`\>

@@ -6,7 +6,7 @@
 
 # Interface: WatchEvent
 
-Defined in: [js/src/generated/wire.ts:72](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L72)
+Defined in: [js/src/generated/wire.ts:166](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L166)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/generated/wire.ts:72](https://github.com/emindeniz99/playgro
 
 > **event**: `string`
 
-Defined in: [js/src/generated/wire.ts:74](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L74)
+Defined in: [js/src/generated/wire.ts:168](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L168)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/generated/wire.ts:74](https://github.com/emindeniz99/playgro
 
 > **nodeId**: `number`
 
-Defined in: [js/src/generated/wire.ts:73](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L73)
+Defined in: [js/src/generated/wire.ts:167](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L167)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/generated/wire.ts:73](https://github.com/emindeniz99/playgro
 
 > `optional` **payload?**: `Record`\<`string`, `unknown`\>
 
-Defined in: [js/src/generated/wire.ts:75](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L75)
+Defined in: [js/src/generated/wire.ts:169](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L169)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [js/src/generated/wire.ts:75](https://github.com/emindeniz99/playgro
 
 > `optional` **seq?**: `number`
 
-Defined in: [js/src/generated/wire.ts:76](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L76)
+Defined in: [js/src/generated/wire.ts:170](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L170)

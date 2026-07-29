@@ -125,6 +125,81 @@ Held deliberately:
 - [x] **Remote push (APNs) — registration + delivery (2026-07-17).** The watch gets its own APNs token and remote payloads reach JS (`6b3bbdb`/`9e45d9d`/`a199faf`): `registerForRemoteNotifications()` resolves the lowercase-hex device token over invoke (call every launch — tokens are variable length and rotate; default 30 s watchdog, not user-mediated), `onRemotePush`/`onRemotePushToken`/`onRemotePushRegistrationError` are typed wrappers over the push channel, and the schema declares the method under a NEW **`"push"` feature** — a distinct HostPolicy authorization unit (local `notifications` must not implicitly grant remote push, which hands out a routable token), so POLICY_DENIED comes free from ARCH-07's generic gate and the widget's typed invoke rejecter auto-rejects it (zero special cases). Host side: WatchKit has no registration completion handler, so pending register invokes are parked `(id, generation)` and the ONE `didRegister`/`didFail` delegate callback settles them all (stale generations drop, CX-008; failures reject `UNAVAILABLE` — the fix is entitlement/environment, not the user); `remotePushDidReceive` sanitizes the userInfo (`RemotePushWire.sanitize`: non-String keys stringified, non-JSON leaves DROPPED not stringified) and maps the new `JSRuntime.pushNativeEventReturning` Bool (both bridge modes, CR-5) to `.newData`/`.noData` — no runtime / mid-boot (cold-launch background push, documented v1 drop) / no listener → `.noData`, synchronous so the 30 s completion budget is trivial. `ReactWatchAppDelegate` grows the three `WKApplicationDelegate` methods; `ReactWatchRemotePush` is the same forwarding surface for consumers with their own delegate. Expo plugin: `push: true` (default false, least privilege like healthKit) adds `"aps-environment": "development"` to the watch target + its EAS entry. Verify: swift test 246 (+8: hex/sanitize, Bool round-trip across both bridge modes, missing-global → false), JS 426 (+8: invoke routing, UNAVAILABLE/native-reason rejections, typed unwrapping + unsubscribe, live runApp UI update off `__pushNativeEvent`'s Bool, pinned event names, plugin entitlement on/off + EAS propagation), codegen regenerates byte-identically (HOST_METHODS/HOST_FEATURES + WireModel maps only), typecheck/biome clean, embed-smoke green; the host/delegate halves are watchOS-only → compile-verified at the next Mac build (`swiftc -parse` clean here), and real APNs delivery is the ③ device slice (`xcrun simctl push` can exercise `didReceiveRemoteNotification` on a Mac sim).
 - [x] **CX-017** — both halves now wired. (1) per-entry `TimelineEntryRelevance(score:duration:)` = the Smart Stack **ranking** signal (was already done). (2) **predictive `relevantContexts` → surfacing DONE**: `ReactTimelineProvider.relevance()` (watchOS 11+) maps each published hint to a RelevanceKit `RelevantContext` — `.location(CLCircularRegion)` when coords are present, else `.date` — wrapped in `WidgetRelevance([WidgetRelevanceAttribute<Void>(context:)])`. Both the static `ReactTimelineProvider` (`WidgetRelevance<Void>`) and the configurable `ShoppingTimelineProvider` (per-list `WidgetRelevance<SelectShoppingListIntent>`) implement it, via a shared `reactRelevantContext`/`reactRelevantContexts` helper. **Widget Xcode build (`React Watch Widgets`) SUCCEEDED** against the watchOS-26 SDK, so the API/shape is verified; only the actual Smart-Stack *surfacing behavior* is device-only.
 
+### Session 2026-07-29 — the HEALTH package (reads + workout control + pedometer)
+
+Closes what roadmap.md called "the top feature gap" and what status.md's
+sensors row had carried as a caveat since it was written: HealthKit was bound
+for exactly one thing, a hidden `.other` `HKWorkoutSession` used as a
+heart-rate pump. Scope came from an Apple-docs-verified brief (≈130 docs-JSON
+fetches, one per `HKWorkoutActivityType` member); the decisions are recorded in
+[design-health-package.md](./design-health-package.md).
+
+**The finding that shaped it is not "add more HealthKit".** Apple runs ONE
+workout session per process — *"if a second workout starts while your workout
+is running, your session receives an error, and your session ends"* — and
+`SensorBridge` privately owned the only one. An explicit `startWorkout()` added
+beside it would have been a second owner of a single-occupancy system slot,
+whose failure mode is the user's heart-rate stream dying mid-workout, on a
+device, with nothing on any CI machine able to see it. So the feature work is
+downstream of a unification: `WorkoutSessionOwner` is now the only construction
+site, and both the pump and the explicit API take a *claim* on it (upgrade /
+downgrade / synchronous refusal), with `startHeartRate` unchanged from JS's
+side.
+
+Shipped (each its own commit, all suites green):
+
+- **HealthKit reads** behind a new `health` feature — `requestHealthAuthorization`,
+  `queryHealthStatistics`, `queryHealthSamples`, `querySleepSamples` on the
+  `HK*QueryDescriptor` family (watchOS 8.5, under our floor). Its own feature,
+  not `sensors`: reads disclose the user's stored health HISTORY, and an app
+  that wants live HR during a meditation timer must be able to refuse
+  sleep-history reads. Three things are code rather than documentation — the
+  per-type unit (JS never names one), the statistic/type legality Apple
+  enforces by THROWING, and the fact that a granted read is indistinguishable
+  from a denied one (so authorization reports "prompted"/"alreadyRequested"
+  and never a verdict).
+- **Workout control** behind a new `workouts` feature — start/pause/resume/end
+  with a real saved `HKWorkout`, coalesced `workout.metrics`, an optional
+  route, and `(id, generation, epoch)` parking so `await startWorkout()` means
+  "running" (the `pendingRuntimeSessionStarts` pattern, reused). A workout does
+  NOT survive a runtime reload in v1: teardown ends + SAVES it and parks the
+  summary for the fresh runtime's first `getWorkoutState()`, because pushing an
+  event into a dying context reaches nobody.
+- **A live bug fixed en route.** `startHeartRate(cb, { keepAliveInBackground:
+  true })` has been documented since the sensors API shipped and the plugin
+  emitted **no `WKBackgroundModes` at all**, so it was structurally unbacked.
+  The new `workouts` plugin option emits `workout-processing`, composing with
+  (not clobbering) an extended-runtime mode.
+- **CMPedometer** — `startPedometer` on the sensor push channel, `queryPedometer`
+  (~7-day device history) as an invoke, one shape on both carriers. Kept under
+  the existing `sensors` feature: same framework, same usage description, same
+  single "Motion & Fitness" consent as the shipped motion streams, so a
+  separate feature id would map to no independently-grantable denial. Ships
+  with the guard that makes it safe — Apple documents that calling CMPedometer
+  without `NSMotionUsageDescription` **crashes**, so the bridge checks the key
+  and refuses with an actionable `UNAVAILABLE`. The new `motion` plugin option
+  also DECOUPLES that key from `healthKit`, where it wrongly lived.
+- **Negative checks for every guard**, mutation-tested. The one worth naming:
+  `SensorBridge.handleOp`'s switch `default: break`s, so widening `SensorKind`
+  in TS alone would compile, type-check, lint, pass every JS test and no-op
+  forever — the half of the `startSensor("steps")` bug that commit `2fd7739`
+  structurally could not close. A `Record<SensorKind, true>` plus a scan of the
+  Swift switch now closes it in both directions.
+
+Correction to the brief, recorded rather than absorbed: its sweep counted 80
+live activity types; a re-sweep found 84 cases (it had missed `pickleball`,
+watchOS 7.0), so the union has **81**. Maximum `introducedAt` is still exactly
+10.0 — our floor — so **not one symbol in the package needs an `@available`
+gate**.
+
+Counts: `swift test` 308 → 328, vitest 483 → 527.
+
+**Standing gap, stated plainly:** health and workouts are **③ device-only**.
+`docs/running-on-sim.md` signs the simulator build *minus* the `healthkit`
+entitlement on purpose, so no authorization sheet, real sample, saved workout
+or route has been exercised anywhere. That — not more API surface — is what
+"HealthKit depth" needs next.
+
 ### Session 2026-07-28 — watchOS 26 adoption pass (C > B > A)
 
 Scope came from a read-only Apple-docs research pass; the owner's call was

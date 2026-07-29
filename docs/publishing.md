@@ -129,7 +129,18 @@ type Options = {
   name: string;                 // watch app display name
   appGroup: string;             // App Group id (defaults to bundleId-derived)
   widget?: boolean;             // create the widget extension (default true)
-  healthKit?: boolean;          // HealthKit entitlement + usage strings (default false — opt-in)
+  healthKit?: boolean;          // HealthKit entitlement + read usage strings (default false — opt-in)
+  workouts?: boolean;           // WKBackgroundModes ["workout-processing"] + HealthKit entitlement
+                                //   + the workout save/route usage strings (default false — opt-in).
+                                //   REQUIRED for startWorkout() and for
+                                //   startHeartRate({ keepAliveInBackground: true }) to survive
+                                //   backgrounding — Apple: a session needs the Workout processing
+                                //   background mode. Composes with an extended-runtime mode.
+  motion?: boolean;             // NSMotionUsageDescription (default false — opt-in). Needed by the
+                                //   motion/gyroscope streams and by CMPedometer, which Apple
+                                //   documents as CRASHING without the key (the bridge refuses
+                                //   with UNAVAILABLE rather than calling). Previously emitted
+                                //   under `healthKit`, which was wrong: CoreMotion is not HealthKit.
   push?: boolean;               // remote push: aps-environment entitlement (default false — opt-in)
   families?: WidgetFamily[];    // complication families
   deploymentTarget?: string;    // default "10.0"

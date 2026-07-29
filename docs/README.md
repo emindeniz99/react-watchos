@@ -78,6 +78,14 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   spec (`bleConnect`/`bleWrite`/`bleSubscribe` settle as promises over invoke;
   `BleSession` correlation Linux-tested); the remaining slice is **device
   verification** (no simulator Bluetooth radio).
+- [design-health-package.md](./design-health-package.md) — the HEALTH package
+  (HealthKit reads, real workout control, CMPedometer), shipped 2026-07-29.
+  Records the single-`HKWorkoutSession`-owner unification (the structural
+  decision), the `health`/`workouts` feature split, the availability sweep (all
+  84 `HKWorkoutActivityType` cases; nothing above the watchOS 10 floor, so not
+  one `@available` gate), and the four named follow-ups. Also records why
+  health is **device-only ③**: the sim run script signs without the `healthkit`
+  entitlement on purpose.
 - [design-cx-025-release-freshness.md](./design-cx-025-release-freshness.md) —
   CX-025 OTA `releaseId` (so non-breaking fixes can ship). Core primitive proven
   (JS FNV-1a == Swift `ContentHash`); spec ready for a focused load-flow pass.

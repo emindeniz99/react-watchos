@@ -1,0 +1,25 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / querySleepSamples
+
+# Function: querySleepSamples()
+
+> **querySleepSamples**(`request`): `Promise`\<[`SleepSample`](../interfaces/SleepSample.md)[]\>
+
+Defined in: [js/src/health.ts:191](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L191)
+
+Sleep intervals in `[startMs, endMs)`, newest first. Needs
+`requestHealthAuthorization({ read: [], sleep: true })` first — sleep is a
+category type and can't ride the `read` list.
+
+## Parameters
+
+### request
+
+[`SleepSamplesQuery`](../interfaces/SleepSamplesQuery.md)
+
+## Returns
+
+`Promise`\<[`SleepSample`](../interfaces/SleepSample.md)[]\>

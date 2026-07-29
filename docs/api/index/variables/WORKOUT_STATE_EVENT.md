@@ -1,0 +1,13 @@
+[**react-watchos API v0.1.0**](../../README.md)
+
+***
+
+[react-watchos API](../../README.md) / [index](../README.md) / WORKOUT\_STATE\_EVENT
+
+# Variable: WORKOUT\_STATE\_EVENT
+
+> `const` **WORKOUT\_STATE\_EVENT**: `"workout.state"` = `"workout.state"`
+
+Defined in: [js/src/workout.ts:54](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L54)
+
+`workout.state`: `{ state, reason? }` on every session transition.

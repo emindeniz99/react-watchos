@@ -6,7 +6,7 @@
 
 # Interface: SerializedTree
 
-Defined in: [js/src/generated/wire.ts:17](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L17)
+Defined in: [js/src/generated/wire.ts:111](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L111)
 
 A committed UI tree. `seq` acks the highest processed event.
 
@@ -16,7 +16,7 @@ A committed UI tree. `seq` acks the highest processed event.
 
 > **root**: [`SerializedNode`](SerializedNode.md) \| `null`
 
-Defined in: [js/src/generated/wire.ts:20](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L20)
+Defined in: [js/src/generated/wire.ts:114](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L114)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/generated/wire.ts:20](https://github.com/emindeniz99/playgro
 
 > **seq**: `number`
 
-Defined in: [js/src/generated/wire.ts:19](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L19)
+Defined in: [js/src/generated/wire.ts:113](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L113)
 
 ***
 
@@ -32,4 +32,4 @@ Defined in: [js/src/generated/wire.ts:19](https://github.com/emindeniz99/playgro
 
 > **v**: `1`
 
-Defined in: [js/src/generated/wire.ts:18](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L18)
+Defined in: [js/src/generated/wire.ts:112](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L112)

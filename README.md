@@ -44,9 +44,12 @@ SwiftUI-like, all 41 primitives: `VStack`, `HStack`, `ZStack`, `ScrollView`,
 `ShareLink`, `Chart`, `LabeledContent`, `ContentUnavailable`, `Toolbar`,
 `ToolbarItem` — with SwiftUI layout rather than flexbox. Beyond views there's
 `Storage` (App Group UserDefaults), `fetch` (WHATWG subset over native
-URLSession), four sensor push streams — live heart rate (a hidden HealthKit
-workout session used as an HR pump; **no** steps, energy, sleep or workout
-control), device motion, gyroscope and location — a BLE central (`bleConnect` /
+URLSession), five sensor push streams — live heart rate, device motion,
+gyroscope, location and pedometer — **HealthKit reads** (`queryHealthStatistics`
+/ `queryHealthSamples` / `querySleepSamples`: steps, active energy, distance,
+SpO2, sleep stages) and **real workout control** (`startWorkout` / `pause` /
+`resume` / `endWorkout` with a saved `HKWorkout`, live metrics and an optional
+route) — a BLE central (`bleConnect` /
 `bleWrite` / `bleSubscribe` + state/notify pushes), `sendToPhone`
 (WatchConnectivity, watch side), `playHaptic`, `playAudio`,
 `scheduleNotification` (local notifications with permission request and
@@ -91,7 +94,20 @@ radio or sensor hot is bounded or opt-in:
 - **Heart rate stops in the background.** The HealthKit workout session
   behind `startHeartRate` ends on scenePhase `.background` and restarts on
   `.active` — a forgotten stop can't drain the battery overnight. A real
-  workout app opts in: `startHeartRate(cb, { keepAliveInBackground: true })`.
+  workout app opts in: `startHeartRate(cb, { keepAliveInBackground: true })`,
+  which needs `workouts: true` in the config plugin (that is what emits the
+  `workout-processing` background mode Apple requires; without it the session
+  ends on background whatever the option says). An explicit `startWorkout()`
+  pins the session by design — the running-workout chip on the watch face is
+  the user-visible consent for that.
+- **Workout metrics are coalesced.** HealthKit collects samples at ~1 Hz;
+  `workout.metrics` pushes at `metricsIntervalMs` (default 1000, floor 250)
+  rather than per sample, because every push crosses the bridge and can commit
+  a render. Same knob shape as `startMotion({ updateIntervalMs })`.
+- **One workout session, one GPS stream.** watchOS allows a single
+  `HKWorkoutSession` per process, so `startHeartRate` and `startWorkout` share
+  one — a second would kill the first. `collectRoute` records from the same
+  `CLLocationManager` `startLocation` uses instead of starting a second one.
 - **BLE auto-reconnect is bounded.** An unexpected drop re-scans for 5
   attempts × 60 s each, then stays `disconnected` instead of scanning
   forever for a peripheral that left. Tune per connection:
