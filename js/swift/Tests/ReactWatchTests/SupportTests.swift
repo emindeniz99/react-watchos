@@ -942,6 +942,49 @@ final class HostPolicyTests: XCTestCase {
             .denied(byPolicy: ["network", "sensors"])
         )
     }
+
+    func testHealthAndWorkoutsAreSeparatelyDeniable() {
+        // The whole reason they are two features and not one: reads disclose
+        // the user's stored health HISTORY, while workouts WRITE a permanent
+        // HKWorkout, occupy the single system workout slot and grant background
+        // execution. An app must be able to say yes to one and no to the other,
+        // which is only true if a policy can deny them independently.
+        XCTAssertEqual(
+            HostPolicy.allow(["health"]).authorize(
+                bundleFeatures: ["health", "workouts"],
+                native: HostFeatures.watch),
+            .denied(byPolicy: ["workouts"])
+        )
+        XCTAssertEqual(
+            HostPolicy.allow(["workouts"]).authorize(
+                bundleFeatures: ["health", "workouts"],
+                native: HostFeatures.watch),
+            .denied(byPolicy: ["health"])
+        )
+        // ...and that neither leaks through `sensors`, which grants the live
+        // heart-rate stream and the pedometer and must not imply either.
+        XCTAssertEqual(
+            HostPolicy.allow(["sensors"]).authorize(
+                bundleFeatures: ["health", "sensors", "workouts"],
+                native: HostFeatures.watch),
+            .denied(byPolicy: ["health", "workouts"])
+        )
+    }
+
+    func testTheWatchProvidesHealthAndWorkoutsAndTheWidgetDoesNot() {
+        // Widget exposure is handled for free rather than special-cased: the
+        // methods are watch-only, so they never enter HostFeatures.widget and
+        // WidgetIntentRuntime's typed rejecter answers UNAVAILABLE. An
+        // HKWorkoutSession in an extension is a non-starter anyway (it needs
+        // the APP's workout-processing mode and the single system slot), and
+        // async HealthKit I/O inside getTimeline is metered against both the
+        // battery and the WidgetKit refresh budget.
+        XCTAssertTrue(HostFeatures.watch.contains("health"))
+        XCTAssertTrue(HostFeatures.watch.contains("workouts"))
+        XCTAssertFalse(HostFeatures.widget.contains("health"))
+        XCTAssertFalse(HostFeatures.widget.contains("workouts"))
+        XCTAssertTrue(HostFeatures.widget.isSubset(of: HostFeatures.watch))
+    }
 }
 
 /// SD-2 / CX-018: the styling logic shared by both interpreters lives here so it
