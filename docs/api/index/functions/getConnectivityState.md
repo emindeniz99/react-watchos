@@ -8,7 +8,7 @@
 
 > **getConnectivityState**(): `Promise`\<[`ConnectivityState`](../interfaces/ConnectivityState.md)\>
 
-Defined in: [js/src/connectivity.ts:240](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L240)
+Defined in: [js/src/connectivity.ts:276](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L276)
 
 A snapshot of the session: activation, reachability, whether the companion
 iPhone app is installed, and whether WCSession still has content queued.

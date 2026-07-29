@@ -8,10 +8,12 @@
 
 > **onApplicationContext**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/connectivity.ts:84](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L84)
+Defined in: [js/src/connectivity.ts:113](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L113)
 
 Latest-wins context pushed from the iPhone (its `updateApplicationContext`).
- Returns an unsubscribe.
+ Returns an unsubscribe. The payload is reduced to JSON — a `Date`/`Data` leaf
+ the phone legitimately sent is dropped per-key and silently; see the inbound
+ reduction note at the top of this module.
 
 ## Parameters
 

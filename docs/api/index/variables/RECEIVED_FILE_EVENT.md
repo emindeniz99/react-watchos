@@ -8,6 +8,6 @@
 
 > `const` **RECEIVED\_FILE\_EVENT**: `"watchConnectivity.file"` = `"watchConnectivity.file"`
 
-Defined in: [js/src/connectivity.ts:31](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L31)
+Defined in: [js/src/connectivity.ts:51](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L51)
 
 A file the iPhone sent, already moved into this app's inbox.
