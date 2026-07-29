@@ -120,6 +120,22 @@ public struct FileInbox: Sendable, Equatable {
             try? fileManager.removeItem(at: destination)
         }
         try fileManager.moveItem(at: source, to: destination)
+        // `moveItem` is a rename, so the landed file keeps the SOURCE's
+        // modification date — a date this app did not choose. The source is a
+        // temp file the WatchConnectivity daemon wrote, and Apple documents no
+        // attribute-preservation contract for it either way (the metadata
+        // dictionary is the documented channel for ancillary data), so an
+        // inherited date can be arbitrarily old. `maxAge` below means "7 days
+        // since RECEIPT" — every doc says so — so stamp receipt time and make
+        // that true instead of trusting a date from the sender's filesystem.
+        // Best-effort on purpose: the file is already safe, and throwing here
+        // would report `receiveFailed` for a file that actually landed.
+        try? fileManager.setAttributes(
+            [
+                .modificationDate: Date(
+                    timeIntervalSince1970: Double(receivedAtMs) / 1000)
+            ],
+            ofItemAtPath: destination.path)
         return destination
     }
 

@@ -3065,6 +3065,34 @@ final class FileInboxTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: landed), Data("new".utf8))
     }
 
+    func testAdoptStampsReceiptTimeSoRetentionCannotEatANewFile() throws {
+        // Retention is keyed on the modification date, and `moveItem` is a
+        // rename that INHERITS the source's. The source is a temp file the WC
+        // daemon wrote and Apple promises nothing about its attributes, so an
+        // inherited date can be older than `maxAge` — which would make the
+        // prune on the file's own receive path delete it, and
+        // `session(_:didReceive:)` would then report size 0 and a dead path
+        // with neither failure event firing. Receipt time is the honest key
+        // and `adopt` already has it.
+        let box = inbox()
+        let source = try makeFile("export.json", bytes: "hello")
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-30 * 24 * 60 * 60)],
+            ofItemAtPath: source.path)
+        let receivedAtMs = Int(Date().timeIntervalSince1970 * 1000)
+        let landed = try box.adopt(
+            source, receivedAtMs: receivedAtMs, sequence: 1, name: "export.json")
+        let modified = try XCTUnwrap(
+            try landed.resourceValues(forKeys: [.contentModificationDateKey])
+                .contentModificationDate)
+        XCTAssertEqual(
+            modified.timeIntervalSince1970, Double(receivedAtMs) / 1000,
+            accuracy: 1)
+        // The whole point: the receive path's own prune must not eat it.
+        XCTAssertTrue(box.prune().isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: landed.path))
+    }
+
     func testRetentionDropsTheOldestPastTheCountAndAnythingStale() {
         let now = Date(timeIntervalSince1970: 1_000_000)
         let entries = (0..<5).map { index in
