@@ -192,6 +192,12 @@ export function transferFile(
  * Cancels a queued/in-flight transfer by the id {@link transferFile} resolved.
  * Rejects `INVALID_REQUEST` when this launch never minted that id — including
  * for a transfer queued by a previous launch, which has no id to cancel by.
+ *
+ * Cancelling an id this launch DID mint always resolves, even if the transfer
+ * already completed — Apple defines `cancel()` on a transferred file as having
+ * "no effect", and the completion races the cancel by nature (it arrives on
+ * {@link onFileTransfer}, not here). Await {@link onFileTransfer} for the
+ * terminal state; this resolving does not mean the transfer was stopped.
  */
 export function cancelFileTransfer(id: number): Promise<void> {
   return invoke("cancelFileTransfer", { id });

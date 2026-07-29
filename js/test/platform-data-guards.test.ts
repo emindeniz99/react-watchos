@@ -171,6 +171,32 @@ describe("an outbound transfer resolves when QUEUED, not when delivered", () => 
     expect(teardown).not.toContain("connectivity.");
   });
 
+  it("cancelling a minted-but-settled id is a no-op, not a false rejection", () => {
+    // `didFinish` is the only writer that REMOVES from `transfersById`, so a
+    // transfer that already completed leaves a MINTED id with no live entry.
+    // Rejecting that asserts something false — this launch did queue it — and
+    // contradicts the API being wrapped: Apple, `WCSessionFileTransfer.cancel()`
+    // — "If the file has already been transferred, calling this method has no
+    // effect." The completion races the cancel by nature (it arrives on the
+    // push channel, not on this invoke), so every Cancel button hits this.
+    const body = slice(
+      read(CONNECTIVITY),
+      "func cancelFileTransfer(_ json: String) -> SendError? {",
+      "/// Every transfer WCSession still has queued.",
+    );
+    // The predicate must be read under the SAME lock acquisition as the map,
+    // or the two observations can tear against a concurrent `didFinish`.
+    const lock = body.indexOf("transferLock.lock()");
+    const minted = body.indexOf("let minted = id > 0 && id < nextTransferId");
+    const unlock = body.indexOf("transferLock.unlock()");
+    expect(minted).toBeGreaterThan(lock);
+    expect(unlock).toBeGreaterThan(minted);
+    expect(code(body)).toContain("guard !minted else { return nil }");
+    // An id this launch never minted still rejects — that is the case the
+    // rejection was written for and it must survive.
+    expect(body).toContain("was queued by this launch");
+  });
+
   it("keeps the file ops under `connectivity` rather than minting a feature", () => {
     // Same KIND of privilege as transferUserInfo (move app data to the paired
     // phone), just a larger payload — unlike the push-vs-notifications split,

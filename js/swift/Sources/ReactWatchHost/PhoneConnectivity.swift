@@ -235,8 +235,17 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         }
         transferLock.lock()
         let transfer = transfersById[id]
+        // `nextTransferId` is monotonic from 1 and never reset, so this is
+        // exactly "this launch minted it" — whether or not it has settled.
+        let minted = id > 0 && id < nextTransferId
         transferLock.unlock()
         guard let transfer else {
+            // `didFinish` removes the entry, so a MINTED id with no live
+            // transfer means it already completed — Apple: "If the file has
+            // already been transferred, calling this method has no effect."
+            // Rejecting that would both contradict the API being wrapped and
+            // assert something false: this launch did queue it.
+            guard !minted else { return nil }
             return SendError(
                 code: .invalidRequest,
                 message: "no file transfer with id \(id) was queued by this launch")
