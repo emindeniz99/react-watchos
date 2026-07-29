@@ -131,7 +131,15 @@ public struct HealthWindow: Equatable, Sendable {
     /// cannot move a 1000-day window under the bar — while a `Calendar` here
     /// would make the refusal depend on the device's time zone.
     public var dayCount: Int {
-        Int(((endMs - startMs) / 86_400_000).rounded(.up))
+        let days = ((endMs - startMs) / 86_400_000).rounded(.up)
+        // SATURATES rather than converts blind. `decode` only promises the two
+        // ends are finite and ordered, so JS can hand over a `Number.MAX_VALUE`
+        // window whose day count is past `Int.max` — and two finite ends can
+        // even subtract to `+inf`. `Int(_:)` TRAPS on both, which would abort
+        // the app on the invoke dispatch path instead of letting the ceiling
+        // below refuse the window like every other rule in this file does.
+        guard days < Double(Int.max) else { return .max }
+        return Int(days)
     }
 
     /// Whether a bucket that STARTS at `bucketStartMs` belongs to this window.

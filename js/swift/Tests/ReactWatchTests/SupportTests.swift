@@ -2750,6 +2750,24 @@ final class HealthQueryPlanTests: XCTestCase {
         XCTAssertEqual(partial?.dayCount, 2)
     }
 
+    func testDailyPlanRefusesAnAbsurdWindowInsteadOfTrapping() {
+        // `decode` only promises the two ends are finite and ordered, and JS
+        // hands over any `number` unvalidated — so a window can span more days
+        // than `Int` can hold, and two finite ends can even subtract to `+inf`.
+        // Both must come back as INVALID_REQUEST like every sibling decoder,
+        // not as a fatalError that aborts the app on the invoke path.
+        for json in [
+            #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":1e300}"#,
+            #"{"type":"stepCount","statistic":"sum","startMs":-1.7e308,"endMs":1.7e308}"#,
+        ] {
+            guard case .failure(let error) = HealthStatisticsPlan.decodeDaily(json: json)
+            else {
+                return XCTFail("an absurd window must be refused, not accepted")
+            }
+            XCTAssertTrue(error.message.contains("ceiling"))
+        }
+    }
+
     func testDailyPlanKeepsEveryRuleTheScalarQueryHas() {
         // Chopping the window into buckets does not change which statistics
         // HealthKit will compute for a type — the pairing still throws — so the
