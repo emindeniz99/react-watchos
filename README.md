@@ -264,12 +264,12 @@ can't claim) is
   UI-sized work; don't mine bitcoin in `useEffect`.
 - **Full-tree commits**: ideal for watch-sized screens; large lists would want
   the diffing optimization noted in [docs/research.md](./docs/research.md).
-- **Bundle size**: demo app ~565 KB unminified / ~179 KB minified against a
-  200 KB CI budget (widget bundle 145 KB against 160 KB); QuickJS itself adds
-  ~1 MB of code — comfortably inside the watch app budget. Point-in-time
-  numbers (2026-07-04); the enforced truth is the budget check, and every
-  limit is tabulated in
-  [docs/budgets-and-limits.md](./docs/budgets-and-limits.md).
+- **Bundle size**: the demo app bundle is 597 KB unminified / **191 KB
+  minified** against a 2 MB sanity budget; the widget bundle 500 KB / 149 KB
+  against 1 MB. QuickJS itself adds ~1 MB of code — comfortably inside the
+  watch app budget. Point-in-time numbers (measured 2026-07-29); the enforced
+  truth is `pnpm check:size`, and every limit with its real ceiling is
+  tabulated in [docs/budgets-and-limits.md](./docs/budgets-and-limits.md).
 - **CI has never run.** GitHub Actions is disabled at the repo level, so the
   Linux and macOS workflows have never executed — the gates are run locally.
   Recorded in [docs/status.md](./docs/status.md).
