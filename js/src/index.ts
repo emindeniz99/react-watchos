@@ -152,6 +152,25 @@ export { WIRE_VERSION } from "./generated/wire";
 export type { HapticType } from "./haptics";
 export { playHaptic } from "./haptics";
 export type {
+  HealthAuthorizationOptions,
+  HealthAuthorizationResult,
+  HealthQuantityType,
+  HealthSample,
+  HealthSamplesQuery,
+  HealthStatistic,
+  HealthStatisticsQuery,
+  HealthStatisticsResult,
+  SleepSample,
+  SleepSamplesQuery,
+  SleepStage,
+} from "./health";
+export {
+  queryHealthSamples,
+  queryHealthStatistics,
+  querySleepSamples,
+  requestHealthAuthorization,
+} from "./health";
+export type {
   HostBridge,
   QuickJSHostGlobal,
   SerializedNode,

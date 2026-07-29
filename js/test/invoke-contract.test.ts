@@ -16,13 +16,27 @@ import { getDeviceInfo } from "../src/device";
 import type {
   Coordinate as WireCoordinate,
   DeviceInfo as WireDeviceInfo,
+  HealthSample as WireHealthSample,
+  HealthStatisticsResult as WireHealthStatisticsResult,
   IAPProduct as WireIAPProduct,
   POIResult as WirePOIResult,
   PurchaseResult as WirePurchaseResult,
   SaveUpdateResult as WireSaveUpdateResult,
+  SleepSample as WireSleepSample,
   UpdateState as WireUpdateState,
 } from "../src/generated/wire";
 import { INVOKE_SHAPES } from "../src/generated/wire";
+import type {
+  HealthSample,
+  HealthStatisticsResult,
+  SleepSample,
+} from "../src/health";
+import {
+  queryHealthSamples,
+  queryHealthStatistics,
+  querySleepSamples,
+  requestHealthAuthorization,
+} from "../src/health";
 import type { IAPProduct, PurchaseResult } from "../src/iap";
 import { getProducts, purchase } from "../src/iap";
 import { Keychain } from "../src/keychain";
@@ -152,6 +166,27 @@ const poiResults: POIResult[] = [
   { lat: 41.0102, lon: 28.9801, title: "Kronotrop" },
 ];
 const coordinate: Coordinate = { lat: 41.0082, lon: 28.9784 };
+const healthStatistics: HealthStatisticsResult = {
+  value: 8412,
+  unit: "count",
+  startMs: 1_768_396_800_000,
+  endMs: 1_768_483_200_000,
+};
+const healthSamples: HealthSample[] = [
+  {
+    startMs: 1_768_480_000_000,
+    endMs: 1_768_480_060_000,
+    value: 118,
+    unit: "count/min",
+  },
+];
+const sleepSamples: SleepSample[] = [
+  {
+    startMs: 1_768_432_800_000,
+    endMs: 1_768_450_800_000,
+    stage: "asleepDeep",
+  },
+];
 
 /** What the mock host resolves each method with (empty string = void). */
 const RESULTS: Record<string, unknown> = {
@@ -162,6 +197,9 @@ const RESULTS: Record<string, unknown> = {
   purchase: purchaseResult,
   searchPOI: poiResults,
   getCurrentLocation: coordinate,
+  queryHealthStatistics: healthStatistics,
+  queryHealthSamples: healthSamples,
+  querySleepSamples: sleepSamples,
 };
 
 /**
@@ -246,6 +284,27 @@ describe("invoke contract fixtures (ARCH-11)", () => {
     await getProducts(["com.example.pro"]);
     await purchase("com.example.pro");
     await searchPOI("coffee", { latitude: 41.0, longitude: 29.0, span: 0.05 });
+    // Health reads: `sleep` and `limit` are optional but still declared, and
+    // the field-coverage assertion below requires every declared field to ride
+    // some fixture — so each call opts into all of them.
+    await requestHealthAuthorization({ read: ["stepCount"], sleep: true });
+    await queryHealthStatistics({
+      type: "stepCount",
+      statistic: "sum",
+      startMs: 1_768_396_800_000,
+      endMs: 1_768_483_200_000,
+    });
+    await queryHealthSamples({
+      type: "heartRate",
+      startMs: 1_768_396_800_000,
+      endMs: 1_768_483_200_000,
+      limit: 200,
+    });
+    await querySleepSamples({
+      startMs: 1_768_396_800_000,
+      endMs: 1_768_483_200_000,
+      limit: 50,
+    });
     // Opaque (the three connectivity channels): the payload is the app's own
     // JSON. Swift never reads a field — it only requires a JSON OBJECT, which
     // is exactly what the Swift side asserts about these fixtures.
@@ -321,6 +380,39 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       "getCurrentLocation",
       "response",
       JSON.stringify(await getCurrentLocation()),
+    );
+    writeFixture(
+      "queryHealthStatistics",
+      "response",
+      JSON.stringify(
+        await queryHealthStatistics({
+          type: "stepCount",
+          statistic: "sum",
+          startMs: 1_768_396_800_000,
+          endMs: 1_768_483_200_000,
+        }),
+      ),
+    );
+    writeFixture(
+      "queryHealthSamples",
+      "response",
+      JSON.stringify(
+        await queryHealthSamples({
+          type: "heartRate",
+          startMs: 1_768_396_800_000,
+          endMs: 1_768_483_200_000,
+        }),
+      ),
+    );
+    writeFixture(
+      "querySleepSamples",
+      "response",
+      JSON.stringify(
+        await querySleepSamples({
+          startMs: 1_768_396_800_000,
+          endMs: 1_768_483_200_000,
+        }),
+      ),
     );
   });
 
@@ -424,6 +516,12 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
     const purchaseExact: Exact<PurchaseResult, WirePurchaseResult> = true;
     const poiExact: Exact<POIResult, WirePOIResult> = true;
     const coordinateExact: Exact<Coordinate, WireCoordinate> = true;
+    const healthStatisticsExact: Exact<
+      HealthStatisticsResult,
+      WireHealthStatisticsResult
+    > = true;
+    const healthSampleExact: Exact<HealthSample, WireHealthSample> = true;
+    const sleepSampleExact: Exact<SleepSample, WireSleepSample> = true;
     expect([
       deviceInfoExact,
       updateStateExact,
@@ -432,6 +530,9 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       purchaseExact,
       poiExact,
       coordinateExact,
-    ]).toEqual([true, true, true, true, true, true, true]);
+      healthStatisticsExact,
+      healthSampleExact,
+      sleepSampleExact,
+    ]).toEqual([true, true, true, true, true, true, true, true, true, true]);
   });
 });

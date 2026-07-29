@@ -10,6 +10,7 @@ import {
   type ArgType,
   bridgeProtocol,
   components,
+  healthQuantityTypes,
   type HostArg,
   type HostMethod,
   hostMethods,
@@ -649,6 +650,17 @@ function tsInterface(def: StructDef | TsOnlyDef) {
   return lines.join("\n");
 }
 
+/** A closed string union rendered one member per line — the vocabularies
+ *  (health types, workout activity types) that Swift must switch over too. */
+function tsUnion(name: string, members: string[], doc: string) {
+  return [
+    `/** ${doc} */`,
+    `export type ${name} =`,
+    ...members.map((m) => `  | "${m}"`),
+    "  ;",
+  ].join("\n");
+}
+
 function tsModel() {
   const parts = [
     banner(),
@@ -663,6 +675,13 @@ function tsModel() {
     "  props: Record<string, unknown>;",
     `  children: ${node.ts}[];`,
     "}",
+    "",
+    tsUnion(
+      "HealthQuantityType",
+      healthQuantityTypes,
+      "The HealthKit quantity types this bridge reads. Closed: an unbound " +
+        "type would type-check and resolve null forever.",
+    ),
   ];
   for (const def of [...structs, ...tsOnly, ...invokeShapes])
     parts.push("", tsInterface(def));

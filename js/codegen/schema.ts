@@ -170,6 +170,26 @@ export const components: Component[] = [
   { name: "ToolbarItem", widget: "degraded" },
 ];
 
+/**
+ * The HealthKit quantity types `js/src/health.ts` can read. Closed on the same
+ * reasoning as commit `2fd7739` (`fix!: narrow SensorKind to the four bound
+ * kinds`): an open string type-checks, returns a plausible promise, and
+ * resolves `null` forever. Every one is `HKQuantityTypeIdentifier` at watchOS
+ * 2.0-3.0, far below the v10 floor, so none needs an `@available` gate.
+ *
+ * The unit each is reported in is fixed NATIVELY (never chosen by JS — a unit
+ * string on the wire is a drift surface with no gate); `HealthQuantityKind` in
+ * ReactWatchSupport holds the table and `codegen.test.ts` pins the two lists
+ * against each other.
+ */
+export const healthQuantityTypes: string[] = [
+  "stepCount",
+  "activeEnergyBurned",
+  "distanceWalkingRunning",
+  "heartRate",
+  "oxygenSaturation",
+];
+
 /** One prop the app interpreter honors and the widget interpreter ignores. */
 export interface PropDegradation {
   /** Component the prop lives on, or `"*"` for a prop applied to every node. */
@@ -562,6 +582,63 @@ export const invokeShapes: StructDef[] = [
       { name: "span", swift: "Double?", ts: "number", optional: true },
     ],
   },
+  {
+    swift: "HealthAuthorizationRequest",
+    ts: "HealthAuthorizationRequest",
+    doc: "js/src/health.ts requestHealthAuthorization — the read types to ask for.",
+    fields: [
+      { name: "read", swift: "[String]", ts: "HealthQuantityType[]" },
+      {
+        name: "sleep",
+        swift: "Bool?",
+        ts: "boolean",
+        optional: true,
+        doc: "also ask for sleepAnalysis — a CATEGORY type, not a quantity",
+      },
+    ],
+  },
+  {
+    swift: "HealthStatisticsRequest",
+    ts: "HealthStatisticsRequest",
+    doc: "js/src/health.ts queryHealthStatistics -> HealthStatisticsPlan.",
+    fields: [
+      { name: "type", swift: "String", ts: "HealthQuantityType" },
+      {
+        // A closed union, NOT the raw HKStatisticsOptions bitmask: that is an
+        // OptionSet whose cumulative/discrete halves are mutually exclusive per
+        // type (a cumulative type accepts only .cumulativeSum), and the wrong
+        // pairing THROWS at query time. Native maps the name per type class and
+        // rejects an illegal pairing INVALID_REQUEST before querying — root
+        // rule 5 ("if code can answer, code answers") applied to that Apple
+        // constraint. Keep in sync with HealthStatistic in ReactWatchSupport
+        // (codegen.test.ts pins the two).
+        name: "statistic",
+        swift: "String",
+        ts: '"sum" | "average" | "min" | "max" | "mostRecent"',
+      },
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+    ],
+  },
+  {
+    swift: "HealthSamplesRequest",
+    ts: "HealthSamplesRequest",
+    fields: [
+      { name: "type", swift: "String", ts: "HealthQuantityType" },
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      { name: "limit", swift: "Int?", ts: "number", optional: true },
+    ],
+  },
+  {
+    swift: "SleepSamplesRequest",
+    ts: "SleepSamplesRequest",
+    fields: [
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      { name: "limit", swift: "Int?", ts: "number", optional: true },
+    ],
+  },
   // --- results. Type-identical to the public interfaces in js/src (device.ts,
   //     update.ts, iap.ts, maps.ts); `invoke-contract.test.ts` asserts that
   //     identity at COMPILE time in both directions, so the two can't drift.
@@ -664,6 +741,58 @@ export const invokeShapes: StructDef[] = [
     fields: [
       { name: "lat", swift: "Double", ts: "number" },
       { name: "lon", swift: "Double", ts: "number" },
+    ],
+  },
+  {
+    swift: "HealthStatisticsResult",
+    ts: "HealthStatisticsResult",
+    fields: [
+      {
+        // `null` is the honest encoding of "no samples in range" — and it is
+        // NOT distinguishable from a read denial: Apple states an app "doesn't
+        // know whether someone granted or denied permission to read data", and
+        // a denied read returns only what the app itself wrote. The JSDoc on
+        // queryHealthStatistics says so; nothing here can.
+        name: "value",
+        swift: "Double?",
+        ts: "number | null",
+      },
+      {
+        name: "unit",
+        swift: "String",
+        ts: "string",
+        doc: "chosen natively per type; reported so a caller can label a chart",
+      },
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+    ],
+  },
+  {
+    swift: "HealthSample",
+    ts: "HealthSample",
+    fields: [
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      { name: "value", swift: "Double", ts: "number" },
+      { name: "unit", swift: "String", ts: "string" },
+    ],
+  },
+  {
+    swift: "SleepSample",
+    ts: "SleepSample",
+    doc: "A staged sleep interval; sleep is not a numeric series, so it is its own shape.",
+    fields: [
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      {
+        // HKCategoryValueSleepAnalysis. .inBed is watchOS 2.0, .awake 3.0 and
+        // the four asleep* cases 9.0 — all below the v10 floor, so all six ship
+        // ungated. Keep in sync with SleepStage in ReactWatchSupport
+        // (codegen.test.ts pins the two).
+        name: "stage",
+        swift: "String",
+        ts: '"inBed" | "awake" | "asleepCore" | "asleepDeep" | "asleepREM" | "asleepUnspecified"',
+      },
     ],
   },
 ];
@@ -951,6 +1080,47 @@ export const hostMethods: HostMethod[] = [
     feature: "sensors",
     since: 1,
     args: [{ name: "json", type: "string" }],
+  },
+  // --- HealthKit READS (feature "health"): its own authorization unit because
+  //     it discloses the user's stored health HISTORY — potentially years,
+  //     across categories the app may never display. An app that wants live HR
+  //     during a meditation timer must be able to refuse sleep-history reads.
+  //     Reads are the disclosure axis; nothing else in the binary has it. ---
+  {
+    name: "requestHealthAuthorization",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "Runs the HealthKit permission sheet for a read type set; resolves \"prompted\" | \"alreadyRequested\" | \"unavailable\" — the only honest signal Apple exposes (a granted READ is indistinguishable from a denied one).",
+    request: "HealthAuthorizationRequest",
+  },
+  {
+    name: "queryHealthStatistics",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    request: "HealthStatisticsRequest",
+    response: "HealthStatisticsResult",
+  },
+  {
+    name: "queryHealthSamples",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    request: "HealthSamplesRequest",
+    response: "HealthSample[]",
+  },
+  {
+    name: "querySleepSamples",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    request: "SleepSamplesRequest",
+    response: "SleepSample[]",
   },
   {
     name: "saveUpdate",

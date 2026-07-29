@@ -2536,3 +2536,147 @@ final class BudgetPolicyTests: XCTestCase {
             ).isEmpty)
     }
 }
+
+/// The HealthKit read contract's decidable half (js/src/health.ts). The queries
+/// themselves are `#if os(watchOS)` and unreachable here, so everything a
+/// malformed request has to trip lives in `HealthQueryPlan` and is proven on
+/// Linux: the per-type unit table, the statistic legality Apple enforces by
+/// THROWING at query time, the window rules, and the sample cap.
+final class HealthQueryPlanTests: XCTestCase {
+    private func window(_ extra: String = "") -> String {
+        #"{"startMs":1000,"endMs":2000\#(extra)}"#
+    }
+
+    func testUnitsAreFixedPerTypeAndNameSpO2AsAFraction() {
+        // The wire unit is chosen natively and only REPORTED to JS, so these
+        // strings are the contract a chart labels its axis from.
+        XCTAssertEqual(HealthQuantityKind.stepCount.unit, "count")
+        XCTAssertEqual(HealthQuantityKind.activeEnergyBurned.unit, "kcal")
+        XCTAssertEqual(HealthQuantityKind.distanceWalkingRunning.unit, "m")
+        XCTAssertEqual(HealthQuantityKind.heartRate.unit, "count/min")
+        // "fraction", never "percent": HKUnit.percent() yields 0…1, and calling
+        // it percent is how a caller multiplies by 100 twice.
+        XCTAssertEqual(HealthQuantityKind.oxygenSaturation.unit, "fraction")
+    }
+
+    func testOnlySumIsLegalForACumulativeType() {
+        // HKStatisticsOptions' halves are mutually exclusive per type and the
+        // wrong pairing throws — this is the rule that turns that throw into an
+        // INVALID_REQUEST the caller can act on.
+        XCTAssertTrue(HealthStatistic.sum.isLegal(for: .stepCount))
+        XCTAssertFalse(HealthStatistic.average.isLegal(for: .stepCount))
+        XCTAssertFalse(HealthStatistic.mostRecent.isLegal(for: .stepCount))
+        XCTAssertFalse(HealthStatistic.sum.isLegal(for: .heartRate))
+        XCTAssertTrue(HealthStatistic.average.isLegal(for: .heartRate))
+        XCTAssertTrue(HealthStatistic.max.isLegal(for: .oxygenSaturation))
+    }
+
+    func testStatisticsPlanDecodesALegalRequest() {
+        let plan = try? HealthStatisticsPlan.decode(
+            json: #"{"type":"stepCount","statistic":"sum","startMs":1000,"endMs":2000}"#
+        ).get()
+        XCTAssertEqual(plan?.kind, .stepCount)
+        XCTAssertEqual(plan?.statistic, .sum)
+        XCTAssertEqual(plan?.window.startMs, 1000)
+        XCTAssertEqual(plan?.window.endMs, 2000)
+    }
+
+    func testStatisticsPlanRejectsAnIllegalPairingBeforeQuerying() {
+        let result = HealthStatisticsPlan.decode(
+            json: #"{"type":"stepCount","statistic":"average","startMs":1000,"endMs":2000}"#
+        )
+        guard case .failure(let error) = result else {
+            return XCTFail("average over a cumulative type must be rejected")
+        }
+        // The message has to name the rule: a caller cannot read Apple's
+        // per-type statistics matrix out of a bare "bad request".
+        XCTAssertTrue(error.message.contains("not valid for"))
+        XCTAssertTrue(error.message.contains("stepCount"))
+    }
+
+    func testStatisticsPlanRejectsUnknownTypeAndStatistic() {
+        XCTAssertNil(
+            try? HealthStatisticsPlan.decode(
+                json: #"{"type":"steps","statistic":"sum","startMs":1,"endMs":2}"#
+            ).get())
+        XCTAssertNil(
+            try? HealthStatisticsPlan.decode(
+                json: #"{"type":"stepCount","statistic":"median","startMs":1,"endMs":2}"#
+            ).get())
+    }
+
+    func testWindowRejectsAnInvertedOrEmptyRange() {
+        // An inverted range would resolve an EMPTY result, which a caller
+        // cannot tell from "no data" — the one answer this API must not fake.
+        XCTAssertNil(
+            try? HealthWindow.decode(startMs: 2000, endMs: 1000, limit: nil).get())
+        XCTAssertNil(
+            try? HealthWindow.decode(startMs: 1000, endMs: 1000, limit: nil).get())
+        XCTAssertNil(
+            try? HealthWindow.decode(startMs: nil, endMs: 1000, limit: nil).get())
+        XCTAssertNil(
+            try? HealthWindow.decode(
+                startMs: .nan, endMs: 1000, limit: nil
+            ).get())
+    }
+
+    func testWindowClampsTheSampleLimitAndRejectsANonPositiveOne() {
+        // Every sample crosses the bridge as JSON on a memory-tight watch, so
+        // an un-capped year of heart rate is an OOM kill, not a slow query.
+        let clamped = try? HealthWindow.decode(
+            startMs: 1, endMs: 2, limit: 100_000
+        ).get()
+        XCTAssertEqual(clamped?.limit, HealthWindow.maxLimit)
+        let kept = try? HealthWindow.decode(startMs: 1, endMs: 2, limit: 7).get()
+        XCTAssertEqual(kept?.limit, 7)
+        XCTAssertNil(
+            try? HealthWindow.decode(startMs: 1, endMs: 2, limit: 0).get())
+    }
+
+    func testSamplesAndSleepPlansShareTheWindowRules() {
+        let samples = try? HealthSamplesPlan.decode(
+            json: #"{"type":"heartRate","startMs":1000,"endMs":2000,"limit":5}"#
+        ).get()
+        XCTAssertEqual(samples?.kind, .heartRate)
+        XCTAssertEqual(samples?.window.limit, 5)
+        let sleep = try? SleepSamplesPlan.decode(json: window()).get()
+        XCTAssertEqual(sleep?.window.endMs, 2000)
+        XCTAssertNil(
+            try? SleepSamplesPlan.decode(
+                json: #"{"startMs":2000,"endMs":1000}"#
+            ).get())
+    }
+
+    func testAuthorizationPlanNeedsAtLeastOneTypeAndRejectsUnknownNames() {
+        let both = try? HealthAuthorizationPlan.decode(
+            json: #"{"read":["stepCount","heartRate"],"sleep":true}"#
+        ).get()
+        XCTAssertEqual(both?.kinds, [.stepCount, .heartRate])
+        XCTAssertEqual(both?.sleep, true)
+        // Sleep alone is legitimate: it is a CATEGORY type and cannot ride the
+        // quantity `read` list.
+        XCTAssertNotNil(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":[],"sleep":true}"#
+            ).get())
+        // An empty ask would run the sheet for nothing.
+        XCTAssertNil(
+            try? HealthAuthorizationPlan.decode(json: #"{"read":[]}"#).get())
+        XCTAssertNil(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":["bloodGlucose"]}"#
+            ).get())
+    }
+
+    func testStagesAreTheSixWireNames() {
+        // The bridge maps HKCategoryValueSleepAnalysis by CASE, never by raw
+        // value (Apple does not document the integers), so this pins only the
+        // vocabulary — codegen.test.ts pins it against the schema union.
+        XCTAssertEqual(
+            SleepStage.allCases.map(\.rawValue),
+            [
+                "inBed", "awake", "asleepCore", "asleepDeep", "asleepREM",
+                "asleepUnspecified",
+            ])
+    }
+}

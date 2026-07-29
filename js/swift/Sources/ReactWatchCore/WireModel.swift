@@ -152,8 +152,8 @@ public enum RNWire {
 public enum HostFeatures {
     public static let watch: Set<String> = [
         "ai", "audio", "background", "bluetooth", "connectivity", "core", "device", "haptics",
-        "iap", "keychain", "location", "network", "notifications", "ota", "push", "runtime",
-        "sensors", "speech", "storage", "widgets",
+        "health", "iap", "keychain", "location", "network", "notifications", "ota", "push",
+        "runtime", "sensors", "speech", "storage", "widgets",
     ]
     public static let widget: Set<String> = ["core", "storage", "widgets"]
 }
@@ -180,7 +180,11 @@ public enum HostInvokeFeatures {
         "markUpdateHealthy": "ota",
         "playAudio": "audio",
         "purchase": "iap",
+        "queryHealthSamples": "health",
+        "queryHealthStatistics": "health",
+        "querySleepSamples": "health",
         "registerForRemoteNotifications": "push",
+        "requestHealthAuthorization": "health",
         "requestNotificationPermission": "notifications",
         "restorePurchases": "iap",
         "saveUpdate": "ota",

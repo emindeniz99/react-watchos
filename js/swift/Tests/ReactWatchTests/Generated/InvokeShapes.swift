@@ -155,6 +155,38 @@ struct SearchPOIRequest: InvokeShape {
     static let declaredKeys: Set<String> = ["query", "latitude", "longitude", "span"]
 }
 
+/// js/src/health.ts requestHealthAuthorization — the read types to ask for.
+struct HealthAuthorizationRequest: InvokeShape {
+    let read: [String]
+    /// also ask for sleepAnalysis — a CATEGORY type, not a quantity
+    let sleep: Bool?
+    static let declaredKeys: Set<String> = ["read", "sleep"]
+}
+
+/// js/src/health.ts queryHealthStatistics -> HealthStatisticsPlan.
+struct HealthStatisticsRequest: InvokeShape {
+    let type: String
+    let statistic: String
+    let startMs: Double
+    let endMs: Double
+    static let declaredKeys: Set<String> = ["type", "statistic", "startMs", "endMs"]
+}
+
+struct HealthSamplesRequest: InvokeShape {
+    let type: String
+    let startMs: Double
+    let endMs: Double
+    let limit: Int?
+    static let declaredKeys: Set<String> = ["type", "startMs", "endMs", "limit"]
+}
+
+struct SleepSamplesRequest: InvokeShape {
+    let startMs: Double
+    let endMs: Double
+    let limit: Int?
+    static let declaredKeys: Set<String> = ["startMs", "endMs", "limit"]
+}
+
 struct DeviceInfo: InvokeShape {
     let batteryLevel: Double
     let batteryState: String
@@ -236,6 +268,31 @@ struct Coordinate: InvokeShape {
     static let declaredKeys: Set<String> = ["lat", "lon"]
 }
 
+struct HealthStatisticsResult: InvokeShape {
+    let value: Double?
+    /// chosen natively per type; reported so a caller can label a chart
+    let unit: String
+    let startMs: Double
+    let endMs: Double
+    static let declaredKeys: Set<String> = ["value", "unit", "startMs", "endMs"]
+}
+
+struct HealthSample: InvokeShape {
+    let startMs: Double
+    let endMs: Double
+    let value: Double
+    let unit: String
+    static let declaredKeys: Set<String> = ["startMs", "endMs", "value", "unit"]
+}
+
+/// A staged sleep interval; sleep is not a numeric series, so it is its own shape.
+struct SleepSample: InvokeShape {
+    let startMs: Double
+    let endMs: Double
+    let stage: String
+    static let declaredKeys: Set<String> = ["startMs", "endMs", "stage"]
+}
+
 enum InvokeShapes {
     /// method -> decode this fixture as the declared REQUEST shape.
     static let requestDecoders: [String: @Sendable (Data) throws -> Void] = [
@@ -243,6 +300,12 @@ enum InvokeShapes {
         "bleConnect": { try decodeStrict(BleConnectRequest.self, from: $0) },
         "bleWrite": { try decodeStrict(BleWriteRequest.self, from: $0) },
         "bleSubscribe": { try decodeStrict(BleSubscribeRequest.self, from: $0) },
+        "requestHealthAuthorization": {
+            try decodeStrict(HealthAuthorizationRequest.self, from: $0)
+        },
+        "queryHealthStatistics": { try decodeStrict(HealthStatisticsRequest.self, from: $0) },
+        "queryHealthSamples": { try decodeStrict(HealthSamplesRequest.self, from: $0) },
+        "querySleepSamples": { try decodeStrict(SleepSamplesRequest.self, from: $0) },
         "saveUpdate": { try decodeStrict(SaveUpdateRequest.self, from: $0) },
         "scheduleBackgroundRefresh": {
             try decodeStrict(ScheduleBackgroundRefreshRequest.self, from: $0)
@@ -259,6 +322,9 @@ enum InvokeShapes {
 
     /// method -> decode this fixture as the declared RESULT shape.
     static let responseDecoders: [String: @Sendable (Data) throws -> Void] = [
+        "queryHealthStatistics": { try decodeStrict(HealthStatisticsResult.self, from: $0) },
+        "queryHealthSamples": { try decodeStrict(arrayOf: HealthSample.self, from: $0) },
+        "querySleepSamples": { try decodeStrict(arrayOf: SleepSample.self, from: $0) },
         "saveUpdate": { try decodeStrict(SaveUpdateResult.self, from: $0) },
         "getUpdateState": { try decodeStrict(UpdateState.self, from: $0) },
         "getDeviceInfo": { try decodeStrict(DeviceInfo.self, from: $0) },

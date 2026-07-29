@@ -138,6 +138,10 @@ final class ReactWatchModel {
     private let speechBridge = SpeechBridge()
     private let audioBridge = AudioBridge()
     private let extendedRuntime = ExtendedRuntimeBridge()
+    /// HealthKit reads (js/src/health.ts). Owns its own HKHealthStore and the
+    /// per-launch authorization cache; deliberately NOT the same store as the
+    /// workout side, which asks for a SHARE grant this one never wants.
+    private let health = HealthQueryBridge()
     @ObservationIgnored private var fetchTasks: [Int: URLSessionDataTask] = [:]
     /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
     /// the JS-assigned id of a request whose id space resets with the runtime, so
@@ -635,6 +639,14 @@ final class ReactWatchModel {
             handleSearchPOI(id: id, payload: payload)
         case "getCurrentLocation":
             handleGetCurrentLocation(id: id)
+        case "requestHealthAuthorization":
+            handleRequestHealthAuthorization(id: id, payload: payload)
+        case "queryHealthStatistics":
+            handleQueryHealthStatistics(id: id, payload: payload)
+        case "queryHealthSamples":
+            handleQueryHealthSamples(id: id, payload: payload)
+        case "querySleepSamples":
+            handleQuerySleepSamples(id: id, payload: payload)
         default:
             runtime?.rejectInvoke(
                 id: id,
@@ -2592,6 +2604,107 @@ extension ReactWatchModel {
                 guard let self, gen == self.generation else { return }
                 self.settleStoreKit(id: id, result: result)
             }
+        }
+    }
+
+    // MARK: - HealthKit reads (js/src/health.ts)
+    //
+    // Every handler follows the same two-step shape: validate the request in
+    // Linux-tested ReactWatchSupport (a bad one rejects INVALID_REQUEST naming
+    // the rule that failed — the statistic/type pairing Apple enforces by
+    // THROWING is the reason this is code and not documentation), then run the
+    // descriptor query and settle generation-guarded (CX-008), so a query
+    // landing after a dev reload is dropped instead of settling the fresh
+    // runtime's reused id space.
+
+    /// Refuses every health read on a watch with no HealthKit, so the caller
+    /// gets `UNAVAILABLE` instead of an empty result it would have to read as
+    /// "no data". `requestHealthAuthorization` reports "unavailable" in-band
+    /// instead — it is the method whose whole job is answering that question.
+    private func healthAvailable(id: Int) -> Bool {
+        guard HealthQueryBridge.isAvailable else {
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(
+                    code: .unavailable,
+                    message: "HealthKit is not available on this device"))
+            return false
+        }
+        return true
+    }
+
+    private func handleRequestHealthAuthorization(id: Int, payload: String) {
+        switch HealthAuthorizationPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let status = await bridge.requestAuthorization(plan)
+                guard let self, gen == self.generation else { return }
+                self.runtime?.resolveInvoke(
+                    id: id, resultJson: Self.jsonString(status))
+            }
+        }
+    }
+
+    private func handleQueryHealthStatistics(id: Int, payload: String) {
+        switch HealthStatisticsPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.statistics(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    private func handleQueryHealthSamples(id: Int, payload: String) {
+        switch HealthSamplesPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.samples(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    private func handleQuerySleepSamples(id: Int, payload: String) {
+        switch SleepSamplesPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.sleepSamples(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    private func settleHealth(
+        id: Int, generation gen: Int, _ outcome: HealthQueryBridge.Outcome
+    ) {
+        guard gen == generation else { return }
+        switch outcome {
+        case .ok(let json):
+            runtime?.resolveInvoke(id: id, resultJson: json)
+        case .error(let message):
+            runtime?.rejectInvoke(
+                id: id,
+                errorJson: Self.errorJSON(code: .internal, message: message))
         }
     }
 

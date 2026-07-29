@@ -50,6 +50,7 @@ interface Producer {
 
 const HOST = "ReactWatchHost/ReactWatchHost.swift";
 const BRIDGES = "ReactWatchHost/CapabilityBridges.swift";
+const HEALTH = "ReactWatchHost/HealthQueryBridge.swift";
 
 /** Every `via:"invoke"` method the schema gives a `response` shape, and the
  *  Swift function(s) that build that response's JSON. */
@@ -117,6 +118,42 @@ const PRODUCERS: Record<string, Producer> = {
     sites: [
       { file: HOST, decl: "private func handleGetCurrentLocation(id: Int) {" },
     ],
+  },
+  queryHealthStatistics: {
+    sites: [
+      {
+        file: HEALTH,
+        decl: "func statistics(_ plan: HealthStatisticsPlan) async -> Outcome {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleQueryHealthStatistics(id: Int, payload: String) {",
+      calls: "bridge.statistics(plan)",
+    },
+  },
+  queryHealthSamples: {
+    sites: [
+      {
+        file: HEALTH,
+        decl: "func samples(_ plan: HealthSamplesPlan) async -> Outcome {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleQueryHealthSamples(id: Int, payload: String) {",
+      calls: "bridge.samples(plan)",
+    },
+  },
+  querySleepSamples: {
+    sites: [
+      {
+        file: HEALTH,
+        decl: "func sleepSamples(_ plan: SleepSamplesPlan) async -> Outcome {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleQuerySleepSamples(id: Int, payload: String) {",
+      calls: "bridge.sleepSamples(plan)",
+    },
   },
 };
 

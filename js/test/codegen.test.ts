@@ -2,10 +2,36 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { hostMethods } from "../codegen/schema";
+import {
+  healthQuantityTypes,
+  hostMethods,
+  invokeShapes,
+} from "../codegen/schema";
 
 const jsRoot = join(__dirname, "..");
 const swiftRoot = join(jsRoot, "swift");
+
+/** The `case foo` names of one Swift enum, in declaration order. */
+function swiftEnumCases(src: string, declaration: string): string[] {
+  const start = src.indexOf(declaration);
+  expect(start, `no Swift enum declared \`${declaration}\``).toBeGreaterThan(
+    -1,
+  );
+  const body = src.slice(start, src.indexOf("\n}\n", start));
+  return [...body.matchAll(/^ {4}case (\w+)$/gm)].map((m) => m[1] as string);
+}
+
+/** The members of a closed union declared inline on a schema field, e.g.
+ *  `'"sum" | "average"'` -> `["sum", "average"]`. */
+function schemaUnion(shape: string, field: string): string[] {
+  const def = invokeShapes.find((s) => s.ts === shape);
+  expect(def, `no invokeShapes entry named ${shape}`).toBeDefined();
+  const declared = def?.fields.find((f) => f.name === field);
+  expect(declared, `${shape} has no field ${field}`).toBeDefined();
+  return [...(declared?.ts ?? "").matchAll(/"([^"]+)"/g)].map(
+    (m) => m[1] as string,
+  );
+}
 
 describe("codegen", () => {
   it("committed generated files are up to date (no drift)", () => {
@@ -135,5 +161,46 @@ describe("codegen", () => {
     for (const name of routed) {
       expect(declared.has(name)).toBe(true);
     }
+  });
+});
+
+// The health vocabularies live in TWO places by necessity: the schema renders
+// the TS unions a caller is type-checked against, and ReactWatchSupport holds
+// the Swift enums that carry the per-type unit + the statistics legality rule.
+// Neither can be generated from the other (the Swift side is behavior, not a
+// name list), so they are pinned against each other here — the same textual
+// technique as the invoke-router check, and for the same reason: a divergence
+// would surface as a request that type-checks in JS and rejects on a watch.
+describe("health vocabularies match the Swift enums", () => {
+  const support = readFileSync(
+    join(swiftRoot, "Sources/ReactWatchSupport/HealthQueryPlan.swift"),
+    "utf8",
+  );
+
+  it("HealthQuantityKind covers exactly the schema's read types", () => {
+    expect(
+      swiftEnumCases(
+        support,
+        "public enum HealthQuantityKind: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(healthQuantityTypes);
+  });
+
+  it("HealthStatistic covers exactly the schema's statistic union", () => {
+    expect(
+      swiftEnumCases(
+        support,
+        "public enum HealthStatistic: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("HealthStatisticsRequest", "statistic"));
+  });
+
+  it("SleepStage covers exactly the schema's stage union", () => {
+    expect(
+      swiftEnumCases(
+        support,
+        "public enum SleepStage: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("SleepSample", "stage"));
   });
 });
