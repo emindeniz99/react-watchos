@@ -4,10 +4,17 @@
 [`docs/README.md`](./docs/README.md)** (the latter is the front door to the
 current improvement plan / backlog).
 
-**Commits:** Conventional Commits with the **mandatory scope**
-`react-native-watchos` — the historical project name, kept for commit-history
-continuity — e.g. `feat(react-native-watchos): …`, imperative mood, lowercase
-subject, ≤72-char header; AI-assisted commits add a `Co-Authored-By:` trailer.
+**Commits:** Conventional Commits with a **mandatory area scope** — pick the area the
+change actually lives in: `js` (renderer/runtime TS in js/src), `swift`
+(host/runtime/support), `widget` (WidgetKit side), `plugin` (Expo config
+plugin + scaffold + bin), `build` (esbuild preset, bundling, packaging),
+`demo`, `examples`, `app` (reference app targets), `docs`, `ci`, `deps`,
+or `repo` for cross-cutting changes — e.g. `fix(swift): …`,
+`feat(widget): …`. (History note: the first 700+ commits carry the
+monorepo-era scope `react-native-watchos`; that scope is retired — don't
+use it for new commits.)
+Imperative mood, lowercase subject, ≤72-char header; AI-assisted commits add
+a `Co-Authored-By:` trailer.
 **Merging:** always a real merge commit — never squash, never rebase-merge.
 
 Three project rules that bite if you miss them:

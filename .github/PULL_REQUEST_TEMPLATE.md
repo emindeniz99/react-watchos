@@ -1,6 +1,7 @@
 <!-- Thanks! Two ground rules from CONTRIBUTING.md:
-     - Conventional Commits with the mandatory scope: type(react-native-watchos): subject
-       (the historical project scope, kept for commit-history continuity)
+     - Conventional Commits with a mandatory AREA scope: type(area): subject
+       where area is one of js, swift, widget, plugin, build, demo, examples,
+       app, docs, ci, deps, repo (see CONTRIBUTING.md)
      - This repo merges with real merge commits (no squash), so clean per-commit history matters. -->
 
 ## What & why

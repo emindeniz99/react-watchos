@@ -4,8 +4,9 @@ Conventions specific to this project, for humans and AI agents picking up the
 work. (Agent-facing rules live in [`CLAUDE.md`](./CLAUDE.md); this file is the
 project layer for everyone.)
 
-**Commits:** Conventional Commits with the mandatory scope
-`react-native-watchos` — `feat(react-native-watchos): …`, imperative mood,
+**Commits:** Conventional Commits with a mandatory AREA scope (`js`,
+`swift`, `widget`, `plugin`, `build`, `demo`, `examples`, `app`, `docs`,
+`ci`, `deps`, `repo`) — see the Commits section below. Imperative mood,
 lowercase subject, ≤72-char header; AI-assisted commits add a
 `Co-Authored-By:` trailer. **Merging:** always a real merge commit — never
 squash, never rebase-merge; per-commit history is the record of how this was
@@ -124,9 +125,15 @@ feature-set model supersedes the earlier scalar capability gate).
 
 ## Commits
 
-This repo uses Conventional Commits with a **mandatory scope**. The scope is
-**`react-native-watchos`** (optionally `react-native-watchos/<sub-area>`) —
-the project's historical name, kept for commit-history continuity: 700+
-commits already use it. Imperative mood, lowercase subject, ≤72-char header.
+This repo uses Conventional Commits with a **mandatory area scope** — pick the area the
+change actually lives in: `js` (renderer/runtime TS in js/src), `swift`
+(host/runtime/support), `widget` (WidgetKit side), `plugin` (Expo config
+plugin + scaffold + bin), `build` (esbuild preset, bundling, packaging),
+`demo`, `examples`, `app` (reference app targets), `docs`, `ci`, `deps`,
+or `repo` for cross-cutting changes — e.g. `fix(swift): …`,
+`feat(widget): …`. (History note: the first 700+ commits carry the
+monorepo-era scope `react-native-watchos`; that scope is retired — don't
+use it for new commits.)
+Imperative mood, lowercase subject, ≤72-char header.
 AI-assisted commits add a `Co-Authored-By:` trailer. PRs merge with a real
 merge commit — never squash, never rebase-merge.
