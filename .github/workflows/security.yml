@@ -20,18 +20,20 @@ jobs:
   gitleaks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           fetch-depth: 0 # full history — the scan covers every commit
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   trufflehog:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
           fetch-depth: 0
       # The CLI directly, not the trufflesecurity/trufflehog action: the
       # action diff-scans BASE..HEAD and hard-errors when they are equal
@@ -41,3 +43,18 @@ jobs:
         run: |
           docker run --rm -v "$PWD:/repo" trufflesecurity/trufflehog:3.90.8 \
             git file:///repo --no-update --fail
+
+  zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # Workflow-security regression gate: unpinned actions, excessive
+      # permissions, credential persistence, injection sinks (Datadog's
+      # GitHub-Actions attack classes). Zero findings is the baseline.
+      - name: zizmor
+        run: |
+          curl -fsSL https://github.com/zizmorcore/zizmor/releases/download/v1.29.0/zizmor-x86_64-unknown-linux-gnu.tar.gz \
+            | tar -xz -C /tmp
+          /tmp/zizmor .github/workflows/
