@@ -1,0 +1,38 @@
+# Secret scanning — the authoritative layer (the local pre-push hook in
+# .githooks/ is best-effort; this one cannot be skipped). Two independent
+# scanners over the FULL git history: gitleaks (pattern + entropy) and
+# trufflehog (pattern + live credential verification). The npm tarball gets
+# its own scan in release.yml right before publish.
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly re-scan: new detector rules catch old leaks.
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history — the scan covers every commit
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  trufflehog:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --no-update

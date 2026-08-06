@@ -1,0 +1,19 @@
+#!/bin/sh
+# Best-effort local secret scan before anything leaves the machine.
+# CI (security.yml) is the authoritative gate; this exists to catch a leak
+# BEFORE it reaches the remote, where history rewriting is still free.
+# Wired up automatically: the root package.json "prepare" script sets
+# core.hooksPath to .githooks on install.
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-push: gitleaks not installed — skipping local secret scan." >&2
+  echo "pre-push: install it (brew install gitleaks); CI still scans every push." >&2
+  exit 0
+fi
+echo "pre-push: gitleaks scanning history…" >&2
+if ! gitleaks git . --no-banner --exit-code 1; then
+  echo "" >&2
+  echo "pre-push: BLOCKED — gitleaks found something above." >&2
+  echo "pre-push: fix it (and rewrite the unpushed commit) before pushing;" >&2
+  echo "pre-push: bypass only for a confirmed false positive: git push --no-verify" >&2
+  exit 1
+fi

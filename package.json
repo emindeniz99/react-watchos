@@ -8,7 +8,8 @@
     "test": "pnpm --recursive --if-present test",
     "typecheck": "pnpm --recursive --if-present typecheck",
     "lint": "pnpm --recursive --if-present lint",
-    "codegen": "pnpm --filter react-watchos codegen"
+    "codegen": "pnpm --filter react-watchos codegen",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "packageManager": "pnpm@11.18.0+sha512.33d83c77da82f49fba836925c6f1b841181ec3132b670639bd012f7075f5c7cf634c5f870147c19aae7478fac01df09d8892e880454896edd23ee9b33757563c",
   "engines": {

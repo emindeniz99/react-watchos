@@ -31,6 +31,19 @@ jobs:
           node-version: "24"
       - name: Install (pnpm workspace)
         run: pnpm install --frozen-lockfile
+      # Scan the EXACT artifact that ships: pack the tarball, extract it and
+      # run gitleaks over the contents. The repo-history scan lives in
+      # security.yml; this one guards the last mile.
+      - name: Secret-scan the tarball
+        working-directory: js
+        run: |
+          set -euo pipefail
+          GITLEAKS_VERSION=8.24.3
+          curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          npm pack --pack-destination /tmp/pack >/dev/null
+          mkdir -p /tmp/pack/x && tar -xzf /tmp/pack/react-watchos-*.tgz -C /tmp/pack/x
+          /tmp/gitleaks dir /tmp/pack/x --no-banner --exit-code 1
       # No --provenance flag: OIDC trusted publishing attaches provenance
       # automatically.
       - name: Publish to npm (trusted publishing)
