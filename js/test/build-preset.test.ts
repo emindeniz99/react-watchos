@@ -1,9 +1,11 @@
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 import { describe, expect, it } from "vitest";
 import { contentHash } from "../esbuild/manifest.mts";
-import { buildBundles } from "../esbuild/preset.mts";
+import { buildBundles, watchBuildOptions } from "../esbuild/preset.mts";
 
 // The batteries-included multi-target build: a consumer with a watch bundle +
 // a widget bundle calls this once instead of copying the esbuild boilerplate
@@ -50,6 +52,29 @@ describe("buildBundles", () => {
 
   it("rejects an empty target list (a no-op build is a mistake)", async () => {
     await expect(buildBundles([])).rejects.toThrow(/non-empty/);
+  });
+
+  // The npm tarball ships this package's .tsx as SOURCE with no tsconfig.json,
+  // and esbuild's per-file tsconfig discovery stops at the package boundary —
+  // so on a registry install the renderer's own JSX would fall back to the
+  // CLASSIC transform (bare `React.createElement`) and crash the watch app at
+  // boot with "ReferenceError: React is not defined" (found by the first real
+  // registry consumer, ctrl-a-remote). Workspace installs mask the bug: the
+  // pnpm symlink realpaths into js/, where tsconfig.json says `react-jsx`. The
+  // preset must pin the automatic runtime so JSX never depends on discovery.
+  it("compiles JSX via the automatic runtime even with no discoverable tsconfig", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-jsx-")); // no tsconfig above
+    const entry = join(dir, "entry.tsx");
+    writeFileSync(entry, 'export const el = <label text="hi" />;\n');
+    const outfile = join(dir, "bundle.js");
+    // nodePaths: the tmp entry can't resolve react/jsx-runtime on its own.
+    const nodeModules = fileURLToPath(
+      new URL("../node_modules", import.meta.url),
+    );
+    await build(
+      watchBuildOptions({ entry, outfile, nodePaths: [nodeModules] }),
+    );
+    expect(readFileSync(outfile, "utf8")).not.toContain("React.createElement");
   });
 
   // QuickJS has no `process`, so a `process.env.BUNDLE_VERSION` that survives to

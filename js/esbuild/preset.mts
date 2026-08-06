@@ -75,6 +75,14 @@ export function watchBuildOptions({
     format: "iife",
     inject: [shimEntry],
     target: "es2020",
+    // This package ships its TSX as source WITHOUT a tsconfig.json in the
+    // tarball, and esbuild's per-file tsconfig discovery stops at the package
+    // boundary — so from a registry install the renderer's own .tsx would fall
+    // back to the CLASSIC transform (React.createElement) and crash at runtime
+    // with "React is not defined". Workspace installs mask this: the pnpm
+    // symlink realpaths into js/, where tsconfig.json (jsx: react-jsx) exists.
+    // Pin the automatic runtime so the preset never depends on discovery.
+    jsx: "automatic",
     platform: "neutral",
     mainFields: ["module", "main"],
     conditions: ["import", "default"],
