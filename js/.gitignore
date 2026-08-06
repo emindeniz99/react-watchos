@@ -1,2 +1,4 @@
 node_modules/
 dist/
+# xcodebuild derived output from local Swift host builds.
+swift/build/
