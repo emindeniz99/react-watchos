@@ -90,7 +90,10 @@ jobs:
       - name: API docs are up to date
         run: |
           pnpm --filter react-watchos docs:api
-          git diff --exit-code -- docs/api
+          # add -A first: `git diff` alone never sees NEWLY generated pages
+          # (untracked), so a missed page would pass the gate silently.
+          git add -A docs/api
+          git diff --cached --exit-code -- docs/api
 
   swift-package:
     runs-on: ubuntu-latest
