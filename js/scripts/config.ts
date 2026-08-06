@@ -62,6 +62,7 @@ export const targets: BuildTarget[] = [
       "connectivity",
       "notifications",
       "location",
+      "workoutPlans",
     ],
   },
   {

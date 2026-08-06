@@ -29,6 +29,7 @@ import {
   href,
   Image,
   List,
+  listScheduledWorkoutPlans,
   MapView,
   markUpdateHealthy,
   NavigationLink,
@@ -40,15 +41,19 @@ import {
   onBleState,
   onPhoneMessage,
   onUserInfo,
+  openWorkoutPlanInWorkoutApp,
   Picker,
   ProgressView,
   playHaptic,
   publishWidgets,
   registerNativeListener,
+  removeAllScheduledWorkoutPlans,
   requestNotificationPermission,
+  requestWorkoutPlanAuthorization,
   ScrollView,
   Spacer,
   scheduleNotification,
+  scheduleWorkoutPlan,
   searchPOI,
   sendToPhone,
   TabView,
@@ -865,6 +870,76 @@ function AIScreen() {
   );
 }
 
+/** WorkoutKit sim spike (docs/design-workout-plans.md §6): one button per
+ *  scheduler op, raw outcome printed verbatim — an UNAVAILABLE rejection here
+ *  IS the spike's data (whether watch-side scheduling works at all is exactly
+ *  the open question), not a failure of the screen. "Fill quota" schedules at
+ *  successive minutes until the scheduler refuses; that refusal names the
+ *  runtime quota, which is otherwise unreadable from JS (step 7). */
+function PlansScreen() {
+  const [result, setResult] = useState("Tap a step — raw outcome shows here");
+  const run = (label: string, op: () => Promise<unknown>) => async () => {
+    setResult(`${label}…`);
+    try {
+      const value = await op();
+      setResult(
+        `${label}: ${value === undefined ? "ok" : JSON.stringify(value)}`,
+      );
+    } catch (e) {
+      setResult(`${label} → ${(e as Error).message}`);
+    }
+  };
+  // Fixed id so repeat taps surface the documented already-scheduled refusal
+  // instead of piling up copies.
+  const plan = {
+    kind: "singleGoal",
+    id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+    activityType: "running",
+    location: "outdoor",
+    goal: { kind: "time", seconds: 1800 },
+  } as const;
+  const fillQuota = async () => {
+    for (let i = 0; i < 40; i++) {
+      await scheduleWorkoutPlan(
+        { kind: "singleGoal", activityType: "running", goal: { kind: "open" } },
+        Date.now() + (i + 60) * 60_000,
+      );
+    }
+    return "40 scheduled without hitting a quota";
+  };
+  return (
+    <ScrollView>
+      <VStack spacing={6}>
+        <Button onPress={run("auth", requestWorkoutPlanAuthorization)}>
+          <Text>Authorize</Text>
+        </Button>
+        <Button
+          onPress={run("schedule", () =>
+            scheduleWorkoutPlan(plan, Date.now() + 30 * 60 * 1000),
+          )}
+        >
+          <Text>Schedule +30m</Text>
+        </Button>
+        <Button onPress={run("list", listScheduledWorkoutPlans)}>
+          <Text>List</Text>
+        </Button>
+        <Button onPress={run("open", () => openWorkoutPlanInWorkoutApp(plan))}>
+          <Text>Open in Workout</Text>
+        </Button>
+        <Button onPress={run("fillQuota", fillQuota)}>
+          <Text>Fill quota</Text>
+        </Button>
+        <Button onPress={run("removeAll", removeAllScheduledWorkoutPlans)}>
+          <Text>Remove all</Text>
+        </Button>
+        <Text size={12} color="secondary">
+          {result}
+        </Text>
+      </VStack>
+    </ScrollView>
+  );
+}
+
 /** A list of shopping lists; tapping one pushes the dynamic /list/[id]. */
 function ListsScreen() {
   // Subscribe so the "N left" counts refresh after a toggle on the detail
@@ -1123,6 +1198,9 @@ function DemoNavigation() {
       <NavigationRoute path="/updates" title="Updates">
         <UpdatesScreen />
       </NavigationRoute>
+      <NavigationRoute path="/plans" title="Plans">
+        <PlansScreen />
+      </NavigationRoute>
     </NavigationStack>
   );
 }
@@ -1148,6 +1226,7 @@ function HomeScreen() {
       <NavigationLink to="/phone" label="Phone" />
       <NavigationLink to="/movie-remote" label="Movie Remote" />
       <NavigationLink to="/ai" label="AI" />
+      <NavigationLink to="/plans" label="Workout Plans" />
       <NavigationLink to="/updates" label="Updates" />
     </List>
   );

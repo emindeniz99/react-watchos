@@ -417,6 +417,33 @@ WorkoutKit answers, in order:
    question §3.10 leaves open.**
 7. `maxAllowedScheduledWorkoutCount` — print it.
 
+**RESULTS (2026-08-06, watchOS 26.2 sim, S11 46mm, AXe-driven `/plans` demo
+screen — the spike ran as a demo route, not a throwaway target):**
+
+1. ✓ Builds and links with **no `Package.swift` change** (the 2026-08-06 ②
+   build; `@preconcurrency import WorkoutKit` was needed, see status.md).
+2. ✓ `isSupported` is **true** on the simulator (no call rejected
+   `UNAVAILABLE`).
+3. ✓ The sheet **appears** ("Connect 'React Watch'? … would like to add
+   workouts to Apple Watch…") and Allow resolves `authorized`.
+4. ✓ **Watch-side scheduling WORKS**: `schedule` + read-back resolved the
+   stored summary (`{"activityType":"running","complete":false,"atMs":…}`),
+   minute-truncated as designed. The doc's fallback guess is INVERTED by
+   reality: (3)–(4) work and (5) is what fails on the sim.
+5. ✗ `openInWorkoutApp()` **fails on the simulator**: rejects with the
+   system's own words — `The request to open "com.apple.SessionTrackerApp"
+   failed.` The watchOS sim will not open the Workout app; this half stays
+   device-③. (The rejection surfacing verbatim is the CX-022-style error
+   plumbing doing its job.)
+6. ✓ The sim-safe entitlement set (App Group + `get-task-allow`, **no**
+   `healthkit`) does NOT block WorkoutKit — everything above ran under it, so
+   §3.10's open question closes: no entitlement is needed for the scheduler.
+7. The quota is not readable from JS by design; empirically the sim accepted
+   **41 consecutive scheduled plans with no refusal**, so
+   `maxAllowedScheduledWorkoutCount` > 41 there — the WWDC23 "up to 15" figure
+   does not bind the simulator. (Cleanup: `removeAllWorkouts` read-back
+   confirmed empty.)
+
 **If (3)–(4) fail on the simulator but (5) works**, the coherent v1 is
 `openWorkoutPlanInWorkoutApp` alone — the half two of the three shipping
 consumers surveyed actually use. Because the read-back already rejects
