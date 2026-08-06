@@ -152,6 +152,16 @@ Code defects — JS (`js/src`):
 
 Code defects — Swift host:
 
+- **The embedded bytecode cache trusts `bundle.js` blindly** (medium —
+  wrong-app boots; found 2026-08-06 embedding the ctrl-a-remote bundle): in
+  dev/unsigned mode the runtime prefers `assets/bundle.qbc` without checking
+  it was compiled FROM the sibling `bundle.js`, so hand-swapping the source
+  (the documented consumer flow) silently boots whatever app the stale
+  bytecode holds. The `rm bundle.qbc` step in consumer docs is a band-aid.
+  Fix: stamp `contentHash(bundle.js)` (the manifest `releaseId` hash already
+  exists) into/next to the compiled `.qbc` and verify at boot — on mismatch,
+  fall back to parsing the source and warn. Optionally also compile the
+  bytecode in an Xcode build phase so the pair can never drift.
 - **Unhandled-rejection overlay false-positives on synchronously settled
   invokes** (low — cosmetic, DEBUG overlay only; found 2026-08-06 running the
   ctrl-a-remote consumer on-sim): `BluetoothBridge` rejects "not connected"
