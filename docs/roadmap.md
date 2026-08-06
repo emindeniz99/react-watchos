@@ -152,6 +152,17 @@ Code defects — JS (`js/src`):
 
 Code defects — Swift host:
 
+- **Unhandled-rejection overlay false-positives on synchronously settled
+  invokes** (low — cosmetic, DEBUG overlay only; found 2026-08-06 running the
+  ctrl-a-remote consumer on-sim): `BluetoothBridge` rejects "not connected"
+  inline DURING `host.invoke`, so the promise rejects before `invoke()` even
+  returns and the consumer's `.catch` attaches; quickjs-ng's eager tracker
+  fires and `JSRuntime.reportUnhandledRejection` shows "Possibly unhandled"
+  even though the app handles it. The later `is_handled` retraction is
+  deliberately ignored (JSRuntime.swift ~864). Fix: defer the report until
+  the job queue drains and cancel on `is_handled` — or mandate native settles
+  hop the runloop (the JS test harness already settles via `queueMicrotask`,
+  which is the idiom).
 - **Received file orphaned when `watchConnectivity.file` lands while
   `jsReady` is false** (medium — data loss): the file is moved to the inbox
   but the event dies on a nil runtime; retention later deletes it silently.
