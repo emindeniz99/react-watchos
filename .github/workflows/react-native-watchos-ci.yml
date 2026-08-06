@@ -1,0 +1,109 @@
+name: react-native-watchos CI
+
+# Fast Linux checks on every push/PR: the JS renderer (tsc, vitest, real
+# qjs + C-embed smoke, codegen drift) and the Swift wire-contract tests
+# (compile the generated Foundation-only models, decode real fixtures).
+# The SwiftUI/WidgetKit build is the separate on-demand macOS workflow.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "**"
+      - ".github/workflows/react-native-watchos-ci.yml"
+  pull_request:
+    paths:
+      - "**"
+      - ".github/workflows/react-native-watchos-ci.yml"
+
+jobs:
+  js:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v7
+        with:
+          # 24: the dev tooling (scripts/, codegen/) is real .ts run directly by
+          # Node's native type stripping — matches the project's .mise.toml pin.
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install QuickJS (qjs)
+        run: sudo apt-get update && sudo apt-get install -y quickjs
+      - name: Install (pnpm workspace)
+        run: pnpm install --frozen-lockfile
+      - name: Codegen is up to date
+        run: pnpm --filter react-watchos codegen -- --check
+      - name: Lint + format (Biome)
+        run: pnpm --filter react-watchos lint
+      - name: Typecheck (strict; src + tests)
+        run: pnpm --filter react-watchos typecheck
+      - name: Build bundle
+        run: pnpm --filter react-watchos build
+      - name: Bundle size budget (minified)
+        run: pnpm --filter react-watchos check:size
+      - name: Test (vitest + real qjs smoke)
+        run: pnpm --filter react-watchos test
+      # Each example is a real consumer: it resolves react/react-reconciler
+      # itself and bundles them together with the renderer. `build` is the
+      # load-bearing step — the preset's single-copy check reads the module
+      # graph and fails if a bundle would ship two copies of react (which
+      # breaks hooks at boot, and which typecheck/test cannot see: tsc reads
+      # one @types/react and the vitest configs set `resolve.dedupe`).
+      - name: Examples build a single-React bundle (typecheck/build/test)
+        run: |
+          pnpm --filter minimal-watch-app typecheck
+          pnpm --filter minimal-watch-app build
+          pnpm --filter minimal-watch-app test
+          pnpm --filter expo-watch-app typecheck
+          pnpm --filter expo-watch-app build:targets
+          pnpm --filter expo-watch-app test
+      - name: C-embed smoke (vendored quickjs-ng)
+        working-directory: js
+        run: ../tools/embed-smoke/run.sh
+      - name: Tree-commit bench in the vendored engine (NF-20)
+        working-directory: js
+        run: ../tools/embed-smoke/bench.sh
+      - name: Bytecode compiles + loads (qjs-compile)
+        working-directory: js
+        run: |
+          pnpm build:bytecode
+          ../tools/embed-smoke/embed-host dist/bundle.qbc
+      - name: Fixtures committed match the serializer
+        run: git diff --exit-code -- js/swift/Tests/ReactWatchTests/Fixtures
+      # M12: the committed API reference (typedoc + schema-emitted capability
+      # tables) must match the source — regenerate and fail on drift, the same
+      # posture as the codegen and fixtures checks above.
+      - name: API docs are up to date
+        run: |
+          pnpm --filter react-watchos docs:api
+          git diff --exit-code -- docs/api
+
+  swift-package:
+    runs-on: ubuntu-latest
+    container: swift:6.0
+    defaults:
+      run:
+        working-directory: js/swift
+    steps:
+      - uses: actions/checkout@v4
+      # On Linux the manifest excludes the SwiftUI host target, so the whole
+      # package builds (quickjs-ng C module, wire models, JS embedding) and
+      # `swift test` decodes the real serializer fixtures via ReactWatchCore.
+      # ReactWatchHost needs Xcode — the separate macOS workflow.
+      - name: Build (SwiftPM)
+        run: swift build
+      - name: Wire-contract tests
+        run: swift test
+      # Exits 0 as of the tail-sweep format pass; this keeps warnings from
+      # silently re-accumulating. Runs from js/ where the script lives.
+      - name: swift-format lint
+        working-directory: js
+        run: npm run format:swift:check
