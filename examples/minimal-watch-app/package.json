@@ -16,7 +16,7 @@
     "react-watchos": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "@types/react": "^19.2.0",
     "esbuild": "^0.28.1",
     "typescript": "^5.9.0",
