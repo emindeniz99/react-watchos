@@ -33,6 +33,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: trufflesecurity/trufflehog@main
-        with:
-          extra_args: --no-update
+      # The CLI directly, not the trufflesecurity/trufflehog action: the
+      # action diff-scans BASE..HEAD and hard-errors when they are equal
+      # (re-runs, schedules, some pushes). We want the FULL history every
+      # time — same invocation as the local pre-publish scan.
+      - name: trufflehog full-history scan
+        run: |
+          docker run --rm -v "$PWD:/repo" trufflesecurity/trufflehog:3.90.8 \
+            git file:///repo --no-update --fail
