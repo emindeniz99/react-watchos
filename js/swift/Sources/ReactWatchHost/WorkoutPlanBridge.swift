@@ -41,7 +41,12 @@
 import Foundation
 import HealthKit
 import ReactWatchSupport
-import WorkoutKit
+
+// `WorkoutScheduler` ships without Sendable/isolation annotations (checked in
+// the 26.2 SDK swiftinterface: a plain non-Sendable final class whose members
+// are all `get async`/nonisolated), so every call from this @MainActor bridge
+// is a Swift 6 region violation without the preconcurrency downgrade.
+@preconcurrency import WorkoutKit
 
 /// One WorkoutKit bridge per host. `@MainActor` for the same reason as
 /// `HealthQueryBridge` — the model that owns it is main-isolated, so there is
@@ -429,7 +434,7 @@ import WorkoutKit
                             + "\(qualifier)"))
             }
             // `spec.goal` is required for this kind and validated in Support.
-            let goal = Self.goal(spec.goal ?? WorkoutPlanGoalSpec(kind: .open, value: nil))
+            let goal = Self.goal(spec.goal)
             guard
                 SingleGoalWorkout.supportsGoal(
                     goal, activity: activity, location: location)
@@ -524,7 +529,11 @@ import WorkoutKit
 
     /// Units come from the FIELD NAME on the wire, so they are re-applied here
     /// once and never carried as a caller-chosen string.
-    private static func goal(_ spec: WorkoutPlanGoalSpec) -> WorkoutGoal {
+    private static func goal(_ spec: WorkoutPlanGoalSpec?) -> WorkoutGoal {
+        // Absent means `.open` (Support validates it present for `.singleGoal`;
+        // taking the optional here avoids constructing a Support struct whose
+        // memberwise init is internal to that module).
+        guard let spec else { return .open }
         // `value` is validated non-nil for the three carrying kinds; `.open`
         // never reads it.
         let value = spec.value ?? 0
@@ -552,7 +561,12 @@ import WorkoutKit
         let metric: WorkoutAlertMetric = spec.metric == .average ? .average : .current
         switch spec.kind {
         case .heartRateRange:
-            return HeartRateRangeAlert.heartRate(low...high, unit: .countPerMinute)
+            // `countPerMinute` lives on `WorkoutAlertMetric`, not
+            // `UnitFrequency` (the SDK's own defaults spell it
+            // `WorkoutAlertMetric.countPerMinute`), so implicit-member syntax
+            // does not resolve it.
+            return HeartRateRangeAlert.heartRate(
+                low...high, unit: WorkoutAlertMetric.countPerMinute)
         case .heartRateZone:
             return HeartRateZoneAlert.heartRate(zone: zone)
         case .speedRange:
@@ -562,9 +576,11 @@ import WorkoutKit
             return SpeedThresholdAlert.speed(
                 value, unit: .metersPerSecond, metric: metric)
         case .cadenceRange:
-            return CadenceRangeAlert.cadence(low...high, unit: .countPerMinute)
+            return CadenceRangeAlert.cadence(
+                low...high, unit: WorkoutAlertMetric.countPerMinute)
         case .cadenceThreshold:
-            return CadenceThresholdAlert.cadence(value, unit: .countPerMinute)
+            return CadenceThresholdAlert.cadence(
+                value, unit: WorkoutAlertMetric.countPerMinute)
         case .powerRange:
             return PowerRangeAlert.power(low...high, unit: .watts)
         case .powerThreshold:

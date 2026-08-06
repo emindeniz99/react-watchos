@@ -630,8 +630,12 @@ final class WorkoutSessionOwner: NSObject {
             }
             builder.finishWorkout { workout, error in
                 // The route is finished AFTER the workout is saved, per
-                // HKWorkoutRouteBuilder's documented order.
-                route?.finishRoute(with: workout, metadata: nil) { _, _ in }
+                // HKWorkoutRouteBuilder's documented order. A failed save has
+                // no workout to attach the route to, so the route is dropped
+                // with it (the `.failed` record below already reports why).
+                if let workout {
+                    route?.finishRoute(with: workout, metadata: nil) { _, _ in }
+                }
                 DispatchQueue.main.async {
                     this.recordEnded(
                         reason: error == nil ? reason : .failed,

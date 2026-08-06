@@ -57,10 +57,15 @@ final class PedometerBridge {
         streaming = true
         let from =
             fromMs.map { Date(timeIntervalSince1970: $0 / 1000) } ?? Date()
-        nonisolated(unsafe) let this = self
-        pedometer.startUpdates(from: from) { data, _ in
-            guard let data else { return }
+        pedometer.startUpdates(from: from) { [weak self] data, _ in
+            guard let self, let data else { return }
             let payload = Self.reading(from: data, live: true).payload()
+            // Hop to main without sending self — the laundering must happen
+            // INSIDE the repeated callback (SensorBridge's idiom): a binding
+            // made outside is shared across invocations, and Swift 6 region
+            // analysis rejects sending it to the main actor from one call
+            // while later calls still use it.
+            nonisolated(unsafe) let this = self
             DispatchQueue.main.async { this.onReading?(payload) }
         }
     }
@@ -112,7 +117,10 @@ final class PedometerBridge {
                 } else {
                     .failure(.unavailable)
                 }
-            DispatchQueue.main.async { settle(outcome) }
+            // Same inside-the-callback laundering as `start` (Swift 6 region
+            // analysis): a fresh binding per invocation is sendable to main.
+            nonisolated(unsafe) let deliver = settle
+            DispatchQueue.main.async { deliver(outcome) }
         }
         return true
     }
