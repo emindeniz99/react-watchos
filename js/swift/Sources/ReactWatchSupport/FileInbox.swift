@@ -211,9 +211,17 @@ public struct FileInbox: Sendable, Equatable {
                 at: root, includingPropertiesForKeys: [.contentModificationDateKey],
                 options: [.skipsHiddenFiles])
         else { return [] }
+        // REBASE each listed child onto `root` (they are direct children, so
+        // name-appending reproduces them exactly). contentsOfDirectory may
+        // return symlink-RESOLVED urls (macOS: /var/… comes back /private/var/…)
+        // while adopt() mints urls from the caller's root — and `protected`
+        // holds adopt urls, so comparing the two spaces made protection a
+        // silent no-op: retention could delete a file whose delivery was still
+        // in flight. Resolving instead of rebasing does not work:
+        // resolvingSymlinksInPath deliberately skips /var,/tmp,/etc.
         let entries = contents.map { url in
             Entry(
-                url: url,
+                url: root.appendingPathComponent(url.lastPathComponent),
                 modified: Self.retentionDate(
                     try? url.resourceValues(
                         forKeys: [.contentModificationDateKey]
@@ -223,7 +231,10 @@ public struct FileInbox: Sendable, Equatable {
         for url in Self.victims(entries, now: now, protected: protected) {
             if (try? fileManager.removeItem(at: url)) != nil { removed.append(url) }
         }
-        return removed
+        // Arrival order (the receivedAtMs-sequence filename prefix sorts
+        // chronologically), not directory-listing order, which is
+        // filesystem-dependent and unstable under equal modification dates.
+        return removed.sorted { $0.lastPathComponent < $1.lastPathComponent }
     }
 
     /// Resolves a path JS handed back (the `file://` URL a `watchConnectivity.file`
