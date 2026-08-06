@@ -87,7 +87,10 @@ async function dev(args: string[]) {
     if (
       err instanceof Error &&
       "code" in err &&
-      (err as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND"
+      // ERR_MODULE_NOT_FOUND from `import()`; MODULE_NOT_FOUND from the
+      // require() the compiled CJS bundle (dist-node/) lowers it to.
+      ((err as NodeJS.ErrnoException).code === "ERR_MODULE_NOT_FOUND" ||
+        (err as NodeJS.ErrnoException).code === "MODULE_NOT_FOUND")
     ) {
       console.error(
         "[react-watchos] dev needs esbuild installed (npm i -D esbuild).",

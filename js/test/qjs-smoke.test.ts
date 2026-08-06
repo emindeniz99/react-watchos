@@ -11,6 +11,26 @@ import { beforeAll, describe, expect, it } from "vitest";
  * passes here, the same bundle runs in quickjs-ng on the watch.
  */
 
+// This suite shells out to a real `qjs` binary (see beforeAll). Fresh-clone
+// contributors won't have QuickJS installed, and an unguarded execFileSync
+// would hard-crash the whole file with an opaque ENOENT. So we probe for qjs
+// ONCE here and skip the suite self-describingly when it's absent — the skip
+// shows up in the vitest summary instead of silently dropping coverage.
+// Escape hatch: CI that installs QuickJS sets REQUIRE_QJS=1, which turns a
+// missing qjs into a loud failure so the engine-compatibility gate can never
+// be skipped by accident there.
+const requireQjs = process.env.REQUIRE_QJS === "1";
+const qjsAvailable = (() => {
+  try {
+    execFileSync("qjs", ["-e", ""], { stdio: "ignore" });
+    return true;
+  } catch (error) {
+    // Only ENOENT means "not installed"; any other failure (broken install,
+    // bad exit) is NOT a reason to skip — run the suite and fail loud there.
+    return (error as NodeJS.ErrnoException).code !== "ENOENT";
+  }
+})();
+
 const jsRoot = join(__dirname, "..");
 const bundlePath = join(jsRoot, "dist/bundle.js");
 // ARCH-03: the widget extension evaluates its OWN, smaller bundle — never the
@@ -213,7 +233,7 @@ print(JSON.stringify({
 }));
 `;
 
-describe("quickjs smoke", () => {
+describe.skipIf(!qjsAvailable && !requireQjs)("quickjs smoke", () => {
   let result: {
     logs: string[];
     rootType: string;
@@ -266,6 +286,15 @@ describe("quickjs smoke", () => {
   };
 
   beforeAll(() => {
+    // Reached with qjs missing only under REQUIRE_QJS=1 (otherwise the suite
+    // is skipped above) — fail with a message that names the fix.
+    if (!qjsAvailable) {
+      throw new Error(
+        "REQUIRE_QJS=1 is set but no `qjs` binary is on PATH. " +
+          "Install QuickJS (e.g. `brew install quickjs`) — this suite is the " +
+          "engine-compatibility gate and must not be skipped in CI.",
+      );
+    }
     // --experimental-strip-types runs the .ts build on any Node >= 22.6 (a
     // no-op on 24+); process.execPath = the Node running vitest.
     execFileSync(

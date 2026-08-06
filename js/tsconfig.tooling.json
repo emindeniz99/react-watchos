@@ -1,14 +1,21 @@
 {
-  // Every Node-side tool, authored in real TypeScript and RUN by Node 24's
-  // native type stripping (the project's .mise.toml pins node = "24") — no
-  // bundler, no compile step. tsc (the official compiler) type-checks it here.
+  // Every Node-side tool, authored in real TypeScript and RUN (in this repo)
+  // by Node 24's native type stripping (the project's .mise.toml pins
+  // node = "24"). tsc (the official compiler) type-checks it here.
   //
-  //   dev-only, not shipped:  scripts/  codegen/
-  //   shipped as source:      esbuild/  plugin/  bin/
+  //   dev-only, not shipped:      scripts/  codegen/
+  //   shipped source + compiled:  esbuild/  plugin/  bin/
+  //
+  // The PUBLISHED package cannot run these sources: Node refuses type
+  // stripping under node_modules (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING),
+  // so scripts/build-node.ts compiles the Node-loaded entries (bin, plugin,
+  // esbuild presets) to plain JS in dist-node/ — that is what package.json's
+  // `bin` and exports point at. The .cts/.mts sources still ship for the
+  // `types` conditions.
   //
   // (app.plugin.js stays a literal .js — Expo's zero-config plugin resolution
-  //  looks for that exact filename; it's a one-line `require("./plugin/index.cts")`
-  //  shim, the single unavoidable .js in the package.)
+  //  looks for that exact filename; it's an ESM re-export of the compiled
+  //  dist-node/plugin.cjs, the single unavoidable .js in the package.)
   //
   // Unlike src/ (which the app bundler compiles to run in QuickJS), this code
   // runs on Node — so lib ES2022 (Error `cause`, etc.) + DOM globals, and the
@@ -18,9 +25,7 @@
   // isolatedModules off so the CommonJS plugin (.cts `require`/`module.exports`)
   // type-checks. noEmit is inherited from the base — we only type-check.
   //
-  // Shipping .cts/.mts SOURCE (not compiled JS) means a consumer's `expo
-  // prebuild` / build script needs Node >= 22.18 (native TS) — documented in
-  // the README. The renderer (tsconfig.json) stays ES2020-strict for QuickJS.
+  // The renderer (tsconfig.json) stays ES2020-strict for QuickJS.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "allowImportingTsExtensions": true,

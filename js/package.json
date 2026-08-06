@@ -39,11 +39,11 @@
     },
     "./build": {
       "types": "./esbuild/preset.mts",
-      "default": "./esbuild/preset.mts"
+      "default": "./dist-node/preset.mjs"
     },
     "./manifest": {
       "types": "./esbuild/manifest.mts",
-      "default": "./esbuild/manifest.mts"
+      "default": "./dist-node/manifest.mjs"
     },
     "./testing": {
       "source": "./src/testing.ts",
@@ -52,12 +52,13 @@
       "default": "./src/testing.ts"
     },
     "./app.plugin": "./app.plugin.js",
-    "./link-swift-package": "./plugin/link-swift-package.cts",
-    "./merge-target-infoplist": "./plugin/merge-target-infoplist.cts",
+    "./link-swift-package": "./dist-node/link-swift-package.cjs",
+    "./merge-target-infoplist": "./dist-node/merge-target-infoplist.cjs",
     "./package.json": "./package.json"
   },
   "files": [
     "src",
+    "dist-node",
     "esbuild",
     "app.plugin.js",
     "plugin",
@@ -70,8 +71,10 @@
     "bin"
   ],
   "scripts": {
-    "prepublishOnly": "pnpm run typecheck && pnpm run lint && pnpm run check:size",
+    "prepare": "node --experimental-strip-types scripts/build-node.ts",
+    "prepublishOnly": "pnpm run build:node && pnpm run typecheck && pnpm run lint && pnpm run check:size",
     "build": "node --experimental-strip-types scripts/build.ts",
+    "build:node": "node --experimental-strip-types scripts/build-node.ts",
     "build:min": "node --experimental-strip-types scripts/build.ts --minify",
     "dev": "node --experimental-strip-types scripts/dev.ts",
     "inspector": "node --experimental-strip-types bin/inspector-server.mts",
@@ -154,7 +157,7 @@
     "vitest": "^4.0.0"
   },
   "bin": {
-    "react-watchos": "bin/react-watchos.cts"
+    "react-watchos": "dist-node/react-watchos.cjs"
   },
   "publishConfig": {
     "access": "public"
