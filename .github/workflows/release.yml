@@ -1,0 +1,38 @@
+name: release
+
+# Publish the js/ package to npm via TRUSTED PUBLISHING (OIDC):
+# - The FILENAME release.yml is load-bearing — npm's trusted publisher
+#   config matches on the workflow filename. NEVER rename this file.
+# - No npm token anywhere: the `id-token: write` permission below lets npm
+#   authenticate this workflow run directly. Requires npm >= 11.5.1 on the
+#   runner (Node 24 bundles a new enough npm).
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+permissions:
+  id-token: write # OIDC token for npm trusted publishing
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # No `version` input: pnpm/action-setup reads the exact pinned version
+      # from the root package.json "packageManager" field.
+      - uses: pnpm/action-setup@v4
+      # Deliberately NO registry-url and NO NODE_AUTH_TOKEN — trusted
+      # publishing needs neither; adding them would bypass/break OIDC auth.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Install (pnpm workspace)
+        run: pnpm install --frozen-lockfile
+      # No --provenance flag: OIDC trusted publishing attaches provenance
+      # automatically.
+      - name: Publish to npm (trusted publishing)
+        working-directory: js
+        run: npm publish

@@ -1,4 +1,4 @@
-name: react-native-watchos CI
+name: CI
 
 # Fast Linux checks on every push/PR: the JS renderer (tsc, vitest, real
 # qjs + C-embed smoke, codegen drift) and the Swift wire-contract tests
@@ -9,13 +9,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths:
-      - "**"
-      - ".github/workflows/react-native-watchos-ci.yml"
   pull_request:
-    paths:
-      - "**"
-      - ".github/workflows/react-native-watchos-ci.yml"
 
 jobs:
   js:
@@ -25,9 +19,9 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@v4
+      # No `version` input: pnpm/action-setup reads the exact pinned version
+      # from the root package.json "packageManager" field.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v7
         with:
           # 24: the dev tooling (scripts/, codegen/) is real .ts run directly by
@@ -50,6 +44,11 @@ jobs:
       - name: Bundle size budget (minified)
         run: pnpm --filter react-watchos check:size
       - name: Test (vitest + real qjs smoke)
+        # REQUIRE_QJS turns the local-dev "no qjs on PATH -> skip" guard into a
+        # loud failure here: this job installed QuickJS above, so a skip would
+        # mean the engine-compat gate silently stopped running.
+        env:
+          REQUIRE_QJS: "1"
         run: pnpm --filter react-watchos test
       # Each example is a real consumer: it resolves react/react-reconciler
       # itself and bundles them together with the renderer. `build` is the
@@ -103,7 +102,10 @@ jobs:
       - name: Wire-contract tests
         run: swift test
       # Exits 0 as of the tail-sweep format pass; this keeps warnings from
-      # silently re-accumulating. Runs from js/ where the script lives.
+      # silently re-accumulating. The swift:6.0 container has no Node, so this
+      # invokes `swift format` directly — it MUST stay in sync with the
+      # `format:swift:check` script in js/package.json (same command, run
+      # from js/ where that script lives).
       - name: swift-format lint
         working-directory: js
-        run: npm run format:swift:check
+        run: swift format lint -s -r -p swift/Sources swift/Tests ../app/targets
