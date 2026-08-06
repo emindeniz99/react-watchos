@@ -37,7 +37,7 @@ jobs:
   # SwiftLint; this job runs the same `format:swift:check` script the local
   # battery uses, so CI and dev can't disagree on style.
   swift-lint:
-    runs-on: macos-15
+    runs-on: macos-26 # arm64 (Apple Silicon); ships the Xcode 26.x toolchain our watchOS 26.2 SDK build expects
     timeout-minutes: 15
     defaults:
       run:
@@ -57,7 +57,7 @@ jobs:
   # QuickJS engine + wire models on the real watch architecture. The Linux CI
   # runs the same tests via `swift test` (host arch) on every push.
   watchos-tests:
-    runs-on: macos-15
+    runs-on: macos-26 # arm64 (Apple Silicon); ships the Xcode 26.x toolchain our watchOS 26.2 SDK build expects
     timeout-minutes: 20
     defaults:
       run:
@@ -86,7 +86,7 @@ jobs:
           if-no-files-found: ignore
 
   build:
-    runs-on: macos-15
+    runs-on: macos-26 # arm64 (Apple Silicon); ships the Xcode 26.x toolchain our watchOS 26.2 SDK build expects
     timeout-minutes: 40
     env:
       CI: "1"
