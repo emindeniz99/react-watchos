@@ -116,6 +116,45 @@ describe("wireLocalPackage (pbxproj wiring)", () => {
     expect(countBy(objects, "PBXBuildFile")).toBe(1);
   });
 
+  // A REGISTRY install realpaths into pnpm's store dir, whose "@"/"+" are
+  // outside the pbxproj unquoted-safe charset — written bare they corrupt the
+  // project and CocoaPods dies parsing it ("Dictionary missing ';' after
+  // key-value pair for \"relativePath\"", found by the FlareLog consumer).
+  // node-xcode writes values literally, so the plugin must self-quote; and a
+  // rerun must still dedupe against the quoted stored form.
+  it("quotes a pnpm-store package path and stays idempotent over it", () => {
+    const pnpmPath =
+      "../../node_modules/.pnpm/react-watchos@0.1.0_@babel+core@8.0.1/node_modules/react-watchos/swift";
+    const project = fakeProject();
+    const { packageRef } = wireLocalPackage(project, {
+      packagePath: pnpmPath,
+      targetProducts: { "React Watch": HOST_PRODUCTS },
+    });
+    const objects = project.hash.project.objects;
+    expect(
+      (objects.XCLocalSwiftPackageReference[packageRef] as {
+        relativePath: string;
+      }).relativePath,
+    ).toBe(`"${pnpmPath}"`);
+    // Second run dedupes against the stored (quoted) form — no duplicate ref.
+    const again = wireLocalPackage(project, {
+      packagePath: pnpmPath,
+      targetProducts: { "React Watch": HOST_PRODUCTS },
+    });
+    expect(again.packageRef).toBe(packageRef);
+    // The clean-path case stays bare so existing demo projects don't churn.
+    const clean = fakeProject();
+    const cleanRef = wireLocalPackage(clean, {
+      packagePath: "../../js/swift",
+      targetProducts: { "React Watch": HOST_PRODUCTS },
+    }).packageRef;
+    expect(
+      (clean.hash.project.objects.XCLocalSwiftPackageReference[cleanRef] as {
+        relativePath: string;
+      }).relativePath,
+    ).toBe("../../js/swift");
+  });
+
   it("creates a Frameworks build phase when the target has none", () => {
     // The watch app target has no Frameworks phase — the link must still land,
     // otherwise the product is recorded but never compiled ("no such module").

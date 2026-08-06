@@ -69,6 +69,17 @@ function unquote(value: unknown) {
     : value;
 }
 
+// node-xcode also writes values LITERALLY, so a value with characters outside
+// the pbxproj unquoted-safe set must carry its own quotes. This bites exactly
+// on REGISTRY installs: the package realpath lands in pnpm's store dir
+// (".pnpm/react-watchos@0.1.0_@babel+core@…"), whose "@"/"+" corrupt the
+// project when written bare — CocoaPods then dies parsing it ("Dictionary
+// missing ';' after key-value pair for \"relativePath\""). Workspace installs
+// realpath to a clean js/ dir and never hit it.
+function quoteIfNeeded(value: string): string {
+  return /^[A-Za-z0-9_$./]+$/.test(value) ? value : `"${value}"`;
+}
+
 /**
  * Adds the local package reference and links each target's products. Pure
  * over a node-xcode `XcodeProject` (uses `.hash` + `.generateUuid()`), so it
@@ -89,13 +100,15 @@ function wireLocalPackage(
 
   // 1. The local package reference (one per relativePath).
   let packageRef = Object.keys(localRefs).find(
-    (k) => !k.endsWith("_comment") && localRefs[k].relativePath === packagePath,
+    (k) =>
+      !k.endsWith("_comment") &&
+      unquote(localRefs[k].relativePath) === packagePath,
   );
   if (!packageRef) {
     packageRef = project.generateUuid();
     localRefs[packageRef] = {
       isa: "XCLocalSwiftPackageReference",
-      relativePath: packagePath,
+      relativePath: quoteIfNeeded(packagePath),
     };
     localRefs[`${packageRef}_comment`] =
       `XCLocalSwiftPackageReference "${packagePath}"`;
