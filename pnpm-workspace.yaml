@@ -21,6 +21,14 @@ packages:
 # to 1 day; we keep the stricter 7. Add names/globs to
 # `minimumReleaseAgeExclude` to exempt a package if a real update is ever blocked.
 minimumReleaseAge: 10080
+# Fail-loud companion: when NO version satisfies the age constraint (a
+# brand-new package, or an exact pin on a fresh release), fail resolution
+# instead of silently falling back to a younger version. pnpm 11 already
+# defaults this to true when minimumReleaseAge is set explicitly — pinned
+# here so the behavior survives a default change and the intent is visible.
+# Escape hatch stays `minimumReleaseAgeExclude` (names, @scope/* globs, or
+# exact `pkg@version` entries).
+minimumReleaseAgeStrict: true
 
 # Lifecycle-script allowlist (pnpm 11 home of package.json's former
 # pnpm.onlyBuiltDependencies): only the toolchain binaries we actually
