@@ -8,4 +8,4 @@
 
 > `const` **REMOTE\_PUSH\_REGISTRATION\_ERROR\_EVENT**: `"remotePush.registrationError"` = `"remotePush.registrationError"`
 
-Defined in: [js/src/remotePush.ts:14](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L14)
+Defined in: [js/src/remotePush.ts:14](https://github.com/emindeniz99/react-watchos/blob/main/js/src/remotePush.ts#L14)

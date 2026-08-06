@@ -8,4 +8,4 @@
 
 > `const` **LabeledContent**: `FC`\<[`LabeledContentProps`](../interfaces/LabeledContentProps.md)\>
 
-Defined in: [js/src/components.ts:703](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L703)
+Defined in: [js/src/components.ts:703](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L703)

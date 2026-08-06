@@ -8,4 +8,4 @@
 
 > **NavigationAction** = `"push"` \| `"replace"` \| `"reset"`
 
-Defined in: [js/src/navigation.tsx:20](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L20)
+Defined in: [js/src/navigation.tsx:20](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L20)

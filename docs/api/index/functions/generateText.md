@@ -8,7 +8,7 @@
 
 > **generateText**(`prompt`, `options?`): `Promise`\<`string`\>
 
-Defined in: [js/src/ai.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/ai.ts#L77)
+Defined in: [js/src/ai.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L77)
 
 Generates text with the on-device model. Rejects if AI is unavailable.
 

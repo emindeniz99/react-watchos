@@ -8,7 +8,7 @@
 
 > **getUpdateState**(): `Promise`\<[`UpdateState`](../interfaces/UpdateState.md)\>
 
-Defined in: [js/src/update.ts:95](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L95)
+Defined in: [js/src/update.ts:95](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L95)
 
 Reports which bundle this launch actually booted + the device's OTA state
 (review §6.11b — observability). Never rejects: with no invoke-capable host

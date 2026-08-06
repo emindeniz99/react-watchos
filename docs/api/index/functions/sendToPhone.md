@@ -8,7 +8,7 @@
 
 > **sendToPhone**(`message`): `Promise`\<`Record`\<`string`, `unknown`\>\>
 
-Defined in: [js/src/connectivity.ts:68](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L68)
+Defined in: [js/src/connectivity.ts:68](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L68)
 
 Sends a message to the paired iPhone and resolves its reply (CX-022). Rejects
 (with an InvokeError `code`) when the phone isn't reachable, the message

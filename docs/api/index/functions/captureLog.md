@@ -8,7 +8,7 @@
 
 > **captureLog**(`line`): `void`
 
-Defined in: [js/src/inspector.ts:50](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/inspector.ts#L50)
+Defined in: [js/src/inspector.ts:50](https://github.com/emindeniz99/react-watchos/blob/main/js/src/inspector.ts#L50)
 
 ## Parameters
 

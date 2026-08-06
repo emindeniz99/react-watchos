@@ -8,7 +8,7 @@
 
 > **deepLinkURL**(`route`, `scheme?`): `string`
 
-Defined in: [js/src/navigation.tsx:75](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L75)
+Defined in: [js/src/navigation.tsx:75](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L75)
 
 Build a deep-link URL from a route (`deepLinkURL("/hydration")` ->
 `"<scheme>://hydration"`) using the app's registered scheme. Use it for

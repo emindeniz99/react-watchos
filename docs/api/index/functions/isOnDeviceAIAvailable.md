@@ -8,7 +8,7 @@
 
 > **isOnDeviceAIAvailable**(): `Promise`\<`boolean`\>
 
-Defined in: [js/src/ai.ts:68](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/ai.ts#L68)
+Defined in: [js/src/ai.ts:68](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L68)
 
 Whether on-device AI can actually run on this watch right now (CX-002) —
 a runtime check, distinct from whether the build exposes the `ai` capability.

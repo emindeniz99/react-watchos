@@ -8,7 +8,7 @@
 
 > `const` **AUDIO\_FINISHED\_EVENT**: `"audio.finished"` = `"audio.finished"`
 
-Defined in: [js/src/audio.ts:16](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/audio.ts#L16)
+Defined in: [js/src/audio.ts:16](https://github.com/emindeniz99/react-watchos/blob/main/js/src/audio.ts#L16)
 
 Audio playback (AVAudioPlayer over an AVAudioSession `.playback`): plays a
 sound from an https URL — the watch downloads it, then routes to paired

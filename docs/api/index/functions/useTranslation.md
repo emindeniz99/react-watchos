@@ -8,7 +8,7 @@
 
 > **useTranslation**(): [`Translations`](../interfaces/Translations.md)
 
-Defined in: [js/src/i18n.tsx:204](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L204)
+Defined in: [js/src/i18n.tsx:204](https://github.com/emindeniz99/react-watchos/blob/main/js/src/i18n.tsx#L204)
 
 The nearest provided translations (an empty en set when none is).
 

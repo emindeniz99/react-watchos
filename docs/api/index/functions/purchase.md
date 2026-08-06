@@ -8,7 +8,7 @@
 
 > **purchase**(`productId`): `Promise`\<[`PurchaseResult`](../interfaces/PurchaseResult.md)\>
 
-Defined in: [js/src/iap.ts:39](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/iap.ts#L39)
+Defined in: [js/src/iap.ts:39](https://github.com/emindeniz99/react-watchos/blob/main/js/src/iap.ts#L39)
 
 Starts a purchase. A user cancel resolves `{ status: "userCancelled" }`;
  a StoreKit error rejects.

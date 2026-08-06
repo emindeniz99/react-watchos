@@ -8,7 +8,7 @@
 
 > **getWorkoutState**(): `Promise`\<`WorkoutState`\>
 
-Defined in: [js/src/workout.ts:182](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L182)
+Defined in: [js/src/workout.ts:182](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workout.ts#L182)
 
 The live session's state — and the last workout that ended, which is how a
 workout ended by a runtime reload reaches the runtime that never started it

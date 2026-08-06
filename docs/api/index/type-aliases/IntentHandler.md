@@ -8,7 +8,7 @@
 
 > **IntentHandler** = (`params?`) => `void`
 
-Defined in: [js/src/intents.ts:14](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/intents.ts#L14)
+Defined in: [js/src/intents.ts:14](https://github.com/emindeniz99/react-watchos/blob/main/js/src/intents.ts#L14)
 
 App Intent handlers written in React-land. WidgetKit Controls (Control
 Center / Action button) run an AppIntent in the widget extension; the

@@ -6,7 +6,7 @@
 
 # Interface: FileTransferStatus
 
-Defined in: [js/src/connectivity.ts:134](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L134)
+Defined in: [js/src/connectivity.ts:134](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L134)
 
 One entry of [outstandingFileTransfers](../functions/outstandingFileTransfers.md).
 
@@ -16,7 +16,7 @@ One entry of [outstandingFileTransfers](../functions/outstandingFileTransfers.md
 
 > **fractionCompleted**: `number`
 
-Defined in: [js/src/connectivity.ts:147](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L147)
+Defined in: [js/src/connectivity.ts:147](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L147)
 
 0–1 (`WCSessionFileTransfer.progress`). Poll this; there is deliberately
  no progress push channel — a KVO observer per transfer pushing at an
@@ -29,7 +29,7 @@ Defined in: [js/src/connectivity.ts:147](https://github.com/emindeniz99/react-wa
 
 > `optional` **id?**: `number`
 
-Defined in: [js/src/connectivity.ts:139](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L139)
+Defined in: [js/src/connectivity.ts:139](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L139)
 
 `null` for a transfer queued by a PREVIOUS launch: the id space is this
  launch's, and `WCSessionFileTransfer` carries no identity of its own, so
@@ -42,7 +42,7 @@ Defined in: [js/src/connectivity.ts:139](https://github.com/emindeniz99/react-wa
 
 > **name**: `string`
 
-Defined in: [js/src/connectivity.ts:141](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L141)
+Defined in: [js/src/connectivity.ts:141](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L141)
 
 Last path component of the file being sent.
 
@@ -52,4 +52,4 @@ Last path component of the file being sent.
 
 > **transferring**: `boolean`
 
-Defined in: [js/src/connectivity.ts:142](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L142)
+Defined in: [js/src/connectivity.ts:142](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L142)

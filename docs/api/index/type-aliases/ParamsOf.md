@@ -8,7 +8,7 @@
 
 > **ParamsOf**\<`S`\> = `{ [K in keyof SegsParams<S>]: SegsParams<S>[K] }`
 
-Defined in: [js/src/navigation.tsx:234](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L234)
+Defined in: [js/src/navigation.tsx:234](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L234)
 
 Params inferred from a route template: `ParamsOf<"/list/[id]">` = `{ id: string }`.
 

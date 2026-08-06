@@ -6,7 +6,7 @@
 
 # Interface: HeartRateOptions
 
-Defined in: [js/src/sensors.ts:115](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L115)
+Defined in: [js/src/sensors.ts:115](https://github.com/emindeniz99/react-watchos/blob/main/js/src/sensors.ts#L115)
 
 Options for [startHeartRate](../functions/startHeartRate.md).
 
@@ -16,7 +16,7 @@ Options for [startHeartRate](../functions/startHeartRate.md).
 
 > `optional` **keepAliveInBackground?**: `boolean`
 
-Defined in: [js/src/sensors.ts:132](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L132)
+Defined in: [js/src/sensors.ts:132](https://github.com/emindeniz99/react-watchos/blob/main/js/src/sensors.ts#L132)
 
 Keep the heart-rate stream running when the app backgrounds. Default
 `false`: the native side ends the underlying HealthKit workout session on

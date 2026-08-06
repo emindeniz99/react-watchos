@@ -8,7 +8,7 @@
 
 > **onConnectivityState**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/connectivity.ts:419](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L419)
+Defined in: [js/src/connectivity.ts:419](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L419)
 
 Runs `handler` whenever the session state changes — activation completing,
 reachability flipping, or the companion app being installed/removed. Those

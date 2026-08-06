@@ -8,7 +8,7 @@
 
 > **useTheme**(): [`WatchTheme`](../interfaces/WatchTheme.md)
 
-Defined in: [js/src/theme.ts:141](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/theme.ts#L141)
+Defined in: [js/src/theme.ts:141](https://github.com/emindeniz99/react-watchos/blob/main/js/src/theme.ts#L141)
 
 The nearest provided theme (the stock `defaultTheme` when none is).
 

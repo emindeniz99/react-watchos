@@ -8,6 +8,6 @@
 
 > **HealthQuantityType** = `"stepCount"` \| `"activeEnergyBurned"` \| `"distanceWalkingRunning"` \| `"heartRate"` \| `"oxygenSaturation"`
 
-Defined in: [js/src/generated/wire.ts:17](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L17)
+Defined in: [js/src/generated/wire.ts:17](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L17)
 
 The HealthKit quantity types this bridge reads. Closed: an unbound type would type-check and resolve null forever.

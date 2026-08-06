@@ -8,6 +8,6 @@
 
 > `const` **WORKOUT\_METRICS\_EVENT**: `"workout.metrics"` = `"workout.metrics"`
 
-Defined in: [js/src/workout.ts:64](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L64)
+Defined in: [js/src/workout.ts:64](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workout.ts#L64)
 
 `workout.metrics`: coalesced live metrics while a workout runs.

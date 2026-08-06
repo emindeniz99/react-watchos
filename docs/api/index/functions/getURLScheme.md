@@ -8,7 +8,7 @@
 
 > **getURLScheme**(): `string`
 
-Defined in: [js/src/navigation.tsx:63](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L63)
+Defined in: [js/src/navigation.tsx:63](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L63)
 
 The app's custom URL scheme. The native host injects it as
 `globalThis.__urlScheme` at boot, sourced from the app's registered

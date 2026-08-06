@@ -8,6 +8,6 @@
 
 > **ThemeOverrides** = `{ [K in keyof WatchTheme]?: Partial<WatchTheme[K]> }`
 
-Defined in: [js/src/theme.ts:94](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/theme.ts#L94)
+Defined in: [js/src/theme.ts:94](https://github.com/emindeniz99/react-watchos/blob/main/js/src/theme.ts#L94)
 
 Deep partial of WatchTheme for createTheme overrides.

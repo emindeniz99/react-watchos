@@ -6,7 +6,7 @@
 
 # Interface: PedometerOptions
 
-Defined in: [js/src/sensors.ts:150](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L150)
+Defined in: [js/src/sensors.ts:150](https://github.com/emindeniz99/react-watchos/blob/main/js/src/sensors.ts#L150)
 
 Options for [startPedometer](../functions/startPedometer.md).
 
@@ -16,7 +16,7 @@ Options for [startPedometer](../functions/startPedometer.md).
 
 > `optional` **fromMs?**: `number`
 
-Defined in: [js/src/sensors.ts:157](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L157)
+Defined in: [js/src/sensors.ts:157](https://github.com/emindeniz99/react-watchos/blob/main/js/src/sensors.ts#L157)
 
 Count from this instant (ms since epoch) instead of from now — CoreMotion
 back-fills from its ~7-day on-device history, so `fromMs: startOfDay` gives

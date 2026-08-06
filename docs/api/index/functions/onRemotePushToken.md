@@ -8,7 +8,7 @@
 
 > **onRemotePushToken**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/remotePush.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L79)
+Defined in: [js/src/remotePush.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/js/src/remotePush.ts#L79)
 
 Runs `handler` with the lowercase-hex device token whenever registration
 succeeds — including a registration the app didn't await (a token rotation,

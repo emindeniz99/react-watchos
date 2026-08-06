@@ -8,7 +8,7 @@
 
 > `const` **SPEECH\_FINISHED\_EVENT**: `"speech.finished"` = `"speech.finished"`
 
-Defined in: [js/src/speech.ts:13](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/speech.ts#L13)
+Defined in: [js/src/speech.ts:13](https://github.com/emindeniz99/react-watchos/blob/main/js/src/speech.ts#L13)
 
 Speech synthesis (AVSpeechSynthesizer): speak text aloud through the watch
 speaker / paired audio. Completion (or interruption by a new utterance /

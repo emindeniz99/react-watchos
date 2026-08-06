@@ -8,7 +8,7 @@
 
 > **onReceivedFile**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/connectivity.ts:379](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L379)
+Defined in: [js/src/connectivity.ts:379](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L379)
 
 Runs `handler` for each file the iPhone sends. The file has already been
 moved out of the system's temporary directory into this app's inbox (native

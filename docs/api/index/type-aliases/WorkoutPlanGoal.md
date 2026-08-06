@@ -8,7 +8,7 @@
 
 > **WorkoutPlanGoal** = \{ `kind`: `"open"`; \} \| \{ `kind`: `"distance"`; `meters`: `number`; \} \| \{ `kind`: `"time"`; `seconds`: `number`; \} \| \{ `kilocalories`: `number`; `kind`: `"energy"`; \}
 
-Defined in: [js/src/workoutPlans.ts:81](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L81)
+Defined in: [js/src/workoutPlans.ts:81](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L81)
 
 What a step (or a single-goal workout) is trying to reach.
 

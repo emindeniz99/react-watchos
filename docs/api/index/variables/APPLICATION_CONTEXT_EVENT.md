@@ -8,4 +8,4 @@
 
 > `const` **APPLICATION\_CONTEXT\_EVENT**: `"watchConnectivity.applicationContext"` = `"watchConnectivity.applicationContext"`
 
-Defined in: [js/src/connectivity.ts:48](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L48)
+Defined in: [js/src/connectivity.ts:48](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L48)

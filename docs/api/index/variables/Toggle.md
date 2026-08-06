@@ -8,4 +8,4 @@
 
 > `const` **Toggle**: `FC`\<[`ToggleProps`](../interfaces/ToggleProps.md)\>
 
-Defined in: [js/src/components.ts:665](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L665)
+Defined in: [js/src/components.ts:665](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L665)

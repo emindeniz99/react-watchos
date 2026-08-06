@@ -8,7 +8,7 @@
 
 > **startMotion**(`handler`, `options?`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/sensors.ts:235](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L235)
+Defined in: [js/src/sensors.ts:235](https://github.com/emindeniz99/react-watchos/blob/main/js/src/sensors.ts#L235)
 
 Device motion: handler gets `{ x, y, z }` (user acceleration).
 

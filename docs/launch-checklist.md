@@ -1,6 +1,7 @@
 # Launch-readiness checklist (pre-marketing gates)
 
-Date: 2026-07-02 (E3 revised 2026-07-29 — see the row). Owner-facing: this is
+Date: 2026-07-02 (E3 revised 2026-07-29; revised 2026-08-06 — E2/R1 rephrased
+for the fresh standalone repo, numbers refreshed). Owner-facing: this is
 the honest list of what must be true before announcing the project publicly.
 Each gate has a status and the evidence that flips it. Statuses: ✅ done · 🟡
 ready-to-run (needs one action) · ⛔ blocked (needs hardware/accounts). Keep
@@ -14,7 +15,7 @@ earned.
 | # | Gate | Status | Evidence / action |
 |---|---|---|---|
 | E1 | Linux CI green on the main line (js + swift-package jobs, examples gate live) | 🟡 | The examples CI step was dark (wrong script name + stale lockfile, NF-26) — fixed on this branch; **verify the first post-merge run actually passes**. |
-| E2 | macOS build workflow green (prebuild + xcodebuild watch & widget + sim tests) | 🟡 | Now scheduled nightly (NF-30). **One green run after this branch merges is the gate** — it also compile-verifies the watchOS-gated Swift changes (NF-09/10/22, allowUnsignedUpdates wiring) that Linux cannot. |
+| E2 | macOS build workflow green (prebuild + xcodebuild watch & widget + sim tests) | 🟡 | The workflow exists with a nightly schedule (NF-30) but has **never run in Actions** — the fresh public repo (extracted 2026-08-06) has Actions enabled by default, and its first runs are still pending. **One green Actions run is the gate.** Until then the evidence is local: the 2026-08-06 watch-sim build+test run (status.md ladder ②) compile-verified the watchOS-gated Swift locally, which Linux cannot. |
 | E3 | Physical-device verification (code signing, App Groups, `WKRunsIndependentlyOfCompanionApp` on hardware, BLE against a real peripheral) | ✅ **at a stated scope** | **2026-07-05 run on a physical Apple Watch Ultra 3** (watchOS 26.5, paired iPhone 14 Pro), *properly* automatic-signed against real team `D68Q862K33` with the App Group provisioned by the portal — no ad-hoc/entitlement-stripping hacks. The QuickJS + renderer → SwiftUI stack **boots and renders on-wrist** ([status.md](./status.md) row 1). **Verified scope is exactly "boots + renders"** — copy may claim device support at that scope and no further. Still UNVERIFIED on hardware: Taptic haptics, Digital Crown feel, HealthKit heart-rate + GPS location streams, a complication on the live watch face, and BLE against a real peripheral (CX-022 remainder stays device-gated by decision). |
 | E4 | Interpreter perf numbers on-device | ⛔ | CI produces vendored-engine numbers via `bench:qjs` (NF-20): ~1.5 ms/dispatch on x86 over the current 138-node demo tree (was 1.06 ms at NF-20; the demo grew). The on-device profile is the honest number to quote — until then, quote the x86 figure with its caveat. Full method (harness, `os_signpost`, Instruments-on-watch, MetricKit-is-phone-only): [performance-measurement.md](./performance-measurement.md). *(2026-07-16: baseline moved — ARCH-09 lazy navigation cut the launch tree to 48 nodes / 4.1 KB, ~0.52 ms/dispatch on x86; run locally, Actions still disabled. On-device stays the gate.)* |
 | E5 | Suspense/animation/design-token gaps acknowledged | ✅ | README limitations + review §2.4; the announcement should link the honest list rather than bury it. |
@@ -23,7 +24,7 @@ earned.
 
 | # | Gate | Status | Evidence / action |
 |---|---|---|---|
-| R1 | Package wired into release-please + npm publish with provenance | ✅ | NF-27: config/manifest/workflow + `publishConfig` + `prepublishOnly`; dry-run tarball verified (709 kB, 127 files — `npm pack --dry-run`, 2026-07-04). |
+| R1 | Package wired into release-please + npm publish with provenance | 🟡 | NF-27 groundwork (`publishConfig` + `prepublishOnly`; dry-run tarball verified — 709 kB, 127 files, `npm pack --dry-run` 2026-07-04) plus the standalone-repo publish workflows (`release.yml` + `release-please.yml`, added 2026-08-06). **First green run of both is still pending**, and the npm trusted-publisher attachment happens only after the bootstrap publish. |
 | R2 | `NPM_TOKEN` secret present and the `react-watchos` npm name actually available/owned | 🟡 | Maintainer action — check npmjs.com for the name BEFORE the first release PR merge; squatted name = rename before marketing, not after. |
 | R3 | First release cut (release-please PR merged, tag + GitHub release + npm publish job green) | 🟡 | Happens automatically on main after merge; treat the FIRST publish as a rehearsal — install the published tarball into a fresh Expo app and run the quickstart. |
 | R4 | Registry-install quickstart verified (not just workspace-linked) | 🟡 | The README documents the symlink caveats; a real `npm i react-watchos` skips them all — verify once against the published (or `npm pack`ed) tarball. |
@@ -46,18 +47,18 @@ earned.
   Center intent updating a complication with the app closed, dev hot-reload
   loop. All capturable on the simulator today (no device needed).
 - [x] **Numbers to quote** (each with its source, **re-derived 2026-07-29** —
-  the previous set was three feature waves out of date):
+  the previous set was three feature waves out of date; test counts refreshed
+  2026-08-06):
   570-line reconciler core (`js/src/renderer.ts` `wc -l`); **41** SwiftUI-like
   primitives and **75 host methods across 24 capability features**
   ([api/capabilities.md](./api/capabilities.md), generated from
   `codegen/schema.ts` so it cannot drift); **191 KB minified app bundle +
   149 KB widget against 2 MB / 1 MB budgets** (`pnpm check:size`, run
   2026-07-29 — the old "179/146 against 200/160" quoted budgets that were
-  raised on 2026-07-05); **640 vitest tests** (`vitest run`, executed
-  2026-07-29 — note the codegen drift check shells out to `swift format`, so
-  the suite needs the Swift toolchain present) + **`swift test` 374** (372 at
-  the WORKOUT-PLANS package, plus the one case each added by the plan-minute
-  and decode-path fixes — re-derive on a Swift-capable box before quoting);
+  raised on 2026-07-05); **649 vitest tests** (`vitest run`, executed
+  2026-08-06 — note the codegen drift check shells out to `swift format`, so
+  the suite needs the Swift toolchain present) + **`swift test` 375**
+  (executed 2026-08-06 — re-derive on a Swift-capable box before quoting);
   QuickJS heap **0.7–2.1 MB** depending on bundle and boot path, ~6 MB widget
   peak (embed-host `[mem]` line); **0.5–0.75 ms/dispatch on x86** over the
   48-node lazy launch tree (until E4 — and see

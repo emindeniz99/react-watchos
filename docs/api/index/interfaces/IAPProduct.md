@@ -6,7 +6,7 @@
 
 # Interface: IAPProduct
 
-Defined in: [js/src/iap.ts:12](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/iap.ts#L12)
+Defined in: [js/src/iap.ts:12](https://github.com/emindeniz99/react-watchos/blob/main/js/src/iap.ts#L12)
 
 In-app purchase (StoreKit 2). Products and entitlements are resolved
 natively; JS drives the flow. A watch app can sell consumables,
@@ -22,7 +22,7 @@ can distinguish "failed" from "user backed out".
 
 > **description**: `string`
 
-Defined in: [js/src/iap.ts:15](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/iap.ts#L15)
+Defined in: [js/src/iap.ts:15](https://github.com/emindeniz99/react-watchos/blob/main/js/src/iap.ts#L15)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/iap.ts:15](https://github.com/emindeniz99/react-watchos/blob
 
 > **displayName**: `string`
 
-Defined in: [js/src/iap.ts:14](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/iap.ts#L14)
+Defined in: [js/src/iap.ts:14](https://github.com/emindeniz99/react-watchos/blob/main/js/src/iap.ts#L14)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [js/src/iap.ts:14](https://github.com/emindeniz99/react-watchos/blob
 
 > **displayPrice**: `string`
 
-Defined in: [js/src/iap.ts:17](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/iap.ts#L17)
+Defined in: [js/src/iap.ts:17](https://github.com/emindeniz99/react-watchos/blob/main/js/src/iap.ts#L17)
 
 Localized price string, e.g. "$1.99".
 
@@ -48,7 +48,7 @@ Localized price string, e.g. "$1.99".
 
 > **id**: `string`
 
-Defined in: [js/src/iap.ts:13](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/iap.ts#L13)
+Defined in: [js/src/iap.ts:13](https://github.com/emindeniz99/react-watchos/blob/main/js/src/iap.ts#L13)
 
 ***
 
@@ -56,7 +56,7 @@ Defined in: [js/src/iap.ts:13](https://github.com/emindeniz99/react-watchos/blob
 
 > **price**: `number`
 
-Defined in: [js/src/iap.ts:19](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/iap.ts#L19)
+Defined in: [js/src/iap.ts:19](https://github.com/emindeniz99/react-watchos/blob/main/js/src/iap.ts#L19)
 
 Numeric price in the storefront currency.
 
@@ -66,4 +66,4 @@ Numeric price in the storefront currency.
 
 > **type**: `"consumable"` \| `"nonConsumable"` \| `"autoRenewable"` \| `"nonRenewable"`
 
-Defined in: [js/src/iap.ts:20](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/iap.ts#L20)
+Defined in: [js/src/iap.ts:20](https://github.com/emindeniz99/react-watchos/blob/main/js/src/iap.ts#L20)

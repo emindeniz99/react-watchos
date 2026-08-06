@@ -6,7 +6,7 @@
 
 # Interface: BleConnectOptions
 
-Defined in: [js/src/bluetooth.ts:43](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L43)
+Defined in: [js/src/bluetooth.ts:43](https://github.com/emindeniz99/react-watchos/blob/main/js/src/bluetooth.ts#L43)
 
 Options for [bleConnect](../functions/bleConnect.md).
 
@@ -16,7 +16,7 @@ Options for [bleConnect](../functions/bleConnect.md).
 
 > `optional` **maxReconnectAttempts?**: `number`
 
-Defined in: [js/src/bluetooth.ts:50](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L50)
+Defined in: [js/src/bluetooth.ts:50](https://github.com/emindeniz99/react-watchos/blob/main/js/src/bluetooth.ts#L50)
 
 Max auto-reconnect scan attempts after an unexpected drop before the bridge
 gives up and stays disconnected. `0` disables auto-reconnect. Default 5.
@@ -29,7 +29,7 @@ powered off) can't leave the central active-scanning forever.
 
 > `optional` **reconnectWindowMs?**: `number`
 
-Defined in: [js/src/bluetooth.ts:55](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L55)
+Defined in: [js/src/bluetooth.ts:55](https://github.com/emindeniz99/react-watchos/blob/main/js/src/bluetooth.ts#L55)
 
 How long (ms) each reconnect scan runs before that attempt is abandoned.
 Default 60000 (1 min). Worst-case total scan time ≈ attempts × window.

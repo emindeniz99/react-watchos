@@ -149,7 +149,10 @@ live instances. Same producer/consumer pattern as
 ## Quick start
 
 In your own Expo app (the plugin does the Xcode wiring — no hand-written
-target config):
+target config). The package publishes to npm as **`react-watchos`**, so this
+path works after the first release — nothing is published yet. (The
+`react-native-watchos` name on npm is an unrelated empty placeholder, not
+this project.)
 
 ```bash
 npx expo install react-watchos @bacons/apple-targets
@@ -158,7 +161,9 @@ npx react-watchos scaffold     # the @main Swift glue
 npx expo prebuild              # creates + links the watch/widget targets
 ```
 
-In this repo (Linux/macOS, no Xcode needed for the JS half):
+In this repo (Linux/macOS, no Xcode needed for the JS half). Node ≥ 22.18 is
+the floor (native TypeScript type stripping); the repo pins Node 24 via mise
+(`.mise.toml`):
 
 ```bash
 pnpm install
@@ -271,7 +276,8 @@ can't claim) is
   minified** against a 2 MB sanity budget; the widget bundle 500 KB / 149 KB
   against 1 MB. QuickJS itself adds ~1 MB of code — comfortably inside the
   watch app budget. Point-in-time numbers (measured 2026-07-29); the enforced
-  truth is `pnpm check:size`, and every limit with its real ceiling is
+  truth is `pnpm check:size` (run from `js/` — not a root script), and every
+  limit with its real ceiling is
   tabulated in [docs/budgets-and-limits.md](./docs/budgets-and-limits.md).
 - **CI has never run.** GitHub Actions is disabled at the repo level, so the
   Linux and macOS workflows have never executed — the gates are run locally.

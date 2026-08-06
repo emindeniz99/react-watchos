@@ -1,7 +1,7 @@
-# gitleaks config for react-native-watchos.
+# gitleaks config for react-watchos.
 #
-# Run a clean secret scan of the project:
-#   gitleaks dir projects/react-native-watchos --config projects/react-native-watchos/.gitleaks.toml
+# Run a clean secret scan of the repo (from the repo root):
+#   gitleaks dir . --config .gitleaks.toml
 #
 # Extends the default ruleset; the allowlist only suppresses KNOWN false
 # positives in build artifacts / vendored code (never our own source):

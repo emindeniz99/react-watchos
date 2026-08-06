@@ -8,7 +8,7 @@
 
 > **searchPOI**(`query`, `options?`): `Promise`\<[`POIResult`](../interfaces/POIResult.md)[]\>
 
-Defined in: [js/src/maps.ts:29](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L29)
+Defined in: [js/src/maps.ts:29](https://github.com/emindeniz99/react-watchos/blob/main/js/src/maps.ts#L29)
 
 Searches MapKit for points of interest matching a natural-language `query`
 (e.g. "coffee", "gas station"), biased to the given region. Returns up to 15

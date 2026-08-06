@@ -6,7 +6,7 @@
 
 # Interface: DispatchResult
 
-Defined in: [js/src/renderer.ts:31](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/renderer.ts#L31)
+Defined in: [js/src/renderer.ts:31](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L31)
 
 Structured result of a native event dispatch (ARCH-09), returned to Swift as
 a JSON string by `__dispatchEvent` so navigation can be a request/confirm
@@ -27,7 +27,7 @@ A thrown handler produces NO result (the exception propagates out of
 
 > **accepted**: `boolean`
 
-Defined in: [js/src/renderer.ts:33](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/renderer.ts#L33)
+Defined in: [js/src/renderer.ts:33](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L33)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [js/src/renderer.ts:33](https://github.com/emindeniz99/react-watchos
 
 > **handled**: `boolean`
 
-Defined in: [js/src/renderer.ts:32](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/renderer.ts#L32)
+Defined in: [js/src/renderer.ts:32](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L32)
 
 ***
 
@@ -43,4 +43,4 @@ Defined in: [js/src/renderer.ts:32](https://github.com/emindeniz99/react-watchos
 
 > `optional` **reason?**: `string`
 
-Defined in: [js/src/renderer.ts:34](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/renderer.ts#L34)
+Defined in: [js/src/renderer.ts:34](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L34)

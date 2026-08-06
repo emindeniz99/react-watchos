@@ -8,7 +8,7 @@
 
 > `const` **RUNTIME\_STATE\_EVENT**: `"runtimeSession.state"` = `"runtimeSession.state"`
 
-Defined in: [js/src/extendedRuntime.ts:19](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/extendedRuntime.ts#L19)
+Defined in: [js/src/extendedRuntime.ts:19](https://github.com/emindeniz99/react-watchos/blob/main/js/src/extendedRuntime.ts#L19)
 
 Extended runtime session (WKExtendedRuntimeSession): keeps the app running
 for a bounded stretch after it would normally suspend — for a self-care /

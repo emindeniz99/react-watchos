@@ -8,7 +8,7 @@
 
 > **registerIntent**(`name`, `handler`): `void`
 
-Defined in: [js/src/intents.ts:18](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/intents.ts#L18)
+Defined in: [js/src/intents.ts:18](https://github.com/emindeniz99/react-watchos/blob/main/js/src/intents.ts#L18)
 
 ## Parameters
 

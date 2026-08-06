@@ -8,7 +8,7 @@
 
 > **ColorValue** = [`SystemColorName`](SystemColorName.md) \| `` `#${string}` ``
 
-Defined in: [js/src/components.ts:44](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L44)
+Defined in: [js/src/components.ts:44](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L44)
 
 A color prop value (design-system Tier 1, borrowed from Restyle's typed-token
 idea): a [SystemColorName](SystemColorName.md) — autocompleted, and a misspelled name is a

@@ -6,7 +6,7 @@
 
 # Interface: WorkoutPlanBlock
 
-Defined in: [js/src/workoutPlans.ts:145](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L145)
+Defined in: [js/src/workoutPlans.ts:145](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L145)
 
 One repeated group of work/recovery steps.
 
@@ -16,7 +16,7 @@ One repeated group of work/recovery steps.
 
 > `optional` **iterations?**: `number`
 
-Defined in: [js/src/workoutPlans.ts:149](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L149)
+Defined in: [js/src/workoutPlans.ts:149](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L149)
 
 How many times the block repeats; default 1.
 
@@ -26,6 +26,6 @@ How many times the block repeats; default 1.
 
 > **steps**: [`WorkoutPlanIntervalStep`](WorkoutPlanIntervalStep.md)[]
 
-Defined in: [js/src/workoutPlans.ts:147](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L147)
+Defined in: [js/src/workoutPlans.ts:147](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L147)
 
 At least one.

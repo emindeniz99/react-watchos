@@ -8,4 +8,4 @@
 
 > `const` **Stepper**: `FC`\<[`StepperProps`](../interfaces/StepperProps.md)\>
 
-Defined in: [js/src/components.ts:688](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L688)
+Defined in: [js/src/components.ts:688](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L688)

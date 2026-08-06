@@ -8,7 +8,7 @@
 
 > **getHost**(): [`QuickJSHostGlobal`](../interfaces/QuickJSHostGlobal.md) \| `undefined`
 
-Defined in: [js/src/host.ts:40](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/host.ts#L40)
+Defined in: [js/src/host.ts:40](https://github.com/emindeniz99/react-watchos/blob/main/js/src/host.ts#L40)
 
 The native bridge installed by JSRuntime/IntentRuntime, if present.
 

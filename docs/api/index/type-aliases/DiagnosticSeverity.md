@@ -8,7 +8,7 @@
 
 > **DiagnosticSeverity** = `"fatal"` \| `"recoverable"` \| `"info"`
 
-Defined in: [js/src/diagnostics.ts:15](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/diagnostics.ts#L15)
+Defined in: [js/src/diagnostics.ts:15](https://github.com/emindeniz99/react-watchos/blob/main/js/src/diagnostics.ts#L15)
 
 Structured host diagnostics (ARCH-13). Native reports every host-side
 error/notice as a `Diagnostic` record — recorded in an always-on native

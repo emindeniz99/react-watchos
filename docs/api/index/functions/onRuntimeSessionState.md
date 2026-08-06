@@ -8,7 +8,7 @@
 
 > **onRuntimeSessionState**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/extendedRuntime.ts:40](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/extendedRuntime.ts#L40)
+Defined in: [js/src/extendedRuntime.ts:40](https://github.com/emindeniz99/react-watchos/blob/main/js/src/extendedRuntime.ts#L40)
 
 Session state changes: handler gets `{ state, reason? }`.
 

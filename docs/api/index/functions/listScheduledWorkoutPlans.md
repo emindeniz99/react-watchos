@@ -8,7 +8,7 @@
 
 > **listScheduledWorkoutPlans**(): `Promise`\<[`ScheduledWorkoutSummary`](../interfaces/ScheduledWorkoutSummary.md)[]\>
 
-Defined in: [js/src/workoutPlans.ts:438](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L438)
+Defined in: [js/src/workoutPlans.ts:438](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L438)
 
 Every plan the scheduler is holding, including ones scheduled by an earlier
 launch. `complete` is the read that tells you the user finished one — the

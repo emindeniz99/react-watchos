@@ -8,7 +8,7 @@
 
 > **useNavigation**(): [`NavigationContextValue`](../interfaces/NavigationContextValue.md)
 
-Defined in: [js/src/navigation.tsx:523](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L523)
+Defined in: [js/src/navigation.tsx:523](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L523)
 
 ## Returns
 

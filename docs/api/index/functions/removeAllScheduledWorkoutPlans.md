@@ -8,7 +8,7 @@
 
 > **removeAllScheduledWorkoutPlans**(): `Promise`\<`void`\>
 
-Defined in: [js/src/workoutPlans.ts:466](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L466)
+Defined in: [js/src/workoutPlans.ts:466](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L466)
 
 Clears the scheduler — the only recovery from a list you can no longer
  address, and read back like the other mutations.

@@ -6,7 +6,7 @@
 
 # Interface: Translations
 
-Defined in: [js/src/i18n.tsx:102](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L102)
+Defined in: [js/src/i18n.tsx:102](https://github.com/emindeniz99/react-watchos/blob/main/js/src/i18n.tsx#L102)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/i18n.tsx:102](https://github.com/emindeniz99/react-watchos/b
 
 > `readonly` **language**: `string`
 
-Defined in: [js/src/i18n.tsx:104](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L104)
+Defined in: [js/src/i18n.tsx:104](https://github.com/emindeniz99/react-watchos/blob/main/js/src/i18n.tsx#L104)
 
 The active language (as resolved from getDeviceInfo().language).
 
@@ -24,7 +24,7 @@ The active language (as resolved from getDeviceInfo().language).
 
 > **t**(`key`, `params?`): `string`
 
-Defined in: [js/src/i18n.tsx:112](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L112)
+Defined in: [js/src/i18n.tsx:112](https://github.com/emindeniz99/react-watchos/blob/main/js/src/i18n.tsx#L112)
 
 Looks up `key` in the active language's table (falling back to the bare
 language prefix, then the fallback language), interpolates `{name}`

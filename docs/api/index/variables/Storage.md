@@ -8,7 +8,7 @@
 
 > `const` **Storage**: `object`
 
-Defined in: [js/src/storage.ts:32](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/storage.ts#L32)
+Defined in: [js/src/storage.ts:32](https://github.com/emindeniz99/react-watchos/blob/main/js/src/storage.ts#L32)
 
 ## Type Declaration
 

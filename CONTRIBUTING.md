@@ -124,8 +124,9 @@ feature-set model supersedes the earlier scalar capability gate).
 
 ## Commits
 
-Follow the monorepo convention (Conventional Commits, **mandatory scope**). The
-scope for this project is the leaf name **`react-native-watchos`** (optionally
-`react-native-watchos/<sub-area>`), per the root `CLAUDE.md`. Add the
-`Co-Authored-By:` trailer for the AI assistant that made the commit. Default to a
-real merge commit for PRs (never squash without an explicit ask).
+This repo uses Conventional Commits with a **mandatory scope**. The scope is
+**`react-native-watchos`** (optionally `react-native-watchos/<sub-area>`) —
+the project's historical name, kept for commit-history continuity: 700+
+commits already use it. Imperative mood, lowercase subject, ≤72-char header.
+AI-assisted commits add a `Co-Authored-By:` trailer. PRs merge with a real
+merge commit — never squash, never rebase-merge.

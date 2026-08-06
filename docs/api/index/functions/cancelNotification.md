@@ -8,7 +8,7 @@
 
 > **cancelNotification**(`id`): `void`
 
-Defined in: [js/src/notifications.ts:110](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/notifications.ts#L110)
+Defined in: [js/src/notifications.ts:110](https://github.com/emindeniz99/react-watchos/blob/main/js/src/notifications.ts#L110)
 
 ## Parameters
 

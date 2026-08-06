@@ -8,7 +8,7 @@
 
 > **getCurrentLocation**(): `Promise`\<[`Coordinate`](../interfaces/Coordinate.md)\>
 
-Defined in: [js/src/maps.ts:51](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L51)
+Defined in: [js/src/maps.ts:51](https://github.com/emindeniz99/react-watchos/blob/main/js/src/maps.ts#L51)
 
 Resolves the watch's current location as a single `{lat, lon}` fix — for
 centering a map or biasing a [searchPOI](searchPOI.md) call. Prompts for When-In-Use

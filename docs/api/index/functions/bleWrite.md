@@ -8,7 +8,7 @@
 
 > **bleWrite**(`characteristicUUID`, `value`, `options?`): `Promise`\<`void`\>
 
-Defined in: [js/src/bluetooth.ts:110](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L110)
+Defined in: [js/src/bluetooth.ts:110](https://github.com/emindeniz99/react-watchos/blob/main/js/src/bluetooth.ts#L110)
 
 Write a value to a characteristic (a command like play/pause/seek). By
 default the bridge writes reliably (`.withResponse`) when the characteristic

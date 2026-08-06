@@ -8,7 +8,7 @@
 
 > **bleDisconnect**(): `void`
 
-Defined in: [js/src/bluetooth.ts:82](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L82)
+Defined in: [js/src/bluetooth.ts:82](https://github.com/emindeniz99/react-watchos/blob/main/js/src/bluetooth.ts#L82)
 
 ## Returns
 

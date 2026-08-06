@@ -8,7 +8,7 @@
 
 > **onUserInfo**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/connectivity.ts:122](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L122)
+Defined in: [js/src/connectivity.ts:122](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L122)
 
 Queued userInfo transfers from the iPhone, delivered in order (its
  `transferUserInfo`). Returns an unsubscribe. Every ITEM is delivered, but

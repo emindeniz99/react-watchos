@@ -8,7 +8,7 @@
 
 > **markUpdateHealthy**(): `Promise`\<`void`\>
 
-Defined in: [js/src/update.ts:142](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L142)
+Defined in: [js/src/update.ts:142](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L142)
 
 Confirms that this launch of this bundle is healthy — ARCH-04's explicit
 `bundleReady` signal. Calling it clears the device's crash-loop boot counter

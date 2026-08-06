@@ -8,4 +8,4 @@
 
 > `const` **Section**: `FC`\<[`SectionProps`](../interfaces/SectionProps.md)\>
 
-Defined in: [js/src/components.ts:697](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L697)
+Defined in: [js/src/components.ts:697](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L697)

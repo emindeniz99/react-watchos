@@ -6,7 +6,7 @@
 
 # Interface: TranslationParams
 
-Defined in: [js/src/i18n.tsx:97](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L97)
+Defined in: [js/src/i18n.tsx:97](https://github.com/emindeniz99/react-watchos/blob/main/js/src/i18n.tsx#L97)
 
 Interpolation values. `count` also drives plural selection.
 
@@ -20,4 +20,4 @@ Interpolation values. `count` also drives plural selection.
 
 > `optional` **count?**: `number`
 
-Defined in: [js/src/i18n.tsx:98](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L98)
+Defined in: [js/src/i18n.tsx:98](https://github.com/emindeniz99/react-watchos/blob/main/js/src/i18n.tsx#L98)

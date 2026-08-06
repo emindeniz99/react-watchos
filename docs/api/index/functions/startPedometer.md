@@ -8,7 +8,7 @@
 
 > **startPedometer**(`handler`, `options?`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/sensors.ts:171](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L171)
+Defined in: [js/src/sensors.ts:171](https://github.com/emindeniz99/react-watchos/blob/main/js/src/sensors.ts#L171)
 
 Live pedometer updates: handler gets a [PedometerData](../interfaces/PedometerData.md).
 

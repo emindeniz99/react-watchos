@@ -8,7 +8,7 @@
 
 > **onScenePhase**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/appState.ts:106](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/appState.ts#L106)
+Defined in: [js/src/appState.ts:106](https://github.com/emindeniz99/react-watchos/blob/main/js/src/appState.ts#L106)
 
 Runs `handler` whenever the app's scene phase changes. Returns an
 unsubscribe.

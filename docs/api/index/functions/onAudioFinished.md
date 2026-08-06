@@ -8,7 +8,7 @@
 
 > **onAudioFinished**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/audio.ts:44](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/audio.ts#L44)
+Defined in: [js/src/audio.ts:44](https://github.com/emindeniz99/react-watchos/blob/main/js/src/audio.ts#L44)
 
 Fires when a clip finishes on its own (not on stopAudio).
 

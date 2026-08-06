@@ -8,6 +8,6 @@
 
 > **CalendarEntity** = `CalendarAccessRequest`\[`"entity"`\]
 
-Defined in: [js/src/calendar.ts:36](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L36)
+Defined in: [js/src/calendar.ts:36](https://github.com/emindeniz99/react-watchos/blob/main/js/src/calendar.ts#L36)
 
 Which entity a permission request is about.

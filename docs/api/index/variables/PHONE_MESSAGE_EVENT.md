@@ -8,7 +8,7 @@
 
 > `const` **PHONE\_MESSAGE\_EVENT**: `"watchConnectivity"` = `"watchConnectivity"`
 
-Defined in: [js/src/connectivity.ts:47](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L47)
+Defined in: [js/src/connectivity.ts:47](https://github.com/emindeniz99/react-watchos/blob/main/js/src/connectivity.ts#L47)
 
 Phone <-> watch messaging over WatchConnectivity, surfaced through the
 native-event channel and SPLIT by delivery semantics (ARCH-12) — the three

@@ -6,7 +6,7 @@
 
 # Interface: WorkoutPlanCommon
 
-Defined in: [js/src/workoutPlans.ts:155](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L155)
+Defined in: [js/src/workoutPlans.ts:155](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L155)
 
 The fields every plan kind carries, whatever its `kind`. Exported because
  every arm of [WorkoutPlanSpec](../type-aliases/WorkoutPlanSpec.md) extends it, so a consumer writing
@@ -18,7 +18,7 @@ The fields every plan kind carries, whatever its `kind`. Exported because
 
 > **activityType**: [`WorkoutActivityType`](../type-aliases/WorkoutActivityType.md)
 
-Defined in: [js/src/workoutPlans.ts:166](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L166)
+Defined in: [js/src/workoutPlans.ts:166](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L166)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [js/src/workoutPlans.ts:166](https://github.com/emindeniz99/react-wa
 
 > `optional` **id?**: `string`
 
-Defined in: [js/src/workoutPlans.ts:165](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L165)
+Defined in: [js/src/workoutPlans.ts:165](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L165)
 
 A **UUID**, and the identity `scheduleWorkoutPlan` /
 `removeScheduledWorkoutPlan` / `listScheduledWorkoutPlans` all key on.
@@ -42,6 +42,6 @@ you pass, the summary spells it back in canonical lower-case; see
 
 > `optional` **location?**: `"indoor"` \| `"outdoor"`
 
-Defined in: [js/src/workoutPlans.ts:168](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L168)
+Defined in: [js/src/workoutPlans.ts:168](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L168)
 
 Omitted maps to WorkoutKit's own "unknown" default.

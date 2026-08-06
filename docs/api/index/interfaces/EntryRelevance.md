@@ -6,7 +6,7 @@
 
 # Interface: EntryRelevance
 
-Defined in: [js/src/widgets.ts:45](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L45)
+Defined in: [js/src/widgets.ts:45](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L45)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/widgets.ts:45](https://github.com/emindeniz99/react-watchos/
 
 > `optional` **durationMs?**: `number`
 
-Defined in: [js/src/widgets.ts:49](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L49)
+Defined in: [js/src/widgets.ts:49](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L49)
 
 How long the score applies, in ms.
 
@@ -24,6 +24,6 @@ How long the score applies, in ms.
 
 > **score**: `number`
 
-Defined in: [js/src/widgets.ts:47](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L47)
+Defined in: [js/src/widgets.ts:47](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L47)
 
 Smart Stack relevance score (higher = more prominent).

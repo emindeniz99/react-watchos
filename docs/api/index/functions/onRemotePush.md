@@ -8,7 +8,7 @@
 
 > **onRemotePush**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/remotePush.ts:61](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L61)
+Defined in: [js/src/remotePush.ts:61](https://github.com/emindeniz99/react-watchos/blob/main/js/src/remotePush.ts#L61)
 
 Runs `handler` with each delivered remote notification's userInfo (the
 `aps` dictionary + your server's custom keys). A registered listener is

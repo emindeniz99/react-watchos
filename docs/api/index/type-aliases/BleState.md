@@ -8,6 +8,6 @@
 
 > **BleState** = `string`
 
-Defined in: [js/src/bluetooth.ts:36](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L36)
+Defined in: [js/src/bluetooth.ts:36](https://github.com/emindeniz99/react-watchos/blob/main/js/src/bluetooth.ts#L36)
 
 "scanning" | "connected" | "disconnected" | "unauthorized" | "poweredOff"

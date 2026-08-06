@@ -8,7 +8,7 @@
 
 > **unregisterAllIntents**(): `void`
 
-Defined in: [js/src/intents.ts:22](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/intents.ts#L22)
+Defined in: [js/src/intents.ts:22](https://github.com/emindeniz99/react-watchos/blob/main/js/src/intents.ts#L22)
 
 ## Returns
 

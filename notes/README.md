@@ -1,6 +1,7 @@
 # Notes
 
-Research notes and references that inform `react-native-watchos` but aren't
+Research notes and references that inform `react-watchos` (the folder and
+commit-scope name `react-native-watchos` is historical) but aren't
 tied to a specific code change. Kept in-repo (versioned, reviewable, next to the
 code they inform) instead of in a personal tool.
 

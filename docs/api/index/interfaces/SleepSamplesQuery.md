@@ -6,7 +6,7 @@
 
 # Interface: SleepSamplesQuery
 
-Defined in: [js/src/health.ts:96](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L96)
+Defined in: [js/src/health.ts:96](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L96)
 
 Request for [querySleepSamples](../functions/querySleepSamples.md).
 
@@ -16,7 +16,7 @@ Request for [querySleepSamples](../functions/querySleepSamples.md).
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:98](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L98)
+Defined in: [js/src/health.ts:98](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L98)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:98](https://github.com/emindeniz99/react-watchos/b
 
 > `optional` **limit?**: `number`
 
-Defined in: [js/src/health.ts:100](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L100)
+Defined in: [js/src/health.ts:100](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L100)
 
 Cap on intervals returned. Hard ceiling 1000.
 
@@ -34,4 +34,4 @@ Cap on intervals returned. Hard ceiling 1000.
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:97](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L97)
+Defined in: [js/src/health.ts:97](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L97)

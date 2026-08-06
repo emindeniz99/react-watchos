@@ -8,7 +8,7 @@
 
 > **registerNativeListener**(`name`, `handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/nativeEvents.ts:51](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/nativeEvents.ts#L51)
+Defined in: [js/src/nativeEvents.ts:51](https://github.com/emindeniz99/react-watchos/blob/main/js/src/nativeEvents.ts#L51)
 
 Subscribes `handler` to native event `name`. Multiple handlers per event are
 supported — each fires. Returns an unsubscribe function; use it as a React

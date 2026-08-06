@@ -8,7 +8,7 @@
 
 > **useIsFocused**(): `boolean`
 
-Defined in: [js/src/navigation.tsx:284](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L284)
+Defined in: [js/src/navigation.tsx:284](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L284)
 
 True while the nearest enclosing <NavigationRoute> is the active route.
 

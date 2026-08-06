@@ -8,7 +8,7 @@
 
 > **handleIntent**(`name`, `paramsJson?`): `boolean`
 
-Defined in: [js/src/intents.ts:36](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/intents.ts#L36)
+Defined in: [js/src/intents.ts:36](https://github.com/emindeniz99/react-watchos/blob/main/js/src/intents.ts#L36)
 
 Dispatches an intent and auto-reloads the widgets the Glance way: if the
 handler changed persisted state (any `Storage` write), the runtime

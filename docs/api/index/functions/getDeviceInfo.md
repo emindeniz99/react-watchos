@@ -8,7 +8,7 @@
 
 > **getDeviceInfo**(): `Promise`\<[`DeviceInfo`](../interfaces/DeviceInfo.md)\>
 
-Defined in: [js/src/device.ts:43](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/device.ts#L43)
+Defined in: [js/src/device.ts:43](https://github.com/emindeniz99/react-watchos/blob/main/js/src/device.ts#L43)
 
 Fetches the current device snapshot. Rejects (invoke `UNAVAILABLE`) when
  there's no device bridge (tests/Node).

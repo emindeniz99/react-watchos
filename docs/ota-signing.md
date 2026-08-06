@@ -86,10 +86,10 @@ The manifest:
 ## 3. Versioning (anti-rollback)
 
 `version` is a **monotonic compatibility integer** in
-[`scripts/config.mjs`](../js/scripts/config.mjs) (`bundleVersion`). **Bump it
+[`scripts/config.ts`](../js/scripts/config.ts) (`bundleVersion`). **Bump it
 only on a breaking change** (db schema / wire contract). When you do:
 
-1. raise `bundleVersion` in `config.mjs`, and
+1. raise `bundleVersion` in `config.ts`, and
 2. raise `OTAConfig.shippedVersion` in the **native app** in lockstep with the
    bundle you ship in the binary.
 

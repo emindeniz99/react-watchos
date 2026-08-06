@@ -6,7 +6,7 @@
 
 # Interface: WidgetTimelineEntry
 
-Defined in: [js/src/widgets.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L52)
+Defined in: [js/src/widgets.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L52)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/widgets.ts:52](https://github.com/emindeniz99/react-watchos/
 
 > **date**: `number` \| `Date`
 
-Defined in: [js/src/widgets.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L53)
+Defined in: [js/src/widgets.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L53)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/widgets.ts:53](https://github.com/emindeniz99/react-watchos/
 
 > `optional` **relevance?**: [`EntryRelevance`](EntryRelevance.md)
 
-Defined in: [js/src/widgets.ts:57](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L57)
+Defined in: [js/src/widgets.ts:57](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L57)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/widgets.ts:57](https://github.com/emindeniz99/react-watchos/
 
 > `optional` **url?**: `string`
 
-Defined in: [js/src/widgets.ts:56](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L56)
+Defined in: [js/src/widgets.ts:56](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L56)
 
 Optional deep link opened when the complication/widget is tapped.
 
@@ -40,4 +40,4 @@ Optional deep link opened when the complication/widget is tapped.
 
 > **view**: `ReactNode`
 
-Defined in: [js/src/widgets.ts:54](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L54)
+Defined in: [js/src/widgets.ts:54](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L54)

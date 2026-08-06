@@ -8,7 +8,7 @@
 
 > **startWorkout**(`activityType`, `options?`): `Promise`\<`void`\>
 
-Defined in: [js/src/workout.ts:125](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L125)
+Defined in: [js/src/workout.ts:125](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workout.ts#L125)
 
 Starts a workout. Resolves when the session is actually **running** — the
 invoke is parked on `HKWorkoutSession`'s delegate, not settled when the

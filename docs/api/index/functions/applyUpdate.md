@@ -8,7 +8,7 @@
 
 > **applyUpdate**(`js`, `version?`, `signature?`, `keyId?`, `requiredFeatures?`, `minBridgeProtocol?`, `expiresAt?`): `Promise`\<`SaveUpdateResult`\>
 
-Defined in: [js/src/update.ts:159](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L159)
+Defined in: [js/src/update.ts:159](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L159)
 
 Stages an OTA bundle and resolves whether the watch accepted it (CX-005).
 Resolves (never rejects) with `{ accepted }` — a refusal from the native side

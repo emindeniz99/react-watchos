@@ -8,7 +8,7 @@
 
 > **onRuntimeSessionWillExpire**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/extendedRuntime.ts:47](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/extendedRuntime.ts#L47)
+Defined in: [js/src/extendedRuntime.ts:47](https://github.com/emindeniz99/react-watchos/blob/main/js/src/extendedRuntime.ts#L47)
 
 Fires shortly before the system reclaims the session, so you can wrap up.
 

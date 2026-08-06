@@ -6,7 +6,7 @@
 
 # Interface: POISearchOptions
 
-Defined in: [js/src/maps.ts:14](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L14)
+Defined in: [js/src/maps.ts:14](https://github.com/emindeniz99/react-watchos/blob/main/js/src/maps.ts#L14)
 
 Region bias for [searchPOI](../functions/searchPOI.md) — results near this center are preferred.
 
@@ -16,7 +16,7 @@ Region bias for [searchPOI](../functions/searchPOI.md) — results near this cen
 
 > `optional` **latitude?**: `number`
 
-Defined in: [js/src/maps.ts:15](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L15)
+Defined in: [js/src/maps.ts:15](https://github.com/emindeniz99/react-watchos/blob/main/js/src/maps.ts#L15)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/maps.ts:15](https://github.com/emindeniz99/react-watchos/blo
 
 > `optional` **longitude?**: `number`
 
-Defined in: [js/src/maps.ts:16](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L16)
+Defined in: [js/src/maps.ts:16](https://github.com/emindeniz99/react-watchos/blob/main/js/src/maps.ts#L16)
 
 ***
 
@@ -32,6 +32,6 @@ Defined in: [js/src/maps.ts:16](https://github.com/emindeniz99/react-watchos/blo
 
 > `optional` **span?**: `number`
 
-Defined in: [js/src/maps.ts:18](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L18)
+Defined in: [js/src/maps.ts:18](https://github.com/emindeniz99/react-watchos/blob/main/js/src/maps.ts#L18)
 
 Region span in degrees (both axes). Defaults to 0.1 natively.

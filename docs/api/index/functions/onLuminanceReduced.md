@@ -8,7 +8,7 @@
 
 > **onLuminanceReduced**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/appState.ts:57](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/appState.ts#L57)
+Defined in: [js/src/appState.ts:57](https://github.com/emindeniz99/react-watchos/blob/main/js/src/appState.ts#L57)
 
 Runs `handler` whenever the display enters or leaves reduced luminance
 (Always-On wrist-down). Returns an unsubscribe.

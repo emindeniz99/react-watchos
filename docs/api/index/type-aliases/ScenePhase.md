@@ -8,7 +8,7 @@
 
 > **ScenePhase** = `"active"` \| `"inactive"` \| `"background"`
 
-Defined in: [js/src/appState.ts:80](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/appState.ts#L80)
+Defined in: [js/src/appState.ts:80](https://github.com/emindeniz99/react-watchos/blob/main/js/src/appState.ts#L80)
 
 SwiftUI's `ScenePhase`, as the host pushes it.
 

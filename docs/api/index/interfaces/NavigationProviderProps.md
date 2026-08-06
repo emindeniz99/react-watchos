@@ -6,7 +6,7 @@
 
 # Interface: NavigationProviderProps
 
-Defined in: [js/src/navigation.tsx:35](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L35)
+Defined in: [js/src/navigation.tsx:35](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L35)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/navigation.tsx:35](https://github.com/emindeniz99/react-watc
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/navigation.tsx:40](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L40)
+Defined in: [js/src/navigation.tsx:40](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L40)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/navigation.tsx:40](https://github.com/emindeniz99/react-watc
 
 > `optional` **initialPath?**: `string`[]
 
-Defined in: [js/src/navigation.tsx:37](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L37)
+Defined in: [js/src/navigation.tsx:37](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L37)
 
 Pushed route stack. Root is [] and useRoute() returns "/".
 
@@ -32,6 +32,6 @@ Pushed route stack. Root is [] and useRoute() returns "/".
 
 > `optional` **scheme?**: `string`
 
-Defined in: [js/src/navigation.tsx:39](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L39)
+Defined in: [js/src/navigation.tsx:39](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L39)
 
 Custom URL scheme to accept from WidgetKit/deep links.

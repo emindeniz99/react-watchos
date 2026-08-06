@@ -1,9 +1,14 @@
-# react-native-watchos — project rules for AI assistants
+# react-watchos — repo rules for AI assistants
 
-Repo-wide rules are in the monorepo root `CLAUDE.md`. This is the project layer.
 **Before changing code here, read [`CONTRIBUTING.md`](./CONTRIBUTING.md) and
 [`docs/README.md`](./docs/README.md)** (the latter is the front door to the
 current improvement plan / backlog).
+
+**Commits:** Conventional Commits with the **mandatory scope**
+`react-native-watchos` — the historical project name, kept for commit-history
+continuity — e.g. `feat(react-native-watchos): …`, imperative mood, lowercase
+subject, ≤72-char header; AI-assisted commits add a `Co-Authored-By:` trailer.
+**Merging:** always a real merge commit — never squash, never rebase-merge.
 
 Three project rules that bite if you miss them:
 
@@ -22,7 +27,7 @@ Three project rules that bite if you miss them:
    gate.)
 
 3. **Research prior art / SOTA before designing a NEW subsystem, not after.**
-   Root `CLAUDE.md` rule 8 ("read before you write") covers *our* code; this
+   "Read before you write" covers *our* code; this
    covers the *outside world*. Before hand-rolling a whole layer (i18n,
    theming, a parser, a scheduler…), first survey how the best-in-class
    libraries solve it — their API shape, their edge cases, their measured cost
@@ -35,10 +40,8 @@ Three project rules that bite if you miss them:
    plural engine — that our hand-rolled English-only default silently got
    wrong for Arabic/Slavic.)
 
-Commit scope is **`react-native-watchos`** (Conventional Commits, scope
-mandatory, `Co-Authored-By:` trailer). The full plan + decision log is in
-`docs/` — later dated reviews supersede earlier ones; the merged backlog is the
-reconciled view.
+The full plan + decision log is in `docs/` — later dated reviews supersede
+earlier ones; the merged backlog is the reconciled view.
 
 **Naming:** the npm package publishes as **`react-watchos`** (B2: the
 `react-native-watchos` npm name is squatted, and the `react-native-*` prefix
