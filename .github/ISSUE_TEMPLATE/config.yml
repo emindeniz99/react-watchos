@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "Is feature X actually real yet?"
+    url: https://github.com/emindeniz99/react-watchos/blob/main/docs/status.md
+    about: The evidence-backed capability matrix — every claim links to a test or a build.

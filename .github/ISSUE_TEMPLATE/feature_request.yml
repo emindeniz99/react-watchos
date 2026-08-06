@@ -1,0 +1,30 @@
+name: Feature request
+description: A capability, component, or bridge you need that doesn't exist yet
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: [roadmap.md](https://github.com/emindeniz99/react-watchos/blob/main/docs/roadmap.md) lists what's planned
+        (and what was deliberately declined, with revive triggers), and
+        [extending.md](https://github.com/emindeniz99/react-watchos/blob/main/docs/extending.md) shows how to add a host
+        capability yourself — PRs welcome.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to build?
+      description: The app/screen/widget you want, not the API you imagine — the wire format shapes what a good API looks like here.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed shape (optional)
+      description: If you have an API in mind, sketch it. Note if an Apple framework is involved — availability (watchOS floor, entitlements, sim vs device) decides a lot.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I looked at docs/roadmap.md and this isn't already planned or declined
+          required: true

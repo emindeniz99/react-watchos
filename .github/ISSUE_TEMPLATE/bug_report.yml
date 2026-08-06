@@ -1,0 +1,59 @@
+name: Bug report
+description: Something broke — a crash, wrong render, a bridge/API misbehaving
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! Two docs answer most "is this a bug?" questions first:
+        [status.md](https://github.com/emindeniz99/react-watchos/blob/main/docs/status.md) (what's actually verified, at which level) and
+        [debugging.md](https://github.com/emindeniz99/react-watchos/blob/main/docs/debugging.md) (what a crash looks like and how to read it).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: >
+        The smallest JSX/TS snippet or demo-app route that shows it. If it only
+        reproduces on device (not sim), say so — several features are
+        device-only by nature (see status.md's ①②③ ladder).
+      render: tsx
+  - type: input
+    id: version
+    attributes:
+      label: react-watchos version
+      placeholder: e.g. 0.1.0 (or a commit SHA if building from source)
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - watchOS Simulator
+        - Physical Apple Watch
+        - Widget / complication (WidgetKit extension)
+        - Linux/macOS tests (swift test / vitest)
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: "watchOS 26.2 sim / Ultra 3 watchOS 26.5; Xcode 26.3; Node 24.x; macOS 15"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostics
+      description: >
+        The on-watch error banner text, `js.*` diagnostic codes, Console.app /
+        `log stream --predicate 'subsystem == "com.reactwatchos.runtime"'`
+        output, or remote-inspector ERRORS panel content.
+      render: text
