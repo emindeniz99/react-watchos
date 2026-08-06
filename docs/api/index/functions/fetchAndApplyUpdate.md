@@ -1,4 +1,4 @@
-[**react-watchos API v0.1.0**](../../README.md)
+[**react-watchos API**](../../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **fetchAndApplyUpdate**(`manifestUrl`): `Promise`\<`number` \| `null`\>
 
-Defined in: [js/src/update.ts:472](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L472)
+Defined in: [js/src/update.ts:485](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L485)
 
 Fetches the manifest and, if it's a fresher release than this bundle
 (`releaseId`/version, CX-025), downloads the bundle and stages it

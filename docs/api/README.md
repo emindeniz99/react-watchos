@@ -1,8 +1,8 @@
-**react-watchos API v0.1.0**
+**react-watchos API**
 
 ***
 
-# react-watchos API v0.1.0
+# react-watchos API
 
 ## Modules
 

@@ -1,4 +1,4 @@
-[**react-watchos API v0.1.0**](../../README.md)
+[**react-watchos API**](../../README.md)
 
 ***
 
@@ -8,7 +8,4 @@
 
 > `const` **BUNDLE\_VERSION**: `number`
 
-Defined in: [js/src/update.ts:193](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L193)
-
-This bundle's OTA compatibility version (CR-17), injected at build from
- scripts/config.ts. Compared against the server manifest's `version`.
+Defined in: [js/src/update.ts:203](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L203)
