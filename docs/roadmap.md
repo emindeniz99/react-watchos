@@ -152,6 +152,14 @@ Code defects — JS (`js/src`):
 
 Code defects — Swift host:
 
+- **Missing WatchApp.swift fails as an opaque `_main` linker error** (low —
+  DX; found prebuild-ing the FlareLog consumer 2026-08-07): the config plugin
+  scaffolds the watch target dir but the @main Swift entry comes from the
+  SEPARATE `react-watchos scaffold` CLI (DX-3); skip it and the first signal
+  is `Undefined symbols: "_main"` at link time. Fix: during prebuild, when
+  the watch target dir contains no `*.swift`, either write the scaffold's
+  starter WatchApp.swift (marked generated — edit freely) or fail the plugin
+  pass with "run npx react-watchos scaffold".
 - **The embedded bytecode cache trusts `bundle.js` blindly** (medium —
   wrong-app boots; found 2026-08-06 embedding the ctrl-a-remote bundle): in
   dev/unsigned mode the runtime prefers `assets/bundle.qbc` without checking
