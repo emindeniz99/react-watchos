@@ -47,6 +47,16 @@ feature-set model supersedes the earlier scalar capability gate).
 
 ## Verifying changes
 
+- **All JS gates need the mise-pinned Node 24** (`.mise.toml`): vitest
+  `require()`s typed `.cts` tooling through Node's native type stripping.
+  If `pnpm` resolves from another Node installation — the classic is an nvm
+  dir ahead of mise on PATH; its corepack shim then runs under *that* Node,
+  and `mise exec -- pnpm …` does **not** help because mise only resolves the
+  first command — exactly two files (`plugin.test.ts`, `scaffold.test.ts`)
+  used to die with a cryptic `SyntaxError: Unexpected token`. The suite now
+  refuses to start with instructions instead (see `js/vitest.config.ts`).
+  Quick fix: `PATH="$(mise where node)/bin:$PATH" pnpm test`, or activate
+  mise in the shell.
 - **JS + pure Swift logic — works anywhere (incl. Linux/CI):**
   `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `swift test` (the host is
   `#if os(watchOS)`-guarded so the package builds and tests on macOS/Linux
