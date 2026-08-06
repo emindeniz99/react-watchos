@@ -93,6 +93,21 @@ until the macOS build runs green** — that's the gate.
 
 ## Graduation-review follow-ups (2026-08-06, adversarially verified)
 
+- **Engine upgrade: quickjs-ng v0.15.1 → v0.16.1, AFTER 2026-08-11.**
+  Checked 2026-08-06: upstream has v0.16.0 (Jul 31 — register-based regexp
+  engine, arena allocator, and two memory-safety fixes we plausibly touch:
+  use-after-free in coroutines, double-free in detached ArrayBuffers) and
+  v0.16.1 (Aug 4 — fixes on top, which is itself the argument for waiting).
+  Both are inside the 7-day supply-chain cooldown this repo applies to npm
+  deps (`minimumReleaseAge`), so the same rule holds for the vendored engine:
+  take v0.16.1 once it is a week old, BEFORE the first npm publish if timing
+  allows. Procedure is documented in `js/swift/Sources/CQuickJS/VERSION.md`
+  (`tools/vendor-quickjs/run.sh v0.16.1` — SHA-verified; no local C patches
+  exist to lose, CHECKSUMS.sha256 proves the tree is pristine upstream; the
+  stack-guard fix lives in JSRuntime.swift, not the C). Gates after: 
+  `tools/embed-smoke/run.sh`, the vendored-engine bench, `swift test`, and
+  `pnpm test:swift:watch`.
+
 From the pre-publication review (26-agent scan of the extracted standalone
 repo + a code sweep of everything changed since 07-27). Secrets/history came
 back clean; these are the confirmed defects and remaining publish steps, each
