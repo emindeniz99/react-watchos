@@ -1,5 +1,12 @@
 # react-watchos
 
+[![npm](https://img.shields.io/npm/v/react-watchos)](https://www.npmjs.com/package/react-watchos)
+[![CI](https://github.com/emindeniz99/react-watchos/actions/workflows/ci.yml/badge.svg)](https://github.com/emindeniz99/react-watchos/actions/workflows/ci.yml)
+[![watch build](https://github.com/emindeniz99/react-watchos/actions/workflows/build.yml/badge.svg)](https://github.com/emindeniz99/react-watchos/actions/workflows/build.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+![watchOS 10+](https://img.shields.io/badge/watchOS-10%2B-black)
+![React 19](https://img.shields.io/badge/React-19-61dafb)
+
 Write Apple Watch UI in React — JSX, hooks, state — rendered as **native
 SwiftUI**, with the JS engine running **on the watch itself**. The app is
 standalone: it installs, runs, and updates its UI without the iPhone.
