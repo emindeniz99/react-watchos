@@ -58,7 +58,10 @@ interface ReactWatchOptions {
  * Expo config object and a JSON-parsed app.json (the CLI's scaffold path).
  */
 function resolveOptions(
-  config: { ios?: { bundleIdentifier?: string; appleTeamId?: string } },
+  config: {
+    name?: string;
+    ios?: { bundleIdentifier?: string; appleTeamId?: string };
+  },
   options: ReactWatchOptions | undefined,
 ): import("./targetConfig.cts").ResolvedOptions {
   const o = options || {};
@@ -70,6 +73,19 @@ function resolveOptions(
     );
   }
   const name = o.name ?? "React Watch";
+  // apple-targets looks Xcode targets up by productName (falling back to the
+  // FIRST target of the same product type), so a watch target named exactly
+  // like the app makes prebuild try to convert the iOS app target into the
+  // watch app and die deep in with-xcode-changes. Fail here with a fix
+  // instead (found by the first registry consumer, FlareLog).
+  if (config.name && name === config.name) {
+    throw new Error(
+      `[react-watchos] the watch target name ${JSON.stringify(name)} equals ` +
+        "your app's own name; @bacons/apple-targets matches targets by name, " +
+        "so prebuild would corrupt the iOS app target. Pass a distinct " +
+        `plugin \`name\`, e.g. ${JSON.stringify(`${config.name} Watch`)}.`,
+    );
+  }
   return {
     name,
     widgetName: `${name} Widgets`,

@@ -475,6 +475,23 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
   const { resolveOptions, targetProductsFor } = withReactWatch;
   const config = { ios: { bundleIdentifier: "com.emindeniz99.reactwatch" } };
 
+  // apple-targets matches Xcode targets by productName (falling back to the
+  // FIRST target of the same product type), so a watch target named exactly
+  // like the app makes prebuild convert the iOS APP target into the watch app
+  // and crash deep in with-xcode-changes — found by the first registry
+  // consumer (FlareLog: app and watch target both "FlareLog"). Refuse early.
+  it("rejects a watch target named exactly like the app", () => {
+    expect(() =>
+      resolveOptions({ ...config, name: "FlareLog" }, { name: "FlareLog" }),
+    ).toThrow(/distinct/);
+    expect(
+      resolveOptions(
+        { ...config, name: "FlareLog" },
+        { name: "FlareLog Watch" },
+      ).name,
+    ).toBe("FlareLog Watch");
+  });
+
   it("derives the App Group + widget name from the bundle id and name", () => {
     const o = resolveOptions(config, {});
     expect(o.name).toBe("React Watch");
