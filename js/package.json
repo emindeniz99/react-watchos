@@ -2,6 +2,9 @@
   "name": "react-watchos",
   "version": "0.1.0",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  },
   "type": "module",
   "description": "Custom React renderer: JSX to a serialized SwiftUI tree, runnable in QuickJS on Apple Watch",
   "keywords": [
