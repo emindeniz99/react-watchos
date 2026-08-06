@@ -5,12 +5,11 @@
   "pull-request-title-pattern": "chore(${component}): release ${version}",
   "separate-pull-requests": true,
   "packages": {
-    "projects/react-native-watchos/js": {
+    "js": {
       "release-type": "node",
       "package-name": "react-watchos",
       "changelog-path": "CHANGELOG.md",
-      "bump-minor-pre-major": true,
-      "bootstrap-sha": "2377ecb6abf9f62104e22b1e935c0e8f6e1353c9"
+      "bump-minor-pre-major": true
     }
   }
 }
