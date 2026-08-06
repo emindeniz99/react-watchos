@@ -198,7 +198,7 @@ export async function applyUpdate(
  *  `typeof` guard keeps a define-less bundle safe in QuickJS (typeof on an
  *  undeclared identifier doesn't throw). */
 declare const process:
-  | { env?: Record<string, string | undefined> }
+  | { env: Record<string, string | undefined> }
   | undefined;
 export const BUNDLE_VERSION =
   typeof process === "undefined"
