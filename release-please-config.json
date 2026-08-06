@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "include-component-in-tag": true,
+  "pull-request-title-pattern": "chore(${component}): release ${version}",
+  "separate-pull-requests": true,
+  "packages": {
+    "projects/react-native-watchos/js": {
+      "release-type": "node",
+      "package-name": "react-watchos",
+      "changelog-path": "CHANGELOG.md",
+      "bump-minor-pre-major": true,
+      "bootstrap-sha": "2377ecb6abf9f62104e22b1e935c0e8f6e1353c9"
+    }
+  }
+}
