@@ -39,6 +39,25 @@ WORKSPACE="$ROOT/app/ios/ReactWatchDemo.xcworkspace"
 SCHEME="React Watch"
 BUNDLE_ID="com.emindeniz99.reactwatch.watch"
 
+# 0) Node-floor guard + .xcode.env.local re-pin (2026-08-06). Two traps, same
+#    root: the typed .cts tooling needs Node's native type stripping (>=22.18).
+#    (a) This script itself must run on such a node — verify, don't assume.
+#    (b) `expo prebuild` HARDCODES the node it saw into app/ios/.xcode.env.local,
+#        and Xcode script phases use THAT binary, ignoring this shell's PATH —
+#        a stale pin (e.g. nvm 22.16) makes the EXConstants "Generate
+#        app.config" phase die parsing plugin/index.cts ("Unexpected
+#        identifier 'ReactWatchOptions'"). Re-pin it to the verified node.
+node -e 'const [maj,min]=process.versions.node.split(".").map(Number);
+if (maj<22 || (maj===22 && min<18)) {
+  console.error(`node ${process.version} is below the >=22.18 type-stripping floor `
+    + `(.mise.toml pins 24). Run via mise, e.g. PATH="$(mise where node)/bin:$PATH" pnpm run:watch`);
+  process.exit(1);
+}'
+if [ -d "$ROOT/app/ios" ]; then
+  printf 'export NODE_BINARY=%s\n' "$(command -v node)" > "$ROOT/app/ios/.xcode.env.local"
+  echo "==> Pinned app/ios/.xcode.env.local to $(command -v node) ($(node --version))"
+fi
+
 # 1) Fresh JS bundle → copied into app/targets/watch/assets/bundle.js by build.ts.
 echo "==> Building JS bundle"
 node --experimental-strip-types scripts/build.ts

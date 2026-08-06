@@ -56,7 +56,10 @@ feature-set model supersedes the earlier scalar capability gate).
   used to die with a cryptic `SyntaxError: Unexpected token`. The suite now
   refuses to start with instructions instead (see `js/vitest.config.ts`).
   Quick fix: `PATH="$(mise where node)/bin:$PATH" pnpm test`, or activate
-  mise in the shell.
+  mise in the shell. The same trap has a second home: `expo prebuild`
+  hardcodes the node it saw into `app/ios/.xcode.env.local`, and Xcode
+  script phases use *that* binary regardless of your shell — `run:watch`
+  now verifies the floor and re-pins that file on every run.
 - **JS + pure Swift logic — works anywhere (incl. Linux/CI):**
   `pnpm test`, `pnpm typecheck`, `pnpm lint`, and `swift test` (the host is
   `#if os(watchOS)`-guarded so the package builds and tests on macOS/Linux
