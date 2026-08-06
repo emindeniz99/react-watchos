@@ -189,8 +189,21 @@ export async function applyUpdate(
 }
 
 /** This bundle's OTA compatibility version (CR-17), injected at build from
- *  scripts/config.ts. Compared against the server manifest's `version`. */
-export const BUNDLE_VERSION = Number(process.env.BUNDLE_VERSION ?? "1");
+ *  scripts/config.ts. Compared against the server manifest's `version`.
+ *
+ *  The module-local `process` declaration exists for CONSUMER typechecking:
+ *  this file ships as source, so without it every consumer would need
+ *  @types/node just to satisfy this one line. At build time the esbuild
+ *  preset `define`s the full `process.env.BUNDLE_VERSION` token away, and the
+ *  `typeof` guard keeps a define-less bundle safe in QuickJS (typeof on an
+ *  undeclared identifier doesn't throw). */
+declare const process:
+  | { env?: Record<string, string | undefined> }
+  | undefined;
+export const BUNDLE_VERSION =
+  typeof process === "undefined"
+    ? 1
+    : Number(process.env.BUNDLE_VERSION ?? "1");
 
 /** The update manifest served by your update endpoint (dist/manifest.json). */
 export interface UpdateManifest {

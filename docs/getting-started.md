@@ -169,18 +169,18 @@ bundler compiles the `.ts` directly.
 **The source-shipping tsconfig contract (applies to EVERY consumer, registry
 installs included):** because you compile our `.ts` as part of your program,
 `skipLibCheck` does not exempt it — your tsconfig must be able to type-check
-it. Concretely, the renderer source references Node-typed globals
-(`setTimeout`, `console`, `process` guards), so a strict consumer needs
-`@types/node` visible:
+it. Concretely, your `lib` must cover the timer/console/fetch globals the
+renderer uses — the standard Expo/web shape works:
 
 ```jsonc
-// tsconfig.json — required for every consumer of this package
-{ "compilerOptions": { "types": ["node"] } }
+// tsconfig.json — the contract every consumer of this package needs
+{ "compilerOptions": { "lib": ["DOM", "DOM.Iterable", "ESNext"], "jsx": "react-jsx" } }
 ```
 
-and `@types/node` in your devDependencies (Expo templates already have it).
-Without it, a strict config fails with ~25 `TS2304/TS2580` errors *inside the
-package*. Both in-repo examples carry this setting.
+(`@types/node` is NOT required since 0.2.0 — the one `process` read carries
+its own module-local declaration.) Without a covering `lib`, a strict config
+fails with `TS2304` errors *inside the package*. Both in-repo examples carry
+this shape.
 
 A linked package additionally resolves through a symlink (realpath), so for
 `file:`/`link:` your tools also need to dedupe React across that boundary.
