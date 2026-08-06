@@ -1,0 +1,8 @@
+# Generated-but-committed files (each drift-gated in CI/tests — see docs):
+# collapse them in PR diffs and keep them out of language stats.
+docs/api/** linguist-generated=true
+js/src/generated/** linguist-generated=true
+js/swift/Tests/ReactWatchTests/Fixtures/invoke-*.json linguist-generated=true
+js/test/interpreter-prop-parity.golden.json linguist-generated=true
+# Vendored upstream (QuickJS engine): not our language stats either.
+js/swift/Sources/CQuickJS/** linguist-vendored=true
