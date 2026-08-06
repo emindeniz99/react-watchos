@@ -91,6 +91,32 @@ already implemented. Revisit only if a real app needs an iOS Live Activity.
 All SwiftUI/CoreBluetooth code added across these passes is **unverified
 until the macOS build runs green** — that's the gate.
 
+## DX follow-ups from the first real consumer migration (2026-08-06)
+
+Migrating ctrl-a-remote onto the published package surfaced three concrete
+testing-DX gaps — each one forced the consumer to hand-roll internals:
+
+- **Ship an invoke-recording test host.** Consumers mock the invoke wire by
+  hand (`__host.invoke(id, method, payloadJson)` + `__resolveInvoke` +
+  `queueMicrotask`) to test anything BLE/health/connectivity. `testing`
+  should export a `createInvokeHost()` that records `{method, payload}` and
+  auto-settles (configurable result/reject per method).
+- **Ship a navigation driver.** A NavigationLink press is confirmed by the
+  native stack, so `dispatchEvent({event:"press"})` on a link returns
+  `{handled:false}` — surprising, undocumented, and every consumer test ends
+  up copying the deep-link push idiom from our own navigation suite. Export
+  a `pushDeepLink(url)` helper (and document WHY link presses aren't
+  test-dispatchable).
+- **Auto-dispose between tests.** The single-root rule makes every consumer
+  hit "runApp: a root is already mounted" in their second test. Export a
+  `mountApp()` test helper that tracks and disposes the root (our own suite
+  already has one — publish it).
+
+Also owed from the same pass: a MIGRATIONS.md (pre-1.0 breaking changes ship
+as minors; the changelog says WHAT changed, a migration note should say what
+consumers DO — the ctrl-a-remote commit 63e331e3 in the old monorepo is the
+worked example for 0.1.0-era code).
+
 ## Graduation-review follow-ups (2026-08-06, adversarially verified)
 
 - **Engine upgrade: quickjs-ng v0.15.1 → v0.16.1 — DONE 2026-08-06.** The
