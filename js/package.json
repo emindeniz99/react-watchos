@@ -30,7 +30,6 @@
   ],
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "app.plugin.js": "./app.plugin.js",
   "exports": {
     ".": {
       "source": "./src/index.ts",
@@ -155,14 +154,14 @@
     "vitest": "^4.0.0"
   },
   "bin": {
-    "react-watchos": "./bin/react-watchos.cts"
+    "react-watchos": "bin/react-watchos.cts"
   },
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "homepage": "https://github.com/emindeniz99/react-watchos#readme",
   "bugs": {
     "url": "https://github.com/emindeniz99/react-watchos/issues"
-  }
+  },
+  "author": "Emin Deniz (https://github.com/emindeniz99)"
 }
