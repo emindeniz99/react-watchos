@@ -8,7 +8,7 @@
 
 > **readReceivedFile**(`path`, `options?`): `Promise`\<[`ReceivedFileChunk`](../interfaces/ReceivedFileChunk.md)\>
 
-Defined in: [js/src/connectivity.ts:355](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L355)
+Defined in: [js/src/connectivity.ts:355](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L355)
 
 Reads a file this app received, by the `path` its [onReceivedFile](onReceivedFile.md)
 event carried — the package's byte-reading API for the inbox, and the reason

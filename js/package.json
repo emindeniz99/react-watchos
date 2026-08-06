@@ -19,8 +19,8 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/emindeniz99/playground.git",
-    "directory": "projects/react-native-watchos/js"
+    "url": "git+https://github.com/emindeniz99/react-watchos.git",
+    "directory": "js"
   },
   "sideEffects": [
     "./src/install-shims.ts",
@@ -160,5 +160,9 @@
   "publishConfig": {
     "access": "public",
     "provenance": true
+  },
+  "homepage": "https://github.com/emindeniz99/react-watchos#readme",
+  "bugs": {
+    "url": "https://github.com/emindeniz99/react-watchos/issues"
   }
 }

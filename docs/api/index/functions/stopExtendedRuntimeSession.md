@@ -8,7 +8,7 @@
 
 > **stopExtendedRuntimeSession**(): `Promise`\<`void`\>
 
-Defined in: [js/src/extendedRuntime.ts:35](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/extendedRuntime.ts#L35)
+Defined in: [js/src/extendedRuntime.ts:35](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/extendedRuntime.ts#L35)
 
 Ends the active session (idempotent).
 

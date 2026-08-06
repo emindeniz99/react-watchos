@@ -8,6 +8,6 @@
 
 > `const` **WORKOUT\_STATE\_EVENT**: `"workout.state"` = `"workout.state"`
 
-Defined in: [js/src/workout.ts:62](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L62)
+Defined in: [js/src/workout.ts:62](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L62)
 
 `workout.state`: `{ state, reason? }` on every session transition.

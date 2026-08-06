@@ -8,4 +8,4 @@
 
 > `const` **REMOTE\_PUSH\_TOKEN\_EVENT**: `"remotePush.token"` = `"remotePush.token"`
 
-Defined in: [js/src/remotePush.ts:13](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L13)
+Defined in: [js/src/remotePush.ts:13](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L13)

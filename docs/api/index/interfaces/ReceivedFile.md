@@ -6,7 +6,7 @@
 
 # Interface: ReceivedFile
 
-Defined in: [js/src/connectivity.ts:162](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L162)
+Defined in: [js/src/connectivity.ts:162](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L162)
 
 A file received from the iPhone, as delivered to [onReceivedFile](../functions/onReceivedFile.md).
 
@@ -16,7 +16,7 @@ A file received from the iPhone, as delivered to [onReceivedFile](../functions/o
 
 > **metadata**: `Record`\<`string`, `unknown`\>
 
-Defined in: [js/src/connectivity.ts:191](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L191)
+Defined in: [js/src/connectivity.ts:191](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L191)
 
 What the sender passed as `metadata`, REDUCED TO JSON — see the inbound
  reduction note at the top of this module. A `Date`/`Data`/non-finite leaf
@@ -30,7 +30,7 @@ What the sender passed as `metadata`, REDUCED TO JSON — see the inbound
 
 > **name**: `string`
 
-Defined in: [js/src/connectivity.ts:184](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L184)
+Defined in: [js/src/connectivity.ts:184](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L184)
 
 The name the sender gave the file.
 
@@ -40,7 +40,7 @@ The name the sender gave the file.
 
 > **path**: `string`
 
-Defined in: [js/src/connectivity.ts:182](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L182)
+Defined in: [js/src/connectivity.ts:182](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L182)
 
 Absolute `file://` path inside this app's inbox. Read it with
  [readReceivedFile](../functions/readReceivedFile.md), then [deleteReceivedFile](../functions/deleteReceivedFile.md) it.
@@ -67,7 +67,7 @@ Absolute `file://` path inside this app's inbox. Read it with
 
 > **receivedAt**: `number`
 
-Defined in: [js/src/connectivity.ts:193](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L193)
+Defined in: [js/src/connectivity.ts:193](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L193)
 
 ms since epoch, stamped when the file landed.
 
@@ -77,4 +77,4 @@ ms since epoch, stamped when the file landed.
 
 > **size**: `number`
 
-Defined in: [js/src/connectivity.ts:185](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L185)
+Defined in: [js/src/connectivity.ts:185](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L185)

@@ -6,7 +6,7 @@
 
 # Interface: PluralForms
 
-Defined in: [js/src/i18n.tsx:47](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L47)
+Defined in: [js/src/i18n.tsx:47](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L47)
 
 A plural bundle keyed by CLDR cardinal category; `other` is required as the
  universal fallback so every plural resolves to *something*.
@@ -17,7 +17,7 @@ A plural bundle keyed by CLDR cardinal category; `other` is required as the
 
 > `optional` **few?**: `string`
 
-Defined in: [js/src/i18n.tsx:51](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L51)
+Defined in: [js/src/i18n.tsx:51](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L51)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [js/src/i18n.tsx:51](https://github.com/emindeniz99/playground/blob/
 
 > `optional` **many?**: `string`
 
-Defined in: [js/src/i18n.tsx:52](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L52)
+Defined in: [js/src/i18n.tsx:52](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L52)
 
 ***
 
@@ -33,7 +33,7 @@ Defined in: [js/src/i18n.tsx:52](https://github.com/emindeniz99/playground/blob/
 
 > `optional` **one?**: `string`
 
-Defined in: [js/src/i18n.tsx:49](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L49)
+Defined in: [js/src/i18n.tsx:49](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L49)
 
 ***
 
@@ -41,7 +41,7 @@ Defined in: [js/src/i18n.tsx:49](https://github.com/emindeniz99/playground/blob/
 
 > **other**: `string`
 
-Defined in: [js/src/i18n.tsx:53](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L53)
+Defined in: [js/src/i18n.tsx:53](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L53)
 
 ***
 
@@ -49,7 +49,7 @@ Defined in: [js/src/i18n.tsx:53](https://github.com/emindeniz99/playground/blob/
 
 > `optional` **two?**: `string`
 
-Defined in: [js/src/i18n.tsx:50](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L50)
+Defined in: [js/src/i18n.tsx:50](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L50)
 
 ***
 
@@ -57,4 +57,4 @@ Defined in: [js/src/i18n.tsx:50](https://github.com/emindeniz99/playground/blob/
 
 > `optional` **zero?**: `string`
 
-Defined in: [js/src/i18n.tsx:48](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L48)
+Defined in: [js/src/i18n.tsx:48](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L48)

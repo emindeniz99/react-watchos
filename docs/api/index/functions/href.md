@@ -8,7 +8,7 @@
 
 > **href**\<`S`\>(`template`, `params`): `string`
 
-Defined in: [js/src/navigation.tsx:255](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L255)
+Defined in: [js/src/navigation.tsx:255](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L255)
 
 Build a concrete path from a route template and type-checked params:
 `href("/list/[id]", { id: "42" })` -> `"/list/42"`. The params type is

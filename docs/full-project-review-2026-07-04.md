@@ -139,7 +139,7 @@ What stands between here and production is concentrated in four blockers:
 | # | Blocker | Dimension | One-line |
 |---|---------|-----------|----------|
 | B1 | **CI has never run green — the pipeline is dark** | testing-ci | Linux CI: 2 runs ever, both `startup_failure` (2026-06-25). macOS build: **0 runs ever** (the nightly has never fired). release-please: 3 runs, all failures. Automatic runs appear disabled at the repo level. Every documented gate currently gates nothing. |
-| B2 | **npm name `react-native-watchos` is already owned by someone else** | prod-readiness | Verified: registry has 0.0.0 by `tsapeta` (an Expo maintainer) since 2023-06. The configured release pipeline cannot publish under the current identity. |
+| B2 | **npm name `react-native-watchos` is already owned by someone else** | prod-readiness | Verified: registry has a 0.0.0 placeholder registered by another maintainer since 2023-06. The configured release pipeline cannot publish under the current identity. |
 | B3 | **Deterministic same-thread NSLock deadlock in the widget runtime** | swift-code | `WidgetIntentRuntime.renderFreshTimelines` holds `cacheLock` across bundle evaluation; a bundle that calls `publishWidgets()` during load re-enters `invalidateCache` → permanent hang → extension watchdog-killed, complications stop updating. |
 | B4 | **Swift 6 strict-concurrency violations that will fail the E2 compile** | swift-code | ~7 sites in `ReactWatchModel` where `DispatchQueue.main.async` (`@Sendable`) closures touch `@MainActor` state directly. `swift-tools-version:6.0` makes these hard errors. The first macOS build will be red until they're wrapped (`MainActor.assumeIsolated` — the codebase already uses the right pattern elsewhere). |
 
@@ -196,14 +196,14 @@ PR checks, and add a failure notification for the nightly so a silent scheduler
 outage is noticed (this one wasn't).
 
 **B2 — npm name is taken** (`js/package.json`)
-`npm view react-native-watchos`: version 0.0.0, maintainer `tsapeta`
-(npm@tsapeta.com), created 2023-06-11. The whole release identity hangs on this
+`npm view react-native-watchos`: version 0.0.0, registered by another
+maintainer, created 2023-06-11. The whole release identity hangs on this
 string: package name + bin, `release-please-config.json` package-name, the
 publish job filter, plugin `require.resolve` self-references, both READMEs,
 examples' deps, announcement copy.
-*Fix:* decide now — scope it (`@emindeniz99/react-native-watchos`) or negotiate
-transfer of the placeholder (the holder is an Expo maintainer; a 0.0.0
-name-squat transfer request is routine). Then grep-replace the identity across
+*Fix:* decide now — scope it (`@emindeniz99/react-native-watchos`) or request
+transfer of the placeholder (a 0.0.0-placeholder transfer request is routine).
+Then grep-replace the identity across
 the eight touchpoints and re-run the pack dry-run. Also weigh the finding below
 (§5 requirements, minor) that the `react-native-*` prefix itself makes the one
 claim the checklist forbids ("not React Native core") — if a rename is happening

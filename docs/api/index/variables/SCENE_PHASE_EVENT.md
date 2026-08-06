@@ -8,6 +8,6 @@
 
 > `const` **SCENE\_PHASE\_EVENT**: `"scenePhase"` = `"scenePhase"`
 
-Defined in: [js/src/appState.ts:69](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/appState.ts#L69)
+Defined in: [js/src/appState.ts:69](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/appState.ts#L69)
 
 Native event carrying `{ phase: ScenePhase }`.

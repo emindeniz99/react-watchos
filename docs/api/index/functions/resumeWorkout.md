@@ -8,7 +8,7 @@
 
 > **resumeWorkout**(): `Promise`\<`void`\>
 
-Defined in: [js/src/workout.ts:148](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L148)
+Defined in: [js/src/workout.ts:148](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L148)
 
 Resumes a paused workout. Rejects `UNAVAILABLE` if none is paused.
 

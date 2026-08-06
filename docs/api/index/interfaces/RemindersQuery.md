@@ -6,7 +6,7 @@
 
 # Interface: RemindersQuery
 
-Defined in: [js/src/calendar.ts:96](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L96)
+Defined in: [js/src/calendar.ts:96](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L96)
 
 Request for [getReminders](../functions/getReminders.md).
 
@@ -16,7 +16,7 @@ Request for [getReminders](../functions/getReminders.md).
 
 > `optional` **dueBeforeMs?**: `number`
 
-Defined in: [js/src/calendar.ts:99](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L99)
+Defined in: [js/src/calendar.ts:99](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L99)
 
 Only reminders due before this instant. Defaults to 30 days out —
  "everything incomplete, ever" is an unbounded query.
@@ -27,6 +27,6 @@ Only reminders due before this instant. Defaults to 30 days out —
 
 > `optional` **limit?**: `number`
 
-Defined in: [js/src/calendar.ts:101](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L101)
+Defined in: [js/src/calendar.ts:101](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L101)
 
 Cap on reminders returned. Hard ceiling 250.

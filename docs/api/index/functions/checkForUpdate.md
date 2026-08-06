@@ -8,7 +8,7 @@
 
 > **checkForUpdate**(`manifestUrl`): `Promise`\<\{ `appUpdateRequired?`: `boolean`; `current`: `number`; `latest`: `number`; `missingCapabilities?`: `string`[]; `updateAvailable`: `boolean`; \}\>
 
-Defined in: [js/src/update.ts:440](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L440)
+Defined in: [js/src/update.ts:440](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L440)
 
 Fetches the update manifest and reports whether a newer release is available.
 Freshness keys on the bundle's `releaseId` (CX-025), so a non-breaking fix

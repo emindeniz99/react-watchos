@@ -8,7 +8,7 @@
 
 > **endWorkout**(`options?`): `Promise`\<`WorkoutState`\>
 
-Defined in: [js/src/workout.ts:168](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L168)
+Defined in: [js/src/workout.ts:168](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L168)
 
 Ends the workout and, by default, **saves** it as an `HKWorkout` — resolving
 with the same snapshot [getWorkoutState](getWorkoutState.md) reports, so the saved id,

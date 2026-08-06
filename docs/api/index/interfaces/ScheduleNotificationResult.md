@@ -6,7 +6,7 @@
 
 # Interface: ScheduleNotificationResult
 
-Defined in: [js/src/notifications.ts:69](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/notifications.ts#L69)
+Defined in: [js/src/notifications.ts:69](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/notifications.ts#L69)
 
 The outcome of scheduling a notification (CX-022). `id` is the deterministic
  id (pass it to cancelNotification); `scheduled` is false when the watch
@@ -19,7 +19,7 @@ The outcome of scheduling a notification (CX-022). `id` is the deterministic
 
 > `optional` **code?**: `string`
 
-Defined in: [js/src/notifications.ts:73](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/notifications.ts#L73)
+Defined in: [js/src/notifications.ts:73](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/notifications.ts#L73)
 
 Set when scheduled is false.
 
@@ -29,7 +29,7 @@ Set when scheduled is false.
 
 > **id**: `string`
 
-Defined in: [js/src/notifications.ts:70](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/notifications.ts#L70)
+Defined in: [js/src/notifications.ts:70](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/notifications.ts#L70)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [js/src/notifications.ts:70](https://github.com/emindeniz99/playgrou
 
 > `optional` **message?**: `string`
 
-Defined in: [js/src/notifications.ts:74](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/notifications.ts#L74)
+Defined in: [js/src/notifications.ts:74](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/notifications.ts#L74)
 
 ***
 
@@ -45,4 +45,4 @@ Defined in: [js/src/notifications.ts:74](https://github.com/emindeniz99/playgrou
 
 > **scheduled**: `boolean`
 
-Defined in: [js/src/notifications.ts:71](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/notifications.ts#L71)
+Defined in: [js/src/notifications.ts:71](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/notifications.ts#L71)

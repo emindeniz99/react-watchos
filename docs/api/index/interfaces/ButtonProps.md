@@ -6,7 +6,7 @@
 
 # Interface: ButtonProps
 
-Defined in: [js/src/components.ts:186](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L186)
+Defined in: [js/src/components.ts:186](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L186)
 
 Swipe actions (SwiftUI `.swipeActions`), the watchOS-idiomatic way to act on
 a row. Only meaningful on a row inside a `<List>`; unlike a raw `onSwipe`
@@ -26,7 +26,7 @@ edge independently:
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L53)
 
 #### Inherited from
 
@@ -38,7 +38,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/playground/
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L52)
 
 #### Inherited from
 
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/
 
 > `optional` **animation?**: `object`
 
-Defined in: [js/src/components.ts:92](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L92)
+Defined in: [js/src/components.ts:92](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L92)
 
 Animate this node's committed changes (SwiftUI `.animation(_:value:)`):
 any prop or subtree change transitions with the given curve instead of
@@ -75,7 +75,7 @@ only — widgets are static snapshots and ignore it.
 
 > `optional` **background?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:73](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L73)
+Defined in: [js/src/components.ts:73](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L73)
 
 Fill color behind the content (rounded when cornerRadius is set).
 
@@ -89,7 +89,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **buttonStyle?**: `"glass"` \| `"glassProminent"` \| `"plain"`
 
-Defined in: [js/src/components.ts:216](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L216)
+Defined in: [js/src/components.ts:216](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L216)
 
 Button chrome. "glass"/"glassProminent" are Liquid Glass (watchOS 26+;
 silently the default on older watches; "glassProminent" is the accented
@@ -109,7 +109,7 @@ interactive button hard-codes `.buttonStyle(.plain)`, so every value here
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:217](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L217)
+Defined in: [js/src/components.ts:217](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L217)
 
 ***
 
@@ -117,7 +117,7 @@ Defined in: [js/src/components.ts:217](https://github.com/emindeniz99/playground
 
 > `optional` **cornerRadius?**: `number`
 
-Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L75)
+Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L75)
 
 Rounds the background — or clips the content when there is none.
 
@@ -131,7 +131,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **focusable?**: `boolean`
 
-Defined in: [js/src/components.ts:109](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L109)
+Defined in: [js/src/components.ts:109](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L109)
 
 Make this view Crown/focus-addressable (watchOS focus traversal).
 
@@ -145,7 +145,7 @@ Make this view Crown/focus-addressable (watchOS focus traversal).
 
 > `optional` **frame?**: `object`
 
-Defined in: [js/src/components.ts:66](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L66)
+Defined in: [js/src/components.ts:66](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L66)
 
 Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
@@ -175,7 +175,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **glass?**: `boolean`
 
-Defined in: [js/src/components.ts:120](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L120)
+Defined in: [js/src/components.ts:120](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L120)
 
 Apply the watchOS 26 Liquid Glass effect (no-op on older OSes).
 
@@ -196,7 +196,7 @@ a view in the app renders it plain on a watch face. Declared in
 
 > `optional` **ignoresSafeArea?**: `boolean`
 
-Defined in: [js/src/components.ts:85](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L85)
+Defined in: [js/src/components.ts:85](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L85)
 
 Let this node extend under the safe area (SwiftUI `.ignoresSafeArea()`).
 Set it on an overlay stacked on a `fullScreen` map so bottom-anchored
@@ -212,7 +212,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **intent?**: `string`
 
-Defined in: [js/src/components.ts:202](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L202)
+Defined in: [js/src/components.ts:202](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L202)
 
 Makes this button interactive **inside a widget/complication** (watchOS
 11+): a tap runs the `registerIntent(name, …)` handler in the widget
@@ -227,7 +227,7 @@ watchOS 10 a widget button falls back to its (non-interactive) content.
 
 > `optional` **leadingSwipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:137](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L137)
+Defined in: [js/src/components.ts:137](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L137)
 
 #### Inherited from
 
@@ -239,7 +239,7 @@ Defined in: [js/src/components.ts:137](https://github.com/emindeniz99/playground
 
 > `optional` **leadingSwipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L138)
+Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L138)
 
 #### Inherited from
 
@@ -251,7 +251,7 @@ Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/playground
 
 > `optional` **leadingSwipeActionTint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:139](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L139)
+Defined in: [js/src/components.ts:139](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L139)
 
 #### Inherited from
 
@@ -263,7 +263,7 @@ Defined in: [js/src/components.ts:139](https://github.com/emindeniz99/playground
 
 > `optional` **onDrag?**: (`translation`) => `void`
 
-Defined in: [js/src/components.ts:107](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L107)
+Defined in: [js/src/components.ts:107](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L107)
 
 Streamed drag translation (quantized to throttle the bridge) — for scrubbing.
 
@@ -293,7 +293,7 @@ Streamed drag translation (quantized to throttle the bridge) — for scrubbing.
 
 > `optional` **onLeadingSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:140](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L140)
+Defined in: [js/src/components.ts:140](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L140)
 
 #### Returns
 
@@ -309,7 +309,7 @@ Defined in: [js/src/components.ts:140](https://github.com/emindeniz99/playground
 
 > `optional` **onLongPress?**: () => `void`
 
-Defined in: [js/src/components.ts:104](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L104)
+Defined in: [js/src/components.ts:104](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L104)
 
 #### Returns
 
@@ -325,7 +325,7 @@ Defined in: [js/src/components.ts:104](https://github.com/emindeniz99/playground
 
 > `optional` **onPress?**: () => `void`
 
-Defined in: [js/src/components.ts:191](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L191)
+Defined in: [js/src/components.ts:191](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L191)
 
 #### Returns
 
@@ -337,7 +337,7 @@ Defined in: [js/src/components.ts:191](https://github.com/emindeniz99/playground
 
 > `optional` **onSwipe?**: (`direction`) => `void`
 
-Defined in: [js/src/components.ts:105](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L105)
+Defined in: [js/src/components.ts:105](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L105)
 
 #### Parameters
 
@@ -359,7 +359,7 @@ Defined in: [js/src/components.ts:105](https://github.com/emindeniz99/playground
 
 > `optional` **onSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L136)
+Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L136)
 
 #### Returns
 
@@ -375,7 +375,7 @@ Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/playground
 
 > `optional` **opacity?**: `number`
 
-Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L77)
+Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L77)
 
 0 (invisible) … 1 (opaque).
 
@@ -389,7 +389,7 @@ Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/playground/
 
 > `optional` **padding?**: `number` \| \{ `horizontal?`: `number`; `vertical?`: `number`; \}
 
-Defined in: [js/src/components.ts:64](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L64)
+Defined in: [js/src/components.ts:64](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L64)
 
 Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
@@ -403,7 +403,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **primaryAction?**: `boolean`
 
-Defined in: [js/src/components.ts:193](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L193)
+Defined in: [js/src/components.ts:193](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L193)
 
 Bind this button to the Apple Watch double-tap gesture (watchOS 11+).
 
@@ -413,7 +413,7 @@ Bind this button to the Apple Watch double-tap gesture (watchOS 11+).
 
 > `optional` **swipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:133](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L133)
+Defined in: [js/src/components.ts:133](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L133)
 
 #### Inherited from
 
@@ -425,7 +425,7 @@ Defined in: [js/src/components.ts:133](https://github.com/emindeniz99/playground
 
 > `optional` **swipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:134](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L134)
+Defined in: [js/src/components.ts:134](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L134)
 
 #### Inherited from
 
@@ -437,7 +437,7 @@ Defined in: [js/src/components.ts:134](https://github.com/emindeniz99/playground
 
 > `optional` **swipeActionTint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:135](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L135)
+Defined in: [js/src/components.ts:135](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L135)
 
 #### Inherited from
 
@@ -449,7 +449,7 @@ Defined in: [js/src/components.ts:135](https://github.com/emindeniz99/playground
 
 > `optional` **tint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:79](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L79)
+Defined in: [js/src/components.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L79)
 
 Accent color for this subtree's controls (SwiftUI .tint).
 

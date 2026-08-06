@@ -6,6 +6,19 @@ dist/
 package-lock.json
 yarn.lock
 
+# Env-file safety net + OS/editor junk. Duplicated from the monorepo root on
+# purpose: after graduation this file IS the repo root .gitignore, and losing
+# the net there is exactly how a .env leaks (2026-08-06 graduation review).
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
 # SwiftPM build output.
 .build/
 # Xcode's local SwiftPM state (per-user schemes); never shared.

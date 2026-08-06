@@ -8,7 +8,7 @@
 
 > **queryHealthStatistics**(`request`): `Promise`\<[`HealthStatisticsResult`](../interfaces/HealthStatisticsResult.md)\>
 
-Defined in: [js/src/health.ts:171](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L171)
+Defined in: [js/src/health.ts:171](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L171)
 
 One aggregate (`HKStatisticsQueryDescriptor`) over `[startMs, endMs)` — e.g.
 total steps today, or average heart rate during a run.

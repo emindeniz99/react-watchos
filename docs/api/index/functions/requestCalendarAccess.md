@@ -8,7 +8,7 @@
 
 > **requestCalendarAccess**(`entity`): `Promise`\<[`CalendarAccessResult`](../type-aliases/CalendarAccessResult.md)\>
 
-Defined in: [js/src/calendar.ts:113](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L113)
+Defined in: [js/src/calendar.ts:113](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L113)
 
 Shows the EventKit permission sheet for one entity and reports the resulting
 status. Once the user has answered, calling it again returns the standing

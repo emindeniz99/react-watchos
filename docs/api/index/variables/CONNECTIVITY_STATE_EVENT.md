@@ -8,6 +8,6 @@
 
 > `const` **CONNECTIVITY\_STATE\_EVENT**: `"watchConnectivity.state"` = `"watchConnectivity.state"`
 
-Defined in: [js/src/connectivity.ts:55](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L55)
+Defined in: [js/src/connectivity.ts:55](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L55)
 
 WCSession activation / reachability / companion-install changed.

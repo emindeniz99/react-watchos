@@ -8,7 +8,7 @@
 
 > **queryPedometer**(`range`): `Promise`\<[`PedometerData`](../interfaces/PedometerData.md)\>
 
-Defined in: [js/src/sensors.ts:198](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L198)
+Defined in: [js/src/sensors.ts:198](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L198)
 
 Historical steps/distance/floors for a window, from CoreMotion's own
 on-device cache (roughly the last seven days) — no HealthKit involved, so it

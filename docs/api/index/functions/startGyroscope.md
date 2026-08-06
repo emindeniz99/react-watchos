@@ -8,7 +8,7 @@
 
 > **startGyroscope**(`handler`, `options?`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/sensors.ts:249](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L249)
+Defined in: [js/src/sensors.ts:249](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L249)
 
 Gyroscope rotation rate: handler gets `{ x, y, z }` (rad/s).
 

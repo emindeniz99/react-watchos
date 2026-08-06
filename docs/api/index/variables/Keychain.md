@@ -8,7 +8,7 @@
 
 > `const` **Keychain**: `object`
 
-Defined in: [js/src/keychain.ts:11](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/keychain.ts#L11)
+Defined in: [js/src/keychain.ts:11](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/keychain.ts#L11)
 
 Keychain secure storage (Security framework) — for tokens and secrets that
 must NOT live in `Storage` (App Group UserDefaults is not encrypted at rest

@@ -6,7 +6,7 @@
 
 # Interface: HealthSample
 
-Defined in: [js/src/health.ts:117](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L117)
+Defined in: [js/src/health.ts:117](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L117)
 
 One raw quantity sample.
 
@@ -16,7 +16,7 @@ One raw quantity sample.
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:119](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L119)
+Defined in: [js/src/health.ts:119](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L119)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:119](https://github.com/emindeniz99/playground/blo
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:118](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L118)
+Defined in: [js/src/health.ts:118](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L118)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [js/src/health.ts:118](https://github.com/emindeniz99/playground/blo
 
 > **unit**: `string`
 
-Defined in: [js/src/health.ts:122](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L122)
+Defined in: [js/src/health.ts:122](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L122)
 
 Same per-type unit as [HealthStatisticsResult.unit](HealthStatisticsResult.md#unit).
 
@@ -42,4 +42,4 @@ Same per-type unit as [HealthStatisticsResult.unit](HealthStatisticsResult.md#un
 
 > **value**: `number`
 
-Defined in: [js/src/health.ts:120](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L120)
+Defined in: [js/src/health.ts:120](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L120)

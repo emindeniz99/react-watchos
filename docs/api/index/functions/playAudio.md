@@ -8,7 +8,7 @@
 
 > **playAudio**(`url`, `options?`): `Promise`\<`void`\>
 
-Defined in: [js/src/audio.ts:31](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/audio.ts#L31)
+Defined in: [js/src/audio.ts:31](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/audio.ts#L31)
 
 Downloads and plays the audio at `url`. Resolves once playback STARTS
 (listen on [onAudioFinished](onAudioFinished.md) for the end); rejects on a download or

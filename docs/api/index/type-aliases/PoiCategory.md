@@ -8,7 +8,7 @@
 
 > **PoiCategory** = `"museum"` \| `"musicVenue"` \| `"theater"` \| `"library"` \| `"planetarium"` \| `"school"` \| `"university"` \| `"movieTheater"` \| `"nightlife"` \| `"fireStation"` \| `"hospital"` \| `"pharmacy"` \| `"police"` \| `"castle"` \| `"fortress"` \| `"landmark"` \| `"nationalMonument"` \| `"bakery"` \| `"brewery"` \| `"cafe"` \| `"distillery"` \| `"foodMarket"` \| `"restaurant"` \| `"winery"` \| `"animalService"` \| `"atm"` \| `"automotiveRepair"` \| `"bank"` \| `"beauty"` \| `"evCharger"` \| `"fitnessCenter"` \| `"laundry"` \| `"mailbox"` \| `"postOffice"` \| `"restroom"` \| `"spa"` \| `"store"` \| `"amusementPark"` \| `"aquarium"` \| `"beach"` \| `"campground"` \| `"fairground"` \| `"marina"` \| `"nationalPark"` \| `"park"` \| `"rvPark"` \| `"zoo"` \| `"baseball"` \| `"basketball"` \| `"bowling"` \| `"goKart"` \| `"golf"` \| `"hiking"` \| `"miniGolf"` \| `"rockClimbing"` \| `"skatePark"` \| `"skating"` \| `"skiing"` \| `"soccer"` \| `"stadium"` \| `"tennis"` \| `"volleyball"` \| `"airport"` \| `"carRental"` \| `"conventionCenter"` \| `"gasStation"` \| `"hotel"` \| `"parking"` \| `"publicTransport"` \| `"fishing"` \| `"kayaking"` \| `"surfing"` \| `"swimming"`
 
-Defined in: [js/src/widgets.ts:97](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L97)
+Defined in: [js/src/widgets.ts:97](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L97)
 
 A MapKit point-of-interest category, mirroring the Swift member names of
 `MKPointOfInterestCategory` (watchOS 6.0+ for the oldest members; the

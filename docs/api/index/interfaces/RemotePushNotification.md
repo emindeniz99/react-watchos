@@ -6,7 +6,7 @@
 
 # Interface: RemotePushNotification
 
-Defined in: [js/src/remotePush.ts:33](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L33)
+Defined in: [js/src/remotePush.ts:33](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L33)
 
 A remote notification's userInfo: the APNs `aps` dictionary plus any
  custom top-level keys your server sends.
@@ -21,4 +21,4 @@ A remote notification's userInfo: the APNs `aps` dictionary plus any
 
 > `optional` **aps?**: [`RemotePushAps`](RemotePushAps.md)
 
-Defined in: [js/src/remotePush.ts:34](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L34)
+Defined in: [js/src/remotePush.ts:34](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L34)

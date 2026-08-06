@@ -6,7 +6,7 @@
 
 # Interface: Coordinate
 
-Defined in: [js/src/maps.ts:37](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L37)
+Defined in: [js/src/maps.ts:37](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L37)
 
 A latitude/longitude fix from [getCurrentLocation](../functions/getCurrentLocation.md).
 
@@ -16,7 +16,7 @@ A latitude/longitude fix from [getCurrentLocation](../functions/getCurrentLocati
 
 > **lat**: `number`
 
-Defined in: [js/src/maps.ts:38](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L38)
+Defined in: [js/src/maps.ts:38](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L38)
 
 ***
 
@@ -24,4 +24,4 @@ Defined in: [js/src/maps.ts:38](https://github.com/emindeniz99/playground/blob/m
 
 > **lon**: `number`
 
-Defined in: [js/src/maps.ts:39](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L39)
+Defined in: [js/src/maps.ts:39](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L39)

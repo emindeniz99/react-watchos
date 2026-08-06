@@ -6,7 +6,7 @@
 
 # Interface: POIResult
 
-Defined in: [js/src/maps.ts:4](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L4)
+Defined in: [js/src/maps.ts:4](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L4)
 
 A place returned by [searchPOI](../functions/searchPOI.md).
 
@@ -16,7 +16,7 @@ A place returned by [searchPOI](../functions/searchPOI.md).
 
 > **lat**: `number`
 
-Defined in: [js/src/maps.ts:5](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L5)
+Defined in: [js/src/maps.ts:5](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L5)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/maps.ts:5](https://github.com/emindeniz99/playground/blob/ma
 
 > **lon**: `number`
 
-Defined in: [js/src/maps.ts:6](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L6)
+Defined in: [js/src/maps.ts:6](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L6)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [js/src/maps.ts:6](https://github.com/emindeniz99/playground/blob/ma
 
 > `optional` **subtitle?**: `string`
 
-Defined in: [js/src/maps.ts:10](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L10)
+Defined in: [js/src/maps.ts:10](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L10)
 
 Locality/city, when MapKit provides one.
 
@@ -42,6 +42,6 @@ Locality/city, when MapKit provides one.
 
 > **title**: `string`
 
-Defined in: [js/src/maps.ts:8](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/maps.ts#L8)
+Defined in: [js/src/maps.ts:8](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/maps.ts#L8)
 
 The place name (e.g. "Blue Bottle Coffee").

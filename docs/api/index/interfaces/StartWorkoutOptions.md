@@ -6,7 +6,7 @@
 
 # Interface: StartWorkoutOptions
 
-Defined in: [js/src/workout.ts:75](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L75)
+Defined in: [js/src/workout.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L75)
 
 Options for [startWorkout](../functions/startWorkout.md).
 
@@ -16,7 +16,7 @@ Options for [startWorkout](../functions/startWorkout.md).
 
 > `optional` **collectRoute?**: `boolean`
 
-Defined in: [js/src/workout.ts:94](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L94)
+Defined in: [js/src/workout.ts:94](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L94)
 
 Record an `HKWorkoutRoute` from the location stream. Needs the `location`
 feature **as well as** `workouts` (a route is location data), and rejects
@@ -30,7 +30,7 @@ second GPS stream — and is finished after the workout is saved.
 
 > `optional` **location?**: `"indoor"` \| `"outdoor"`
 
-Defined in: [js/src/workout.ts:79](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L79)
+Defined in: [js/src/workout.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L79)
 
 Indoor or outdoor. Not cosmetic: Apple states outdoor cycling generates
  accurate location data where indoor does not, and that calorimetry
@@ -42,7 +42,7 @@ Indoor or outdoor. Not cosmetic: Apple states outdoor cycling generates
 
 > `optional` **metricsIntervalMs?**: `number`
 
-Defined in: [js/src/workout.ts:86](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L86)
+Defined in: [js/src/workout.ts:86](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L86)
 
 How often `workout.metrics` is pushed, in ms. Default 1000, floor 250.
 HealthKit collects samples at ~1 Hz and every push crosses the bridge and

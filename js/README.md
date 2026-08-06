@@ -18,9 +18,9 @@ the single copy (two copies silently break hooks/context):
 npm i react-watchos react react-reconciler
 ```
 
-Inside this monorepo, consume it as `workspace:*` from
-`projects/react-native-watchos/js`. The npm command above is the intended shape
-for external consumers once the package is published.
+Inside this repo's pnpm workspace, consume it as `workspace:*` from `js/`.
+The npm command above is the intended shape for external consumers once the
+package is published.
 
 The package ships **source** (`exports` point at `src/*.ts`): it's bundle-only —
 you always compile it into a QuickJS watch bundle with the

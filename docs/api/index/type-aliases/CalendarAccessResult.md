@@ -8,7 +8,7 @@
 
 > **CalendarAccessResult** = `"granted"` \| `"denied"` \| `"restricted"` \| `"notDetermined"` \| `"writeOnly"` \| `"unavailable"`
 
-Defined in: [js/src/calendar.ts:45](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L45)
+Defined in: [js/src/calendar.ts:45](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L45)
 
 What [requestCalendarAccess](../functions/requestCalendarAccess.md) resolves with.
 

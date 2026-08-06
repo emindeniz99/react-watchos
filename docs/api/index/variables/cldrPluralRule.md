@@ -8,7 +8,7 @@
 
 > `const` **cldrPluralRule**: [`PluralRule`](../type-aliases/PluralRule.md)
 
-Defined in: [js/src/i18n.tsx:92](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L92)
+Defined in: [js/src/i18n.tsx:92](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L92)
 
 Canonical CLDR cardinal rule for ALL ~220 languages, backed by
 `plurals-cldr` (nodeca) — a ~2.7 KB gz, zero-`Intl` data table, the same

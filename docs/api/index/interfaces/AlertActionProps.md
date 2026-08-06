@@ -6,7 +6,7 @@
 
 # Interface: AlertActionProps
 
-Defined in: [js/src/components.ts:534](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L534)
+Defined in: [js/src/components.ts:534](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L534)
 
 An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
  presentation automatically when an action is tapped; `onPress` fires for
@@ -22,7 +22,7 @@ An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L53)
 
 #### Inherited from
 
@@ -34,7 +34,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/playground/
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L52)
 
 #### Inherited from
 
@@ -46,7 +46,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/playground/
 
 > **label**: `string`
 
-Defined in: [js/src/components.ts:535](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L535)
+Defined in: [js/src/components.ts:535](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L535)
 
 ***
 
@@ -54,7 +54,7 @@ Defined in: [js/src/components.ts:535](https://github.com/emindeniz99/playground
 
 > `optional` **onPress?**: () => `void`
 
-Defined in: [js/src/components.ts:538](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L538)
+Defined in: [js/src/components.ts:538](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L538)
 
 #### Returns
 
@@ -66,6 +66,6 @@ Defined in: [js/src/components.ts:538](https://github.com/emindeniz99/playground
 
 > `optional` **role?**: `"destructive"` \| `"cancel"`
 
-Defined in: [js/src/components.ts:537](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L537)
+Defined in: [js/src/components.ts:537](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L537)
 
 "destructive" renders red; "cancel" gets the cancel slot/placement.

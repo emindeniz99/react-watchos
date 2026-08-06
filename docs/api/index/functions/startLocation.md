@@ -8,7 +8,7 @@
 
 > **startLocation**(`handler`, `options?`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/sensors.ts:263](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L263)
+Defined in: [js/src/sensors.ts:263](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L263)
 
 Location: handler gets `{ latitude, longitude, speed, course }`.
 

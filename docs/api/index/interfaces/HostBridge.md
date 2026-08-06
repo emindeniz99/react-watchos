@@ -6,7 +6,7 @@
 
 # Interface: HostBridge
 
-Defined in: [js/src/host.ts:16](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/host.ts#L16)
+Defined in: [js/src/host.ts:16](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/host.ts#L16)
 
 Where committed trees go. Swift provides this via the `__host` global.
 
@@ -16,7 +16,7 @@ Where committed trees go. Swift provides this via the `__host` global.
 
 > **commit**(`tree`, `json?`): `void`
 
-Defined in: [js/src/host.ts:22](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/host.ts#L22)
+Defined in: [js/src/host.ts:22](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/host.ts#L22)
 
 `json` is the caller's already-serialized `tree` (the reconciler computes
 it for no-op deduplication). The native bridge forwards that string
@@ -42,7 +42,7 @@ instead of re-stringifying; object hosts (tests) ignore it and use `tree`.
 
 > `optional` **log**(`message`): `void`
 
-Defined in: [js/src/host.ts:23](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/host.ts#L23)
+Defined in: [js/src/host.ts:23](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/host.ts#L23)
 
 #### Parameters
 

@@ -6,7 +6,7 @@
 
 # Interface: NavigationContextValue
 
-Defined in: [js/src/navigation.tsx:26](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L26)
+Defined in: [js/src/navigation.tsx:26](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L26)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/navigation.tsx:26](https://github.com/emindeniz99/playground
 
 > **canGoBack**: `boolean`
 
-Defined in: [js/src/navigation.tsx:32](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L32)
+Defined in: [js/src/navigation.tsx:32](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L32)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/navigation.tsx:32](https://github.com/emindeniz99/playground
 
 > **goBack**: () => `void`
 
-Defined in: [js/src/navigation.tsx:31](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L31)
+Defined in: [js/src/navigation.tsx:31](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L31)
 
 #### Returns
 
@@ -34,7 +34,7 @@ Defined in: [js/src/navigation.tsx:31](https://github.com/emindeniz99/playground
 
 > **navigate**: (`to`, `options?`) => `void`
 
-Defined in: [js/src/navigation.tsx:30](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L30)
+Defined in: [js/src/navigation.tsx:30](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L30)
 
 #### Parameters
 
@@ -56,7 +56,7 @@ Defined in: [js/src/navigation.tsx:30](https://github.com/emindeniz99/playground
 
 > **path**: `string`[]
 
-Defined in: [js/src/navigation.tsx:27](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L27)
+Defined in: [js/src/navigation.tsx:27](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L27)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [js/src/navigation.tsx:27](https://github.com/emindeniz99/playground
 
 > **route**: `string`
 
-Defined in: [js/src/navigation.tsx:28](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L28)
+Defined in: [js/src/navigation.tsx:28](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L28)
 
 ***
 
@@ -72,7 +72,7 @@ Defined in: [js/src/navigation.tsx:28](https://github.com/emindeniz99/playground
 
 > **setPath**: (`path`) => `void`
 
-Defined in: [js/src/navigation.tsx:29](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L29)
+Defined in: [js/src/navigation.tsx:29](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L29)
 
 #### Parameters
 

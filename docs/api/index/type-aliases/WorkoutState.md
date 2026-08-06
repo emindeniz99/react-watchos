@@ -8,6 +8,6 @@
 
 > **WorkoutState** = `WireWorkoutState`
 
-Defined in: [js/src/workout.ts:72](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workout.ts#L72)
+Defined in: [js/src/workout.ts:72](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workout.ts#L72)
 
 The live session's state, plus the last one that ended.

@@ -8,7 +8,7 @@
 
 > **requestWorkoutPlanAuthorization**(): `Promise`\<[`WorkoutPlanAuthorizationState`](../type-aliases/WorkoutPlanAuthorizationState.md)\>
 
-Defined in: [js/src/workoutPlans.ts:384](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L384)
+Defined in: [js/src/workoutPlans.ts:384](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L384)
 
 Shows the WorkoutKit scheduling permission sheet and resolves the resulting
 `AuthorizationState`.

@@ -6,7 +6,7 @@
 
 # Interface: ControlDefinition
 
-Defined in: [js/src/widgets.ts:255](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L255)
+Defined in: [js/src/widgets.ts:255](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L255)
 
 Metadata for a WidgetKit Control (watchOS 26 Control Center / Action
 button). Controls are templated by the OS — a symbol plus a label, not
@@ -19,7 +19,7 @@ control's AppIntent via registerIntent.
 
 > `optional` **actionLabel?**: `string`
 
-Defined in: [js/src/widgets.ts:266](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L266)
+Defined in: [js/src/widgets.ts:266](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L266)
 
 `ControlWidgetButton`'s second label, shown while the action runs
 ("Adding…" next to a "Add Glass" label). Ignored by a toggle.
@@ -30,7 +30,7 @@ Defined in: [js/src/widgets.ts:266](https://github.com/emindeniz99/playground/bl
 
 > **intent**: `string`
 
-Defined in: [js/src/widgets.ts:259](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L259)
+Defined in: [js/src/widgets.ts:259](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L259)
 
 Intent name dispatched back into JS when the control is used.
 
@@ -40,7 +40,7 @@ Intent name dispatched back into JS when the control is used.
 
 > **kind**: `string`
 
-Defined in: [js/src/widgets.ts:257](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L257)
+Defined in: [js/src/widgets.ts:257](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L257)
 
 WidgetKit control kind, e.g. "hydration.addGlass".
 
@@ -50,7 +50,7 @@ WidgetKit control kind, e.g. "hydration.addGlass".
 
 > **label**: `string`
 
-Defined in: [js/src/widgets.ts:260](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L260)
+Defined in: [js/src/widgets.ts:260](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L260)
 
 ***
 
@@ -58,7 +58,7 @@ Defined in: [js/src/widgets.ts:260](https://github.com/emindeniz99/playground/bl
 
 > `optional` **systemName?**: `string`
 
-Defined in: [js/src/widgets.ts:261](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L261)
+Defined in: [js/src/widgets.ts:261](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L261)
 
 ***
 
@@ -66,7 +66,7 @@ Defined in: [js/src/widgets.ts:261](https://github.com/emindeniz99/playground/bl
 
 > `optional` **value?**: `boolean` \| (() => `boolean`)
 
-Defined in: [js/src/widgets.ts:284](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L284)
+Defined in: [js/src/widgets.ts:284](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L284)
 
 Current on/off state for a `ControlWidgetToggle`. **Presence marks this
 control a toggle**: a control that publishes no `value` is a button, and

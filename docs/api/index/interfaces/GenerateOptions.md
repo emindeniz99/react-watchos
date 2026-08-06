@@ -6,7 +6,7 @@
 
 # Interface: GenerateOptions
 
-Defined in: [js/src/ai.ts:51](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/ai.ts#L51)
+Defined in: [js/src/ai.ts:51](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/ai.ts#L51)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/ai.ts:51](https://github.com/emindeniz99/playground/blob/mai
 
 > `optional` **instructions?**: `string`
 
-Defined in: [js/src/ai.ts:56](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/ai.ts#L56)
+Defined in: [js/src/ai.ts:56](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/ai.ts#L56)
 
 Optional system instructions for the session.
 
@@ -24,7 +24,7 @@ Optional system instructions for the session.
 
 > `optional` **maxTokens?**: `number`
 
-Defined in: [js/src/ai.ts:54](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/ai.ts#L54)
+Defined in: [js/src/ai.ts:54](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/ai.ts#L54)
 
 ***
 
@@ -32,6 +32,6 @@ Defined in: [js/src/ai.ts:54](https://github.com/emindeniz99/playground/blob/mai
 
 > `optional` **temperature?**: `number`
 
-Defined in: [js/src/ai.ts:53](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/ai.ts#L53)
+Defined in: [js/src/ai.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/ai.ts#L53)
 
 0–1; higher = more creative.

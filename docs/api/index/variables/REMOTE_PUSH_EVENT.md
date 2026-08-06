@@ -8,7 +8,7 @@
 
 > `const` **REMOTE\_PUSH\_EVENT**: `"remotePush"` = `"remotePush"`
 
-Defined in: [js/src/remotePush.ts:12](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L12)
+Defined in: [js/src/remotePush.ts:12](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L12)
 
 Remote push notifications (APNs). The watch receives its OWN device token —
 for a standalone-capable app, servers should send to BOTH the watch token

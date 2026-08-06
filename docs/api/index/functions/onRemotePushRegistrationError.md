@@ -8,7 +8,7 @@
 
 > **onRemotePushRegistrationError**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/remotePush.ts:94](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L94)
+Defined in: [js/src/remotePush.ts:94](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/remotePush.ts#L94)
 
 Runs `handler` with the native error message whenever APNs registration
 fails (missing `aps-environment` entitlement, no network, sandbox

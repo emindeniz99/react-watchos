@@ -8,7 +8,7 @@
 
 > **startExtendedRuntimeSession**(): `Promise`\<`void`\>
 
-Defined in: [js/src/extendedRuntime.ts:30](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/extendedRuntime.ts#L30)
+Defined in: [js/src/extendedRuntime.ts:30](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/extendedRuntime.ts#L30)
 
 Starts a session. Resolves when the session is actually RUNNING — the invoke
 is parked on `WKExtendedRuntimeSession`'s delegate, not settled when the

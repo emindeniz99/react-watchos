@@ -8,7 +8,7 @@
 
 > **createTranslations**(`config`): [`Translations`](../interfaces/Translations.md)
 
-Defined in: [js/src/i18n.tsx:162](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L162)
+Defined in: [js/src/i18n.tsx:162](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L162)
 
 Builds a Translations lookup — pure over its config (closes over the
  resources), so re-creating it for a new `language` is cheap; do that when

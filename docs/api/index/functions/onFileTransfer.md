@@ -8,7 +8,7 @@
 
 > **onFileTransfer**(`handler`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/connectivity.ts:398](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L398)
+Defined in: [js/src/connectivity.ts:398](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L398)
 
 Runs `handler` when an outbound [transferFile](transferFile.md) finishes or fails —
 possibly in a launch that never queued it (`id: null`). Returns an

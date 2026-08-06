@@ -8,6 +8,6 @@
 
 > `const` **LUMINANCE\_REDUCED\_EVENT**: `"luminanceReduced"` = `"luminanceReduced"`
 
-Defined in: [js/src/appState.ts:37](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/appState.ts#L37)
+Defined in: [js/src/appState.ts:37](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/appState.ts#L37)
 
 Native event carrying `{ reduced: boolean }`.

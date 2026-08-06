@@ -6,7 +6,7 @@
 
 # Interface: CalendarEventsQuery
 
-Defined in: [js/src/calendar.ts:84](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L84)
+Defined in: [js/src/calendar.ts:84](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L84)
 
 Request for [getCalendarEvents](../functions/getCalendarEvents.md).
 
@@ -16,7 +16,7 @@ Request for [getCalendarEvents](../functions/getCalendarEvents.md).
 
 > **endMs**: `number`
 
-Defined in: [js/src/calendar.ts:90](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L90)
+Defined in: [js/src/calendar.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L90)
 
 Absolute ms since epoch. Must be after `startMs` — an inverted window
  rejects `INVALID_REQUEST` rather than resolving an empty list a caller
@@ -28,7 +28,7 @@ Absolute ms since epoch. Must be after `startMs` — an inverted window
 
 > `optional` **limit?**: `number`
 
-Defined in: [js/src/calendar.ts:92](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L92)
+Defined in: [js/src/calendar.ts:92](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L92)
 
 Cap on events returned. Hard ceiling 250.
 
@@ -38,6 +38,6 @@ Cap on events returned. Hard ceiling 250.
 
 > **startMs**: `number`
 
-Defined in: [js/src/calendar.ts:86](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L86)
+Defined in: [js/src/calendar.ts:86](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L86)
 
 Absolute ms since epoch.

@@ -8,7 +8,7 @@
 
 > **Unsubscribe** = () => `void`
 
-Defined in: [js/src/nativeEvents.ts:12](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/nativeEvents.ts#L12)
+Defined in: [js/src/nativeEvents.ts:12](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/nativeEvents.ts#L12)
 
 A function that removes the listener it was returned for.
 

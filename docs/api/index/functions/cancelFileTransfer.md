@@ -8,7 +8,7 @@
 
 > **cancelFileTransfer**(`id`): `Promise`\<`void`\>
 
-Defined in: [js/src/connectivity.ts:255](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L255)
+Defined in: [js/src/connectivity.ts:255](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L255)
 
 Cancels a queued/in-flight transfer by the id [transferFile](transferFile.md) resolved.
 Rejects `INVALID_REQUEST` when this launch never minted that id — including

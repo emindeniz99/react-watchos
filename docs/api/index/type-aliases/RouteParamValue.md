@@ -8,6 +8,6 @@
 
 > **RouteParamValue** = `string` \| `string`[]
 
-Defined in: [js/src/navigation.tsx:96](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L96)
+Defined in: [js/src/navigation.tsx:96](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/navigation.tsx#L96)
 
 A matched route param: `[id]` yields a string, `[...rest]` an array.

@@ -6,7 +6,7 @@
 
 # Interface: HealthStatisticsResult
 
-Defined in: [js/src/health.ts:104](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L104)
+Defined in: [js/src/health.ts:104](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L104)
 
 One aggregate over a window.
 
@@ -16,7 +16,7 @@ One aggregate over a window.
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:113](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L113)
+Defined in: [js/src/health.ts:113](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L113)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:113](https://github.com/emindeniz99/playground/blo
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:112](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L112)
+Defined in: [js/src/health.ts:112](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L112)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [js/src/health.ts:112](https://github.com/emindeniz99/playground/blo
 
 > **unit**: `string`
 
-Defined in: [js/src/health.ts:111](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L111)
+Defined in: [js/src/health.ts:111](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L111)
 
 The unit `value` is in, fixed natively per type: `"count"` (steps),
  `"kcal"`, `"m"`, `"count/min"` (bpm), `"fraction"` (SpO2, **0…1**, not
@@ -44,7 +44,7 @@ The unit `value` is in, fixed natively per type: `"count"` (steps),
 
 > **value**: `number` \| `null`
 
-Defined in: [js/src/health.ts:107](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/health.ts#L107)
+Defined in: [js/src/health.ts:107](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/health.ts#L107)
 
 `null` when HealthKit returned no statistic for the window. Not
  distinguishable from a denied read — see the module doc.

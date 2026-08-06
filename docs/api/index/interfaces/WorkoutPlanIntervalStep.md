@@ -6,7 +6,7 @@
 
 # Interface: WorkoutPlanIntervalStep
 
-Defined in: [js/src/workoutPlans.ts:140](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L140)
+Defined in: [js/src/workoutPlans.ts:140](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L140)
 
 A step inside an interval block, which additionally says what it is for.
 
@@ -20,7 +20,7 @@ A step inside an interval block, which additionally says what it is for.
 
 > `optional` **alert?**: [`WorkoutPlanAlert`](../type-aliases/WorkoutPlanAlert.md)
 
-Defined in: [js/src/workoutPlans.ts:136](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L136)
+Defined in: [js/src/workoutPlans.ts:136](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L136)
 
 #### Inherited from
 
@@ -32,7 +32,7 @@ Defined in: [js/src/workoutPlans.ts:136](https://github.com/emindeniz99/playgrou
 
 > `optional` **goal?**: [`WorkoutPlanGoal`](../type-aliases/WorkoutPlanGoal.md)
 
-Defined in: [js/src/workoutPlans.ts:135](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L135)
+Defined in: [js/src/workoutPlans.ts:135](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L135)
 
 Omitted means Apple's `.open` — run until the user taps next.
 
@@ -46,4 +46,4 @@ Omitted means Apple's `.open` — run until the user taps next.
 
 > **purpose**: `"work"` \| `"recovery"`
 
-Defined in: [js/src/workoutPlans.ts:141](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L141)
+Defined in: [js/src/workoutPlans.ts:141](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L141)

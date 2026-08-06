@@ -6,7 +6,7 @@
 
 # Interface: UpdateState
 
-Defined in: [js/src/update.ts:56](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L56)
+Defined in: [js/src/update.ts:56](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L56)
 
 What the watch is actually running — the OTA observability surface
  (fleet telemetry): report these fields to your backend to know each
@@ -19,7 +19,7 @@ What the watch is actually running — the OTA observability surface
 
 > **bootAttempts**: `number`
 
-Defined in: [js/src/update.ts:86](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L86)
+Defined in: [js/src/update.ts:86](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L86)
 
 Launches of the running OTA bundle that have not yet reached a healthy
  confirmation. The counter is incremented BEFORE the bundle runs, so a
@@ -36,7 +36,7 @@ Launches of the running OTA bundle that have not yet reached a healthy
 
 > `optional` **expiresAt?**: `number`
 
-Defined in: [js/src/update.ts:65](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L65)
+Defined in: [js/src/update.ts:65](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L65)
 
 The running record's signed expiry (epoch seconds; absent/0 = never).
 
@@ -46,7 +46,7 @@ The running record's signed expiry (epoch seconds; absent/0 = never).
 
 > **healthSignal**: `"commit"` \| `"explicit"`
 
-Defined in: [js/src/update.ts:77](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L77)
+Defined in: [js/src/update.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L77)
 
 Which ARCH-04 health policy the NATIVE BINARY is configured for.
  `"commit"` = the first rendered tree blesses the bundle; `"explicit"` =
@@ -60,7 +60,7 @@ Which ARCH-04 health policy the NATIVE BINARY is configured for.
 
 > **highWater**: `number`
 
-Defined in: [js/src/update.ts:67](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L67)
+Defined in: [js/src/update.ts:67](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L67)
 
 The device's anti-rollback high-water mark.
 
@@ -70,7 +70,7 @@ The device's anti-rollback high-water mark.
 
 > `optional` **keyId?**: `string`
 
-Defined in: [js/src/update.ts:63](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L63)
+Defined in: [js/src/update.ts:63](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L63)
 
 The signing key that shipped the running OTA bundle.
 
@@ -80,7 +80,7 @@ The signing key that shipped the running OTA bundle.
 
 > `optional` **releaseId?**: `string`
 
-Defined in: [js/src/update.ts:71](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L71)
+Defined in: [js/src/update.ts:71](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L71)
 
 Content id of the RUNNING bundle (same value as the manifest
  `releaseId` for identical bytes) — merged in from the host-injected
@@ -92,7 +92,7 @@ Content id of the RUNNING bundle (same value as the manifest
 
 > **source**: `"ota"` \| `"shipped"`
 
-Defined in: [js/src/update.ts:58](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L58)
+Defined in: [js/src/update.ts:58](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L58)
 
 Which bundle booted this launch.
 
@@ -102,7 +102,7 @@ Which bundle booted this launch.
 
 > `optional` **version?**: `number`
 
-Defined in: [js/src/update.ts:61](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/update.ts#L61)
+Defined in: [js/src/update.ts:61](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/update.ts#L61)
 
 The running OTA record's compatibility version (absent when shipped or
  running an unsigned dev bundle).

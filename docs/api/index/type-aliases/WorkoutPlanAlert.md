@@ -8,7 +8,7 @@
 
 > **WorkoutPlanAlert** = \{ `kind`: `"heartRateRange"`; `lowerBpm`: `number`; `upperBpm`: `number`; \} \| \{ `kind`: `"heartRateZone"`; `zone`: `number`; \} \| \{ `kind`: `"speedRange"`; `lowerMetersPerSecond`: `number`; `metric?`: `"current"` \| `"average"`; `upperMetersPerSecond`: `number`; \} \| \{ `kind`: `"speedThreshold"`; `metersPerSecond`: `number`; `metric?`: `"current"` \| `"average"`; \} \| \{ `kind`: `"cadenceRange"`; `lowerCountPerMinute`: `number`; `upperCountPerMinute`: `number`; \} \| \{ `countPerMinute`: `number`; `kind`: `"cadenceThreshold"`; \} \| \{ `kind`: `"powerRange"`; `lowerWatts`: `number`; `upperWatts`: `number`; \} \| \{ `kind`: `"powerThreshold"`; `watts`: `number`; \} \| \{ `kind`: `"powerZone"`; `zone`: `number`; \}
 
-Defined in: [js/src/workoutPlans.ts:108](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L108)
+Defined in: [js/src/workoutPlans.ts:108](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/workoutPlans.ts#L108)
 
 The in-workout alert a step fires on. **One per step** — Apple's
 `WorkoutStep.alert` is a single optional, not an array.

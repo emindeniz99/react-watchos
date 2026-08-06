@@ -8,7 +8,7 @@
 
 > **getCalendarEvents**(`request`): `Promise`\<[`CalendarEvent`](../interfaces/CalendarEvent.md)[]\>
 
-Defined in: [js/src/calendar.ts:135](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/calendar.ts#L135)
+Defined in: [js/src/calendar.ts:135](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/calendar.ts#L135)
 
 Events overlapping `[startMs, endMs)`, earliest first.
 

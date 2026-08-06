@@ -8,7 +8,7 @@
 
 > `const` **SENSOR\_EVENT\_PREFIX**: `"sensor."` = `"sensor."`
 
-Defined in: [js/src/sensors.ts:22](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L22)
+Defined in: [js/src/sensors.ts:22](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L22)
 
 Live sensor streams (heart rate via HealthKit, motion/gyroscope via
 CoreMotion, location via CoreLocation). start a kind and readings arrive on

@@ -8,4 +8,4 @@
 
 > `const` **GridRow**: `FC`\<[`GridRowProps`](../interfaces/GridRowProps.md)\>
 
-Defined in: [js/src/components.ts:700](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/components.ts#L700)
+Defined in: [js/src/components.ts:700](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/components.ts#L700)

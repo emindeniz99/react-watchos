@@ -91,6 +91,67 @@ already implemented. Revisit only if a real app needs an iOS Live Activity.
 All SwiftUI/CoreBluetooth code added across these passes is **unverified
 until the macOS build runs green** — that's the gate.
 
+## Graduation-review follow-ups (2026-08-06, adversarially verified)
+
+From the pre-publication review (26-agent scan of the extracted standalone
+repo + a code sweep of everything changed since 07-27). Secrets/history came
+back clean; these are the confirmed defects and remaining publish steps, each
+with the verified failure scenario in the review record.
+
+Code defects — JS (`js/src`):
+
+- **invoke.ts settle-global guard goes stale across same-context bundle
+  re-evaluation** (medium): the `__resolveInvoke`/`__rejectInvoke` install
+  guard early-returns when the globals exist, so after a re-eval the OLD
+  bundle's settle functions stay installed and every new invoke black-holes.
+  Fix: assign unconditionally (most-recent evaluation wins); optionally delete
+  both globals identity-checked in `WatchRoot.dispose`.
+- **Non-finite widget entry date/relevance poisons the whole
+  `PublishedWidgets` payload** (medium): one `NaN` date drops every
+  complication to placeholder. Fix: per-entry validation + drop-and-warn, same
+  isolation as `publishedRelevantContext`.
+- **Duplicate handler subscription dedupes in the listener `Set`** (medium):
+  subscribing the same function twice then unsubscribing once silences the
+  survivor while `startSensor` keeps the native stream running. Fix: wrap each
+  subscription so identity is per-subscription, not per-function.
+- **`isPrivateHost` prefix-classifies DNS names** (low): `10.attacker.com`
+  counts as LAN (cleartext OTA allowed); bracketed IPv6 allowance is dead
+  code. Fix: numeric branches only for dotted-quad literals; mirror in Swift
+  `UpdateURLPolicy` + its pinning tests.
+
+Code defects — Swift host:
+
+- **Received file orphaned when `watchConnectivity.file` lands while
+  `jsReady` is false** (medium — data loss): the file is moved to the inbox
+  but the event dies on a nil runtime; retention later deletes it silently.
+  Fix: park inbound file events until `jsReady`, replay on boot.
+- **`WorkoutSessionOwner.epoch(of:)` reads mutable state on HealthKit's
+  delegate queue** (medium): torn/stale read the `nonisolated(unsafe)`
+  laundering masks; TSan-flaggable. Fix: hop to main before reading
+  `session`/`epoch`, or make the pair atomic.
+- **`transferFile` registers id maps after WCSession starts the transfer**
+  (low): a fast `didFinish` reports `id: null` and leaks the map entries.
+  Fix: register before calling `transferFile`.
+- **`WorkoutPlanBridge` preflight/read-back is reentrant across awaits**
+  (low): `Promise.all` of two identical schedules can double-store the
+  undocumented `(id, minute)` pair. Fix: serialize per-bridge with an async
+  queue/actor, or re-check after the write.
+
+Publish steps still owed (do in the standalone repo after extraction):
+
+- **release-please config/manifest keys** must change from
+  `projects/react-native-watchos/js` to `js` (and verify `bootstrap-sha`
+  exists in the filtered history); the monorepo copies must KEEP the long
+  keys, so this is a post-extraction rewrite — teach `split-repo` to do it,
+  or hand-edit before the first push.
+- **No publish workflow exists while `publishConfig.provenance` is true** —
+  npm provenance requires publishing from GitHub Actions with
+  `id-token: write`; add a release/publish workflow (pnpm-aware) or drop
+  provenance until it exists.
+- Optional: strip the 37 historical blobs of the generated
+  `app/targets/watch/assets/bundle.js` (~4.9 MiB pack) before the first push
+  — the only moment a history rewrite is free.
+
 ## Approved & in-flight (2026-07-05 session)
 
 Tracked here for easy follow-up; each lands as its own commit.

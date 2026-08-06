@@ -8,7 +8,7 @@
 
 > **transferUserInfo**(`userInfo`): `Promise`\<`void`\>
 
-Defined in: [js/src/connectivity.ts:103](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L103)
+Defined in: [js/src/connectivity.ts:103](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L103)
 
 Queues a background transfer to the paired iPhone: every queued item is
 delivered IN ORDER when the counterpart wakes, and the queue survives app

@@ -6,7 +6,7 @@
 
 # Class: Headers
 
-Defined in: [js/src/fetch.ts:35](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/fetch.ts#L35)
+Defined in: [js/src/fetch.ts:35](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/fetch.ts#L35)
 
 HTTP header names are case-insensitive — store and look up lowercased.
 
@@ -16,7 +16,7 @@ HTTP header names are case-insensitive — store and look up lowercased.
 
 > **new Headers**(`init?`): `Headers`
 
-Defined in: [js/src/fetch.ts:38](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/fetch.ts#L38)
+Defined in: [js/src/fetch.ts:38](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/fetch.ts#L38)
 
 #### Parameters
 
@@ -34,7 +34,7 @@ Defined in: [js/src/fetch.ts:38](https://github.com/emindeniz99/playground/blob/
 
 > **append**(`name`, `value`): `void`
 
-Defined in: [js/src/fetch.ts:59](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/fetch.ts#L59)
+Defined in: [js/src/fetch.ts:59](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/fetch.ts#L59)
 
 #### Parameters
 
@@ -56,7 +56,7 @@ Defined in: [js/src/fetch.ts:59](https://github.com/emindeniz99/playground/blob/
 
 > **delete**(`name`): `void`
 
-Defined in: [js/src/fetch.ts:64](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/fetch.ts#L64)
+Defined in: [js/src/fetch.ts:64](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/fetch.ts#L64)
 
 #### Parameters
 
@@ -74,7 +74,7 @@ Defined in: [js/src/fetch.ts:64](https://github.com/emindeniz99/playground/blob/
 
 > **forEach**(`cb`): `void`
 
-Defined in: [js/src/fetch.ts:67](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/fetch.ts#L67)
+Defined in: [js/src/fetch.ts:67](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/fetch.ts#L67)
 
 #### Parameters
 
@@ -92,7 +92,7 @@ Defined in: [js/src/fetch.ts:67](https://github.com/emindeniz99/playground/blob/
 
 > **get**(`name`): `string` \| `null`
 
-Defined in: [js/src/fetch.ts:50](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/fetch.ts#L50)
+Defined in: [js/src/fetch.ts:50](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/fetch.ts#L50)
 
 #### Parameters
 
@@ -110,7 +110,7 @@ Defined in: [js/src/fetch.ts:50](https://github.com/emindeniz99/playground/blob/
 
 > **has**(`name`): `boolean`
 
-Defined in: [js/src/fetch.ts:53](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/fetch.ts#L53)
+Defined in: [js/src/fetch.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/fetch.ts#L53)
 
 #### Parameters
 
@@ -128,7 +128,7 @@ Defined in: [js/src/fetch.ts:53](https://github.com/emindeniz99/playground/blob/
 
 > **set**(`name`, `value`): `void`
 
-Defined in: [js/src/fetch.ts:56](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/fetch.ts#L56)
+Defined in: [js/src/fetch.ts:56](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/fetch.ts#L56)
 
 #### Parameters
 
@@ -150,7 +150,7 @@ Defined in: [js/src/fetch.ts:56](https://github.com/emindeniz99/playground/blob/
 
 > **toJSON**(): `Record`\<`string`, `string`\>
 
-Defined in: [js/src/fetch.ts:72](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/fetch.ts#L72)
+Defined in: [js/src/fetch.ts:72](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/fetch.ts#L72)
 
 #### Returns
 

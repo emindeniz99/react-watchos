@@ -1,8 +1,15 @@
 # Contributing / working conventions — react-native-watchos
 
 Conventions specific to this project, for humans and AI agents picking up the
-work. (Repo-wide rules — commit format, the 12 behavioral rules — live in the
-monorepo root [`CLAUDE.md`](../../CLAUDE.md); this file is the project layer.)
+work. (Agent-facing rules live in [`CLAUDE.md`](./CLAUDE.md); this file is the
+project layer for everyone.)
+
+**Commits:** Conventional Commits with the mandatory scope
+`react-native-watchos` — `feat(react-native-watchos): …`, imperative mood,
+lowercase subject, ≤72-char header; AI-assisted commits add a
+`Co-Authored-By:` trailer. **Merging:** always a real merge commit — never
+squash, never rebase-merge; per-commit history is the record of how this was
+built.
 
 ## Where the plan lives
 

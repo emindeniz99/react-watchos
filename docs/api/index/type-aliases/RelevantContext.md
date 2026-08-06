@@ -8,7 +8,7 @@
 
 > **RelevantContext** = \{ `date`: `number` \| `Date`; `dateKind?`: [`RelevantDateKind`](RelevantDateKind.md); `kind`: `"date"`; \} \| \{ `dateKind?`: [`RelevantDateKind`](RelevantDateKind.md); `from`: `number` \| `Date`; `kind`: `"dateRange"`; `to`: `number` \| `Date`; \} \| \{ `kind`: `"location"`; `latitude`: `number`; `longitude`: `number`; `radius?`: `number`; \} \| \{ `category`: [`PoiCategory`](PoiCategory.md); `kind`: `"poi"`; \} \| \{ `kind`: `"inferredLocation"`; `place`: [`InferredLocation`](InferredLocation.md); \} \| \{ `condition`: [`FitnessCondition`](FitnessCondition.md); `kind`: `"fitness"`; \} \| \{ `condition`: [`SleepCondition`](SleepCondition.md); `kind`: `"sleep"`; \} \| \{ `condition`: [`HeadphonesCondition`](HeadphonesCondition.md); `kind`: `"headphones"`; \}
 
-Defined in: [js/src/widgets.ts:203](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/widgets.ts#L203)
+Defined in: [js/src/widgets.ts:203](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/widgets.ts#L203)
 
 A Smart Stack **predictive** clue: when/where the system should surface this
 widget at all. Distinct from [EntryRelevance](../interfaces/EntryRelevance.md), which ranks a widget the

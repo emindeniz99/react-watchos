@@ -8,7 +8,7 @@
 
 > **SensorKind** = `"heartRate"` \| `"motion"` \| `"gyroscope"` \| `"location"` \| `"pedometer"`
 
-Defined in: [js/src/sensors.ts:38](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L38)
+Defined in: [js/src/sensors.ts:38](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L38)
 
 The sensor streams the native bridge actually implements. Closed on purpose:
 `SensorBridge.handleOp` switches on exactly these five and `default: break`s,

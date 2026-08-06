@@ -6,7 +6,7 @@
 
 # Interface: SerializedNode
 
-Defined in: [js/src/generated/wire.ts:9](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L9)
+Defined in: [js/src/generated/wire.ts:9](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L9)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/generated/wire.ts:9](https://github.com/emindeniz99/playgrou
 
 > **children**: `SerializedNode`[]
 
-Defined in: [js/src/generated/wire.ts:13](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L13)
+Defined in: [js/src/generated/wire.ts:13](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L13)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/generated/wire.ts:13](https://github.com/emindeniz99/playgro
 
 > **id**: `number`
 
-Defined in: [js/src/generated/wire.ts:10](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L10)
+Defined in: [js/src/generated/wire.ts:10](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L10)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/generated/wire.ts:10](https://github.com/emindeniz99/playgro
 
 > **props**: `Record`\<`string`, `unknown`\>
 
-Defined in: [js/src/generated/wire.ts:12](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L12)
+Defined in: [js/src/generated/wire.ts:12](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L12)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [js/src/generated/wire.ts:12](https://github.com/emindeniz99/playgro
 
 > **type**: `string`
 
-Defined in: [js/src/generated/wire.ts:11](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L11)
+Defined in: [js/src/generated/wire.ts:11](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/generated/wire.ts#L11)

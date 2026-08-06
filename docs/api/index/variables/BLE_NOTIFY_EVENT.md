@@ -8,4 +8,4 @@
 
 > `const` **BLE\_NOTIFY\_EVENT**: `"ble.notify"` = `"ble.notify"`
 
-Defined in: [js/src/bluetooth.ts:33](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L33)
+Defined in: [js/src/bluetooth.ts:33](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/bluetooth.ts#L33)

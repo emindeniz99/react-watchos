@@ -8,7 +8,7 @@
 
 > **startSensor**(`kind`, `handler`, `startOptions?`): [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/sensors.ts:70](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/sensors.ts#L70)
+Defined in: [js/src/sensors.ts:70](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/sensors.ts#L70)
 
 Starts a sensor and routes its readings to `handler` (`{ ...reading }`).
 Returns a cleanup that removes the listener and, when it's the last

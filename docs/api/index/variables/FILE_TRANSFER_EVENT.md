@@ -8,6 +8,6 @@
 
 > `const` **FILE\_TRANSFER\_EVENT**: `"watchConnectivity.fileTransfer"` = `"watchConnectivity.fileTransfer"`
 
-Defined in: [js/src/connectivity.ts:53](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L53)
+Defined in: [js/src/connectivity.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/connectivity.ts#L53)
 
 An outbound [transferFile](../functions/transferFile.md) finished or failed.

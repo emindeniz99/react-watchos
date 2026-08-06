@@ -8,7 +8,7 @@
 
 > `const` **englishPluralRule**: [`PluralRule`](../type-aliases/PluralRule.md)
 
-Defined in: [js/src/i18n.tsx:76](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L76)
+Defined in: [js/src/i18n.tsx:76](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/i18n.tsx#L76)
 
 The zero-dependency DEFAULT — English/Germanic `one`/`other` only. Correct
 for en/de/nl/… and any two-form cardinal, but WRONG for Arabic, the Slavic

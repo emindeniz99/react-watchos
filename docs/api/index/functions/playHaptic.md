@@ -8,7 +8,7 @@
 
 > **playHaptic**(`type?`): `void`
 
-Defined in: [js/src/haptics.ts:16](https://github.com/emindeniz99/playground/blob/main/projects/react-native-watchos/js/src/haptics.ts#L16)
+Defined in: [js/src/haptics.ts:16](https://github.com/emindeniz99/react-watchos/blob/main/projects/react-native-watchos/js/src/haptics.ts#L16)
 
 Plays a haptic on the watch. No-op where the host has no haptics.
 
