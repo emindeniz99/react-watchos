@@ -7,6 +7,9 @@ name: release-please
 on:
   push:
     branches: [main]
+  # Manual refresh of the release PR — e.g. re-running after a GitHub Actions
+  # incident dropped the push-triggered run (2026-08-06 outage).
+  workflow_dispatch:
 
 permissions:
   contents: write
