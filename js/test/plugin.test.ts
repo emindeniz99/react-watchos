@@ -132,9 +132,11 @@ describe("wireLocalPackage (pbxproj wiring)", () => {
     });
     const objects = project.hash.project.objects;
     expect(
-      (objects.XCLocalSwiftPackageReference[packageRef] as {
-        relativePath: string;
-      }).relativePath,
+      (
+        objects.XCLocalSwiftPackageReference[packageRef] as {
+          relativePath: string;
+        }
+      ).relativePath,
     ).toBe(`"${pnpmPath}"`);
     // Second run dedupes against the stored (quoted) form — no duplicate ref.
     const again = wireLocalPackage(project, {
@@ -149,9 +151,11 @@ describe("wireLocalPackage (pbxproj wiring)", () => {
       targetProducts: { "React Watch": HOST_PRODUCTS },
     }).packageRef;
     expect(
-      (clean.hash.project.objects.XCLocalSwiftPackageReference[cleanRef] as {
-        relativePath: string;
-      }).relativePath,
+      (
+        clean.hash.project.objects.XCLocalSwiftPackageReference[cleanRef] as {
+          relativePath: string;
+        }
+      ).relativePath,
     ).toBe("../../js/swift");
   });
 

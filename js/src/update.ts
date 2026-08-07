@@ -197,9 +197,7 @@ export async function applyUpdate(
  *  preset `define`s the full `process.env.BUNDLE_VERSION` token away, and the
  *  `typeof` guard keeps a define-less bundle safe in QuickJS (typeof on an
  *  undeclared identifier doesn't throw). */
-declare const process:
-  | { env: Record<string, string | undefined> }
-  | undefined;
+declare const process: { env: Record<string, string | undefined> } | undefined;
 export const BUNDLE_VERSION =
   typeof process === "undefined"
     ? 1
