@@ -45,6 +45,9 @@ jobs:
           GITLEAKS_VERSION=8.24.3
           curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
             | tar -xz -C /tmp gitleaks
+          # npm refuses a nonexistent --pack-destination (found on the first
+          # real run of this workflow) — create it before packing.
+          mkdir -p /tmp/pack
           npm pack --pack-destination /tmp/pack >/dev/null
           mkdir -p /tmp/pack/x && tar -xzf /tmp/pack/react-watchos-*.tgz -C /tmp/pack/x
           /tmp/gitleaks dir /tmp/pack/x --no-banner --exit-code 1
