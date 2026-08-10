@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.2.0...react-watchos-v0.2.1) (2026-08-10)
+
+
+### Bug Fixes
+
+* **swift:** restore the watchOS build under Xcode 26.6 strict concurrency ([0b61c7d](https://github.com/emindeniz99/react-watchos/commit/0b61c7d1b420900b4ef3350c4db827ffc610a7c3))
+
 ## [0.2.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.1.0...react-watchos-v0.2.0) (2026-08-07)
 
 
