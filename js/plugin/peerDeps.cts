@@ -44,9 +44,10 @@ function loadAppleTargets(
   return requireFromProject(projectRoot, "@bacons/apple-targets/app.plugin");
 }
 
-// `xcode` / `plist` are transitive deps of config-plugins / apple-targets, not
-// hoisted next to a post-prebuild script under pnpm — resolve them through a
-// package that owns them. (Reused by scripts that run outside Expo.)
+// `xcode` / `@expo/plist` are transitive deps of config-plugins /
+// apple-targets, not hoisted next to a post-prebuild script under pnpm —
+// resolve them through a package that owns them. (Reused by scripts that run
+// outside Expo.)
 function loadTransitive(id: string, projectRoot: string): any {
   const bases = ["@expo/config-plugins", "@bacons/apple-targets"];
   for (const base of bases) {
@@ -72,14 +73,29 @@ const loadXcode = (
 } => loadTransitive("xcode", projectRoot);
 
 /**
- * The `plist` XML builder/parser used for the target Info.plist merge.
+ * The plist XML builder/parser used for the target Info.plist merge.
+ *
+ * `@expo/plist`, not the `plist` package on npm, for two reasons. It is the
+ * only one we can load: this plugin is CommonJS by construction (Expo resolves
+ * `app.plugin.js` -> `dist-node/plugin.cjs`, every plugin file is `.cts`, and
+ * `loadTransitive` is a synchronous `require`), while `plist` went ESM-only at
+ * 4.0.0 and 5.0.0's `exports` map offers only `browser`/`import` conditions —
+ * `require("plist")` on 5.0.0 dies with ERR_PACKAGE_PATH_NOT_EXPORTED, and
+ * there is no CJS-capable release between 3.x and 5.x. And it is the RIGHT one:
+ * `@expo/plist` is what `@expo/config-plugins` and `@bacons/apple-targets`
+ * themselves use to write the Info.plist and entitlements we merge into, so we
+ * read and rewrite with the same serializer rather than a second one whose
+ * formatting differs. It ships CommonJS with an `exports.default`.
  */
 const loadPlist = (
   projectRoot: string,
 ): {
   parse: (xml: string) => Record<string, unknown>;
   build: (obj: Record<string, unknown>) => string;
-} => loadTransitive("plist", projectRoot);
+} => {
+  const mod = loadTransitive("@expo/plist", projectRoot);
+  return mod.default ?? mod;
+};
 
 module.exports = {
   requireFromProject,

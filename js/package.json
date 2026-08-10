@@ -97,9 +97,9 @@
     "format:swift:check": "swift format lint -s -r -p swift/Sources swift/Tests ../app/targets"
   },
   "dependencies": {
+    "@expo/plist": "^0.8.1",
     "@types/plurals-cldr": "^1.0.5",
     "@types/react-reconciler": "^0.33.0",
-    "plist": "^3.1.0",
     "plurals-cldr": "^2.0.1"
   },
   "peerDependencies": {
