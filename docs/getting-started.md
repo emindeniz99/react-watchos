@@ -14,7 +14,7 @@ of the same material lives in the [package README](../js/README.md).)*
 |---|---|
 | `js/` | The renderer + demo app (pure TypeScript, tested on any OS) **and** the SwiftPM host under `js/swift/` — both ship in one npm package. |
 | `js/swift/` | The Swift host as a **SwiftPM package**: `CQuickJS` (quickjs-ng as a Clang module), `ReactWatchCore` (codegen'd wire models), `ReactWatchSupport` (Foundation platform logic — storage/optimistic/notifications), `ReactWatchRuntime` (the QuickJS embedding) — all Linux-built + `swift test`ed — plus two macOS-gated products: `ReactWatchHost` (SwiftUI interpreter + bridges + `ReactWatchRootView`) and `ReactWatchWidget` (WidgetKit infra: timeline providers + the extension's QuickJS runtime). |
-| `app/` | Expo SDK 56 iOS shell; the watch app is a [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) target that depends on the `js/swift/` package and is a thin `@main`. |
+| `app/` | Expo SDK 57 iOS shell; the watch app is a [`@bacons/apple-targets`](https://github.com/EvanBacon/expo-apple-targets) target that depends on the `js/swift/` package and is a thin `@main`. |
 | `app/targets/widget/` | WidgetKit extension: decodes React-rendered timelines from App Group storage (`ReactWidgets.swift`, `WidgetNodeView.swift`); imports `ReactWatchCore`. |
 | `examples/` | External-consumer templates (`minimal-watch-app`, `expo-watch-app`), each a workspace member. |
 | `tools/embed-smoke/` | Reference C host: compiles the package's quickjs-ng and runs the real bundle through the exact API sequence Swift uses. |

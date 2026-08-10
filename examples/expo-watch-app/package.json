@@ -13,10 +13,10 @@
   },
   "dependencies": {
     "@bacons/apple-targets": "^5.0.0",
-    "@expo/config-plugins": "~56.0.9",
-    "expo": "~56.0.11",
+    "@expo/config-plugins": "~57.0.6",
+    "expo": "~57.0.9",
     "react": "19.2.3",
-    "react-native": "0.85.3",
+    "react-native": "0.86.2",
     "react-native-watch-connectivity": "^2.0.0",
     "react-reconciler": "0.33.0",
     "react-watchos": "workspace:*"
