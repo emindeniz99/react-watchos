@@ -6,6 +6,15 @@ name: release
 # - No npm token anywhere: the `id-token: write` permission below lets npm
 #   authenticate this workflow run directly. Requires npm >= 11.5.1 on the
 #   runner (Node 24 bundles a new enough npm).
+#
+# ⚠️ The `release: published` trigger below NEVER FIRES for our releases
+# (observed on both 0.2.0 and 0.2.1): release-please creates the Release
+# with the default GITHUB_TOKEN, and GitHub's recursion guard drops events
+# produced by that token. Publishing is therefore a two-step dance:
+#   1. merge the release PR (release-please tags + creates the Release);
+#   2. confirm origin/main == the release tag, then `gh workflow run
+#      release.yml` — the manual dispatch below IS the publish path.
+# The trigger stays for the day the Release is created by a PAT/App token.
 
 on:
   workflow_dispatch:
