@@ -5,6 +5,25 @@ Pre-1.0, **breaking changes ship as minor versions** (`0.x` semver:
 changed; this file says what a consumer *does* about it. Entries are newest
 first, and only versions with consumer-facing action items appear.
 
+## 0.2.x → 0.3.0
+
+No action required unless you set `TabView`'s brand-new `style` prop
+between 2026-08-10 and this release: `"carousel"` was renamed `"page"`.
+The old name promised a SwiftUI style the renderer never applied
+(`.carousel` is deprecated in SwiftUI, and the value mapped to "no
+modifier"), so it now names what it does. Omitting `style` is unchanged
+and still means "SwiftUI's own default pager".
+
+### Why there is no codemod
+
+Migrations here are one-line prop edits a search-and-replace handles, and
+the whole consumer base fits in a room. A `next/expo`-style codemod CLI
+earns its maintenance only when a breaking change is mechanical AND wide —
+so the trigger is written down instead of the tool: ship a jscodeshift
+codemod for the FIRST migration that rewrites more than a handful of call
+sites in a consumer we do not own. Until then, this file is the migration
+tool.
+
 ## 0.1.x → 0.2.0
 
 No action required — 0.2.0 is additive for anyone who started on the
