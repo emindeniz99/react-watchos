@@ -8,7 +8,7 @@
     "prebuild": "pnpm --filter react-watchos build && pnpm --filter react-watchos build:bytecode && expo prebuild -p ios --clean"
   },
   "dependencies": {
-    "@bacons/apple-targets": "^4.0.7",
+    "@bacons/apple-targets": "^5.0.0",
     "@expo/config-plugins": "~56.0.9",
     "expo": "~56.0.11",
     "react": "19.2.3",

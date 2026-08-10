@@ -116,6 +116,12 @@ fi
 #     launch (IOSSHLMainWorkspace denied). The demo's shared state only needs the
 #     App Group, so dropping healthkit for the sim run is safe.
 # Sign the nested widget .appex FIRST, then the outer app.
+#
+# Where generated.entitlements lives: @bacons/apple-targets 5 stopped writing it
+# next to the target source (targets/<dir>/) and now writes it under the prebuilt
+# ios/ tree, keyed by PRODUCT name — ios/.targets/<productName>/. That directory
+# is wiped and rewritten by every `expo prebuild`, so run prebuild before this.
+ENT_DIR="$ROOT/app/ios/.targets"
 TMPENT=$(mktemp -d)
 sim_entitlements() {  # $1 = source generated.entitlements, $2 = out path
   cp "$1" "$2"
@@ -126,10 +132,10 @@ sim_entitlements() {  # $1 = source generated.entitlements, $2 = out path
 echo "==> Re-signing with sim-safe entitlements (App Group, +get-task-allow, -healthkit)"
 APPEX=$(ls -d "$APP/PlugIns/"*.appex 2>/dev/null | head -1)
 if [ -n "${APPEX:-}" ]; then
-  sim_entitlements "$ROOT/app/targets/widget/generated.entitlements" "$TMPENT/widget.ent"
+  sim_entitlements "$ENT_DIR/ReactWatchWidgets/generated.entitlements" "$TMPENT/widget.ent"
   codesign --force --sign - --entitlements "$TMPENT/widget.ent" "$APPEX"
 fi
-sim_entitlements "$ROOT/app/targets/watch/generated.entitlements" "$TMPENT/watch.ent"
+sim_entitlements "$ENT_DIR/ReactWatch/generated.entitlements" "$TMPENT/watch.ent"
 codesign --force --sign - --entitlements "$TMPENT/watch.ent" "$APP"
 
 # Assert the group actually made it in — a silent miss here is the whole bug.

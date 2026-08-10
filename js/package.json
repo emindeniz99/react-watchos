@@ -106,7 +106,7 @@
     "@babel/core": "^7.20.0 || ^8.0.0",
     "@babel/preset-react": "^7.18.0 || ^8.0.0",
     "@babel/preset-typescript": "^7.18.0 || ^8.0.0",
-    "@bacons/apple-targets": "^4.0.0",
+    "@bacons/apple-targets": "^4.0.0 || ^5.0.0",
     "@expo/config-plugins": ">=56.0.0",
     "babel-plugin-react-compiler": ">=1.0.0",
     "esbuild": ">=0.27.0",

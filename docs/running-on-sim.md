@@ -33,7 +33,9 @@ repeatedly before writing it down:
    only `get-task-allow` and **drop App Groups** — on device those need a
    provisioning profile, which the sim build has none of. So the built `.app`
    ships an empty `<dict/>` **even though `CODE_SIGN_ENTITLEMENTS` correctly
-   resolves to `app/targets/watch/generated.entitlements`**. This is the subtle
+   resolves to `app/ios/.targets/ReactWatch/generated.entitlements`** — since
+   @bacons/apple-targets 5 that file is written into the prebuilt `ios/` tree
+   under the target's product name, not into `targets/<dir>/`. This is the subtle
    one: the setting is right, the build "succeeds", and the signature still has
    no group. → After building, **manually re-sign** the `.app` *and* its
    embedded widget `.appex` (`.app/PlugIns/*.appex`, inner bundle first) with
