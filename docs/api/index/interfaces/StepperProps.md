@@ -6,7 +6,7 @@
 
 # Interface: StepperProps
 
-Defined in: [js/src/components.ts:391](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L391)
+Defined in: [js/src/components.ts:399](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L399)
 
 Numeric +/- stepper.
 
@@ -143,7 +143,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:396](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L396)
+Defined in: [js/src/components.ts:404](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L404)
 
 ***
 
@@ -151,7 +151,7 @@ Defined in: [js/src/components.ts:396](https://github.com/emindeniz99/react-watc
 
 > `optional` **max?**: `number`
 
-Defined in: [js/src/components.ts:394](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L394)
+Defined in: [js/src/components.ts:402](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L402)
 
 ***
 
@@ -159,7 +159,7 @@ Defined in: [js/src/components.ts:394](https://github.com/emindeniz99/react-watc
 
 > `optional` **min?**: `number`
 
-Defined in: [js/src/components.ts:393](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L393)
+Defined in: [js/src/components.ts:401](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L401)
 
 ***
 
@@ -167,7 +167,7 @@ Defined in: [js/src/components.ts:393](https://github.com/emindeniz99/react-watc
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:397](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L397)
+Defined in: [js/src/components.ts:405](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L405)
 
 #### Parameters
 
@@ -213,7 +213,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **step?**: `number`
 
-Defined in: [js/src/components.ts:395](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L395)
+Defined in: [js/src/components.ts:403](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L403)
 
 ***
 
@@ -235,4 +235,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:392](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L392)
+Defined in: [js/src/components.ts:400](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L400)

@@ -8,4 +8,4 @@
 
 > `const` **ConfirmationDialog**: `FC`\<[`ConfirmationDialogProps`](../interfaces/ConfirmationDialogProps.md)\>
 
-Defined in: [js/src/components.ts:703](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L703)
+Defined in: [js/src/components.ts:711](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L711)

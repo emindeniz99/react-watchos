@@ -368,14 +368,22 @@ export interface TabViewProps extends A11yProps {
   /** Fires with the new page index as the user swipes between pages. */
   onChange?: (index: number) => void;
   /**
-   * `verticalPage` is watchOS's crown-driven pager: one haptic detent per
-   * page, vertical swipes page too, and the page indicator sits on the
-   * trailing (crown) edge — mirrored automatically with the wearer's
-   * orientation setting, so the app never needs to know which side the crown
-   * is on. Default (`carousel` or absent) is SwiftUI's horizontal pager with
-   * the bottom dots.
+   * Which SwiftUI `TabViewStyle` to page with. Each value maps to the style
+   * of the same name, so this prop means exactly what SwiftUI means:
+   *
+   * - `verticalPage` — watchOS's crown-driven pager: one haptic detent per
+   *   page, vertical swipes page too, and the page indicator sits on the
+   *   trailing (crown) edge, mirrored automatically with the wearer's
+   *   orientation setting, so the app never needs to know which side the
+   *   crown is on.
+   * - `page` — the horizontal pager with the bottom dots.
+   *
+   * Omit it to keep SwiftUI's own default for the platform (today that is
+   * the horizontal pager): the renderer is a thin binding layer, so an
+   * absent prop applies no modifier rather than a style of our choosing.
+   * `carousel` is deliberately NOT offered — SwiftUI deprecated it.
    */
-  style?: "carousel" | "verticalPage";
+  style?: "page" | "verticalPage";
 }
 
 /** A draggable value slider (also Crown-adjustable when focused). */

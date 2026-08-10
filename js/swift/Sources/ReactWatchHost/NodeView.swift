@@ -683,21 +683,32 @@ struct NodeView: View {
         )
     }
 
-    /// TabView's `style` prop. `verticalPage` is watchOS's crown-driven pager
-    /// (one detent per page, indicator on the trailing — crown — edge, and the
-    /// system mirrors it with the wearer's orientation setting, so JS never
-    /// needs to know which side the crown is on). Absent or `carousel` keeps
-    /// SwiftUI's default horizontal paging, which existing trees render today —
-    /// opt-in, so no published tree changes underneath its author.
+    /// TabView's `style` prop. Each value maps to the SwiftUI `TabViewStyle`
+    /// of the same name, so the prop means what SwiftUI means: `verticalPage`
+    /// is watchOS's crown-driven pager (one detent per page, indicator on the
+    /// trailing — crown — edge, and the system mirrors it with the wearer's
+    /// orientation setting, so JS never needs to know which side the crown is
+    /// on); `page` is the horizontal pager with the bottom dots.
+    ///
+    /// An ABSENT prop applies no modifier at all — SwiftUI's own default for
+    /// the platform stands. That keeps the renderer a thin binding layer and
+    /// leaves every published tree rendering exactly as it does today. An
+    /// UNKNOWN value degrades the same way (no modifier), so a newer bundle
+    /// naming a style this binary doesn't know still renders.
+    ///
+    /// `carousel` is deliberately absent from the union: SwiftUI's
+    /// `.carousel` is deprecated (watchOS 7, no replacement version), so
+    /// offering the name would be a promise we should not keep.
+    ///
     /// `some View` parameter rather than a generic clause on purpose: the
     /// prop-parity gate's declaration scan does not parse `<Content: View>`
     /// between a helper's name and its parameters, and a helper the gate
     /// cannot see is a prop the gate cannot defend.
     @ViewBuilder private func tabViewStyled(_ tabView: some View) -> some View {
-        if node.string("style") == "verticalPage" {
-            tabView.tabViewStyle(.verticalPage)
-        } else {
-            tabView
+        switch node.string("style") {
+        case "verticalPage": tabView.tabViewStyle(.verticalPage)
+        case "page": tabView.tabViewStyle(.page)
+        default: tabView
         }
     }
 

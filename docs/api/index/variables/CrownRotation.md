@@ -8,4 +8,4 @@
 
 > `const` **CrownRotation**: `FC`\<[`CrownRotationProps`](../interfaces/CrownRotationProps.md)\>
 
-Defined in: [js/src/components.ts:694](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L694)
+Defined in: [js/src/components.ts:702](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L702)

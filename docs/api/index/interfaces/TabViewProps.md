@@ -85,13 +85,21 @@ controlled input.
 
 ### style?
 
-> `optional` **style?**: `"carousel"` \| `"verticalPage"`
+> `optional` **style?**: `"page"` \| `"verticalPage"`
 
-Defined in: [js/src/components.ts:378](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L378)
+Defined in: [js/src/components.ts:386](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L386)
 
-`verticalPage` is watchOS's crown-driven pager: one haptic detent per
-page, vertical swipes page too, and the page indicator sits on the
-trailing (crown) edge — mirrored automatically with the wearer's
-orientation setting, so the app never needs to know which side the crown
-is on. Default (`carousel` or absent) is SwiftUI's horizontal pager with
-the bottom dots.
+Which SwiftUI `TabViewStyle` to page with. Each value maps to the style
+of the same name, so this prop means exactly what SwiftUI means:
+
+- `verticalPage` — watchOS's crown-driven pager: one haptic detent per
+  page, vertical swipes page too, and the page indicator sits on the
+  trailing (crown) edge, mirrored automatically with the wearer's
+  orientation setting, so the app never needs to know which side the
+  crown is on.
+- `page` — the horizontal pager with the bottom dots.
+
+Omit it to keep SwiftUI's own default for the platform (today that is
+the horizontal pager): the renderer is a thin binding layer, so an
+absent prop applies no modifier rather than a style of our choosing.
+`carousel` is deliberately NOT offered — SwiftUI deprecated it.

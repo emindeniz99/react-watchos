@@ -8,4 +8,4 @@
 
 > `const` **TabView**: `FC`\<[`TabViewProps`](../interfaces/TabViewProps.md)\>
 
-Defined in: [js/src/components.ts:690](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L690)
+Defined in: [js/src/components.ts:698](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L698)

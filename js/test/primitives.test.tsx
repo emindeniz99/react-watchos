@@ -374,6 +374,25 @@ describe("input primitives", () => {
     expect(root.children).toHaveLength(2);
     // Uncontrolled: no selection prop crosses, so native must not bind.
     expect(root.props.selection).toBeUndefined();
+    // No style prop either: absent means "apply no tabViewStyle modifier", so
+    // SwiftUI's own default stands and existing trees keep their look.
+    expect(root.props.style).toBeUndefined();
+  });
+
+  // The pager style is the one TabView prop a wearer feels rather than sees
+  // in the tree: `verticalPage` gives the crown its native next/previous
+  // detents. It must cross the wire verbatim — native switches on the exact
+  // string, so a dropped or renamed value silently downgrades the app to the
+  // horizontal dots pager with no error anywhere.
+  it("passes the TabView pager style through verbatim", () => {
+    for (const style of ["verticalPage", "page"] as const) {
+      const root = render(
+        <TabView style={style}>
+          <Text>page 1</Text>
+        </TabView>,
+      );
+      expect(root.props.style).toBe(style);
+    }
   });
 
   it("serializes FormattedText date and number modes", () => {
