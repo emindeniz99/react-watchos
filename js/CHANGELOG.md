@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.2.1...react-watchos-v0.3.0) (2026-08-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **js:** TabView's `style="carousel"` is now `style="page"`. Unreleased on npm — 0.2.1 has no `style` prop at all — so only trees built against main since 2026-08-10 are affected.
+
+### Features
+
+* **swift:** TabView opts into watchOS's crown-driven verticalPage style ([062db05](https://github.com/emindeniz99/react-watchos/commit/062db055ecbf36bebf8e68d14322fbf93ef26077))
+
+
+### Bug Fixes
+
+* **js:** TabView's pager style names real SwiftUI styles, and is tested ([38c95d7](https://github.com/emindeniz99/react-watchos/commit/38c95d72ee9d13b7c93348aaf8ddafba17d3eadf))
+
 ## [0.2.1](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.2.0...react-watchos-v0.2.1) (2026-08-10)
 
 
