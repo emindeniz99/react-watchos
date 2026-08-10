@@ -367,6 +367,15 @@ export interface TabViewProps extends A11yProps {
   selection?: number;
   /** Fires with the new page index as the user swipes between pages. */
   onChange?: (index: number) => void;
+  /**
+   * `verticalPage` is watchOS's crown-driven pager: one haptic detent per
+   * page, vertical swipes page too, and the page indicator sits on the
+   * trailing (crown) edge — mirrored automatically with the wearer's
+   * orientation setting, so the app never needs to know which side the crown
+   * is on. Default (`carousel` or absent) is SwiftUI's horizontal pager with
+   * the bottom dots.
+   */
+  style?: "carousel" | "verticalPage";
 }
 
 /** A draggable value slider (also Crown-adjustable when focused). */

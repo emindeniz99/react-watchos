@@ -37,7 +37,8 @@
   },
   "TabView": {
     "app": [
-      "selection"
+      "selection",
+      "style"
     ],
     "widget": []
   },

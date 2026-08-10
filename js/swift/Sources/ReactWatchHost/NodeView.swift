@@ -242,15 +242,16 @@ struct NodeView: View {
             // the first ack (the optimistic value releases to the absent
             // prop).
             if node.double("selection") != nil {
-                TabView(selection: tabSelectionBinding) {
-                    ForEach(
-                        Array(node.children.enumerated()), id: \.element.id
-                    ) { index, child in
-                        NodeView(node: child).tag(index)
-                    }
-                }
+                tabViewStyled(
+                    TabView(selection: tabSelectionBinding) {
+                        ForEach(
+                            Array(node.children.enumerated()), id: \.element.id
+                        ) { index, child in
+                            NodeView(node: child).tag(index)
+                        }
+                    })
             } else {
-                TabView { childViews }
+                tabViewStyled(TabView { childViews })
             }
         case "CrownRotation":
             CrownRotationView(node: node)
@@ -680,6 +681,24 @@ struct NodeView: View {
                 )
             }
         )
+    }
+
+    /// TabView's `style` prop. `verticalPage` is watchOS's crown-driven pager
+    /// (one detent per page, indicator on the trailing — crown — edge, and the
+    /// system mirrors it with the wearer's orientation setting, so JS never
+    /// needs to know which side the crown is on). Absent or `carousel` keeps
+    /// SwiftUI's default horizontal paging, which existing trees render today —
+    /// opt-in, so no published tree changes underneath its author.
+    /// `some View` parameter rather than a generic clause on purpose: the
+    /// prop-parity gate's declaration scan does not parse `<Content: View>`
+    /// between a helper's name and its parameters, and a helper the gate
+    /// cannot see is a prop the gate cannot defend.
+    @ViewBuilder private func tabViewStyled(_ tabView: some View) -> some View {
+        if node.string("style") == "verticalPage" {
+            tabView.tabViewStyle(.verticalPage)
+        } else {
+            tabView
+        }
     }
 
     private func cgFloat(_ key: String) -> CGFloat? {
