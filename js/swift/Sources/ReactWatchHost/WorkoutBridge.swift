@@ -253,12 +253,6 @@ final class WorkoutSessionOwner: NSObject {
         guard !isWorkoutActive else {
             return "a workout is already running — end it before starting another"
         }
-        let configuration = HKWorkoutConfiguration()
-        configuration.activityType = activity
-        if let location = plan.location {
-            configuration.locationType =
-                location == .indoor ? .indoor : .outdoor
-        }
         epoch += 1
         pendingStart = plan
         // Share authorization is requested as part of STARTING, which is what a
@@ -304,6 +298,22 @@ final class WorkoutSessionOwner: NSObject {
                 if this.session != nil {
                     this.endSession(
                         reason: .requested, discard: true, completion: nil)
+                }
+                // The configuration is BUILT here, not before the authorization
+                // call, because `HKWorkoutConfiguration` is not Sendable and
+                // this closure is where it is consumed: constructed outside, it
+                // would be captured first by HealthKit's @Sendable completion
+                // (after which region isolation treats it as task-isolated) and
+                // then again by this main-actor closure — a second send of a
+                // value the compiler can no longer prove unshared, which Swift 6
+                // rejects ("sending 'configuration' risks causing data races").
+                // Built from the Sendable inputs (`activity`, `plan`), it is
+                // born in this region and never crosses an isolation boundary.
+                let configuration = HKWorkoutConfiguration()
+                configuration.activityType = activity
+                if let location = plan.location {
+                    configuration.locationType =
+                        location == .indoor ? .indoor : .outdoor
                 }
                 this.start(configuration: configuration, claim: .workout, plan: plan)
             }

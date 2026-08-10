@@ -222,7 +222,16 @@ import ReactWatchSupport
     }
 
     /// JSON for an already-JSON-safe array.
-    private static func json(_ value: [[String: Any]]) -> String {
+    ///
+    /// `nonisolated`, and that is load-bearing: the class-level `@MainActor`
+    /// would otherwise isolate this pure function too, and both call sites run
+    /// OFF main — `events` on the calendar queue's `@Sendable` closure,
+    /// `reminders` inside EventKit's off-main completion. Isolated, the
+    /// `events` call would have to SEND its non-Sendable `payload` (a region
+    /// the compiler merges with the captured store) onto the main actor, which
+    /// Swift 6 rejects ("sending 'payload' risks causing data races").
+    /// Nonisolated, the call stays in the caller's context and nothing crosses.
+    private nonisolated static func json(_ value: [[String: Any]]) -> String {
         (try? JSONSerialization.data(withJSONObject: value))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
     }
