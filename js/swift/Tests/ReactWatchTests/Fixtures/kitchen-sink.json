@@ -283,7 +283,8 @@
         "type": "TabView",
         "props": {
           "selection": 1,
-          "onChange": true
+          "onChange": true,
+          "style": "verticalPage"
         },
         "children": [
           {
