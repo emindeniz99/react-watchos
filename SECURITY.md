@@ -42,6 +42,39 @@ Design details and the exact verification chain:
 [docs/ota-signing.md](./docs/ota-signing.md). What is verified at which level
 (Linux-tested / watch-compiled / device): [docs/status.md](./docs/status.md).
 
+## Known transitive advisory: @xmldom/xmldom via @bacons/apple-targets
+
+**Your app's runtime tree is not affected.** Installing this package pulls
+`plist@3.1.x`, which resolves `@xmldom/xmldom@0.9.x` — patched. `npm audit`
+on a clean `npm i react-watchos` reports 0 vulnerabilities.
+
+What a scanner may still flag is a **build-time** copy on the PREBUILD side:
+
+```
+@bacons/apple-targets -> @bacons/xcode -> @expo/plist@0.0.18 -> @xmldom/xmldom@~0.7.0
+```
+
+`@bacons/apple-targets` is our **peer** dependency, so this copy lives in
+your workspace, not in our published tree, and we cannot bump it for you.
+`~0.7.0` is affected by GHSA-wh4c-j3r5-mjhp (HIGH — a `]]>` in
+attacker-controlled text escapes its CDATA section on serialize), and the
+0.7 line has no patch; the fix starts at 0.8.12.
+
+Exposure is limited to `expo prebuild` editing plists in your own checkout,
+so the practical risk is low — but the remedy is one line. pnpm:
+
+```yaml
+# pnpm-workspace.yaml
+overrides:
+  '@xmldom/xmldom@~0.7.0': ^0.8.12
+```
+
+npm/yarn use `overrides` / `resolutions` with the same version. This repo
+ships that override for its own tree and verifies it with a full
+`expo prebuild` (generated `Info.plist`s still lint clean), so the bump is
+exercised, not assumed. Drop it when `@bacons/xcode` moves off
+`@expo/plist@0.0.18`.
+
 ## Supply-chain posture of this repo
 
 - npm releases publish via **GitHub Actions OIDC trusted publishing** (no

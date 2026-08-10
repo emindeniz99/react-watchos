@@ -29,6 +29,21 @@ minimumReleaseAge: 10080
 # exact `pkg@version` entries).
 minimumReleaseAgeStrict: true
 
+# Transitive-CVE remediation. `@bacons/xcode` (both published alphas) pins
+# `@expo/plist@^0.0.18`, which pins `@xmldom/xmldom@~0.7.0` — and 0.7.x is
+# affected by GHSA-wh4c-j3r5-mjhp (HIGH, CDATA terminator injection on
+# serialize) with NO 0.7 patch: the fix starts at 0.8.12. Newer @expo/plist
+# releases already sit on ^0.8.8, so 0.8.x is the version @expo/plist's own
+# code is written against; this override just drags the pinned-back copy
+# forward. It is build-time only — plist editing during `expo prebuild`,
+# never bundled into a watch app — but a HIGH with a one-line remedy is not
+# worth carrying. Verified by a full `expo prebuild` after the override.
+# Consumers need the same line in their own workspace (they install
+# @bacons/apple-targets themselves — it is our peer, not our dependency);
+# SECURITY.md carries the copy-paste.
+overrides:
+  '@xmldom/xmldom@~0.7.0': ^0.8.12
+
 # Lifecycle-script allowlist (pnpm 11 home of package.json's former
 # pnpm.onlyBuiltDependencies): only the toolchain binaries we actually
 # execute during build/test; everything else stays sandboxed.
