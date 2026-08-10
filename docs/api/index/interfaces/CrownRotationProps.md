@@ -6,7 +6,7 @@
 
 # Interface: CrownRotationProps
 
-Defined in: [js/src/components.ts:466](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L466)
+Defined in: [js/src/components.ts:475](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L475)
 
 Binds the Digital Crown to a numeric value over its children (SwiftUI
 `digitalCrownRotation`). The wrapped view becomes crown-focusable;
@@ -48,7 +48,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:477](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L477)
+Defined in: [js/src/components.ts:486](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L486)
 
 ***
 
@@ -56,7 +56,7 @@ Defined in: [js/src/components.ts:477](https://github.com/emindeniz99/react-watc
 
 > `optional` **haptic?**: `boolean`
 
-Defined in: [js/src/components.ts:475](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L475)
+Defined in: [js/src/components.ts:484](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L484)
 
 Crown haptic detents (default true).
 
@@ -66,7 +66,7 @@ Crown haptic detents (default true).
 
 > `optional` **max?**: `number`
 
-Defined in: [js/src/components.ts:471](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L471)
+Defined in: [js/src/components.ts:480](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L480)
 
 Range upper bound (default 100).
 
@@ -76,7 +76,7 @@ Range upper bound (default 100).
 
 > `optional` **min?**: `number`
 
-Defined in: [js/src/components.ts:469](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L469)
+Defined in: [js/src/components.ts:478](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L478)
 
 Range lower bound (default 0).
 
@@ -86,7 +86,7 @@ Range lower bound (default 0).
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:476](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L476)
+Defined in: [js/src/components.ts:485](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L485)
 
 #### Parameters
 
@@ -104,7 +104,7 @@ Defined in: [js/src/components.ts:476](https://github.com/emindeniz99/react-watc
 
 > `optional` **step?**: `number`
 
-Defined in: [js/src/components.ts:473](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L473)
+Defined in: [js/src/components.ts:482](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L482)
 
 Detent size (default 1).
 
@@ -114,4 +114,4 @@ Detent size (default 1).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:467](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L467)
+Defined in: [js/src/components.ts:476](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L476)

@@ -80,3 +80,18 @@ state and update it from `onChange`, or the page snaps back. Omit both
 for the uncontrolled TabView. A controlled TabView without `onChange` is
 read-only — swiping is disabled, the same CX-010 rule as every other
 controlled input.
+
+***
+
+### style?
+
+> `optional` **style?**: `"carousel"` \| `"verticalPage"`
+
+Defined in: [js/src/components.ts:378](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L378)
+
+`verticalPage` is watchOS's crown-driven pager: one haptic detent per
+page, vertical swipes page too, and the page indicator sits on the
+trailing (crown) edge — mirrored automatically with the wearer's
+orientation setting, so the app never needs to know which side the crown
+is on. Default (`carousel` or absent) is SwiftUI's horizontal pager with
+the bottom dots.

@@ -6,7 +6,7 @@
 
 # Interface: SectionProps
 
-Defined in: [js/src/components.ts:582](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L582)
+Defined in: [js/src/components.ts:591](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L591)
 
 Grouped rows with an optional header/footer — meaningful inside <List>
  (SwiftUI `Section`).
@@ -84,7 +84,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:585](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L585)
+Defined in: [js/src/components.ts:594](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L594)
 
 ***
 
@@ -106,7 +106,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **footer?**: `string`
 
-Defined in: [js/src/components.ts:584](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L584)
+Defined in: [js/src/components.ts:593](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L593)
 
 ***
 
@@ -144,7 +144,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **header?**: `string`
 
-Defined in: [js/src/components.ts:583](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L583)
+Defined in: [js/src/components.ts:592](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L592)
 
 ***
 

@@ -6,7 +6,7 @@
 
 # Interface: SliderProps
 
-Defined in: [js/src/components.ts:373](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L373)
+Defined in: [js/src/components.ts:382](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L382)
 
 A draggable value slider (also Crown-adjustable when focused).
 
@@ -143,7 +143,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **max?**: `number`
 
-Defined in: [js/src/components.ts:376](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L376)
+Defined in: [js/src/components.ts:385](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L385)
 
 ***
 
@@ -151,7 +151,7 @@ Defined in: [js/src/components.ts:376](https://github.com/emindeniz99/react-watc
 
 > `optional` **min?**: `number`
 
-Defined in: [js/src/components.ts:375](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L375)
+Defined in: [js/src/components.ts:384](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L384)
 
 ***
 
@@ -159,7 +159,7 @@ Defined in: [js/src/components.ts:375](https://github.com/emindeniz99/react-watc
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:378](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L378)
+Defined in: [js/src/components.ts:387](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L387)
 
 #### Parameters
 
@@ -205,7 +205,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **step?**: `number`
 
-Defined in: [js/src/components.ts:377](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L377)
+Defined in: [js/src/components.ts:386](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L386)
 
 ***
 
@@ -227,4 +227,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:374](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L374)
+Defined in: [js/src/components.ts:383](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L383)
