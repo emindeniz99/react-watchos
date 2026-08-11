@@ -238,6 +238,13 @@ Stated plainly, because the gap is real:
   positions in the bundled file. Unminified DEBUG bundles keep original
   function names, which is usually enough to locate the throw; if you are
   chasing a stack in a minified bundle, rebuild without `--minify` first.
+- **A device DEBUG build bakes in the LAN packager host at port 8081**, and
+  nothing checks WHOSE packager answers. Run a second project's Metro on 8081
+  and the watch/phone silently loads that project's bundle — you get someone
+  else's app, or a cryptic module error, with no hint that the bundle came
+  from the wrong server. Seen on a real device, 2026-08-11 (adagia session).
+  Give each project its own port (`expo start --port 8082`) and check
+  `lsof -ti :8081` before blaming your bundle.
 - **The error banner is developer-facing, not a user-facing error UI.** It is
   a red bar with a monospaced message. Ship your own `ErrorBoundary` fallback
   for anything a user should see.

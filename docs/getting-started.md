@@ -285,3 +285,14 @@ pass is scoped in [status.md](./status.md) — Rule 12):**
   `group.com.emindeniz99.reactwatch` App Group capability (declared in
   their `expo-target.config.js`; verify under Signing & Capabilities, and
   register the group id for your team).
+  ⚠️ **Registering the group id is a one-time MANUAL step on the plain
+  `xcodebuild` path.** `-allowProvisioningUpdates` creates App IDs and
+  provisioning profiles for you, but it does NOT create App Group
+  identifiers — do that once in Xcode's Signing & Capabilities pane or in
+  the developer portal, or the device build signs without the group and
+  every shared-state screen silently reads 0 (the device twin of the
+  simulator trap in [running-on-sim.md](./running-on-sim.md)). EAS Build
+  creates the group for you; local `xcodebuild` does not. Verified on a
+  real Ultra 3, 2026-08-11 (adagia session): once registered, the
+  entitlement survives device signing — `codesign -d --entitlements :-`
+  shows the group on both the app and the appex.
