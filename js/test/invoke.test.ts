@@ -193,6 +193,43 @@ describe("invoke timeout net (NF-01)", () => {
   });
 });
 
+describe("settle-global survives a same-context bundle re-evaluation", () => {
+  // A reload/OTA re-eval runs invoke.ts's top level again in the SAME
+  // globalThis (a fresh `pending` Map, fresh `nextInvokeId`), but
+  // `installInvokeBridge` used to early-return when `__resolveInvoke` was
+  // already present — so the OLD bundle's settle (closed over the OLD,
+  // now-orphaned `pending`) stayed installed. Every invoke from the NEW
+  // bundle then armed an entry in a pending map no installed settle function
+  // could ever find: a silent, permanent hang (until the 30s watchdog),
+  // reproducing daily for anyone hitting a reload. `vi.resetModules` +
+  // dynamic re-import gives two independent module instances sharing one
+  // globalThis — exactly what a same-context re-eval produces.
+  it("a fresh module instance's invoke still settles after an older instance already ran", async () => {
+    installMockHost();
+
+    vi.resetModules();
+    const first = await import("../src/invoke");
+    // Exercise the first "bundle" so it installs the bridge and its `pending`
+    // map is proven live, then let it fully settle (empty pending map).
+    await expect(first.invoke("saveUpdate")).resolves.toEqual({
+      accepted: true,
+    });
+
+    // Same-context re-eval: a fresh module instance, same globalThis.
+    vi.resetModules();
+    const second = await import("../src/invoke");
+    const secondPromise = second.invoke("saveUpdate");
+
+    // Race a short delay: with the stale guard, secondPromise never settles.
+    const HUNG = Symbol("hung");
+    const result = await Promise.race([
+      secondPromise,
+      new Promise((resolve) => setTimeout(() => resolve(HUNG), 200)),
+    ]);
+    expect(result).toEqual({ accepted: true }); // fails (HUNG) without the fix
+  });
+});
+
 /**
  * The closed code set spans two languages, and until now only ONE side was
  * machine-checked: SupportTests.swift compares `InvokeErrorCode.allCases`

@@ -132,14 +132,19 @@ function settle(id: number, ok: boolean, json: string): void {
   entry.reject(invokeError(code, message));
 }
 
-/** Installs the host->JS settle globals (idempotent); called lazily by invoke
- *  so they exist before the host replies. */
+/** Installs the host->JS settle globals; called lazily by invoke so they
+ *  exist before the host replies. Assigns UNCONDITIONALLY (most-recent
+ *  evaluation wins): a same-context reload/OTA re-eval runs this module's
+ *  top level again with a FRESH `pending` map, but `globalThis` survives the
+ *  re-eval. An early-return-if-present guard would leave the OLD bundle's
+ *  closures (over the OLD `pending`) installed forever — every invoke from
+ *  the NEW bundle then arms a NEW pending entry that no installed settle
+ *  function can ever find, so it silently hangs until its 30s watchdog. */
 function installInvokeBridge(): void {
   const g = globalThis as {
     __resolveInvoke?: (id: number, resultJson: string) => void;
     __rejectInvoke?: (id: number, errorJson: string) => void;
   };
-  if (g.__resolveInvoke) return;
   g.__resolveInvoke = (id, resultJson) => settle(id, true, resultJson);
   g.__rejectInvoke = (id, errorJson) => settle(id, false, errorJson);
 }

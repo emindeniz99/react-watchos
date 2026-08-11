@@ -131,12 +131,6 @@ worked example for 0.1.0-era code).
 
 Code defects — JS (`js/src`):
 
-- **invoke.ts settle-global guard goes stale across same-context bundle
-  re-evaluation** (medium): the `__resolveInvoke`/`__rejectInvoke` install
-  guard early-returns when the globals exist, so after a re-eval the OLD
-  bundle's settle functions stay installed and every new invoke black-holes.
-  Fix: assign unconditionally (most-recent evaluation wins); optionally delete
-  both globals identity-checked in `WatchRoot.dispose`.
 - **Non-finite widget entry date/relevance poisons the whole
   `PublishedWidgets` payload** (medium): one `NaN` date drops every
   complication to placeholder. Fix: per-entry validation + drop-and-warn, same
