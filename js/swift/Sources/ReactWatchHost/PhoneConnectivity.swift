@@ -224,9 +224,22 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
                     code: .invalidRequest,
                     message: "no readable file at \(url.path)"))
         }
+        // Registered under the SAME lock `didFinish` takes before reading the
+        // maps (below), with the call itself inside the critical section —
+        // not just the registration after it. `transferFile` is documented
+        // asynchronous, but nothing stops a fast completion from reaching
+        // `didFinish` on WatchConnectivity's background thread while this call
+        // is still unwinding; without the lock covering the call, that
+        // `didFinish` could run before `idsByTransfer`/`transfersById` were
+        // written, see `id: null`, and leak both entries — `session(_:
+        // didFinish:)` only removes what it finds. Widening the lock instead
+        // of literally "registering before calling" (impossible: the id maps
+        // are keyed by `transfer`'s `ObjectIdentifier`, which only exists once
+        // this call returns) makes `didFinish` block on the same lock until
+        // registration is done, so it can never observe the map unregistered.
+        transferLock.lock()
         let transfer = session.transferFile(
             url, metadata: object["metadata"] as? [String: Any])
-        transferLock.lock()
         let id = nextTransferId
         nextTransferId += 1
         idsByTransfer[ObjectIdentifier(transfer)] = id

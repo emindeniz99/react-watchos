@@ -150,9 +150,6 @@ Code defects — Swift host:
   pin the read-at-delivery-not-at-call-time ordering deterministically like
   `CapabilityBridgesTests`, or a timed race of a live delegate callback
   against `tearDownForReload()`.
-- **`transferFile` registers id maps after WCSession starts the transfer**
-  (low): a fast `didFinish` reports `id: null` and leaks the map entries.
-  Fix: register before calling `transferFile`.
 - **`WorkoutPlanBridge` preflight/read-back is reentrant across awaits**
   (low): `Promise.all` of two identical schedules can double-store the
   undocumented `(id, minute)` pair. Fix: serialize per-bridge with an async
