@@ -124,12 +124,12 @@ final class ReactWatchModel {
     @ObservationIgnored private var commitBlessesHealth = true
     /// Serial queue for decoding committed trees off the main thread.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
-    /// Reused across commits — only ever touched on the serial decodeQueue,
-    /// which is the actual synchronization (hence `nonisolated(unsafe)`: a
-    /// plain isolated `let` would be a Swift 6 cross-actor error when read
-    /// from the decode closure). A fresh JSONDecoder per commit is pure
-    /// allocation churn at sensor-driven commit rates (10-20 commits/sec).
-    nonisolated(unsafe) private let treeDecoder = JSONDecoder()
+    /// Reused across commits, decoded on the serial decodeQueue. No
+    /// `nonisolated(unsafe)` needed: `JSONDecoder` is `Sendable` in the
+    /// current SDK, so a plain isolated `let` crosses to the decode closure
+    /// without a Swift 6 diagnostic. A fresh JSONDecoder per commit would be
+    /// pure allocation churn at sensor-driven commit rates (10-20 commits/sec).
+    private let treeDecoder = JSONDecoder()
     private let connectivity = PhoneConnectivity()
     private let bluetooth = BluetoothBridge()
     private let sensors = SensorBridge()

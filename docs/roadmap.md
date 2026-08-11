@@ -190,13 +190,6 @@ Code defects — Swift host:
   (low): `Promise.all` of two identical schedules can double-store the
   undocumented `(id, minute)` pair. Fix: serialize per-bridge with an async
   queue/actor, or re-check after the write.
-- **Stale `nonisolated(unsafe)` on `treeDecoder`** (low — cleanup):
-  `JSONDecoder` is Sendable in the current SDK, so the annotation at
-  ReactWatchHost.swift ~132 (and its justifying comment) is dead; the
-  compiler says so. This file is watchOS-only, so removal is trivially safe —
-  unlike `JSRuntime.swift`'s `queueMarker`, whose twin annotation must STAY
-  (Linux's Dispatch overlay doesn't mark `DispatchSpecificKey` Sendable and
-  the runtime target builds on Linux; the Darwin compiler can't see that).
 
 Publish steps (this IS the standalone repo now — extraction happened; status
 as of 2026-08-06):
