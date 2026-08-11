@@ -1008,8 +1008,14 @@ final class ReactWatchModel {
     /// rejects. Generation-guarded (CX-008).
     private func requestNotificationPermission(id: Int) {
         let gen = generation
-        let center = UNUserNotificationCenter.current()
-        center.requestAuthorization(options: [.alert, .sound]) { [weak self] _, error in
+        // `center` is re-fetched inside the completion rather than captured
+        // from the outer scope: UNUserNotificationCenter isn't Sendable, and
+        // capturing it into requestAuthorization's @Sendable completion (then
+        // again into getNotificationSettings below) is exactly the
+        // CalendarBridge isolation mistake (0b61c7d) one door over —
+        // `.current()` is a cheap, thread-safe singleton lookup either way.
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) {
+            [weak self] _, error in
             if let error {
                 DispatchQueue.main.async {
                     guard let self, gen == self.generation else { return }
@@ -1020,7 +1026,7 @@ final class ReactWatchModel {
                 }
                 return
             }
-            center.getNotificationSettings { settings in
+            UNUserNotificationCenter.current().getNotificationSettings { settings in
                 let status = Self.permissionStatus(settings.authorizationStatus)
                 DispatchQueue.main.async {
                     guard let self, gen == self.generation else { return }
@@ -1172,7 +1178,16 @@ final class ReactWatchModel {
     /// Maps UNAuthorizationStatus to the JS NotificationPermission string
     /// (js/src/notifications.ts). `.ephemeral` (App Clips, not watch) is treated
     /// as granted; anything unknown is reported as unavailable.
-    private static func permissionStatus(_ status: UNAuthorizationStatus) -> String {
+    ///
+    /// `nonisolated`, and that is load-bearing the same way as
+    /// CalendarBridge.json (0b61c7d): the class-level `@MainActor` would
+    /// otherwise implicitly isolate this pure switch too, and its one call
+    /// site runs inside `getNotificationSettings`'s completion — off-main,
+    /// not @Sendable-audited by UNUserNotificationCenter today, so it's a
+    /// warning rather than the hard error CalendarBridge hit under Xcode
+    /// 26.6. Safe in fact (pure function, Sendable arg/result); `internal`
+    /// so `NotificationPermissionTests` can pin it directly.
+    nonisolated static func permissionStatus(_ status: UNAuthorizationStatus) -> String {
         switch status {
         case .authorized: "granted"
         case .denied: "denied"

@@ -190,16 +190,6 @@ Code defects — Swift host:
   (low): `Promise.all` of two identical schedules can double-store the
   undocumented `(id, minute)` pair. Fix: serialize per-bridge with an async
   queue/actor, or re-check after the write.
-- **`requestNotificationPermission` repeats the CalendarBridge isolation
-  mistake** (low — warnings today, errors on the next compiler tightening;
-  found 2026-08-10, same sweep): inside `requestAuthorization`'s @Sendable
-  completion, `center` (non-Sendable `UNUserNotificationCenter`) is captured
-  and the implicitly-@MainActor static `permissionStatus(_:)` is called
-  synchronously off-main (ReactWatchHost.swift ~1023-1024). Safe in fact
-  (thread-safe singleton; pure switch with Sendable arg/result — which is
-  why it's not yet an error, unlike CalendarBridge's `json`). Fix: mark
-  `permissionStatus` `nonisolated` and re-fetch
-  `UNUserNotificationCenter.current()` inside the closure.
 - **Stale `nonisolated(unsafe)` on `treeDecoder`** (low — cleanup):
   `JSONDecoder` is Sendable in the current SDK, so the annotation at
   ReactWatchHost.swift ~132 (and its justifying comment) is dead; the
