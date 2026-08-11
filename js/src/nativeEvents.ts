@@ -11,7 +11,19 @@ export type NativeEventHandler = (payload?: Record<string, unknown>) => void;
 /** A function that removes the listener it was returned for. */
 export type Unsubscribe = () => void;
 
-const listeners = new Map<string, Set<NativeEventHandler>>();
+/** Wraps a handler with a per-subscription identity. A plain
+ *  `Set<NativeEventHandler>` dedupes by FUNCTION identity, so subscribing the
+ *  same handler function twice (e.g. two `startSensor(kind, sameFn)` calls
+ *  sharing one stream) collapses to one Set member — the first unsubscribe
+ *  then deletes it, silencing the still-registered second subscription while
+ *  its own cleanup hasn't run and the caller believes it's still listening (a
+ *  shared native stream, e.g. a sensor, keeps running for it). Wrapping in a
+ *  fresh object per call gives each subscription its own Set identity. */
+interface ListenerEntry {
+  handler: NativeEventHandler;
+}
+
+const listeners = new Map<string, Set<ListenerEntry>>();
 
 /**
  * Level-triggered events: state that *is*, not something that *happened*. Their
@@ -57,13 +69,14 @@ export function registerNativeListener(
     set = new Set();
     listeners.set(name, set);
   }
-  set.add(handler);
+  const entry: ListenerEntry = { handler };
+  set.add(entry);
   // Level-triggered state: hand the newcomer what native last said, in its own
   // call stack (a throw belongs to the caller here, unlike the fan-out below).
   if (lastReplayed.has(name)) handler(lastReplayed.get(name));
   return () => {
     const current = listeners.get(name);
-    current?.delete(handler);
+    current?.delete(entry);
     if (current && current.size === 0) listeners.delete(name);
   };
 }
@@ -88,9 +101,9 @@ export function dispatchNativeEvent(
   // this iteration. Isolate each handler (match the tap path): one throwing
   // listener must not starve the others for this push — surface it (fail loud)
   // but still deliver the payload to everyone else.
-  for (const handler of [...set]) {
+  for (const entry of [...set]) {
     try {
-      handler(payload);
+      entry.handler(payload);
     } catch (error) {
       console.error(`native-event listener for "${name}" threw:`, error);
     }

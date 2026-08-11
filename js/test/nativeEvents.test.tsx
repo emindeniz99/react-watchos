@@ -78,6 +78,25 @@ describe("native event listeners", () => {
     expect(dispatchNativeEvent("x")).toBe(false);
   });
 
+  it("subscribing the same handler twice gives each subscription its own identity", () => {
+    // A plain Set<handler> dedupes by function identity: subscribing the SAME
+    // function twice collapsed to one Set member, so unsubscribing ONE of the
+    // two calls deleted it outright — silencing the still-registered second
+    // subscription (whose own cleanup hasn't run yet) while any shared native
+    // stream backing it (startSensor) keeps running. Each call must get an
+    // independent identity so its own cleanup — and only its own — removes it.
+    const shared = vi.fn();
+    const offFirst = registerNativeListener("x", shared);
+    registerNativeListener("x", shared); // same function, second subscription
+
+    offFirst(); // unsubscribes only the FIRST of the two
+
+    expect(dispatchNativeEvent("x", { v: 1 })).toBe(true);
+    // The second subscription is still live and must still fire.
+    expect(shared).toHaveBeenCalledTimes(1);
+    expect(shared).toHaveBeenCalledWith({ v: 1 });
+  });
+
   it("isolates a throwing listener — the others still get the payload", () => {
     // One bad listener for a native push (ble.state, connection, sensor…) must
     // not starve every later-registered one (the deep review caught this).

@@ -131,10 +131,6 @@ worked example for 0.1.0-era code).
 
 Code defects — JS (`js/src`):
 
-- **Duplicate handler subscription dedupes in the listener `Set`** (medium):
-  subscribing the same function twice then unsubscribing once silences the
-  survivor while `startSensor` keeps the native stream running. Fix: wrap each
-  subscription so identity is per-subscription, not per-function.
 - **`isPrivateHost` prefix-classifies DNS names** (low): `10.attacker.com`
   counts as LAN (cleartext OTA allowed); bracketed IPv6 allowance is dead
   code. Fix: numeric branches only for dotted-quad literals; mirror in Swift
