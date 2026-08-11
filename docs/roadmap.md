@@ -164,10 +164,25 @@ Code defects — Swift host:
   `jsReady` is false** (medium — data loss): the file is moved to the inbox
   but the event dies on a nil runtime; retention later deletes it silently.
   Fix: park inbound file events until `jsReady`, replay on boot.
-- **`WorkoutSessionOwner.epoch(of:)` reads mutable state on HealthKit's
-  delegate queue** (medium): torn/stale read the `nonisolated(unsafe)`
-  laundering masks; TSan-flaggable. Fix: hop to main before reading
-  `session`/`epoch`, or make the pair atomic.
+- **`WorkoutSessionOwner.epoch(of:)` regression test still owed** (medium
+  test-gap; code fixed 2026-08-11): the race — `epoch(of:)` reading mutable
+  `session`/`epoch` on HealthKit's delegate queue, a torn/stale read the
+  `nonisolated(unsafe)` laundering masked — is fixed: both
+  `HKWorkoutSessionDelegate` methods now call `epoch(of:)` inside the
+  `DispatchQueue.main.async` hop, not before it, mirroring the identical fix
+  already applied to CalendarBridge. What's still missing is a regression
+  test that pins it. An earlier pass claimed this was untestable
+  ("`HKWorkoutSession` construction throws without the healthkit
+  entitlement, so there's no way to get a live session into a test") — that
+  claim was checked empirically and is WRONG: construction succeeds with no
+  throw, `startWorkout()` does assign a real, identity-matching `session`
+  for a live interval on this project's own dedicated sim, and HealthKit's
+  real off-main delegate callback does fire in-process. A test is therefore
+  reachable, just not written yet — it needs either a test-only accessor to
+  `session`/`epoch` (the `permissionStatus` private→internal precedent) to
+  pin the read-at-delivery-not-at-call-time ordering deterministically like
+  `CapabilityBridgesTests`, or a timed race of a live delegate callback
+  against `tearDownForReload()`.
 - **`transferFile` registers id maps after WCSession starts the transfer**
   (low): a fast `didFinish` reports `id: null` and leaks the map entries.
   Fix: register before calling `transferFile`.

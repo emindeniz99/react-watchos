@@ -808,9 +808,16 @@ extension WorkoutSessionOwner: HKWorkoutSessionDelegate {
         // Clearing the name on the terminal transition is also what stops an
         // outside kill publishing "ended" TWICE — once from the failure, once
         // from the transition behind it.
-        let epoch = self.epoch(of: session)
+        // `epoch(of:)` reads `session`/`epoch` — mutable state written only
+        // from main — so it's computed AFTER the hop, not before: HealthKit
+        // calls this delegate off-main, and reading those properties on that
+        // thread would race every main-queue write to them (a torn/stale
+        // read, TSan-flaggable). Every other mutable read in this class
+        // already hops first (see `emitMetricsIfDue`'s caller below); this
+        // brings the two delegate entry points in line with that.
         nonisolated(unsafe) let this = self
         DispatchQueue.main.async {
+            let epoch = this.epoch(of: session)
             guard session === this.publishedSession else { return }
             let name = Self.stateName(toState)
             if name == .ended { this.publishedSession = nil }
@@ -821,9 +828,11 @@ extension WorkoutSessionOwner: HKWorkoutSessionDelegate {
     func workoutSession(
         _ session: HKWorkoutSession, didFailWithError error: Error
     ) {
-        let epoch = self.epoch(of: session)
+        // See the didChangeTo comment above: epoch(of:) moves inside the
+        // main-queue hop so it never reads session/epoch off-main.
         nonisolated(unsafe) let this = self
         DispatchQueue.main.async {
+            let epoch = this.epoch(of: session)
             // A failure IS the terminal state for a parked start, and the
             // session is gone either way — Apple ends it on a second workout
             // starting elsewhere, which is exactly the case this reports.
