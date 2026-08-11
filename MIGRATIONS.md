@@ -5,6 +5,24 @@ Pre-1.0, **breaking changes ship as minor versions** (`0.x` semver:
 changed; this file says what a consumer *does* about it. Entries are newest
 first, and only versions with consumer-facing action items appear.
 
+## 0.3.x → next
+
+**Duplicate native-event subscriptions now fire once each, not once total.**
+`registerNativeListener` (and everything built on it — `onBleState`,
+`onPhoneMessage`, sensor streams) used to store handlers in a
+`Set<NativeEventHandler>`, which dedupes by function identity: subscribing
+the SAME function twice collapsed to one entry, and the first unsubscribe
+deleted it, silencing the subscription that was still live. Each
+subscription now carries its own identity, so it also delivers its own
+call.
+
+Action: only if you deliberately subscribe one function reference more
+than once and rely on the old collapse — you will now see the side effect
+twice (two haptics, two state updates). Either subscribe distinct
+functions, or unsubscribe in cleanup so a re-render cannot stack
+subscriptions. Nothing to do if your effects already return their
+unsubscribe.
+
 ## 0.2.x → 0.3.0
 
 No action required unless you set `TabView`'s brand-new `style` prop
