@@ -85,6 +85,31 @@ final class RuntimeSmokeTests: XCTestCase {
         XCTAssertTrue(report.message.contains("rejected boom"), "got: \(report.message)")
     }
 
+    // Regression for the DEBUG-overlay false positive: BluetoothBridge (and any
+    // native settle) rejects a JS invoke's Promise INLINE, during the
+    // synchronous `host.invoke` call — before `invoke()` has even returned the
+    // Promise to its caller. quickjs-ng's tracker fires the "no handler yet"
+    // edge eagerly at that point, and the caller's `.catch` (attached the very
+    // next line, still in the same turn) used to arrive too late to retract a
+    // report that had already fired. Reverting the `pendingRejections`
+    // deferral makes this fail: `reported` becomes non-nil, because the old
+    // code reported on the first edge and ignored the second.
+    func testSynchronouslyHandledRejectionDoesNotReportAsUnhandled() throws {
+        let runtime = try JSRuntime()
+        var reported: (source: String, message: String)?
+        runtime.onError = { reported = ($0, $1) }
+
+        try runtime.evaluate(
+            #"""
+            const p = Promise.reject(new Error("caught one line later"));
+            p.catch(() => {});
+            """#)
+
+        XCTAssertNil(
+            reported,
+            "a rejection with a same-turn .catch must not report as unhandled")
+    }
+
     // ARCH-13: onError tags each report with its entry path so the host can
     // stamp a structured diagnostic code (js.eval/js.call/js.job/
     // js.promiseRejection) without parsing the message.

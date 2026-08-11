@@ -94,6 +94,30 @@ public final class JSRuntime {
     /// looked up lazily once the bundle defines them. Freed in deinit.
     private var globalFnCache: [String: JSValue] = [:]
 
+    /// Rejections quickjs-ng's tracker reported as "possibly unhandled" but not
+    /// yet SURFACED to `onError`, keyed by the rejecting promise's identity
+    /// (`qjs_value_get_ptr` — never dereferenced, used only for correlation).
+    /// quickjs-ng fires the "no handler YET" edge eagerly, at the moment a
+    /// promise rejects with nothing attached — which is not the same as
+    /// "nothing ever attaches". A native settle that rejects INLINE during
+    /// `host.invoke` (BluetoothBridge's "not connected", for one) rejects the
+    /// promise before `invoke()` has even returned it to the caller, so the
+    /// eager edge always fires before the caller's `.catch` has a chance to —
+    /// reporting that immediately is a false positive the DEBUG overlay shows
+    /// for code that handles its rejection one line later. Holding the report
+    /// here until `drainJobs()` finishes lets a same-turn `.catch` retract it
+    /// (the matching `is_handled == true` edge) before anything is reported;
+    /// an entry still here when the turn ends really did have no handler.
+    ///
+    /// Known gap: the key is the promise's raw address, not an owning
+    /// reference. If quickjs-ng's refcounting GC frees a zero-refcount
+    /// promise synchronously before `drainJobs()` finishes the turn, a new
+    /// object could in principle land at the same address later in that same
+    /// turn, letting an unrelated `is_handled` edge (or a park) match the
+    /// wrong entry. Narrow — needs a promise nothing holds a reference to,
+    /// freed mid-turn — and not covered by a test.
+    private var pendingRejections: [UnsafeRawPointer: String] = [:]
+
     /// - Parameters:
     ///   - memoryLimitBytes: caps the QuickJS heap (the widget extension runs in
     ///     a tight ~30MB budget; nil = unlimited).
@@ -209,6 +233,7 @@ public final class JSRuntime {
         pendingTimers.removeAll()
         globalFnCache.values.forEach { JS_FreeValue(context, $0) }
         globalFnCache.removeAll()
+        pendingRejections.removeAll()
         JS_FreeContext(context)
         JS_FreeRuntime(runtime)
     }
@@ -829,6 +854,16 @@ public final class JSRuntime {
             if status == 0 { break }
             if status < 0 { onError?("job", takeExceptionMessage()) }
         }
+        // Whatever is STILL pending once the queue is empty had no `.catch`
+        // attach anywhere in this turn — including a same-turn attach, which
+        // `noteRejectionHandled` already removed. See `pendingRejections`.
+        if !pendingRejections.isEmpty {
+            let messages = pendingRejections.values
+            pendingRejections.removeAll()
+            for message in messages {
+                onError?("promiseRejection", message)
+            }
+        }
     }
 
     private func takeExceptionMessage() -> String {
@@ -861,11 +896,26 @@ public final class JSRuntime {
         return message
     }
 
-    /// Routes an unhandled promise rejection to onError. "Possibly" because
-    /// quickjs-ng fires the tracker eagerly; a late .catch sends the matching
-    /// is_handled callback we ignore in promiseRejectionTracker.
-    fileprivate func reportUnhandledRejection(_ reason: JSValue) {
-        onError?("promiseRejection", "Possibly unhandled promise rejection: " + describe(reason))
+    /// Records a "possibly unhandled" rejection, keyed by the promise's
+    /// identity, instead of reporting it immediately — `drainJobs()` reports
+    /// (or drops) it once the current turn finishes. `reason` is formatted to
+    /// a String right away: it is read synchronously off the live JSValue
+    /// here, on the JS thread, same as the old immediate report did.
+    fileprivate func notePossiblyUnhandledRejection(
+        promise: UnsafeRawPointer?, reason: JSValue
+    ) {
+        guard let promise else { return }
+        pendingRejections[promise] =
+            "Possibly unhandled promise rejection: " + describe(reason)
+    }
+
+    /// The matching retraction: a `.catch`/`.then` attached to `promise`
+    /// (synchronously, per spec, from `PerformPromiseThen`) before this turn's
+    /// drain finished. Removing the entry is what makes a same-turn handler
+    /// invisible to the overlay instead of merely late.
+    fileprivate func noteRejectionHandled(promise: UnsafeRawPointer?) {
+        guard let promise else { return }
+        pendingRejections.removeValue(forKey: promise)
     }
 
     private func jsStringLiteral(_ value: String) -> String {
@@ -889,15 +939,20 @@ public final class JSRuntime {
 // recovered through the context opaque pointer.
 
 /// quickjs-ng calls this whenever a promise's rejection-handled state changes.
-/// We act only on the "no handler" edge (isHandled == false); the matching
-/// isHandled == true callback (a late .catch) is ignored. Report-only, like
-/// quickjs-ng's own CLI tracker.
+/// Both edges matter now (see `pendingRejections`): "no handler yet" parks a
+/// report, and the matching "handled" edge (a `.catch` attached later in the
+/// SAME turn) retracts it before `drainJobs()` ever surfaces it.
 private func promiseRejectionTracker(
-    ctx: OpaquePointer?, promise _: JSValue, reason: JSValue,
+    ctx: OpaquePointer?, promise: JSValue, reason: JSValue,
     isHandled: Bool, opaque _: UnsafeMutableRawPointer?
 ) {
-    guard !isHandled, let runtime = JSRuntime.from(context: ctx) else { return }
-    runtime.reportUnhandledRejection(reason)
+    guard let runtime = JSRuntime.from(context: ctx) else { return }
+    let promiseId = qjs_value_get_ptr(promise)
+    if isHandled {
+        runtime.noteRejectionHandled(promise: promiseId)
+    } else {
+        runtime.notePossiblyUnhandledRejection(promise: promiseId, reason: reason)
+    }
 }
 
 // MARK: - Swift -> JS settle (generate)
