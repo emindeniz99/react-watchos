@@ -771,6 +771,49 @@ describe("removeGeneratedTargetConfigFile (widget:false cleanup, CX-011)", () =>
   });
 });
 
+// DX-3: a missing @main entry (skipped `react-watchos scaffold`) used to
+// surface only as a link-time "Undefined symbols: _main" — fail loudly during
+// `expo prebuild`, before apple-targets ever creates the target, instead.
+describe("ensureWatchSwiftGlue (DX-3: @main entry present before prebuild)", () => {
+  const { ensureWatchSwiftGlue, WATCH_DIR } = withReactWatch;
+
+  const stage = () => {
+    const root = mkdtempSync(join(tmpdir(), "rnw-swiftglue-"));
+    const dir = join(root, "targets", WATCH_DIR);
+    mkdirSync(dir, { recursive: true });
+    return { root, dir };
+  };
+
+  it("throws naming the scaffold command when the target dir has no .swift", () => {
+    const { root, dir } = stage();
+    // ensureTargetConfigFile always writes expo-target.config.js first, so a
+    // real prebuild's target dir is never literally empty — only missing Swift.
+    writeFileSync(join(dir, "expo-target.config.js"), "module.exports = {};\n");
+    expect(() => ensureWatchSwiftGlue(root, WATCH_DIR)).toThrow(
+      /react-watchos scaffold/,
+    );
+  });
+
+  it("throws when the target dir does not exist at all", () => {
+    const root = mkdtempSync(join(tmpdir(), "rnw-swiftglue-"));
+    expect(() => ensureWatchSwiftGlue(root, WATCH_DIR)).toThrow(
+      /react-watchos scaffold/,
+    );
+  });
+
+  it("passes once the scaffolded WatchApp.swift is present", () => {
+    const { root, dir } = stage();
+    writeFileSync(join(dir, "WatchApp.swift"), "@main struct App {}\n");
+    expect(() => ensureWatchSwiftGlue(root, WATCH_DIR)).not.toThrow();
+  });
+
+  it("accepts any .swift file, not just WatchApp.swift", () => {
+    const { root, dir } = stage();
+    writeFileSync(join(dir, "MyEntry.swift"), "@main struct App {}\n");
+    expect(() => ensureWatchSwiftGlue(root, WATCH_DIR)).not.toThrow();
+  });
+});
+
 // CX-012: the in-prebuild Info.plist merge (the plugin runs this from its own
 // xcode base mod). apple-targets writes an empty/extension plist; this merges
 // the target's declared infoPlist into it, preserving existing keys.

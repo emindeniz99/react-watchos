@@ -169,6 +169,32 @@ function ensureTargetConfigFile(
   if (current !== next) fs.writeFileSync(file, next);
 }
 
+// DX-3 guard: apple-targets will happily create the watch app TARGET from
+// just the config file above, but with no `*.swift` source the target has no
+// `@main` entry — the Xcode linker's error at that point is an opaque
+// "Undefined symbols: _main", far from the actual cause (skipping
+// `react-watchos scaffold`, which writes the starter WatchApp.swift — see
+// docs/getting-started.md's documented order: scaffold BEFORE prebuild). The
+// config plugin deliberately does not generate this file itself (see the
+// Target-folder handling note above `withReactWatch`): failing loudly here,
+// with the fix named, is what keeps that boundary intact instead of drifting
+// into Phase 2 ("own target creation") to route around a missed step.
+function ensureWatchSwiftGlue(projectRoot: string, dir: string) {
+  const targetDir = path.join(projectRoot, "targets", dir);
+  const hasSwift =
+    fs.existsSync(targetDir) &&
+    fs.readdirSync(targetDir).some((f: string) => f.endsWith(".swift"));
+  if (!hasSwift) {
+    throw new Error(
+      `[react-watchos] targets/${dir}/ has no Swift source, so the watch ` +
+        "target would have no @main entry (a link-time \"Undefined symbols: " +
+        '_main" error, far from this cause) — run `npx react-watchos ' +
+        "scaffold` first to generate the starter WatchApp.swift, then re-run " +
+        "`expo prebuild`.",
+    );
+  }
+}
+
 // Removes a target's generated expo-target.config.js when the option that
 // created it is turned off (CX-011), so toggling e.g. `widget:false` converges
 // instead of leaving a stale target apple-targets keeps discovering. Marker-
@@ -308,6 +334,10 @@ const withReactWatch = (
           removeGeneratedTargetConfigFile(projectRoot, WIDGET_DIR);
         }
 
+        // 1b. Fail loudly, before apple-targets creates a target with no
+        //     @main entry, if `react-watchos scaffold` hasn't run yet (DX-3).
+        ensureWatchSwiftGlue(projectRoot, WATCH_DIR);
+
         // 2. Let apple-targets discover + inject the targets (its proven,
         //    Phase-1 target creation).
         cfg = withAppleTargets(cfg, { appleTeamId: opts.appleTeamId });
@@ -342,6 +372,7 @@ withReactWatch.targetProductsFor = targetProductsFor;
 withReactWatch.withEasAppExtensions = withEasAppExtensions;
 withReactWatch.removeGeneratedTargetConfigFile =
   removeGeneratedTargetConfigFile;
+withReactWatch.ensureWatchSwiftGlue = ensureWatchSwiftGlue;
 withReactWatch.WATCH_DIR = WATCH_DIR;
 withReactWatch.WIDGET_DIR = WIDGET_DIR;
 
