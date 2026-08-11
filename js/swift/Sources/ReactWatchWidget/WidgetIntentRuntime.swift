@@ -479,15 +479,31 @@ public final class WidgetIntentRuntime {
         if let source { setBundleReleaseId(source) }
 
         // Prefer precompiled bytecode (faster cold start in the short-lived
-        // extension), fall back to parsing bundle.js.
-        if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
+        // extension), fall back to parsing bundle.js — but ONLY when the
+        // bytecode is stamped as compiled FROM this exact source (OP-1,
+        // mirroring ReactWatchHost.loadShipped). Trusting it unconditionally
+        // silently ran a STALE compiled bundle over a hand-swapped bundle.js.
+        if let source,
+            let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
             let data = try? Data(contentsOf: qbc)
         {
-            do {
-                try js.evaluateBytecode(data)
-                return
-            } catch {
-                // fall through to source
+            let stampedHash = Bundle.main.url(forResource: "bundle", withExtension: "hash")
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) }?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if ContentHash.matches(source: source, stampedHash: stampedHash) {
+                do {
+                    try js.evaluateBytecode(data)
+                    return
+                } catch {
+                    // fall through to source
+                }
+            } else {
+                Self.diagnosticsSink.emit(
+                    Diagnostic(
+                        code: "boot.bytecodeStale", severity: .info, subsystem: .boot,
+                        sessionId: sessionId, releaseId: bootedReleaseId, target: .widget,
+                        details: "bundle.qbc does not match bundle.js's content hash "
+                            + "(stale or hand-copied bytecode) — parsing bundle.js instead"))
             }
         }
         guard let code = source else {

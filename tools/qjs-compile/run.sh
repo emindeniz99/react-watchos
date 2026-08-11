@@ -16,15 +16,19 @@ VENDOR=../../js/swift/Sources/CQuickJS
 cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o qjs-compile \
   qjs-compile.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
   "$VENDOR"/libunicode.c "$VENDOR"/dtoa.c -lm -lpthread
-# compile <source.js> <target-dir>: emit <source>.qbc and drop it as the
-# target's bundle.qbc.
+# compile <source.js> <target-dir>: emit <source>.qbc + <source>.hash (OP-1:
+# ContentHash.of the source, so the runtime can refuse a stale/hand-swapped
+# pairing — see ReactWatchHost.loadShipped / WidgetIntentRuntime.loadShippedBundle)
+# and drop both next to the target's bundle.js as bundle.qbc / bundle.hash.
 compile() {
   out="${1%.js}.qbc"
-  ./qjs-compile "$1" "$out"
+  hashout="${1%.js}.hash"
+  ./qjs-compile "$1" "$out" "$hashout"
   dir="../../app/targets/$2/assets"
   mkdir -p "$dir"
   cp "$out" "$dir/bundle.qbc"
-  echo "compiled $1 -> $dir/bundle.qbc"
+  cp "$hashout" "$dir/bundle.hash"
+  echo "compiled $1 -> $dir/bundle.qbc (+ bundle.hash)"
 }
 compile ../../js/dist/bundle.js watch
 compile ../../js/dist/widget.bundle.js widget

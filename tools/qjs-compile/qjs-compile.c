@@ -9,12 +9,31 @@
  * The eval type MUST match the runtime's .js path (JS_EVAL_TYPE_GLOBAL), or the
  * function object shape won't line up with JS_EvalFunction.
  *
- * usage: qjs-compile <bundle.js> <out.qbc>
+ * usage: qjs-compile <bundle.js> <out.qbc> [out.hash]
+ *
+ * The optional third argument writes bundle.js's content hash (FNV-1a 64-bit,
+ * lowercase hex, no leading zeros) — byte-for-byte the same algorithm as
+ * Swift's ReactWatchSupport.ContentHash and manifest.mts's contentHash(), see
+ * both for the cross-language parity this pins. ReactWatchHost.loadShipped
+ * refuses to trust `bundle.qbc` unless this stamp matches ContentHash.of the
+ * `bundle.js` sitting next to it (OP-1): the two are compiled in separate
+ * build steps, so a hand-swapped source must not silently boot the OLD
+ * bytecode's app.
  */
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "quickjs.h"
+
+static uint64_t fnv1a(const unsigned char *data, size_t len) {
+    uint64_t hash = 0xcbf29ce484222325ULL;
+    for (size_t i = 0; i < len; i++) {
+        hash ^= data[i];
+        hash *= 0x100000001b3ULL;
+    }
+    return hash;
+}
 
 static char *read_file(const char *path, size_t *out_len) {
     FILE *f = fopen(path, "rb");
@@ -48,6 +67,20 @@ int main(int argc, char **argv) {
     if (!src) {
         fprintf(stderr, "qjs-compile: cannot read %s\n", argv[1]);
         return 2;
+    }
+
+    // Hashed from the exact bytes just read, before anything below can touch
+    // them — this is the stamp ReactWatchHost.loadShipped pairs bundle.qbc to.
+    if (argc >= 4) {
+        uint64_t hash = fnv1a((const unsigned char *)src, src_len);
+        FILE *hf = fopen(argv[3], "w");
+        if (!hf || fprintf(hf, "%llx", (unsigned long long)hash) < 0) {
+            fprintf(stderr, "qjs-compile: cannot write %s\n", argv[3]);
+            if (hf) fclose(hf);
+            free(src);
+            return 2;
+        }
+        fclose(hf);
     }
 
     JSRuntime *rt = JS_NewRuntime();

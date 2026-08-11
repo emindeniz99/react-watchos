@@ -39,9 +39,12 @@ for (const target of targets) {
   console.log(`copied ${target.name} bundle to ${target.asset}`);
   // Drop any stale precompiled bytecode beside the source (target dir + dist):
   // a JS-only build must never ship a .qbc out of sync with this fresh source.
-  // `build:bytecode` regenerates it from the bundle (vendored quickjs-ng).
+  // `build:bytecode` regenerates it (+ its bundle.hash content-hash stamp,
+  // OP-1) from the bundle (vendored quickjs-ng).
   rmSync(target.asset.replace(/bundle\.js$/, "bundle.qbc"), { force: true });
   rmSync(target.outfile.replace(/\.js$/, ".qbc"), { force: true });
+  rmSync(target.asset.replace(/bundle\.js$/, "bundle.hash"), { force: true });
+  rmSync(target.outfile.replace(/\.js$/, ".hash"), { force: true });
 }
 
 // OTA manifest (CR-17): the freshness check fetches this. It ships the APP

@@ -1643,18 +1643,37 @@ final class ReactWatchModel {
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
         if let source { setBundleReleaseId(source, into: js) }
 
-        if let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
+        // OP-1: trust `bundle.qbc` only when its stamped hash (tools/qjs-compile
+        // writes `bundle.hash` = ContentHash.of(bundle.js) next to it) matches
+        // the source we just read. Blindly preferring the bytecode — the old
+        // behavior — silently booted a STALE compiled bundle over a
+        // hand-swapped bundle.js (the documented dev flow of editing the
+        // source and re-running the app without recompiling bytecode); it bit
+        // this project twice in one session. See ContentHash.matches.
+        if let source,
+            let qbc = Bundle.main.url(forResource: "bundle", withExtension: "qbc"),
             let data = try? Data(contentsOf: qbc)
         {
-            do {
-                disposeActiveRoot(in: js)
-                try js.evaluateBytecode(data)
-                return
-            } catch {
+            let stampedHash = Bundle.main.url(forResource: "bundle", withExtension: "hash")
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) }?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if ContentHash.matches(source: source, stampedHash: stampedHash) {
+                do {
+                    disposeActiveRoot(in: js)
+                    try js.evaluateBytecode(data)
+                    return
+                } catch {
+                    report(
+                        code: "boot.bytecodeFallback", severity: .info,
+                        subsystem: .boot,
+                        details: "bytecode load failed, using bundle.js: \(error)")
+                }
+            } else {
                 report(
-                    code: "boot.bytecodeFallback", severity: .info,
+                    code: "boot.bytecodeStale", severity: .info,
                     subsystem: .boot,
-                    details: "bytecode load failed, using bundle.js: \(error)")
+                    details: "bundle.qbc does not match bundle.js's content hash "
+                        + "(stale or hand-copied bytecode) — parsing bundle.js instead")
             }
         }
         guard let code = source else {

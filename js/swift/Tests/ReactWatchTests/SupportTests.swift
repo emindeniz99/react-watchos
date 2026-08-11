@@ -1793,6 +1793,29 @@ final class ContentHashTests: XCTestCase {
             ContentHash.of(Data("abc".utf8)), ContentHash.of("abc")
         )
     }
+
+    // OP-1 (shipped-bundle half): the decision `loadShipped` makes about
+    // trusting `bundle.qbc` — pinned here since ReactWatchHost itself is
+    // watchOS-only and can't run under `swift test`. A stale/hand-swapped
+    // `bundle.js` (bit the project twice in one session) must not silently
+    // boot bytecode compiled from a DIFFERENT source.
+    func testMatchesTrustsOnlyAnEqualStamp() {
+        let source = "globalThis.x=1"
+        XCTAssertTrue(ContentHash.matches(source: source, stampedHash: ContentHash.of(source)))
+    }
+
+    func testMatchesRefusesAMismatchedStamp() {
+        XCTAssertFalse(
+            ContentHash.matches(
+                source: "globalThis.x=1", stampedHash: ContentHash.of("globalThis.x=2")))
+    }
+
+    // A missing sidecar (an older build, or a `.qbc` hand-copied without it)
+    // is untrusted, not "no opinion" — the permissive read would be exactly
+    // the blind-trust bug this function exists to close.
+    func testMatchesRefusesAMissingStamp() {
+        XCTAssertFalse(ContentHash.matches(source: "globalThis.x=1", stampedHash: nil))
+    }
 }
 
 /// ARCH-04 atomic apply: the active-bundle record is one Codable unit, so source
