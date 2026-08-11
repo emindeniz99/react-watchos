@@ -68,6 +68,14 @@ import ReactWatchSupport
     /// capability answer, not an authorization one.
     static var isSupported: Bool { WorkoutScheduler.isSupported }
 
+    /// Serializes `schedule`/`remove`/`removeAll` against EACH OTHER — see
+    /// `SerialTaskQueue`'s doc comment. `@MainActor` isolation alone does not
+    /// do this: actors are reentrant across `await`, so two `Promise.all`'d
+    /// mutating calls can otherwise interleave their preflight-write-read-back
+    /// sequences and both pass a check that should have refused the second one
+    /// (the undocumented `(id, minute)` collision guard `schedule` relies on).
+    private let mutations = SerialTaskQueue()
+
     // MARK: - Authorization
 
     /// Runs the scheduling permission sheet and reports a REAL verdict — the
@@ -125,56 +133,64 @@ import ReactWatchSupport
         case .failure(let error): return .invalid(error.message)
         case .success(let built): plan = built
         }
-        let scheduler = WorkoutScheduler.shared
-        let quota = WorkoutScheduler.maxAllowedScheduledWorkoutCount
-        let existing = await scheduler.scheduledWorkouts
-        // Refused BEFORE the mutation, naming the real numbers: `schedule` has
-        // no error channel, so an over-quota call would otherwise be a silent
-        // no-op the read-back could only report as "the scheduler accepted
-        // nothing" — true, but useless.
-        guard existing.count < quota else {
-            return .invalid(
-                "the scheduler already holds \(existing.count) of its \(quota) "
-                    + "allowed scheduled workouts — remove one first")
-        }
-        // Refused BEFORE the mutation for the same reason as the quota, and it
-        // is what keeps the read-back below from confirming itself: `matches`
-        // is an `(id, minute)` KEY test, so if that pair is already stored, a
-        // post-write read finds the OLD entry whether the write replaced it,
-        // was ignored, or stored a second copy — and Apple documents none of
-        // the three. Refusing the collision makes the pair provably absent
-        // before the write, so finding it after really does mean this call
-        // landed. The caller re-saving an edited plan removes it first, with
-        // `removeScheduledWorkoutPlan`, which is itself read-back verified.
-        guard
-            !existing.contains(where: {
-                Self.matches($0, id: plan.id, atMs: spec.atMs, calendar: calendar)
-            })
-        else {
-            return .invalid(
-                "a plan with id \(plan.id.uuidString.lowercased()) is already "
-                    + "scheduled at that minute — remove it first")
-        }
-        let at = WorkoutPlanSchedule.components(fromMs: spec.atMs, calendar: calendar)
-        await scheduler.schedule(plan, at: at)
-        let stored = await scheduler.scheduledWorkouts
-        guard
-            let confirmed = stored.first(where: {
-                Self.matches($0, id: plan.id, atMs: spec.atMs, calendar: calendar)
-            }), let summary = Self.summary(confirmed, calendar: calendar)
-        else {
-            // `schedule(_:at:)` cannot report a denial, but `authorizationState`
-            // can be READ — so ask before blaming the platform. A user who
-            // tapped Don't Allow is the likeliest reason the scheduler stored
-            // nothing, and `isSupported` (a DEVICE flag) is still true for them.
-            let state = await scheduler.authorizationState
-            guard state == .authorized else {
-                return .unavailable(
-                    Self.acceptedNothingMessage(unauthorized: Self.name(for: state)))
+        // Serialized against every other mutator (see `mutations`): the
+        // collision guard right below only proves the pair absent if nothing
+        // else can write between this read and `scheduler.schedule` below.
+        return await mutations.run {
+            let scheduler = WorkoutScheduler.shared
+            let quota = WorkoutScheduler.maxAllowedScheduledWorkoutCount
+            let existing = await scheduler.scheduledWorkouts
+            // Refused BEFORE the mutation, naming the real numbers: `schedule`
+            // has no error channel, so an over-quota call would otherwise be a
+            // silent no-op the read-back could only report as "the scheduler
+            // accepted nothing" — true, but useless.
+            guard existing.count < quota else {
+                return .invalid(
+                    "the scheduler already holds \(existing.count) of its \(quota) "
+                        + "allowed scheduled workouts — remove one first")
             }
-            return .unavailable(Self.acceptedNothingMessage)
+            // Refused BEFORE the mutation for the same reason as the quota,
+            // and it is what keeps the read-back below from confirming
+            // itself: `matches` is an `(id, minute)` KEY test, so if that
+            // pair is already stored, a post-write read finds the OLD entry
+            // whether the write replaced it, was ignored, or stored a second
+            // copy — and Apple documents none of the three. Refusing the
+            // collision makes the pair provably absent before the write, so
+            // finding it after really does mean THIS call landed. The caller
+            // re-saving an edited plan removes it first, with
+            // `removeScheduledWorkoutPlan`, which is itself read-back
+            // verified.
+            guard
+                !existing.contains(where: {
+                    Self.matches($0, id: plan.id, atMs: spec.atMs, calendar: calendar)
+                })
+            else {
+                return .invalid(
+                    "a plan with id \(plan.id.uuidString.lowercased()) is already "
+                        + "scheduled at that minute — remove it first")
+            }
+            let at = WorkoutPlanSchedule.components(fromMs: spec.atMs, calendar: calendar)
+            await scheduler.schedule(plan, at: at)
+            let stored = await scheduler.scheduledWorkouts
+            guard
+                let confirmed = stored.first(where: {
+                    Self.matches($0, id: plan.id, atMs: spec.atMs, calendar: calendar)
+                }), let summary = Self.summary(confirmed, calendar: calendar)
+            else {
+                // `schedule(_:at:)` cannot report a denial, but
+                // `authorizationState` can be READ — so ask before blaming
+                // the platform. A user who tapped Don't Allow is the likeliest
+                // reason the scheduler stored nothing, and `isSupported` (a
+                // DEVICE flag) is still true for them.
+                let state = await scheduler.authorizationState
+                guard state == .authorized else {
+                    return .unavailable(
+                        Self.acceptedNothingMessage(unauthorized: Self.name(for: state)))
+                }
+                return .unavailable(Self.acceptedNothingMessage)
+            }
+            return .ok(Self.json(summary))
         }
-        return .ok(Self.json(summary))
     }
 
     /// Everything the scheduler is holding. An entry whose `DateComponents`
@@ -199,49 +215,57 @@ import ReactWatchSupport
         _ ref: ScheduledWorkoutRefSpec, calendar: Calendar
     ) async -> Outcome {
         guard Self.isSupported else { return .unavailable(Self.unsupportedMessage) }
-        let scheduler = WorkoutScheduler.shared
-        let before = await scheduler.scheduledWorkouts
-        guard
-            let target = before.first(where: {
-                Self.matches($0, id: ref.id, atMs: ref.atMs, calendar: calendar)
-            })
-        else { return .ok("false") }
-        // The key comes from the ENTRY, never rebuilt from `ref.atMs`. `matches`
-        // is deliberately loose — it round-trips both sides through the minute
-        // precisely so a normalised entry (`an era, a calendar, a time zone we
-        // never set`) still resolves — so the components it matched on may not
-        // be the ones the scheduler is holding. `remove(_:at:)` gets no such
-        // tolerance: it has no error channel, so a key that misses is a plan
-        // that can never be removed by id again, recoverable only by
-        // `removeAllWorkouts()`, which takes the user's other workouts with it.
-        // `target.date` IS the stored key, so this is exact by construction.
-        await scheduler.remove(target.plan, at: target.date)
-        let after = await scheduler.scheduledWorkouts
-        guard
-            !after.contains(where: {
-                Self.matches($0, id: ref.id, atMs: ref.atMs, calendar: calendar)
-            })
-        else {
-            return .unavailable(
-                "the scheduler removed nothing — the plan is still scheduled "
-                    + "after remove(_:at:), which reports no error of its own")
+        // Serialized against `schedule`/`removeAll` too — a `remove` racing a
+        // `schedule` for the same pair has the identical read-mutate-read-back
+        // shape, and the same undocumented WorkoutKit storage semantics.
+        return await mutations.run {
+            let scheduler = WorkoutScheduler.shared
+            let before = await scheduler.scheduledWorkouts
+            guard
+                let target = before.first(where: {
+                    Self.matches($0, id: ref.id, atMs: ref.atMs, calendar: calendar)
+                })
+            else { return .ok("false") }
+            // The key comes from the ENTRY, never rebuilt from `ref.atMs`.
+            // `matches` is deliberately loose — it round-trips both sides
+            // through the minute precisely so a normalised entry (`an era, a
+            // calendar, a time zone we never set`) still resolves — so the
+            // components it matched on may not be the ones the scheduler is
+            // holding. `remove(_:at:)` gets no such tolerance: it has no
+            // error channel, so a key that misses is a plan that can never be
+            // removed by id again, recoverable only by `removeAllWorkouts()`,
+            // which takes the user's other workouts with it. `target.date` IS
+            // the stored key, so this is exact by construction.
+            await scheduler.remove(target.plan, at: target.date)
+            let after = await scheduler.scheduledWorkouts
+            guard
+                !after.contains(where: {
+                    Self.matches($0, id: ref.id, atMs: ref.atMs, calendar: calendar)
+                })
+            else {
+                return .unavailable(
+                    "the scheduler removed nothing — the plan is still scheduled "
+                        + "after remove(_:at:), which reports no error of its own")
+            }
+            return .ok("true")
         }
-        return .ok("true")
     }
 
     /// The only recovery from a wedged list, and read-back verified for the
     /// same reason as the other two.
     func removeAll() async -> Outcome {
         guard Self.isSupported else { return .unavailable(Self.unsupportedMessage) }
-        let scheduler = WorkoutScheduler.shared
-        await scheduler.removeAllWorkouts()
-        let after = await scheduler.scheduledWorkouts
-        guard after.isEmpty else {
-            return .unavailable(
-                "the scheduler removed nothing — \(after.count) workout(s) are "
-                    + "still scheduled after removeAllWorkouts()")
+        return await mutations.run {
+            let scheduler = WorkoutScheduler.shared
+            await scheduler.removeAllWorkouts()
+            let after = await scheduler.scheduledWorkouts
+            guard after.isEmpty else {
+                return .unavailable(
+                    "the scheduler removed nothing — \(after.count) workout(s) are "
+                        + "still scheduled after removeAllWorkouts()")
+            }
+            return .ok("null")
         }
-        return .ok("null")
     }
 
     /// `WorkoutPlan.openInWorkoutApp()` — watchOS + macOS only, and the one API

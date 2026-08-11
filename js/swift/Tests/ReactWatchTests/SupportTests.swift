@@ -4117,3 +4117,55 @@ final class ParkedQueueTests: XCTestCase {
         XCTAssertTrue(released)
     }
 }
+
+// Pins the mutual-exclusion guarantee WorkoutPlanBridge.schedule needs to
+// close its actor-reentrancy race (ReactWatchHost, watchOS-only, untestable
+// directly with real WorkoutKit) — see SerialTaskQueue's doc comment.
+final class SerialTaskQueueTests: XCTestCase {
+    private actor Tracker {
+        private(set) var active = 0
+        private(set) var maxActive = 0
+
+        func enter() {
+            active += 1
+            maxActive = max(maxActive, active)
+        }
+        func exit() { active -= 1 }
+    }
+
+    // The crux: five operations enqueued CONCURRENTLY must never overlap.
+    // Without SerialTaskQueue's chaining (e.g. `run` just `await`ing
+    // `operation()` directly), five tasks each parked on a real suspension
+    // point run concurrently and `maxActive` climbs above 1 — exactly the
+    // window that let two identical `WorkoutPlanBridge.schedule` calls both
+    // pass their "not already scheduled" read before either wrote.
+    func testOperationsNeverOverlap() async {
+        let queue = SerialTaskQueue()
+        let tracker = Tracker()
+        await withTaskGroup(of: Void.self) { group in
+            for _ in 0..<5 {
+                group.addTask {
+                    await queue.run {
+                        await tracker.enter()
+                        // A real suspension point INSIDE the operation, like
+                        // WorkoutPlanBridge's `await scheduler.schedule(...)`
+                        // — the exact place actor reentrancy could interleave
+                        // a second call if `run` didn't serialize past it.
+                        try? await Task.sleep(nanoseconds: 2_000_000)
+                        await tracker.exit()
+                    }
+                }
+            }
+        }
+        let maxActive = await tracker.maxActive
+        XCTAssertEqual(maxActive, 1, "two operations ran concurrently")
+    }
+
+    func testReturnsEachOperationsOwnResult() async {
+        let queue = SerialTaskQueue()
+        let a = await queue.run { 1 }
+        let b = await queue.run { "two" }
+        XCTAssertEqual(a, 1)
+        XCTAssertEqual(b, "two")
+    }
+}

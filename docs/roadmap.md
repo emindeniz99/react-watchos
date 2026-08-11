@@ -150,10 +150,6 @@ Code defects — Swift host:
   pin the read-at-delivery-not-at-call-time ordering deterministically like
   `CapabilityBridgesTests`, or a timed race of a live delegate callback
   against `tearDownForReload()`.
-- **`WorkoutPlanBridge` preflight/read-back is reentrant across awaits**
-  (low): `Promise.all` of two identical schedules can double-store the
-  undocumented `(id, minute)` pair. Fix: serialize per-bridge with an async
-  queue/actor, or re-check after the write.
 
 Publish steps (this IS the standalone repo now — extraction happened; status
 as of 2026-08-06):
