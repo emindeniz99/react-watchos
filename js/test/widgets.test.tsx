@@ -224,6 +224,71 @@ describe("widget timelines", () => {
     expect(entries[1].relevance).toBeUndefined();
   });
 
+  // `date` is a REQUIRED field on the wire (PublishedEntry.date: number).
+  // JSON.stringify turns a non-finite date into `null`, and Swift's decode of
+  // a required Double throws `valueNotFound` for the WHOLE PublishedWidgets
+  // payload — dropping every OTHER widget's complications to `.placeholder`
+  // too, not just this one entry. One bad entry must cost one entry.
+  it("drops an entry with a non-finite date instead of poisoning the payload", () => {
+    registerWidget({
+      kind: "daypart",
+      families: ["accessoryInline"],
+      render: ({ now }) => ({
+        entries: [
+          { date: Number.NaN, view: <Text>bad</Text> },
+          { date: now, view: <Text>good</Text> },
+        ],
+      }),
+    });
+    registerHydration(2); // a second, healthy widget kind
+    const spy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const host = installMockHost();
+    const payload = renderWidgets(NOW);
+    spy.mockRestore();
+
+    const entries = payload.widgets.daypart.accessoryInline.entries;
+    expect(entries).toHaveLength(1);
+    expect(entries[0].date).toBe(NOW);
+    expect(entries[0].tree?.props.text).toBe("good");
+    // The healthy sibling widget is unaffected — the whole point of isolation.
+    expect(payload.widgets.hydration).toBeDefined();
+    // No `null` survived anywhere on the wire.
+    expect(JSON.stringify(payload)).not.toContain("null");
+    expect(host.log).toHaveBeenCalledWith(
+      expect.stringContaining("not finite"),
+    );
+  });
+
+  it("drops a non-finite relevance without dropping the entry it belongs to", () => {
+    registerWidget({
+      kind: "daypart",
+      families: ["accessoryInline"],
+      render: ({ now }) => ({
+        entries: [
+          {
+            date: now,
+            relevance: { score: Number.NaN },
+            view: <Text>x</Text>,
+          },
+          {
+            date: now + 1,
+            relevance: { score: 1, durationMs: Number.POSITIVE_INFINITY },
+            view: <Text>y</Text>,
+          },
+        ],
+      }),
+    });
+    const host = installMockHost();
+    const payload = renderWidgets(NOW);
+
+    const entries = payload.widgets.daypart.accessoryInline.entries;
+    expect(entries).toHaveLength(2); // both entries survive
+    expect(entries[0].relevance).toBeUndefined();
+    expect(entries[1].relevance).toBeUndefined();
+    expect(JSON.stringify(payload)).not.toContain("null");
+    expect(host.log).toHaveBeenCalledWith(expect.stringContaining("relevance"));
+  });
+
   // The wire contract for the tagged union: each arm flattens to `kind` plus
   // ONLY its own fields. A leaked field from another arm would be read by the
   // Swift switch's other case and silently mis-surface the widget.

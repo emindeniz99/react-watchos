@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type {
+  PublishedEntry,
   PublishedFamilyTimeline,
   PublishedRelevantContext,
   PublishedWidgets,
@@ -409,6 +410,49 @@ function publishedRelevantContext(
   }
 }
 
+/**
+ * Builds one entry's wire form, or `undefined` to drop it. `date` is a
+ * required field on the wire (`PublishedEntry.date: number`), so a non-finite
+ * value (`NaN`/`Infinity` — a bad upstream timestamp, a `0/0` in author code)
+ * cannot be omitted the way an optional field can; `JSON.stringify` turns it
+ * into `null`, and Swift's decode of that required `Double` throws
+ * `valueNotFound` for the WHOLE `PublishedWidgets` payload — dropping every
+ * OTHER widget's complications to `.placeholder` too, not just this entry's.
+ * The fix is the same per-item isolation `publishedRelevantContext` already
+ * gives clues: one bad entry costs one entry, not the payload. `relevance`
+ * poisons the same way when non-finite (its `score` is likewise required), so
+ * it gets the same check — dropped alone, without sacrificing the entry.
+ */
+function toPublishedEntry(
+  entry: WidgetTimelineEntry,
+): PublishedEntry | undefined {
+  const date = toMs(entry.date);
+  if (!Number.isFinite(date)) {
+    getHost()?.log?.(
+      `[react-watch-widget] entry date ${date} is not finite; entry dropped`,
+    );
+    return undefined;
+  }
+  let relevance = entry.relevance;
+  if (
+    relevance &&
+    (!Number.isFinite(relevance.score) ||
+      (relevance.durationMs !== undefined &&
+        !Number.isFinite(relevance.durationMs)))
+  ) {
+    getHost()?.log?.(
+      "[react-watch-widget] entry relevance has a non-finite score/durationMs; relevance dropped",
+    );
+    relevance = undefined;
+  }
+  return {
+    date,
+    tree: renderToTree(entry.view),
+    ...(entry.url ? { url: entry.url } : {}),
+    ...(relevance ? { relevance } : {}),
+  };
+}
+
 let renderingWidgets = false;
 
 /**
@@ -486,12 +530,9 @@ function renderWidgetsInner(
             ...(instanceId !== undefined ? { instanceId } : {}),
           });
           byFamily[family] = {
-            entries: timeline.entries.map((entry) => ({
-              date: toMs(entry.date),
-              tree: renderToTree(entry.view),
-              ...(entry.url ? { url: entry.url } : {}),
-              ...(entry.relevance ? { relevance: entry.relevance } : {}),
-            })),
+            entries: timeline.entries
+              .map((entry) => toPublishedEntry(entry))
+              .filter((entry): entry is PublishedEntry => entry !== undefined),
             ...(timeline.reloadAfter !== undefined
               ? { reloadAfter: flooredReloadAfter(timeline.reloadAfter, now) }
               : {}),

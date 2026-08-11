@@ -131,10 +131,6 @@ worked example for 0.1.0-era code).
 
 Code defects — JS (`js/src`):
 
-- **Non-finite widget entry date/relevance poisons the whole
-  `PublishedWidgets` payload** (medium): one `NaN` date drops every
-  complication to placeholder. Fix: per-entry validation + drop-and-warn, same
-  isolation as `publishedRelevantContext`.
 - **Duplicate handler subscription dedupes in the listener `Set`** (medium):
   subscribing the same function twice then unsubscribing once silences the
   survivor while `startSensor` keeps the native stream running. Fix: wrap each
