@@ -2405,6 +2405,34 @@ final class UpdateURLPolicyTests: XCTestCase {
         }
     }
 
+    // `isPrivateHost` used to classify by string PREFIX (`hasPrefix("10.")`),
+    // so a fully public DNS name that merely starts with a private-looking
+    // prefix counted as LAN and got cleartext OTA. Fixed to require the whole
+    // host be a dotted-quad literal.
+    func testPublicHostsWithPrivateLookingPrefixesAreRefused() {
+        for url in [
+            "http://10.attacker.com/m.json",
+            "http://192.168.evil.com/m.json",
+            "http://172.20.evil.com/m.json",
+            "http://127.attacker.com/m.json",
+        ] {
+            XCTAssertNotNil(UpdateURLPolicy.violation(of: url), url)
+        }
+    }
+
+    // Foundation's URL parser correctly extracts an IPv6 literal's host
+    // WITHOUT brackets (`"::1"`), unlike js update.ts's regex-based host
+    // extraction, which can never produce that string (it stops at the first
+    // `:`) — so js/src/update.ts's `isPrivateHost` can never treat an IPv6
+    // literal as private, by construction, regardless of what it checks for.
+    // Keeping a Swift-only `host == "::1"` allowance would make the two
+    // policies disagree over IPv6 loopback, so it was dropped along with the
+    // dead JS branch: neither side special-cases IPv6 literals.
+    func testIPv6LoopbackIsRefused() {
+        XCTAssertNotNil(UpdateURLPolicy.violation(of: "http://[::1]:8788/m.json"))
+        XCTAssertNotNil(UpdateURLPolicy.violation(of: "http://[::1]/m.json"))
+    }
+
     func testNonHTTPSchemesAndRelativeURLsAreRefused() {
         XCTAssertNotNil(UpdateURLPolicy.violation(of: "ftp://x.example/m.json"))
         XCTAssertNotNil(UpdateURLPolicy.violation(of: "/relative/manifest.json"))

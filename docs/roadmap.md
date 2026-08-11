@@ -129,13 +129,6 @@ worked example for 0.1.0-era code).
   bytecode), vendor-integrity 2/2, JS 646/646, macOS `swift test` 375/375,
   watch-sim `xcodebuild test`.
 
-Code defects — JS (`js/src`):
-
-- **`isPrivateHost` prefix-classifies DNS names** (low): `10.attacker.com`
-  counts as LAN (cleartext OTA allowed); bracketed IPv6 allowance is dead
-  code. Fix: numeric branches only for dotted-quad literals; mirror in Swift
-  `UpdateURLPolicy` + its pinning tests.
-
 Code defects — Swift host:
 
 - **Missing WatchApp.swift fails as an opaque `_main` linker error** (low —

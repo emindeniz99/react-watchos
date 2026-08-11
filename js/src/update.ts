@@ -340,9 +340,9 @@ function resolveBundleUrl(manifestUrl: string, bundle: string): string {
 /**
  * OTA transport policy (review §6.11c): update URLs must be https. Plain http
  * is allowed ONLY for the documented dev flow — loopback and private-LAN
- * hosts (the plugin's NSAllowsLocalNetworking scope: localhost, 127.x, [::1],
- * 10.x, 192.168.x, 172.16-31.x, and mDNS *.local — "your Mac on the LAN").
- * The Ed25519 signature protects bundle INTEGRITY regardless; this closes the
+ * hosts (the plugin's NSAllowsLocalNetworking scope: localhost, 127.x, 10.x,
+ * 192.168.x, 172.16-31.x, and mDNS *.local — "your Mac on the LAN"). The
+ * Ed25519 signature protects bundle INTEGRITY regardless; this closes the
  * cleartext exposure that remains — manifest metadata privacy and an on-path
  * attacker shaping freeze/suppression responses. Returns the refusal reason,
  * or null when allowed. Mirrored in Swift's UpdateURLPolicy (the native
@@ -363,15 +363,30 @@ function updateURLViolation(url: string): string | null {
   );
 }
 
+/** A bare dotted-quad IPv4 literal (each octet 0-255), or null when `host`
+ *  isn't ENTIRELY one — e.g. a DNS name that merely starts with digits and a
+ *  dot (`10.attacker.com`). Anchored start AND end: a prefix match here is
+ *  exactly the bug this guards, since a public hostname can be crafted to
+ *  start with any private-looking prefix the classifier accepts. */
+function parseIPv4Literal(
+  host: string,
+): [number, number, number, number] | null {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(host);
+  if (!match) return null;
+  const octets = match.slice(1, 5).map(Number);
+  if (octets.some((o) => o > 255)) return null;
+  return octets as [number, number, number, number];
+}
+
 function isPrivateHost(host: string): boolean {
-  if (host === "localhost" || host === "[::1]") return true;
+  if (host === "localhost") return true;
   if (host.endsWith(".local")) return true;
-  if (/^(127|10)\./.test(host) || /^192\.168\./.test(host)) return true;
-  const octets = /^172\.(\d{1,3})\./.exec(host);
-  if (octets) {
-    const second = Number(octets[1]);
-    return second >= 16 && second <= 31;
-  }
+  const octets = parseIPv4Literal(host);
+  if (!octets) return false;
+  const [a, b] = octets;
+  if (a === 127 || a === 10) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 172) return b >= 16 && b <= 31;
   return false;
 }
 

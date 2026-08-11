@@ -130,6 +130,25 @@ describe("OTA transport policy (https enforcement)", () => {
     }
   });
 
+  it("refuses a public host merely crafted to start with a private-looking prefix", async () => {
+    // `isPrivateHost` used to classify by REGEX PREFIX (`/^10\./`), so a
+    // fully-public DNS name that starts "10." — or "192.168." or "172.20." —
+    // counted as LAN, allowing cleartext OTA to an attacker-controlled host.
+    installMockHost();
+    for (const base of [
+      "http://10.attacker.com",
+      "http://192.168.evil.com",
+      "http://172.20.evil.com",
+      "http://127.attacker.com",
+    ]) {
+      g.fetch = vi.fn();
+      await expect(checkForUpdate(`${base}/manifest.json`)).rejects.toThrow(
+        /must be https/,
+      );
+      expect(g.fetch).not.toHaveBeenCalled();
+    }
+  });
+
   it("refuses a cleartext ABSOLUTE bundle URL riding on an https manifest", async () => {
     installMockHost();
     g.fetch = vi.fn(async () => ({
