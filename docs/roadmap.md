@@ -131,10 +131,6 @@ worked example for 0.1.0-era code).
 
 Code defects — Swift host:
 
-- **Received file orphaned when `watchConnectivity.file` lands while
-  `jsReady` is false** (medium — data loss): the file is moved to the inbox
-  but the event dies on a nil runtime; retention later deletes it silently.
-  Fix: park inbound file events until `jsReady`, replay on boot.
 - **`WorkoutSessionOwner.epoch(of:)` regression test still owed** (medium
   test-gap; code fixed 2026-08-11): the race — `epoch(of:)` reading mutable
   `session`/`epoch` on HealthKit's delegate queue, a torn/stale read the

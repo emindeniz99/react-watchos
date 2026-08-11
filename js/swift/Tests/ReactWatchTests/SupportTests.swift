@@ -4081,3 +4081,39 @@ final class FileInboxTests: XCTestCase {
         XCTAssertNil(box.resolve(path: root.path))
     }
 }
+
+// Pins the ordering/release rule PhoneConnectivity's `watchConnectivity.file`
+// parking relies on (see ParkedQueue's doc comment) — PhoneConnectivity itself
+// is watchOS-only and can't run under `swift test`, so this is the queue's
+// contract in isolation.
+final class ParkedQueueTests: XCTestCase {
+    func testDrainReturnsParkedValuesInArrivalOrderAndEmpties() {
+        let queue = ParkedQueue<Int>()
+        queue.park(1)
+        queue.park(2)
+        queue.park(3)
+        XCTAssertEqual(queue.drain(), [1, 2, 3])
+        XCTAssertTrue(queue.isEmpty)
+        XCTAssertEqual(queue.drain(), [], "a second drain must not replay")
+    }
+
+    func testDrainOnAnEmptyQueueIsANoOp() {
+        let queue = ParkedQueue<String>()
+        XCTAssertTrue(queue.isEmpty)
+        XCTAssertEqual(queue.drain(), [])
+    }
+
+    // The crux of the data-loss fix: whatever RELEASES a parked value (here,
+    // FileInbox's prune protection stand-in) must fire only on drain, never
+    // merely because the value was parked — a release on `park` would leave
+    // the file unprotected for the whole time it sits waiting for `jsReady`,
+    // exactly reopening the window retention could prune it through.
+    func testParkingDoesNotReleaseUntilDrained() {
+        let queue = ParkedQueue<() -> Void>()
+        var released = false
+        queue.park { released = true }
+        XCTAssertFalse(released, "park() must not run the release action")
+        for release in queue.drain() { release() }
+        XCTAssertTrue(released)
+    }
+}

@@ -32,6 +32,13 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
     /// recoverable `connectivity` diagnostic — a dropped file must not be
     /// silent (rule 12), and there is no invoke to reject: nobody asked.
     var onError: ((_ code: String, _ details: String) -> Void)?
+    /// Set by the host alongside `onPush`/`onError`: whether JS is ready to
+    /// receive a pushed event right now. Checked only for
+    /// `watchConnectivity.file` (see `deliver`'s `parkIfNotReady`) — every
+    /// other inbound channel is fine to drop pre-boot, but a file already has
+    /// nowhere else to be found again if its event dies on a nil/not-yet-ready
+    /// runtime. Called on main, the same thread `onPush` itself runs on.
+    var isReady: (() -> Bool)?
 
     /// The correlation the JS API is built on. `WCSessionFileTransfer` has no
     /// identity property of its own ("You do not create instances of this
@@ -445,8 +452,18 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
     /// rather than something each new delegate method must remember. It is a
     /// no-op for the host-built `state`/`fileTransfer` payloads, which are
     /// JSON-legal by construction.
+    ///
+    /// `parkIfNotReady` is the DATA-LOSS fix for `watchConnectivity.file`
+    /// (nothing else passes it): when `isReady?()` is false at delivery time
+    /// — pre-boot, or mid-reload while a fresh runtime is installing —
+    /// `handler`/`completion` are NOT run. Instead the event and `completion`
+    /// (which releases the file's `pendingReceipts` protection) are parked
+    /// together in `parkedFileEvents`, so the file stays protected from
+    /// retention until `replayParkedFileEvents()` actually hands the event to
+    /// a ready runtime and releases it — never merely because it was parked.
     private func deliver(
         _ event: String, _ message: [String: Any],
+        parkIfNotReady: Bool = false,
         then completion: (@Sendable () -> Void)? = nil
     ) {
         // WCSession delegate callbacks arrive off the main queue; hop to main
@@ -455,10 +472,35 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
         // nonisolated(unsafe) is needed to capture these non-Sendable values
         // into the @Sendable closure without sending `self`.
         nonisolated(unsafe) let handler = onPush
+        nonisolated(unsafe) let ready = isReady
         nonisolated(unsafe) let payload = RemotePushWire.sanitize(message)
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [parkedFileEvents] in
+            if parkIfNotReady, ready?() == false {
+                parkedFileEvents.park((event: event, payload: payload, release: completion))
+                return
+            }
             handler?(event, payload)
             completion?()
+        }
+    }
+
+    /// Events parked by `deliver(parkIfNotReady: true)` — see its doc comment.
+    private let parkedFileEvents =
+        ParkedQueue<(event: String, payload: [String: Any], release: (@Sendable () -> Void)?)>()
+
+    /// Redelivers every parked `watchConnectivity.file` event, in arrival
+    /// order, then releases each one's `pendingReceipts` protection — call
+    /// once JS becomes ready (the host's `jsReady` flips true on a successful
+    /// boot). Safe to call when nothing is parked.
+    ///
+    /// Routed back through `deliver` (re-sanitizing an already-sanitized
+    /// payload is a no-op) rather than calling `onPush` directly, so `onPush`
+    /// still has exactly the one call site the "reduced at the ONE bridge
+    /// boundary" invariant checks for — a parked payload already crossed that
+    /// boundary once; this is redelivery, not a second way in.
+    func replayParkedFileEvents() {
+        for entry in parkedFileEvents.drain() {
+            deliver(entry.event, entry.payload, then: entry.release)
         }
     }
 
@@ -570,6 +612,12 @@ final class PhoneConnectivity: NSObject, WCSessionDelegate {
                 "metadata": file.metadata ?? [:],
                 "receivedAt": receivedAtMs,
             ],
+            // A file that lands before JS is ready must not lose its event —
+            // that's the file itself, orphaned for retention to prune with
+            // nothing left to report it (rule 12). Park it instead of
+            // dropping it; `then` below stays unreleased until the park is
+            // actually replayed. See `deliver`'s doc comment.
+            parkIfNotReady: true,
             // Released only once JS has actually run, so the next receive's
             // prune is free to bound the inbox again. Captured by value so the
             // closure never sends `self`.

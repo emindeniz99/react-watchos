@@ -334,6 +334,10 @@ final class ReactWatchModel {
                 code: code, severity: .recoverable, subsystem: .connectivity,
                 details: details)
         }
+        // Lets PhoneConnectivity park a `watchConnectivity.file` event instead
+        // of dropping it when it lands before `jsReady` — see
+        // `replayParkedFileEvents` in boot().
+        connectivity.isReady = { [weak self] in self?.jsReady ?? false }
         connectivity.activate()
         bluetooth.onState = { [weak self] state in
             self?.pushNativeEvent("ble.state", payload: ["state": state])
@@ -490,6 +494,13 @@ final class ReactWatchModel {
                 try load(into: js)
             }
             jsReady = true
+            // Replay any `watchConnectivity.file` events that landed while
+            // this generation wasn't ready yet (pre-boot, or a reload that
+            // raced an inbound file) — see PhoneConnectivity.isReady /
+            // replayParkedFileEvents. Before the listeners below: a fresh
+            // generation should see its own received files in arrival order,
+            // same as it would have without the race.
+            connectivity.replayParkedFileEvents()
             // The incoming generation has registered its listeners but has
             // never seen a wrist-down, so tell it the state the root view
             // already knows. See pushLuminanceReduced for why this is not
