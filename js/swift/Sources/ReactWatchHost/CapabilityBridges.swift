@@ -175,13 +175,24 @@ final class SpeechBridge: NSObject, AVSpeechSynthesizerDelegate {
     /// so hop to main — the same nonisolated(unsafe)-capture pattern SensorBridge
     /// uses for its off-main HealthKit callback (satisfies Swift 6 strict
     /// concurrency regardless of which thread the delegate fires on).
+    ///
+    /// `onFinished` itself is read only AFTER the hop, not before: it is
+    /// reassigned from the @MainActor host (including on a runtime reboot),
+    /// and reading it here — on whatever thread the synthesizer delegate
+    /// fires on — would race that reassignment (a real, compiler-flagged
+    /// gap once AVSpeechSynthesizerDelegate is Sendable-audited). Reading
+    /// the property inside the dispatched block confines every access to
+    /// the main queue, matching the discipline the rest of this class
+    /// already uses for `session`/`onState`-style state. No
+    /// `nonisolated(unsafe)` capture of `self` is needed to cross into the
+    /// closure: `SpeechBridge` is itself Sendable-audited (the same SDK
+    /// change that surfaced this bug in the first place).
     private func finish(_ text: String) {
         if suppressFinish {
             suppressFinish = false
             return
         }
-        nonisolated(unsafe) let handler = onFinished
-        DispatchQueue.main.async { handler?(text) }
+        DispatchQueue.main.async { self.onFinished?(text) }
     }
 }
 
@@ -316,14 +327,18 @@ final class AudioBridge: NSObject, AVAudioPlayerDelegate {
         try? AVAudioSession.sharedInstance().setActive(false)
     }
 
+    /// `onFinished` is read only after hopping to main, same treatment and
+    /// same reason as SpeechBridge.finish(): it's a mutable stored property
+    /// reassigned from the @MainActor host, and reading it on whatever
+    /// thread AVAudioPlayerDelegate fires on would race that reassignment.
     func audioPlayerDidFinishPlaying(
         _: AVAudioPlayer, successfully _: Bool
     ) {
         player = nil
         discardSlotFile()
         try? AVAudioSession.sharedInstance().setActive(false)
-        nonisolated(unsafe) let handler = onFinished
-        DispatchQueue.main.async { handler?() }
+        nonisolated(unsafe) let this = self
+        DispatchQueue.main.async { this.onFinished?() }
     }
 
     /// Delete the slot file once no player needs it (stop / natural finish).

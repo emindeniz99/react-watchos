@@ -175,19 +175,6 @@ Code defects — Swift host:
   (low): `Promise.all` of two identical schedules can double-store the
   undocumented `(id, minute)` pair. Fix: serialize per-bridge with an async
   queue/actor, or re-check after the write.
-- **`SpeechBridge.onFinished` is a mutable stored property on a class the
-  SDK now audits as Sendable** (medium — real race, compiler-flagged; found
-  2026-08-10 fixing the Xcode 26.6 build): `AVSpeechSynthesizerDelegate` is
-  `NS_SWIFT_SENDABLE` in the watchOS 26.5 SDK, so `SpeechBridge` inherits a
-  Sendable requirement it never declared, and the warning it triggers is
-  pointing at a genuine gap — `onFinished` is (re)assigned from the
-  @MainActor host (incl. on runtime reboot) and read off-main in `finish()`
-  via a `nonisolated(unsafe)` alias on whatever thread the synthesizer
-  delegate fires; a callback racing a boot() reassignment is a torn/stale
-  read. Sibling `AudioBridge` has the identical shape and only escapes the
-  warning because its delegate protocol isn't Sendable-audited yet. Fix:
-  make the handler storage a lock-protected let-box (or hop the delegate
-  callback to main before touching it), same treatment for both bridges.
 - **`requestNotificationPermission` repeats the CalendarBridge isolation
   mistake** (low — warnings today, errors on the next compiler tightening;
   found 2026-08-10, same sweep): inside `requestAuthorization`'s @Sendable
