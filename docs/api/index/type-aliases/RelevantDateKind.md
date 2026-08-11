@@ -8,7 +8,7 @@
 
 > **RelevantDateKind** = `"default"` \| `"informational"` \| `"scheduled"`
 
-Defined in: [js/src/widgets.ts:66](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L66)
+Defined in: [js/src/widgets.ts:67](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L67)
 
 How the system should treat a date clue (RelevanceKit `DateKind`,
 watchOS 26.0). Omit to let RelevanceKit pick — the older, kind-less

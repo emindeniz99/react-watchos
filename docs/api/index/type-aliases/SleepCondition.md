@@ -8,6 +8,6 @@
 
 > **SleepCondition** = `"bedtime"` \| `"wakeup"`
 
-Defined in: [js/src/widgets.ts:76](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L76)
+Defined in: [js/src/widgets.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L77)
 
 RelevanceKit `SleepCondition` (watchOS 10.0).

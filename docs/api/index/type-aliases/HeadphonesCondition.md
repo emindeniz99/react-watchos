@@ -8,7 +8,7 @@
 
 > **HeadphonesCondition** = `"connected"`
 
-Defined in: [js/src/widgets.ts:80](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L80)
+Defined in: [js/src/widgets.ts:81](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L81)
 
 RelevanceKit `HeadphonesCondition` (watchOS 10.0). Single-member today;
  a union so a future condition is additive, not breaking.

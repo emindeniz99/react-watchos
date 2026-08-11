@@ -8,7 +8,7 @@
 
 > **InferredLocation** = `"home"` \| `"work"` \| `"school"` \| `"commute"`
 
-Defined in: [js/src/widgets.ts:70](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L70)
+Defined in: [js/src/widgets.ts:71](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L71)
 
 RelevanceKit `InferredLocation` (watchOS 10.0) — a place the system infers
  for the user, no coordinates or geofence needed.
