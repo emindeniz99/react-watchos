@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.4.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.3.0...react-watchos-v0.4.0) (2026-08-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* **js:** a handler function subscribed TWICE and left subscribed now fires twice per event, where the Set's function-identity dedup used to collapse it to one call. That collapse was the bug, not a feature — but it is observable at runtime with no compile error, so consumers who double-subscribe one function (a re-render that registers without cleaning up, two components sharing a module-level callback) will see doubled side effects: two haptics, two state updates, two log lines. Subscribe distinct functions, or unsubscribe on cleanup.
+
+### Bug Fixes
+
+* **js:** drop non-finite widget entry date/relevance from payload ([b93b251](https://github.com/emindeniz99/react-watchos/commit/b93b25194730dfbd9b29625bc70f5a4250266f7b))
+* **js:** give each native-event subscription its own identity ([56f765c](https://github.com/emindeniz99/react-watchos/commit/56f765c2ef2866a3f1a352ca34b4bc89c840a641))
+* **js:** reinstall the invoke settle bridge on every call, not once ([7becc9a](https://github.com/emindeniz99/react-watchos/commit/7becc9a81585cb32a9c3ef0b2708189780941a04))
+* **js:** require dotted-quad literal before treating host as private ([8a08df3](https://github.com/emindeniz99/react-watchos/commit/8a08df384da068d212d6e4ec98b0d310aa176464))
+* **plugin:** fail prebuild loudly when the watch target has no Swift ([99bf25a](https://github.com/emindeniz99/react-watchos/commit/99bf25abbb7d671c19f902003af52e97f36d8c56))
+* **swift:** defer unhandled-rejection reports until the JS turn drains ([12418dc](https://github.com/emindeniz99/react-watchos/commit/12418dc96db96b7c641758fa07c257c853688945))
+* **swift:** hop to main before reading onFinished in bridges ([2d0b37d](https://github.com/emindeniz99/react-watchos/commit/2d0b37de63daad8825a523e0785ae96b51df7679))
+* **swift:** make notification-permission isolation truthful ([d1cadfc](https://github.com/emindeniz99/react-watchos/commit/d1cadfcb01458a13eb264c97c0e1c79561861af4))
+* **swift:** park watchConnectivity.file events until JS is ready ([4ce1a06](https://github.com/emindeniz99/react-watchos/commit/4ce1a066eb8ae832c4d8437fa1d30825d82c583e))
+* **swift:** read session/epoch on main in WorkoutSessionOwner ([a326cf4](https://github.com/emindeniz99/react-watchos/commit/a326cf4228c5a42398b64f9f218da86952e3fa91))
+* **swift:** serialize WorkoutPlanBridge's scheduler mutations ([8c97a66](https://github.com/emindeniz99/react-watchos/commit/8c97a669588c6049536b67671e285f0056a9a27f))
+* **swift:** verify bundle.qbc's content hash against bundle.js at boot ([ba3c1b0](https://github.com/emindeniz99/react-watchos/commit/ba3c1b0ff5874f4c054ef07c2080769defca01df))
+* **swift:** widen transferLock to cover the transferFile call ([c2edc0d](https://github.com/emindeniz99/react-watchos/commit/c2edc0d65bb178b520c9f73645553b856f7e5371))
+
 ## [0.3.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.2.1...react-watchos-v0.3.0) (2026-08-10)
 
 
