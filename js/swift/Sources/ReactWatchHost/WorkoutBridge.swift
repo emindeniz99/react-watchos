@@ -784,6 +784,23 @@ final class WorkoutSessionOwner: NSObject {
     private func epoch(of session: HKWorkoutSession) -> Int {
         session === self.session ? epoch : 0
     }
+
+    /// Test-only: seeds `session`/`publishedSession`/`epoch` directly so
+    /// `WorkoutSessionOwnerEpochTests` can drive the real
+    /// `HKWorkoutSessionDelegate` methods against known identity/epoch state,
+    /// without a real HealthKit authorization round trip (non-deterministic)
+    /// or a live delegate thread race (flaky — the roadmap ruled both out).
+    /// Internal, not private — the same precedent as `permissionStatus`
+    /// (ReactWatchHost.swift): safe in fact, a plain property write with no
+    /// side effects, and it's the only way to reach this state from the test
+    /// target. Called a second time mid-test, with the same `session` so
+    /// identity is unchanged, to bump `epoch` alone — the
+    /// call-time-vs-delivery-time race the fix closed.
+    func testOnlySeedLiveSession(_ session: HKWorkoutSession, epoch: Int) {
+        self.session = session
+        self.publishedSession = session
+        self.epoch = epoch
+    }
 }
 
 extension WorkoutSessionOwner: HKWorkoutSessionDelegate {

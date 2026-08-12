@@ -129,28 +129,6 @@ worked example for 0.1.0-era code).
   bytecode), vendor-integrity 2/2, JS 646/646, macOS `swift test` 375/375,
   watch-sim `xcodebuild test`.
 
-Code defects — Swift host:
-
-- **`WorkoutSessionOwner.epoch(of:)` regression test still owed** (medium
-  test-gap; code fixed 2026-08-11): the race — `epoch(of:)` reading mutable
-  `session`/`epoch` on HealthKit's delegate queue, a torn/stale read the
-  `nonisolated(unsafe)` laundering masked — is fixed: both
-  `HKWorkoutSessionDelegate` methods now call `epoch(of:)` inside the
-  `DispatchQueue.main.async` hop, not before it, mirroring the identical fix
-  already applied to CalendarBridge. What's still missing is a regression
-  test that pins it. An earlier pass claimed this was untestable
-  ("`HKWorkoutSession` construction throws without the healthkit
-  entitlement, so there's no way to get a live session into a test") — that
-  claim was checked empirically and is WRONG: construction succeeds with no
-  throw, `startWorkout()` does assign a real, identity-matching `session`
-  for a live interval on this project's own dedicated sim, and HealthKit's
-  real off-main delegate callback does fire in-process. A test is therefore
-  reachable, just not written yet — it needs either a test-only accessor to
-  `session`/`epoch` (the `permissionStatus` private→internal precedent) to
-  pin the read-at-delivery-not-at-call-time ordering deterministically like
-  `CapabilityBridgesTests`, or a timed race of a live delegate callback
-  against `tearDownForReload()`.
-
 Publish steps (this IS the standalone repo now — extraction happened; status
 as of 2026-08-06):
 
