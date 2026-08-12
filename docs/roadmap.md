@@ -440,6 +440,58 @@ The interpreter is mostly cross-platform SwiftUI/WidgetKit already; the real wor
 is separating the RelevanceKit/accessory-only pieces and the iOS family model,
 plus a host app + plugin scaffolding.
 
+## Open follow-ups (recorded 2026-08-12, after the defect backlog emptied)
+
+Nothing here is broken today; each is a gap we named while doing something
+else and chose not to chase in the same pass. Roughly in the order they
+earn their keep.
+
+- **IPv6 loopback is not a usable OTA dev host, and never was.** `http://[::1]:8080`
+  is refused: `updateURLViolation`'s host regex is `[^/:?#]*`, which stops at
+  the first colon, so the host it hands `isPrivateHost` is the bare string
+  `"["`. (The old `host === "[::1]"` branch could therefore never fire —
+  removing it in the dotted-quad fix changed no behavior. Verified by running
+  the regex against `http://[::1]:8080/m.json`.) Adding real support means:
+  parse a bracketed host in the URL regex, accept `::1` (and only loopback —
+  ULA `fc00::/7` and link-local `fe80::/10` are a separate decision), mirror
+  it in Swift's `UpdateURLPolicy`, and pin both sides, since the two
+  implementations are contract-paired.
+- **`pendingRejections` keys on a raw `JSValue` pointer with no owning
+  reference** (from the unhandled-rejection defer fix). If a promise with no
+  live references is freed, quickjs-ng can hand the same address to a new
+  promise, and a deferred report would attach to the wrong one. Fix: retain
+  the promise for as long as it sits in the map, or key on a value the engine
+  guarantees unique for the lifetime of the entry.
+- **The `watchConnectivity.file` park/replay path has no test.** `isReady`
+  tracking `jsReady`, `deliver`'s park branch, `replayParkedFileEvents()`
+  running before other boot listeners, and the widened `transferLock` are all
+  reasoned-through but unpinned — they need a fake WCSession seam (the real
+  one cannot be driven in a test).
+- **The `.qbc` content hash has no three-way parity test.** The C tool, the
+  Swift verifier and the Node builder each implement FNV-1a; only the Swift
+  side is unit-tested. A single shared vector file asserted from all three
+  would stop a silent drift that presents as "every boot falls back to
+  parsing the source".
+- **Publishing still needs one manual dispatch.** release-please creates the
+  GitHub Release with the default `GITHUB_TOKEN`, and GitHub's recursion
+  guard drops events produced by that token, so `release: published` never
+  reaches `release.yml` (observed on 0.2.0, 0.2.1, 0.3.0 and 0.4.0). Creating
+  the Release with a PAT or GitHub App token would close the loop; until then
+  the runbook in `release.yml`'s header is the process.
+- **Two upstream bugs are carried as local patches, with no issue filed.**
+  `react-native-worklets`' babel plugin calls `numericLiteral(-27)`, which
+  `@babel/types` >= 7.28 rejects (present in every release through the latest
+  nightly; a FlareLog-side pnpm patch works around it). `@bacons/apple-targets`
+  supports one target per product type — its lookup falls back to the first
+  same-type target and corrupts it (`with-xcode-changes.js`, unchanged through
+  5.0.0). Both deserve upstream issues with the repro we already have.
+- **Cooldown-held bumps to revisit.** `expo` 57.0.11 (clears 2026-08-13) and
+  57.0.12 (2026-08-17); FlareLog's `expo-*` family clears 2026-08-18. Nothing
+  to do but re-run the wave after those dates.
+- **Downstream consumers are a minor behind.** `ctrl-a-remote` and `flarelog`
+  pin `react-watchos ^0.3.0`, and 0.x treats a breaking change as a minor, so
+  neither picks up 0.4.0 on its own. Bump both and re-run their suites.
+
 ## Re-prioritized "what's next"
 
 1. **macOS build green** (gate — unchanged). Now also gates double-tap,
