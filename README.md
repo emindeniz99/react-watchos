@@ -370,3 +370,10 @@ else. Five, honestly:
 | [docs/prior-art.md](./docs/prior-art.md) | Where this sits among production React renderers (RN, Raycast, r3f, Ink…). |
 | [docs/roadmap.md](./docs/roadmap.md) | Forward plan in three tracks, with the Mac-build gate. |
 | [docs/engineering-notes.md](./docs/engineering-notes.md) | The non-obvious learnings (React-in-QuickJS, bytecode, threading, the compiler). |
+
+## License
+
+MIT — see [`LICENSE`](LICENSE). Vendored third-party components keep their own
+terms, indexed in [`NOTICE`](NOTICE): quickjs-ng under
+[`js/swift/Sources/CQuickJS/`](js/swift/Sources/CQuickJS/) is MIT-licensed with its own copyright
+holders.

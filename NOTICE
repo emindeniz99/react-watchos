@@ -1,0 +1,10 @@
+react-watchos — third-party notices
+===================================
+
+The MIT licence in LICENSE covers this project's own code. The components
+below are vendored and carry their own terms.
+
+quickjs-ng
+----------
+Vendored under js/swift/Sources/CQuickJS. Licensed under the MIT licence; see
+js/swift/Sources/CQuickJS/LICENSE for its full text and copyright holders.
