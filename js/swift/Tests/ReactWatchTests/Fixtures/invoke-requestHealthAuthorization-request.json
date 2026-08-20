@@ -3,5 +3,6 @@
     "stepCount"
   ],
   "sleep": true,
-  "workoutHistory": true
+  "workoutHistory": true,
+  "activitySummaries": true
 }

@@ -32,6 +32,7 @@ import {
 import type { DeviceInfo } from "../src/device";
 import { getDeviceInfo } from "../src/device";
 import type {
+  ActivitySummary as WireActivitySummary,
   CalendarEvent as WireCalendarEvent,
   ConnectivityState as WireConnectivityState,
   Coordinate as WireCoordinate,
@@ -55,12 +56,14 @@ import type {
 } from "../src/generated/wire";
 import { INVOKE_SHAPES } from "../src/generated/wire";
 import type {
+  ActivitySummary,
   HealthSample,
   HealthStatisticsResult,
   SleepSample,
   WorkoutSummary,
 } from "../src/health";
 import {
+  queryActivitySummaries,
   queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
@@ -300,6 +303,38 @@ const workoutSummaries: WorkoutSummary[] = [
     distanceMeters: null,
   },
 ];
+// Two ring days out of a SEVEN-day ask, and the gap is deliberate: HealthKit
+// returns no row for a day it has no summary for, so the fixture is 2026-01-14
+// and 2026-01-16 with the 15th simply missing — which is what makes `date` on
+// every row load-bearing rather than decorative. The second row is a MOVE TIME
+// user (the under-18 / Settings case) with both watchOS 9.0 goals absent, so the
+// `moveMode` branch and the two `null`s ride the wire as values.
+const activitySummaries: ActivitySummary[] = [
+  {
+    date: "2026-01-14",
+    moveMode: "activeEnergy",
+    activeEnergyKcal: 412.5,
+    activeEnergyGoalKcal: 500,
+    moveTimeMinutes: 0,
+    moveTimeGoalMinutes: 30,
+    exerciseMinutes: 23,
+    exerciseGoalMinutes: 30,
+    standHours: 10,
+    standHoursGoal: 12,
+  },
+  {
+    date: "2026-01-16",
+    moveMode: "appleMoveTime",
+    activeEnergyKcal: 180,
+    activeEnergyGoalKcal: 350,
+    moveTimeMinutes: 47,
+    moveTimeGoalMinutes: 60,
+    exerciseMinutes: 12,
+    exerciseGoalMinutes: null,
+    standHours: 7,
+    standHoursGoal: null,
+  },
+];
 // WorkoutKit plans. The id is a real UUID on purpose: native REJECTS a
 // non-UUID rather than minting a replacement, so a fixture carrying a
 // made-up string would encode the opposite of the contract.
@@ -452,6 +487,7 @@ const RESULTS: Record<string, unknown> = {
   queryHealthSamples: healthSamples,
   querySleepSamples: sleepSamples,
   queryWorkoutHistory: workoutSummaries,
+  queryActivitySummaries: activitySummaries,
   endWorkout: workoutState,
   getWorkoutState: workoutState,
   queryPedometer: pedometerData,
@@ -556,6 +592,7 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       read: ["stepCount"],
       sleep: true,
       workoutHistory: true,
+      activitySummaries: true,
     });
     await queryHealthStatistics({
       type: "stepCount",
@@ -587,6 +624,12 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       startMs: 1_768_396_800_000,
       endMs: 1_768_483_200_000,
       limit: 20,
+    });
+    // A WEEK of rings — the only request in this file whose window is a pair of
+    // calendar DAYS rather than milliseconds (see queryActivitySummaries).
+    await queryActivitySummaries({
+      startDate: "2026-01-14",
+      endDate: "2026-01-20",
     });
     await startWorkout("running", {
       location: "outdoor",
@@ -848,6 +891,16 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       ),
     );
     writeFixture(
+      "queryActivitySummaries",
+      "response",
+      JSON.stringify(
+        await queryActivitySummaries({
+          startDate: "2026-01-14",
+          endDate: "2026-01-20",
+        }),
+      ),
+    );
+    writeFixture(
       "scheduleWorkoutPlan",
       "response",
       JSON.stringify(
@@ -970,6 +1023,8 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
     const sleepSampleExact: Exact<SleepSample, WireSleepSample> = true;
     const workoutStateExact: Exact<WorkoutState, WireWorkoutState> = true;
     const workoutSummaryExact: Exact<WorkoutSummary, WireWorkoutSummary> = true;
+    const activitySummaryExact: Exact<ActivitySummary, WireActivitySummary> =
+      true;
     const fileTransferHandleExact: Exact<
       FileTransferHandle,
       WireFileTransferHandle
@@ -1005,6 +1060,7 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       sleepSampleExact,
       workoutStateExact,
       workoutSummaryExact,
+      activitySummaryExact,
       fileTransferHandleExact,
       fileTransferStatusExact,
       connectivityStateExact,
@@ -1012,6 +1068,6 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       calendarEventExact,
       reminderExact,
       scheduledWorkoutExact,
-    ]).toEqual(Array(19).fill(true));
+    ]).toEqual(Array(20).fill(true));
   });
 });

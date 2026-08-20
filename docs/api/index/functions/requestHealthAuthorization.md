@@ -8,7 +8,7 @@
 
 > **requestHealthAuthorization**(`options`): `Promise`\<[`HealthAuthorizationResult`](../type-aliases/HealthAuthorizationResult.md)\>
 
-Defined in: [js/src/health.ts:233](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L233)
+Defined in: [js/src/health.ts:334](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L334)
 
 Shows the HealthKit permission sheet for the given read types (a silent
 no-op re-prompt if they were already asked for), and reports **whether the

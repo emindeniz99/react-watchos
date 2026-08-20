@@ -6,17 +6,36 @@
 
 # Interface: HealthAuthorizationOptions
 
-Defined in: [js/src/health.ts:83](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L83)
+Defined in: [js/src/health.ts:101](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L101)
 
 Options for [requestHealthAuthorization](../functions/requestHealthAuthorization.md).
 
 ## Properties
 
+### activitySummaries?
+
+> `optional` **activitySummaries?**: `boolean`
+
+Defined in: [js/src/health.ts:123](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L123)
+
+Also ask for the Activity rings (`HKObjectType.activitySummaryType()`) —
+ a third read type that is neither a quantity nor a category, so it isn't
+ expressible in `read` either. Required before
+ [queryActivitySummaries](../functions/queryActivitySummaries.md).
+
+ Asking for it does **not** imply the `appleExerciseTime` /
+ `appleStandTime` quantity rows, and it doesn't need them: a summary is one
+ object carrying all three rings and their goals. Apple allows reading
+ summaries but never *sharing* them, which is already all this package
+ asks for.
+
+***
+
 ### read
 
 > **read**: [`HealthQuantityType`](../type-aliases/HealthQuantityType.md)[]
 
-Defined in: [js/src/health.ts:85](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L85)
+Defined in: [js/src/health.ts:103](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L103)
 
 Quantity types to ask for.
 
@@ -26,7 +45,7 @@ Quantity types to ask for.
 
 > `optional` **sleep?**: `boolean`
 
-Defined in: [js/src/health.ts:88](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L88)
+Defined in: [js/src/health.ts:106](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L106)
 
 Also ask for sleep analysis — a HealthKit *category* type, so it isn't
  expressible in `read`. Required before [querySleepSamples](../functions/querySleepSamples.md).
@@ -37,7 +56,7 @@ Also ask for sleep analysis — a HealthKit *category* type, so it isn't
 
 > `optional` **workoutHistory?**: `boolean`
 
-Defined in: [js/src/health.ts:94](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L94)
+Defined in: [js/src/health.ts:112](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L112)
 
 Also ask for saved workouts (`HKObjectType.workoutType()`) — neither a
  quantity nor a category type, so it isn't expressible in `read` either.

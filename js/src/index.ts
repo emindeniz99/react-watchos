@@ -194,6 +194,9 @@ export { WIRE_VERSION } from "./generated/wire";
 export type { HapticType } from "./haptics";
 export { playHaptic } from "./haptics";
 export type {
+  ActivityMoveMode,
+  ActivitySummariesQuery,
+  ActivitySummary,
   HealthAuthorizationOptions,
   HealthAuthorizationResult,
   HealthQuantityType,
@@ -209,6 +212,7 @@ export type {
   WorkoutSummary,
 } from "./health";
 export {
+  queryActivitySummaries,
   queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,

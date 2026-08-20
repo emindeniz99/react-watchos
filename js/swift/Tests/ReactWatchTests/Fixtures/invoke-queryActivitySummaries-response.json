@@ -1,0 +1,26 @@
+[
+  {
+    "date": "2026-01-14",
+    "moveMode": "activeEnergy",
+    "activeEnergyKcal": 412.5,
+    "activeEnergyGoalKcal": 500,
+    "moveTimeMinutes": 0,
+    "moveTimeGoalMinutes": 30,
+    "exerciseMinutes": 23,
+    "exerciseGoalMinutes": 30,
+    "standHours": 10,
+    "standHoursGoal": 12
+  },
+  {
+    "date": "2026-01-16",
+    "moveMode": "appleMoveTime",
+    "activeEnergyKcal": 180,
+    "activeEnergyGoalKcal": 350,
+    "moveTimeMinutes": 47,
+    "moveTimeGoalMinutes": 60,
+    "exerciseMinutes": 12,
+    "exerciseGoalMinutes": null,
+    "standHours": 7,
+    "standHoursGoal": null
+  }
+]

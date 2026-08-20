@@ -1,6 +1,7 @@
 import type {
   HealthQuantityType,
   HealthStatisticsRequest,
+  ActivitySummary as WireActivitySummary,
   SleepSample as WireSleepSample,
   WorkoutActivityType,
 } from "./generated/wire";
@@ -18,6 +19,13 @@ import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
  * exactly that reason: reading years of saved workouts is a disclosure, not a
  * recording.
  *
+ * {@link queryActivitySummaries} is the odd one out in shape: it reads the
+ * Activity **rings** — move, exercise and stand *with their goals* — and it is
+ * keyed by calendar DAY rather than by a millisecond window, because that is
+ * how HealthKit stores a summary. It is also the only read here that reports a
+ * goal at all: no quantity type has one, and a ring is a value measured
+ * *against* a goal.
+ *
  * ### The one thing to understand about HealthKit reads
  *
  * Apple, *Authorizing access to health data*: **"your app doesn't know whether
@@ -33,9 +41,11 @@ import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
  * the UI so "no data yet" is an acceptable rendering.
  *
  * Every symbol used natively is watchOS 9.0 or below — the queries themselves
- * are the watchOS 8.5 `HK*QueryDescriptor` family, and `HKWorkout.statistics(for:)`
+ * are the watchOS 8.5 `HK*QueryDescriptor` family; `HKWorkout.statistics(for:)`
  * (how {@link queryWorkoutHistory} reads energy and distance, since Apple
- * deprecated the `total*` properties) is 9.0 — well under this package's
+ * deprecated the `total*` properties) and the two live ring-goal spellings
+ * (`exerciseTimeGoal` / `standHoursGoal`, replacing spellings Apple deprecated
+ * at watchOS 27) are 9.0 — well under this package's
  * watchOS 10 floor, so nothing here is version-gated. HealthKit is
  * **device-only** in practice: the simulator run script deliberately signs
  * without the `healthkit` entitlement (see docs/running-on-sim.md), so on a
@@ -72,6 +82,14 @@ export type HealthStatistic = HealthStatisticsRequest["statistic"];
 /** A sleep interval's stage (`HKCategoryValueSleepAnalysis`). */
 export type SleepStage = WireSleepSample["stage"];
 
+/** Which quantity the **move** ring measures (`HKActivityMoveMode`).
+ *
+ *  `"activeEnergy"` is the calorie ring most people close. `"appleMoveTime"` is
+ *  the minutes ring under-18 accounts get — and anyone who chose Move Time in
+ *  Settings — where {@link ActivitySummary.activeEnergyKcal} is *not* what the
+ *  watch scored them on. Branch on this before drawing the move ring. */
+export type ActivityMoveMode = WireActivitySummary["moveMode"];
+
 /** What {@link requestHealthAuthorization} resolves with. Deliberately not a
  *  grant/deny verdict — HealthKit does not expose one for reads. */
 export type HealthAuthorizationResult =
@@ -92,6 +110,17 @@ export interface HealthAuthorizationOptions {
    *  `workouts` *feature*, which authorizes *recording* a workout: this only
    *  widens the read sheet by the saved-workouts row. */
   workoutHistory?: boolean;
+  /** Also ask for the Activity rings (`HKObjectType.activitySummaryType()`) —
+   *  a third read type that is neither a quantity nor a category, so it isn't
+   *  expressible in `read` either. Required before
+   *  {@link queryActivitySummaries}.
+   *
+   *  Asking for it does **not** imply the `appleExerciseTime` /
+   *  `appleStandTime` quantity rows, and it doesn't need them: a summary is one
+   *  object carrying all three rings and their goals. Apple allows reading
+   *  summaries but never *sharing* them, which is already all this package
+   *  asks for. */
+  activitySummaries?: boolean;
 }
 
 /** Request for {@link queryHealthStatistics}. */
@@ -135,6 +164,19 @@ export interface WorkoutHistoryQuery {
   limit?: number;
 }
 
+/** Request for {@link queryActivitySummaries}. Days, not milliseconds — see the
+ *  function's doc for why. */
+export interface ActivitySummariesQuery {
+  /** First day to report, `"YYYY-MM-DD"` (zero-padded, ten characters). */
+  startDate: string;
+  /** Last day to report, **inclusive** — `startDate === endDate` asks for one
+   *  day, which is the ask behind a rings complication (the *app* makes it and
+   *  publishes the answer; see {@link queryActivitySummaries}). At most 1000
+   *  days per call; a wider range rejects `INVALID_REQUEST` rather than coming
+   *  back quietly truncated. */
+  endDate: string;
+}
+
 /** One aggregate over a window. */
 export interface HealthStatisticsResult {
   /** `null` when HealthKit returned no statistic for the window. Not
@@ -174,6 +216,65 @@ export interface SleepSample {
   startMs: number;
   endMs: number;
   stage: SleepStage;
+}
+
+/**
+ * One day's Activity rings: three value/goal pairs, plus the day they are for.
+ *
+ * The goals are why this exists. No `HKQuantityType` exposes one — reading
+ * `appleExerciseTime` tells you someone exercised 23 minutes and not whether
+ * that closed their ring — so an arc could not be drawn from this package at
+ * all before this read.
+ *
+ * Every goal here is a **divisor** — an arc is `value / goal` — and two things
+ * can stop one being usable: the two watchOS 9 goals cross as `null` when
+ * HealthKit has none, and any goal may legitimately be `0` (HealthKit documents
+ * no floor). Treat both the same way — there is no ring to draw — rather than
+ * substituting Apple's defaults or dividing into an `Infinity`/`NaN` arc that
+ * renders as a full or blank ring.
+ *
+ * Deliberately not carried: `isPaused` (watchOS 11, above this package's floor)
+ * and the "activity moved to a paused state" story around it.
+ */
+export interface ActivitySummary {
+  /** The day this row is *for*, `"YYYY-MM-DD"` — a calendar day as the user
+   *  perceives it, never an instant. Every row names its own day because
+   *  HealthKit returns **no row** for a day it has no summary for (a watch left
+   *  on the charger), so a seven-day ask can resolve five rows and the array
+   *  position is not "the nth day you asked for". Rows arrive **oldest day
+   *  first**, so plotting them left to right needs no sort — but index them by
+   *  this field, not by position. */
+  date: string;
+  /** Which pair below is the move ring — see {@link ActivityMoveMode}. */
+  moveMode: ActivityMoveMode;
+  /** Move ring, energy spelling: active energy burned, kcal. */
+  activeEnergyKcal: number;
+  /** The move ring's goal, kcal. Always present — HealthKit reports it on
+   *  every summary whatever the `moveMode` is, which also means it is *not*
+   *  the goal the user was scored against on an `"appleMoveTime"` day: that is
+   *  {@link ActivitySummary.moveTimeGoalMinutes}. May be `0`; see the
+   *  interface doc. */
+  activeEnergyGoalKcal: number;
+  /** Move ring, *time* spelling: Apple move time, minutes. Reported whichever
+   *  mode is active, so the day a user switches modes needs no second query. */
+  moveTimeMinutes: number;
+  /** The move-time goal, minutes. */
+  moveTimeGoalMinutes: number;
+  /** Exercise ring: exercise minutes. Minutes, not milliseconds — this is a
+   *  counter the watch increments and a goal set in whole minutes, not a
+   *  stopwatch duration like {@link WorkoutSummary.durationMs}. */
+  exerciseMinutes: number;
+  /** The exercise goal, minutes, or `null` when HealthKit has none for that day
+   *  (the goal became per-day in watchOS 9). `null` is **not** 30: a ring with
+   *  no goal cannot be drawn, and a substituted default draws one the user was
+   *  never scored against. Render it as "no goal", not as a full ring. */
+  exerciseGoalMinutes: number | null;
+  /** Stand ring: stand hours, a **count** of hours (the ring reads "10 of
+   *  12"), not a duration. */
+  standHours: number;
+  /** The stand goal, in hours, or `null` — same watchOS 9 optionality and the
+   *  same rule as {@link ActivitySummary.exerciseGoalMinutes}. */
+  standHoursGoal: number | null;
 }
 
 /**
@@ -243,6 +344,9 @@ export function requestHealthAuthorization(
       ...(options.workoutHistory === undefined
         ? {}
         : { workoutHistory: options.workoutHistory }),
+      ...(options.activitySummaries === undefined
+        ? {}
+        : { activitySummaries: options.activitySummaries }),
     },
     { timeoutMs: USER_MEDIATED_INVOKE_TIMEOUT_MS },
   );
@@ -355,4 +459,60 @@ export function queryWorkoutHistory(
   request: WorkoutHistoryQuery,
 ): Promise<WorkoutSummary[]> {
   return invoke<WorkoutSummary[]>("queryWorkoutHistory", request);
+}
+
+/**
+ * The Activity **rings** for a range of days — move, exercise and stand, each
+ * with the goal it is scored against, one row per day
+ * (`HKActivitySummaryQueryDescriptor`).
+ *
+ * This is the read a rings screen is made of: three arcs are three value/goal
+ * pairs, and the goals live nowhere else in HealthKit's read surface. It is
+ * also what feeds a rings *complication*, but indirectly — every health read is
+ * watch-app-only, so the **app** calls this and publishes the answer to the
+ * widget timeline (`publishWidgets`); a complication that invoked it itself
+ * would just get an error.
+ *
+ * **Days, not timestamps.** HealthKit identifies an activity summary by the
+ * calendar day *as the user perceived it* — a day that, in Apple's own words,
+ * "may be longer or shorter than 24 hours (for example, if the user traveled
+ * across time zones)". No millisecond means that day on its own, so the request
+ * and every row carry `"YYYY-MM-DD"` and nothing converts between the two. Both
+ * ends are **inclusive**; `startDate === endDate` is a single day. A malformed
+ * date, an `endDate` before `startDate`, or a range over 1000 days rejects
+ * `INVALID_REQUEST` with a message naming the rule.
+ *
+ * **Producing a day string is the one thing to get right.** It must be the
+ * user's *local* calendar day, so build it from the local getters:
+ *
+ * ```ts
+ * const pad = (n: number) => String(n).padStart(2, "0");
+ * const day = (d: Date) =>
+ *   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+ * ```
+ *
+ * **Not** `d.toISOString().slice(0, 10)`, the one-liner this shape invites:
+ * that is UTC, so for part of every day it names a different day than the
+ * user's watch is on. It is also the one form of the off-by-one nothing here
+ * can refuse — a UTC day string is a perfectly valid day, just not the one the
+ * caller meant.
+ *
+ * **A day with no summary is absent**, not a zero row: the user's watch was off
+ * the wrist, or the day is in the future. Rows arrive **oldest day first**
+ * (HealthKit promises no order, so the native side sorts), but a seven-day ask
+ * can still resolve five rows — read {@link ActivitySummary.date}, never the
+ * array index.
+ *
+ * Needs `requestHealthAuthorization({ read: [], activitySummaries: true })`
+ * first. It asks for exactly one row in the sheet — unlike
+ * {@link queryWorkoutHistory}, a summary is a single object HealthKit hands
+ * over whole, so no quantity types ride along.
+ *
+ * An empty array still means "denied, or no data, or outside the window you
+ * were granted"; see the module doc.
+ */
+export function queryActivitySummaries(
+  request: ActivitySummariesQuery,
+): Promise<ActivitySummary[]> {
+  return invoke<ActivitySummary[]>("queryActivitySummaries", request);
 }

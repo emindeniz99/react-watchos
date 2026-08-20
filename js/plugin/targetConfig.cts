@@ -129,7 +129,11 @@ function watchTargetConfig(opts: ResolvedOptions) {
     // word here covered — exercise/stand time, respiratory rate, cardio fitness
     // and flights climbed; `queryWorkoutHistory` the same day added SAVED
     // WORKOUTS, which is not a quantity type at all but does render its own row
-    // in the sheet. Only two groupings, both of things a reader would
+    // in the sheet, and `queryActivitySummaries` added a fourth-kind row again:
+    // the ACTIVITY RINGS. The rings are named separately from "exercise and
+    // stand time" on purpose — they are a different HealthKit type and a
+    // different sheet row, and what they add is the GOALS, which no quantity
+    // read exposes. Only two groupings, both of things a reader would
     // not expect listed separately: "heart rate and its variability" covers
     // `heartRate`, `restingHeartRate`, `walkingHeartRateAverage` and
     // `heartRateVariabilitySDNN`, and "distance" covers
@@ -141,7 +145,8 @@ function watchTargetConfig(opts: ResolvedOptions) {
       "Read your Health data to show it in this app: heart rate and its " +
         "variability, respiratory rate, blood oxygen and cardio fitness; " +
         "steps, flights climbed, distance, active and resting energy, " +
-        "exercise and stand time; your saved workouts; and sleep.";
+        "exercise and stand time; your activity rings and their goals; " +
+        "your saved workouts; and sleep.";
     infoPlist.NSHealthUpdateUsageDescription =
       infoPlist.NSHealthUpdateUsageDescription ??
       "Record a workout session to read live heart rate.";

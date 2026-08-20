@@ -441,6 +441,12 @@ describe("targetConfig (options -> apple-targets config)", () => {
       "active and resting energy",
       "exercise and stand time",
       "your saved workouts",
+      // `queryActivitySummaries` (same day) reads the ACTIVITY RINGS —
+      // `HKObjectType.activitySummaryType()`, a third kind of read type and its
+      // own row again. Named separately from "exercise and stand time" because
+      // it is a different row disclosing a different thing: the GOALS the user
+      // is scored against, every day, which no quantity read exposes.
+      "your activity rings and their goals",
     ]) {
       expect(both.infoPlist.NSHealthShareUsageDescription).toContain(category);
     }

@@ -91,6 +91,21 @@ import ReactWatchSupport
     /// is why `requestHealthAuthorization` carries a separate `sleep` flag.
     static let sleepType = HKCategoryType(.sleepAnalysis)
 
+    /// The Activity rings. `HKObjectType.activitySummaryType()` is a third kind
+    /// of read type again — neither quantity nor category — hence its own
+    /// `activitySummaries` flag, the `sleep` precedent verbatim.
+    ///
+    /// It is asked for ALONE, unlike `workoutHistoryTypes`: an `HKActivitySummary`
+    /// is one object HealthKit hands over whole, goals included, not a total
+    /// recomputed from samples that each carry their own grant. Apple also
+    /// states summaries can be READ but never SHARED, which is already how this
+    /// bridge asks for everything (`toShare: []` in `ensureRequested`).
+    /// Typed as `HKObjectType`, the type the sheet and every set below deal
+    /// in — which also lets `HealthQueryBridgeMappingTests` ask, on a watch,
+    /// what this actually IS (an `HKActivitySummaryType`, and neither of the two
+    /// kinds that could have ridden the `read` list instead).
+    static let activitySummaryType: HKObjectType = HKObjectType.activitySummaryType()
+
     /// Saved workouts. `HKObjectType.workoutType()` is neither a quantity nor a
     /// category type — it is its own thing — which is why
     /// `requestHealthAuthorization` carries a separate `workoutHistory` flag
@@ -171,7 +186,7 @@ import ReactWatchSupport
         _ plan: HealthAuthorizationPlan
     ) async -> String {
         guard Self.isAvailable else { return "unavailable" }
-        let types = objectTypes(for: plan)
+        let types = Self.objectTypes(for: plan)
         let alreadyAsked = await requestStatus(for: types) == .unnecessary
         if alreadyAsked {
             markRequested(types)
@@ -199,7 +214,16 @@ import ReactWatchSupport
         for type in types { requested.insert(type.identifier) }
     }
 
-    private func objectTypes(
+    /// `internal`, not `private`, so `HealthQueryBridgeMappingTests` can ask
+    /// what a decoded plan actually reaches the SHEET as — the join no textual
+    /// scan can make, and the one that decides which rows a user is shown.
+    ///
+    /// `static` because it reads no instance state — only the type table above.
+    /// That is what lets the test call it without constructing a bridge, and so
+    /// without allocating an `HKHealthStore`, which keeps that file's stated
+    /// contract (nothing in it touches a store) true in the one job nothing
+    /// here can run.
+    static func objectTypes(
         for plan: HealthAuthorizationPlan
     ) -> Set<HKObjectType> {
         var types = Set(plan.kinds.map { Self.quantityType(for: $0) as HKObjectType })
@@ -212,6 +236,7 @@ import ReactWatchSupport
         // energy/distance types their summaries are computed from — which is
         // why that key's default sentence names all three.
         if plan.workoutHistory { types.formUnion(Self.workoutHistoryTypes) }
+        if plan.activitySummaries { types.insert(Self.activitySummaryType) }
         return types
     }
 
@@ -476,6 +501,133 @@ import ReactWatchSupport
         _ type: HKQuantityType, of workout: HKWorkout, in unit: HKUnit
     ) -> Double? {
         workout.statistics(for: type)?.sumQuantity()?.doubleValue(for: unit)
+    }
+
+    /// The Activity rings — move, exercise and stand, each with the GOAL it is
+    /// scored against — one row per day.
+    ///
+    /// This is the read the goals justify. No `HKQuantityType` exposes one:
+    /// `appleExerciseTime` reports the minutes and stops there, so before this a
+    /// caller could know a user exercised 23 minutes and still not know whether
+    /// that closed the ring. An arc needs both numbers.
+    ///
+    /// `HKActivitySummaryQueryDescriptor` (watchOS 8.5), not the callback class
+    /// `HKActivitySummaryQuery`: the descriptor's `result(for:)` is `async
+    /// throws`, matching every other query in this file, and its docs carry the
+    /// availability the class's page does not.
+    ///
+    /// Rows come back OLDEST DAY FIRST — sorted below, because HealthKit
+    /// promises no order — and a day it has no summary for is simply absent,
+    /// which is why every row carries its own date.
+    ///
+    /// The predicate is the part that fails SILENTLY when it is wrong. Activity
+    /// summaries are matched by `DateComponents` identifying a day "as perceived
+    /// by the user", and a components set whose `calendar` is unset matches
+    /// nothing at all — no throw, just an empty array a caller reads as "no
+    /// rings". So this bridge builds no components: `ActivityDay.components`
+    /// does, with the calendar attached by construction, in ReactWatchSupport
+    /// where `swift test` proves it on Linux.
+    func activitySummaries(_ plan: ActivitySummariesPlan) async -> Outcome {
+        await ensureRequested([Self.activitySummaryType])
+        let descriptor = HKActivitySummaryQueryDescriptor(
+            predicate: HKQuery.predicate(
+                forActivitySummariesBetweenStart: plan.start.components,
+                end: plan.end.components))
+        do {
+            let summaries = try await descriptor.result(for: store)
+            // ONE calendar for the whole answer, and the same definition the
+            // query was built from. `ActivityDay.calendar` is computed — it
+            // re-reads the system zone — so binding it here is both cheaper per
+            // row and the guarantee that every row of a thousand-day answer is
+            // dated by a single zone.
+            let calendar = ActivityDay.calendar
+            let rows = summaries.compactMap {
+                summary -> (day: ActivityDay, row: [String: Any])? in
+                // DROPPED, not guessed, on either unknown — the sleep read's
+                // rule. A row whose day cannot be read is a bar a chart cannot
+                // place, and a row whose move mode this binary cannot name would
+                // be drawn as the wrong ring entirely. A missing day renders as
+                // missing; a mislabelled one renders as a lie.
+                guard
+                    let day = ActivityDay(
+                        components: summary.dateComponents(for: calendar)),
+                    let mode = Self.moveMode(for: summary.activityMoveMode)
+                else { return nil }
+                return (
+                    day,
+                    [
+                        "date": day.iso,
+                        "moveMode": mode.rawValue,
+                        "activeEnergyKcal": summary.activeEnergyBurned
+                            .doubleValue(for: .kilocalorie()),
+                        // NOT optional at this floor, and the whole point of the
+                        // method: this is the number the move ring is drawn
+                        // against.
+                        "activeEnergyGoalKcal": summary.activeEnergyBurnedGoal
+                            .doubleValue(for: .kilocalorie()),
+                        // The move ring's OTHER spelling, reported whichever mode
+                        // is active: on the day a user switches modes (or turns
+                        // 18) the pair that matters changes, and a second query to
+                        // find out costs more than two numbers.
+                        "moveTimeMinutes": summary.appleMoveTime
+                            .doubleValue(for: .minute()),
+                        "moveTimeGoalMinutes": summary.appleMoveTimeGoal
+                            .doubleValue(for: .minute()),
+                        "exerciseMinutes": summary.appleExerciseTime
+                            .doubleValue(for: .minute()),
+                        // `exerciseTimeGoal`, the LIVE spelling (watchOS 9.0).
+                        // `appleExerciseTimeGoal` is deprecated at watchOS 27.0
+                        // and reports the same ring.
+                        "exerciseGoalMinutes": Self.goal(
+                            summary.exerciseTimeGoal, in: .minute()),
+                        // Stand is a COUNT of hours, not a duration: the ring is
+                        // "10 of 12 hours", and HealthKit measures both halves in
+                        // count units.
+                        "standHours": summary.appleStandHours
+                            .doubleValue(for: .count()),
+                        // `standHoursGoal`, again the live spelling —
+                        // `appleStandHoursGoal` is deprecated at 27.0.
+                        "standHoursGoal": Self.goal(
+                            summary.standHoursGoal, in: .count()),
+                    ]
+                )
+            }
+            // OLDEST DAY FIRST, sorted here rather than assumed. The descriptor
+            // takes no sort descriptors and Apple documents `result(for:)` only
+            // as "a snapshot of the current matching results" — no order at all —
+            // so a caller drawing the obvious seven-bar chart straight off the
+            // array would be right by luck, and silently reversed the day
+            // HealthKit's enumeration changed. Ascending, unlike the newest-first
+            // sample reads next door, because a ring history is read left to
+            // right as a chart. `serial` and not `iso` so the key is the same
+            // arithmetic the day ceiling is counted with.
+            return .ok(
+                Self.json(
+                    rows.sorted { $0.day.serial < $1.day.serial }.map { $0.row }))
+        } catch {
+            return .error(error.localizedDescription)
+        }
+    }
+
+    /// `HKActivityMoveMode` -> the wire mode, by CASE like every other Apple
+    /// enum this bridge maps: the raw integers are undocumented, and a table
+    /// that drifted would tell a move-time user their calorie ring closed.
+    /// A mode this binary cannot name has no honest answer — the caller would
+    /// have to draw SOME ring — so the row is dropped instead.
+    static func moveMode(for mode: HKActivityMoveMode) -> ActivityMoveMode? {
+        switch mode {
+        case .activeEnergy: .activeEnergy
+        case .appleMoveTime: .appleMoveTime
+        @unknown default: nil
+        }
+    }
+
+    /// A goal HealthKit may not have (the watchOS 9.0 optional spellings), as
+    /// the wire sees it: a number or `null`, NEVER a substituted default. A ring
+    /// with no goal cannot be drawn, and inventing Apple's 30 minutes would draw
+    /// one the user was never scored against.
+    private static func goal(_ quantity: HKQuantity?, in unit: HKUnit) -> Any {
+        quantity.map { $0.doubleValue(for: unit) } ?? NSNull()
     }
 
     /// JSON for an already-JSON-safe object/array (numbers, strings, NSNull).

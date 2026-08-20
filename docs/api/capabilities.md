@@ -72,7 +72,7 @@ so this list cannot drift from what the interpreters actually read.
 | *(any)* | `glass` | Liquid Glass is applied in NodeView's shared modifier chain; the widget's applyLayout mirrors LayoutModifier only, so it is a no-op in complications. |
 | `Button` | `buttonStyle` | The widget's interactive Button hard-codes .buttonStyle(.plain); glass/glassProminent/plain are all no-ops in complications. |
 
-## Host methods (76) by capability feature
+## Host methods (77) by capability feature
 
 An OTA bundle's `requiredFeatures` must be a subset of the binary's
 feature set (ARCH-01); `since` is the bridge-protocol version the method
@@ -120,6 +120,7 @@ appeared in. "invoke" methods route through the generic invoke channel
 |  | `queryHealthSamples` | watch | invoke | 1 |
 |  | `querySleepSamples` | watch | invoke | 1 |
 |  | `queryWorkoutHistory` | watch | invoke | 1 |
+|  | `queryActivitySummaries` | watch | invoke | 1 |
 | `workouts` | `startWorkout` | watch | invoke | 1 |
 |  | `pauseWorkout` | watch | invoke | 1 |
 |  | `resumeWorkout` | watch | invoke | 1 |

@@ -162,7 +162,9 @@ struct HealthAuthorizationRequest: InvokeShape {
     let sleep: Bool?
     /// also ask for HKObjectType.workoutType() — saved workouts, not a quantity either
     let workoutHistory: Bool?
-    static let declaredKeys: Set<String> = ["read", "sleep", "workoutHistory"]
+    /// also ask for HKObjectType.activitySummaryType() — the Activity rings, not a quantity either
+    let activitySummaries: Bool?
+    static let declaredKeys: Set<String> = ["read", "sleep", "workoutHistory", "activitySummaries"]
 }
 
 /// js/src/health.ts queryHealthStatistics -> HealthStatisticsPlan.
@@ -195,6 +197,13 @@ struct WorkoutHistoryRequest: InvokeShape {
     let endMs: Double
     let limit: Int?
     static let declaredKeys: Set<String> = ["startMs", "endMs", "limit"]
+}
+
+/// js/src/health.ts queryActivitySummaries -> ActivitySummariesPlan.
+struct ActivitySummariesRequest: InvokeShape {
+    let startDate: String
+    let endDate: String
+    static let declaredKeys: Set<String> = ["startDate", "endDate"]
 }
 
 /// js/src/workout.ts startWorkout -> HKWorkoutConfiguration + the metrics knob.
@@ -477,6 +486,25 @@ struct SleepSample: InvokeShape {
     static let declaredKeys: Set<String> = ["startMs", "endMs", "stage"]
 }
 
+/// One DAY's Activity rings — three value/goal pairs plus the day they belong to.
+struct ActivitySummary: InvokeShape {
+    let date: String
+    let moveMode: String
+    let activeEnergyKcal: Double
+    let activeEnergyGoalKcal: Double
+    let moveTimeMinutes: Double
+    let moveTimeGoalMinutes: Double
+    let exerciseMinutes: Double
+    let exerciseGoalMinutes: Double?
+    let standHours: Double
+    let standHoursGoal: Double?
+    static let declaredKeys: Set<String> = [
+        "date", "moveMode", "activeEnergyKcal", "activeEnergyGoalKcal", "moveTimeMinutes",
+        "moveTimeGoalMinutes", "exerciseMinutes", "exerciseGoalMinutes", "standHours",
+        "standHoursGoal",
+    ]
+}
+
 /// One SAVED HKWorkout — the row a "recent workouts" list renders.
 struct WorkoutSummary: InvokeShape {
     let id: String
@@ -629,6 +657,7 @@ enum InvokeShapes {
         "queryHealthSamples": { try decodeStrict(HealthSamplesRequest.self, from: $0) },
         "querySleepSamples": { try decodeStrict(SleepSamplesRequest.self, from: $0) },
         "queryWorkoutHistory": { try decodeStrict(WorkoutHistoryRequest.self, from: $0) },
+        "queryActivitySummaries": { try decodeStrict(ActivitySummariesRequest.self, from: $0) },
         "startWorkout": { try decodeStrict(StartWorkoutRequest.self, from: $0) },
         "endWorkout": { try decodeStrict(EndWorkoutRequest.self, from: $0) },
         "scheduleWorkoutPlan": { try decodeStrict(ScheduleWorkoutPlanRequest.self, from: $0) },
@@ -669,6 +698,7 @@ enum InvokeShapes {
         "queryHealthSamples": { try decodeStrict(arrayOf: HealthSample.self, from: $0) },
         "querySleepSamples": { try decodeStrict(arrayOf: SleepSample.self, from: $0) },
         "queryWorkoutHistory": { try decodeStrict(arrayOf: WorkoutSummary.self, from: $0) },
+        "queryActivitySummaries": { try decodeStrict(arrayOf: ActivitySummary.self, from: $0) },
         "endWorkout": { try decodeStrict(WorkoutState.self, from: $0) },
         "getWorkoutState": { try decodeStrict(WorkoutState.self, from: $0) },
         "scheduleWorkoutPlan": { try decodeStrict(ScheduledWorkoutSummary.self, from: $0) },

@@ -737,6 +737,141 @@ describe("the saved-workout read is a HISTORY read", () => {
   });
 });
 
+describe("the rings read is keyed by DAY, and the goals are the point", () => {
+  const bridge = () => read("ReactWatchHost/HealthQueryBridge.swift");
+  /** The query's body: decl -> the next member. */
+  const body = () => {
+    const src = bridge();
+    return src.slice(
+      src.indexOf(
+        "func activitySummaries(_ plan: ActivitySummariesPlan) async -> Outcome {",
+      ),
+      src.indexOf("static func moveMode(for mode:"),
+    );
+  };
+  /** Comments stripped: every rule below is NAMED in the prose that explains
+   *  it, so scanning the raw file would match the documentation of a rule
+   *  instead of a violation of it. */
+  const code = () => bridge().replace(/^\s*\/\/.*$/gm, "");
+
+  it("is gated by `health`, watch-only, like its sibling reads", () => {
+    const rings = hostMethods.find((m) => m.name === "queryActivitySummaries");
+    expect(rings?.feature).toBe("health");
+    expect(rings?.targets).toEqual(["watch"]);
+  });
+
+  it("builds the day predicate from the VALIDATED plan, never its own", () => {
+    // THE silent-failure hazard of this whole method. Activity summaries match
+    // by `DateComponents` identifying a day as the user perceives it, and Apple
+    // requires those components to carry a `calendar` — a set without one
+    // matches NOTHING, with no throw and no error: the caller just sees `[]`
+    // and reads it as "you have no rings". So the components are built ONCE, in
+    // ReactWatchSupport where `swift test` proves the calendar is attached
+    // (`ActivityDay.components`), and this file pins that the watchOS bridge —
+    // which no Linux job can compile — assembles none of its own.
+    expect(body()).toContain(
+      "forActivitySummariesBetweenStart: plan.start.components",
+    );
+    expect(body()).toContain("end: plan.end.components");
+    // Scoped to this read's own code: `queryHealthDailyStatistics` builds a
+    // `DateComponents(day: 1)` a few lines up as a bucket INTERVAL, which is a
+    // different thing entirely (a length, not a day).
+    expect(body()).not.toContain("DateComponents(");
+    expect(body()).not.toContain(".calendar =");
+    // Nor its own calendar: `ActivityDay.calendar` is gregorian-by-identifier
+    // for both directions, so the day the query ASKS for and the day read back
+    // off the answer cannot be resolved by two different calendars. A
+    // `Calendar.current` here would also follow a Buddhist or Japanese-era
+    // locale and report year 2569 into a date string nothing can plot.
+    expect(code()).not.toContain("Calendar(");
+    expect(code()).not.toContain("Calendar.current");
+    // Bound ONCE for the whole answer: `ActivityDay.calendar` is computed (it
+    // re-reads the system zone rather than freezing it at first use), so a
+    // thousand-row answer is dated by one zone rather than by whatever the
+    // wrist was in per row.
+    expect(body()).toContain("let calendar = ActivityDay.calendar");
+    expect(body()).toContain("summary.dateComponents(for: calendar)");
+  });
+
+  it("reads the LIVE goal spellings and carries a missing one as null", () => {
+    // The goals ARE the feature: no quantity type exposes one, so a ring could
+    // not be drawn before this read. Both live spellings are watchOS 9.0
+    // OPTIONALS — `exerciseTimeGoal` and `standHoursGoal` — and a nil one is a
+    // real state that must cross as `null`; substituting Apple's default would
+    // draw a ring the user was never scored against.
+    expect(body()).toContain("summary.exerciseTimeGoal");
+    expect(body()).toContain("summary.standHoursGoal");
+    expect(body()).toContain("summary.activeEnergyBurnedGoal");
+    expect(body()).toContain("summary.appleMoveTimeGoal");
+    expect(code()).toContain("?? NSNull()");
+    // The DEPRECATED spellings (both deprecated at watchOS 27.0) report the
+    // same two rings and must never be the ones read.
+    expect(code()).not.toContain("appleExerciseTimeGoal");
+    expect(code()).not.toContain("appleStandHoursGoal");
+    // watchOS 11.0, above this package's v10 floor: reading it would need the
+    // first `@available` gate in a package that has none.
+    expect(code()).not.toContain("isPaused");
+    // The descriptor family, not the legacy callback class — whose docs JSON
+    // carries no availability at all.
+    expect(code()).toContain("HKActivitySummaryQueryDescriptor(");
+    expect(code()).not.toContain("HKActivitySummaryQuery(");
+  });
+
+  it("asks for the summary type ALONE, through its own flag", () => {
+    // `HKObjectType.activitySummaryType()` is neither a quantity nor a category
+    // type, so like sleep it can only reach the sheet through a flag of its
+    // own — and the query requests it itself, or a caller who never ran the
+    // sheet gets a silently empty week instead of a prompt.
+    const src = bridge();
+    expect(src).toContain(
+      "if plan.activitySummaries { types.insert(Self.activitySummaryType) }",
+    );
+    expect(src).toContain("await ensureRequested([Self.activitySummaryType])");
+    // And ONE row, deliberately unlike `workoutHistoryTypes` next door: a
+    // summary is a single object HealthKit hands over whole, goals included —
+    // there are no per-sample grants behind it to widen the ask for.
+    expect(body()).not.toContain("HKQuantityType(");
+    expect(body()).not.toContain("workoutHistoryTypes");
+  });
+
+  it("drops a row it cannot date or cannot name the move ring of", () => {
+    // Both unknowns are unrenderable rather than approximable: a summary with
+    // no readable day is a bar with nowhere to go, and a move mode this binary
+    // cannot name would be drawn as the WRONG ring. The sleep read already
+    // established the posture (an unrecognized category value is dropped, never
+    // mapped to a neighbour) — a missing day reads as missing, a mislabelled
+    // one reads as a lie.
+    expect(body()).toContain(
+      "summary -> (day: ActivityDay, row: [String: Any])? in",
+    );
+    expect(body()).toContain("else { return nil }");
+    // Mapped by CASE, like every other Apple enum this bridge maps: the raw
+    // integers are undocumented, and `@unknown default` must refuse rather than
+    // fall back to energy.
+    const modes = code().slice(
+      code().indexOf("static func moveMode(for mode:"),
+    );
+    expect(modes).toContain("case .activeEnergy: .activeEnergy");
+    expect(modes).toContain("case .appleMoveTime: .appleMoveTime");
+    expect(modes).toContain("@unknown default: nil");
+  });
+
+  it("returns the days in a deterministic OLDEST-FIRST order", () => {
+    // `HKActivitySummaryQueryDescriptor.init(predicate:)` takes no sort
+    // descriptors, and Apple documents `result(for:)` only as "a snapshot of
+    // the current matching results" — no ordering promise at all. Every sibling
+    // read passes `SortDescriptor(\.startDate, order: .reverse)` and says
+    // "newest first" in its JSDoc; this one has no descriptor to pass, so the
+    // order has to be imposed after the fact or the seven-bar chart every
+    // caller draws is correct only by luck. Ascending here, unlike the sample
+    // reads, because a ring history is read left to right.
+    expect(body()).toContain("rows.sorted { $0.day.serial < $1.day.serial }");
+    // By `serial`, the calendar-free arithmetic the day ceiling is counted
+    // with — not by a `Date`, which would need a zone to compare two days.
+    expect(body()).not.toContain("$0.day.iso");
+  });
+});
+
 describe("the new features are watch-only", () => {
   it("no health / workouts method reaches the widget runtime", () => {
     // Not a special case — a consequence. `HostInvokeFeatures.byMethod` is

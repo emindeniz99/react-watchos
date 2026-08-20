@@ -777,6 +777,8 @@ final class ReactWatchModel {
             handleQuerySleepSamples(id: id, payload: payload)
         case "queryWorkoutHistory":
             handleQueryWorkoutHistory(id: id, payload: payload)
+        case "queryActivitySummaries":
+            handleQueryActivitySummaries(id: id, payload: payload)
         case "requestCalendarAccess":
             handleRequestCalendarAccess(id: id, payload: payload)
         case "getCalendarEvents":
@@ -3035,6 +3037,25 @@ extension ReactWatchModel {
             Task { [weak self] in
                 guard let bridge = self?.health else { return }
                 let outcome = await bridge.workoutHistory(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// The Activity rings. Same three-line shape as its siblings — decode,
+    /// availability, hop — with a plan whose window is a range of DAYS rather
+    /// than a pair of instants, because that is how HealthKit identifies a
+    /// summary (see `ActivityDay`).
+    private func handleQueryActivitySummaries(id: Int, payload: String) {
+        switch ActivitySummariesPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.activitySummaries(plan)
                 self?.settleHealth(id: id, generation: gen, outcome)
             }
         }

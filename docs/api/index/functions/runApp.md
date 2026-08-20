@@ -8,7 +8,7 @@
 
 > **runApp**(`element`, `host?`): [`WatchRoot`](../classes/WatchRoot.md)
 
-Defined in: [js/src/index.ts:451](https://github.com/emindeniz99/react-watchos/blob/main/js/src/index.ts#L451)
+Defined in: [js/src/index.ts:455](https://github.com/emindeniz99/react-watchos/blob/main/js/src/index.ts#L455)
 
 Mounts the app. With an explicit host (tests), trees are delivered as
 objects. Without one (on the watch), the `__host` global installed by

@@ -3044,6 +3044,205 @@ final class HealthQueryPlanTests: XCTestCase {
             ).get())
     }
 
+    func testActivityDayComponentsAlwaysCarryTheirCalendar() {
+        // THE invariant of the rings read, and the reason `ActivityDay` exists
+        // at all: Apple requires the activity-summary predicate's components to
+        // have a valid `calendar`, and a set without one matches NOTHING — no
+        // throw, no error, just an empty array a caller reads as "you have no
+        // rings". The bridge cannot get this wrong because it never builds a
+        // `DateComponents`; this proves the one place that does.
+        let day = ActivityDay(year: 2026, month: 1, day: 14)
+        let components = day.components
+        XCTAssertEqual(components.calendar, ActivityDay.calendar)
+        XCTAssertEqual(components.calendar?.identifier, .gregorian)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 1)
+        XCTAssertEqual(components.day, 14)
+        // Gregorian by IDENTIFIER, never `Calendar.current`: on a Buddhist or
+        // Japanese-era locale the day would read back as year 2569 or 8 and
+        // format into a date string nothing could plot.
+        XCTAssertTrue(components.isValidDate)
+    }
+
+    func testActivityDayParsesOnlyAStrictCalendarDay() {
+        let day = ActivityDay(iso: "2026-01-14")
+        XCTAssertEqual(day?.year, 2026)
+        XCTAssertEqual(day?.month, 1)
+        XCTAssertEqual(day?.day, 14)
+        XCTAssertEqual(day?.iso, "2026-01-14")
+        // Zero-padded on the way out, so the wire form sorts as text.
+        XCTAssertEqual(ActivityDay(year: 26, month: 2, day: 3).iso, "0026-02-03")
+        for rejected in [
+            "2026-1-14",  // not zero-padded: does not sort, and is ambiguous
+            "2026-01-14T00:00:00Z",  // an INSTANT — the thing this type keeps off the wire
+            "2026-01-14 ",
+            "26-01-14",
+            "2026/01/14",
+            "+026-01-14",  // Int() would take the sign; the digit check must not
+            "2026-02-30",  // a day that does not exist
+            "2023-02-29",  // ... and the same for a non-leap February
+            "2026-13-01",
+            "2026-00-10",
+            "",
+        ] {
+            XCTAssertNil(
+                ActivityDay(iso: rejected), "'\(rejected)' must be refused")
+        }
+        // A leap day that DOES exist is not collateral damage.
+        XCTAssertNotNil(ActivityDay(iso: "2024-02-29"))
+    }
+
+    func testActivityDayExistenceDoesNotDependOnWhereTheWatchIs() throws {
+        // The refusal must mean the same thing on every wrist. `serial` is
+        // arithmetic for exactly that reason, and so is the existence check:
+        // `DateComponents.isValidDate` resolves the components to an INSTANT
+        // through their calendar, and `Calendar(identifier:)` carries the
+        // system's zone — so in a zone that once skipped a whole calendar day it
+        // answers "no such day" for a perfectly well-formed date, and the same
+        // request would be INVALID_REQUEST on one watch and a valid empty answer
+        // on another.
+        //
+        // Both of these are real: Samoa skipped 2011-12-30 and Kiribati
+        // 1994-12-31 when they moved across the date line.
+        for skipped in ["2011-12-30", "1994-12-31"] {
+            XCTAssertNotNil(
+                ActivityDay(iso: skipped),
+                "'\(skipped)' is a well-formed calendar day and must parse "
+                    + "wherever the watch is")
+        }
+        // ... and this is the check we did NOT use, shown disagreeing. If this
+        // ever stops failing, the hazard is gone and the note above is stale.
+        var zoned = Calendar(identifier: .gregorian)
+        zoned.timeZone = try XCTUnwrap(TimeZone(identifier: "Pacific/Apia"))
+        var components = DateComponents()
+        components.calendar = zoned
+        components.year = 2011
+        components.month = 12
+        components.day = 30
+        XCTAssertFalse(
+            components.isValidDate,
+            "Pacific/Apia is expected to have no 2011-12-30 — the whole reason "
+                + "the existence check is arithmetic")
+    }
+
+    func testActivityDayRoundTripsThroughTheComponentsHealthKitReturns() {
+        // `HKActivitySummary.dateComponents(for:)` is how a returned row says
+        // which day it is FOR, so this is the door the bridge reads through —
+        // and a row that cannot be dated is DROPPED rather than placed
+        // arbitrarily, which is what the nil cases below make possible.
+        let day = ActivityDay(iso: "2024-02-29")
+        XCTAssertEqual(ActivityDay(components: day!.components)?.iso, "2024-02-29")
+        var undated = DateComponents()
+        undated.calendar = ActivityDay.calendar
+        undated.year = 2026
+        XCTAssertNil(ActivityDay(components: undated))
+        var impossible = undated
+        impossible.month = 2
+        impossible.day = 30
+        XCTAssertNil(ActivityDay(components: impossible))
+    }
+
+    func testActivityDaySerialIsCalendarFreeArithmetic() {
+        // The day count feeds a CEILING, so it is arithmetic rather than a
+        // `Calendar` walk — the refusal must not depend on where the watch is
+        // (including the zones where local midnight does not exist on a DST
+        // day, which have no instant to count from at all).
+        XCTAssertEqual(ActivityDay(iso: "1970-01-01")?.serial, 0)
+        XCTAssertEqual(ActivityDay(iso: "1969-12-31")?.serial, -1)
+        XCTAssertEqual(ActivityDay(iso: "2026-01-14")?.serial, 20467)
+        // 2024 is a leap year and 1900 was not — the two rules a hand-rolled
+        // version gets wrong, which is why this is Hinnant's algorithm.
+        XCTAssertEqual(
+            (ActivityDay(iso: "2025-01-01")?.serial ?? 0)
+                - (ActivityDay(iso: "2024-01-01")?.serial ?? 0), 366)
+        XCTAssertEqual(
+            (ActivityDay(iso: "1901-01-01")?.serial ?? 0)
+                - (ActivityDay(iso: "1900-01-01")?.serial ?? 0), 365)
+    }
+
+    func testActivitySummariesPlanCountsDaysInclusively() {
+        let week = try? ActivitySummariesPlan.decode(
+            json: #"{"startDate":"2026-01-14","endDate":"2026-01-20"}"#
+        ).get()
+        XCTAssertEqual(week?.start.iso, "2026-01-14")
+        XCTAssertEqual(week?.end.iso, "2026-01-20")
+        // INCLUSIVE at both ends: seven dates in, seven days counted — and one
+        // date on both ends is the single day a rings complication asks for.
+        XCTAssertEqual(week?.dayCount, 7)
+        let today = try? ActivitySummariesPlan.decode(
+            json: #"{"startDate":"2026-01-14","endDate":"2026-01-14"}"#
+        ).get()
+        XCTAssertEqual(today?.dayCount, 1)
+    }
+
+    func testActivitySummariesPlanRefusesAnUnusableRangeByNAME() {
+        // Refused rather than salvaged, and the message names the METHOD and
+        // the rule — the reason these messages exist at all.
+        guard
+            case .failure(let inverted) = ActivitySummariesPlan.decode(
+                json: #"{"startDate":"2026-01-20","endDate":"2026-01-14"}"#)
+        else { return XCTFail("an inverted range must be refused") }
+        XCTAssertTrue(inverted.message.contains("must be on or after"))
+        guard
+            case .failure(let notADay) = ActivitySummariesPlan.decode(
+                json: #"{"startDate":"2026-01-14T00:00:00Z","endDate":"2026-01-20"}"#)
+        else { return XCTFail("a timestamp must be refused, not converted") }
+        XCTAssertTrue(notADay.message.contains("startDate"))
+        XCTAssertTrue(notADay.message.contains("YYYY-MM-DD"))
+        guard case .failure(let notJSON) = ActivitySummariesPlan.decode(json: "[]")
+        else { return XCTFail("a non-object payload must be refused") }
+        XCTAssertTrue(notJSON.message.contains("queryActivitySummaries"))
+        // A missing end is not half a request.
+        XCTAssertNil(
+            try? ActivitySummariesPlan.decode(
+                json: #"{"startDate":"2026-01-14"}"#
+            ).get())
+    }
+
+    func testActivitySummariesPlanRefusesARangeOverTheCeiling() {
+        // REFUSED, not truncated — `maxDailyBuckets`' rule: a silently
+        // shortened ring history is a chart that lies about the range it was
+        // asked for. There is no `limit` to clamp instead, on purpose: the
+        // answer is one row per day, so a cap could only mean "drop some of the
+        // days you asked for".
+        XCTAssertEqual(ActivitySummariesPlan.maxDays, HealthWindow.maxLimit)
+        // Exactly at the ceiling is allowed; one day more is not.
+        let atCeiling = try? ActivitySummariesPlan.decode(
+            json: #"{"startDate":"2024-01-01","endDate":"2026-09-26"}"#
+        ).get()
+        XCTAssertEqual(atCeiling?.dayCount, ActivitySummariesPlan.maxDays)
+        guard
+            case .failure(let tooWide) = ActivitySummariesPlan.decode(
+                json: #"{"startDate":"2024-01-01","endDate":"2026-09-27"}"#)
+        else { return XCTFail("a range past the ceiling must be refused") }
+        XCTAssertTrue(tooWide.message.contains("1001 days"))
+        XCTAssertTrue(tooWide.message.contains("ceiling"))
+    }
+
+    func testAuthorizationPlanAsksForTheRingsOnlyWhenTold() {
+        // A third sheet ROW that is neither a quantity nor a category type, so
+        // it needs its own flag — and it must never default on.
+        let asked = try? HealthAuthorizationPlan.decode(
+            json: #"{"read":[],"activitySummaries":true}"#
+        ).get()
+        XCTAssertEqual(asked?.activitySummaries, true)
+        XCTAssertEqual(asked?.sleep, false)
+        XCTAssertEqual(asked?.workoutHistory, false)
+        // The rings are NOT implied by the quantity reads that look related:
+        // `appleExerciseTime` is a different HealthKit type from the summary
+        // that knows what that day's exercise GOAL was.
+        XCTAssertEqual(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":["appleExerciseTime"]}"#
+            ).get().activitySummaries, false)
+        // And rings ALONE is a legitimate ask — a rings complication needs no
+        // quantity type at all.
+        XCTAssertNotNil(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":[],"activitySummaries":true}"#
+            ).get())
+    }
+
     func testAuthorizationPlanNeedsAtLeastOneTypeAndRejectsUnknownNames() {
         let both = try? HealthAuthorizationPlan.decode(
             json: #"{"read":["stepCount","heartRate"],"sleep":true}"#

@@ -191,6 +191,7 @@ public enum HostInvokeFeatures {
         "pauseWorkout": "workouts",
         "playAudio": "audio",
         "purchase": "iap",
+        "queryActivitySummaries": "health",
         "queryHealthDailyStatistics": "health",
         "queryHealthSamples": "health",
         "queryHealthStatistics": "health",

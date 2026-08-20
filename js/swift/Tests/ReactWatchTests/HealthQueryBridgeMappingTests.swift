@@ -33,6 +33,14 @@ import XCTest
 /// table can return is in the set the read authorizes, and every one of them is
 /// expressible in metres.
 ///
+/// The rings tests after them ask the four questions no Linux scan can: what
+/// `HKObjectType.activitySummaryType()` IS (a third kind of read type, which is
+/// why it needs its own flag), what a decoded plan reaches the SHEET as,
+/// whether HealthKit's own predicate builder accepts the day components
+/// `ActivityDay` hands it — the one that matches nothing, silently, when it is
+/// built wrong — and how `HKActivityMoveMode`, a watchOS-only enum, maps to the
+/// wire vocabulary in both directions.
+///
 /// The `@MainActor` on each test is load-bearing, not decoration:
 /// `HealthQueryBridge` is a `@MainActor` class, which isolates its statics too,
 /// so in Swift 6 mode calling one from a synchronous nonisolated context is a
@@ -253,6 +261,105 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
         XCTAssertTrue(
             HKQuantityType(.activeEnergyBurned).`is`(compatibleWith: .kilocalorie()),
             "the workout summary reads energy in a unit that is not energy")
+    }
+
+    /// The rings read's own object type. `HKObjectType.activitySummaryType()`
+    /// is a THIRD kind of read type — neither quantity nor category — which is
+    /// the entire justification for `requestHealthAuthorization` carrying a
+    /// separate `activitySummaries` flag, and nothing on the Linux side can
+    /// check a claim about a HealthKit class hierarchy.
+    @MainActor
+    func testTheRingsReadReadsTheActivitySummaryType() {
+        XCTAssertTrue(
+            HealthQueryBridge.activitySummaryType is HKActivitySummaryType,
+            "the rings read is not asking HealthKit for activity summaries")
+        XCTAssertFalse(
+            HealthQueryBridge.activitySummaryType is HKQuantityType,
+            "an activity summary is not a quantity type — the flag exists "
+                + "because it cannot ride the `read` list")
+        XCTAssertFalse(
+            HealthQueryBridge.activitySummaryType is HKCategoryType,
+            "an activity summary is not a category type either")
+    }
+
+    /// What a decoded plan actually reaches the SHEET as. Two claims the JSDoc
+    /// makes to callers and only this can check: asking for rings shows exactly
+    /// ONE row (a summary is one object HealthKit hands over whole, goals
+    /// included — there are no per-sample grants behind it, unlike a workout's
+    /// totals), and no other read drags the rings in behind the user's back.
+    @MainActor
+    func testTheRingsAskIsExactlyOneRowAndNoOtherReadImpliesIt() {
+        guard
+            let rings = try? HealthAuthorizationPlan.decode(
+                json: #"{"read":[],"activitySummaries":true}"#
+            ).get()
+        else { return XCTFail("a rings-only ask must decode") }
+        XCTAssertEqual(
+            HealthQueryBridge.objectTypes(for: rings),
+            [HealthQueryBridge.activitySummaryType],
+            "the rings ask is not exactly one row of the sheet")
+        // The neighbouring reads, including the two that LOOK like the rings
+        // (`appleExerciseTime` and `appleStandTime` measure the same minutes and
+        // hours — they just have no goal to score them against).
+        guard
+            let others = try? HealthAuthorizationPlan.decode(
+                json: #"""
+                    {"read":["appleExerciseTime","appleStandTime"],
+                     "sleep":true,"workoutHistory":true}
+                    """#
+            ).get()
+        else { return XCTFail("the sibling ask must decode") }
+        XCTAssertFalse(
+            HealthQueryBridge.objectTypes(for: others).contains(
+                HealthQueryBridge.activitySummaryType),
+            "a read that never asked for the rings is being granted them")
+    }
+
+    /// The predicate that silently returns nothing when it is wrong.
+    ///
+    /// Activity summaries match by `DateComponents` identifying a day as the
+    /// user perceives it, and Apple requires those components to carry a
+    /// `calendar` — a set without one matches NOTHING, with no throw: the caller
+    /// just sees `[]`. `SupportTests` proves on Linux that `ActivityDay`
+    /// attaches it; what only a watch can do is hand those components to
+    /// HealthKit's own predicate builder and see that it accepts them and
+    /// matches on the DAY key path rather than on some instant.
+    @MainActor
+    func testTheRingsPredicateIsBuiltFromDayComponentsThatCarryTheCalendar() {
+        guard
+            let plan = try? ActivitySummariesPlan.decode(
+                json: #"{"startDate":"2026-01-14","endDate":"2026-01-20"}"#
+            ).get()
+        else { return XCTFail("a week of rings must decode") }
+        XCTAssertNotNil(
+            plan.start.components.calendar,
+            "components without a calendar match nothing, silently")
+        XCTAssertTrue(plan.start.components.isValidDate)
+        let predicate = HKQuery.predicate(
+            forActivitySummariesBetweenStart: plan.start.components,
+            end: plan.end.components)
+        XCTAssertTrue(
+            predicate.predicateFormat.contains(HKPredicateKeyPathDateComponents),
+            "the rings predicate is not matching on the day key path: "
+                + predicate.predicateFormat)
+    }
+
+    /// The move ring, by CASE and in both directions. `HKActivityMoveMode` is an
+    /// ObjC enum that exists only on watchOS, so this table cannot be checked
+    /// anywhere else — and getting it wrong does not fail, it tells a move-time
+    /// user (every under-18 account) that their calorie ring closed.
+    @MainActor
+    func testTheMoveRingIsNamedByCaseAndTheWireVocabularyIsExactlyReachable() {
+        XCTAssertEqual(
+            HealthQueryBridge.moveMode(for: .activeEnergy), .activeEnergy)
+        XCTAssertEqual(
+            HealthQueryBridge.moveMode(for: .appleMoveTime), .appleMoveTime)
+        // Every mode the wire declares is produced by some HealthKit case, and
+        // no other: a wire case nothing can emit is dead vocabulary a caller
+        // would still have to branch on.
+        let reachable = [HKActivityMoveMode.activeEnergy, .appleMoveTime]
+            .compactMap(HealthQueryBridge.moveMode(for:))
+        XCTAssertEqual(Set(reachable), Set(ActivityMoveMode.allCases))
     }
 
     /// The identifier each kind is NAMED for, written out rather than derived

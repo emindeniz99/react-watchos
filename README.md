@@ -58,7 +58,10 @@ actually matter:
    active + resting energy, exercise and stand time), the cardio set (heart
    rate, resting and walking averages, HRV, respiratory rate, VO2 max) and
    SpO2 — plus sleep stages, the one *category* read, and a whole week's
-   daily buckets in *one* query; the user's **saved workout history**
+   daily buckets in *one* query; the **Activity rings with their goals**
+   (`queryActivitySummaries` — move, exercise and stand, per day, which is the
+   one thing no quantity type exposes and the reason a rings complication was
+   unbuildable before); the user's **saved workout history**
    (`queryWorkoutHistory` — what a "your last five runs" list renders, energy
    and distance included); real workout control that saves an `HKWorkout` with
    live metrics and an optional GPS route; and WorkoutKit plans you can

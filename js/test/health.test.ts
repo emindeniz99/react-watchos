@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  queryActivitySummaries,
   queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
@@ -209,6 +210,76 @@ describe("health reads", () => {
     expect(unnamed?.activityType).toBeUndefined();
     expect(unnamed?.distanceMeters).toBeNull();
     expect(unnamed?.activeEnergyKcal).toBeNull();
+  });
+
+  it("asks for the rings only when the caller opts in", () => {
+    // A third sheet ROW, like sleep and saved workouts — so it can never
+    // default on. And it is not implied by the quantity reads that look
+    // related: `appleExerciseTime` is a different HealthKit type from the
+    // summary that knows what that day's exercise GOAL was.
+    const calls = installHost("prompted");
+    requestHealthAuthorization({ read: ["appleExerciseTime"] });
+    requestHealthAuthorization({ read: [], activitySummaries: true });
+    expect(calls.map((c) => c.payload)).toEqual([
+      { read: ["appleExerciseTime"] },
+      { read: [], activitySummaries: true },
+    ]);
+  });
+
+  it("asks for rings by DAY and keeps a missing goal as null", async () => {
+    // Two things this pins that nothing else can. First the request: days
+    // ride verbatim as "YYYY-MM-DD" — no Date, no epoch, nothing that could
+    // pick up the runner's time zone and ask for yesterday's rings.
+    const calls = installHost([
+      {
+        date: "2026-01-14",
+        moveMode: "activeEnergy",
+        activeEnergyKcal: 412.5,
+        activeEnergyGoalKcal: 500,
+        moveTimeMinutes: 0,
+        moveTimeGoalMinutes: 30,
+        exerciseMinutes: 23,
+        exerciseGoalMinutes: 30,
+        standHours: 10,
+        standHoursGoal: 12,
+      },
+      {
+        date: "2026-01-16",
+        moveMode: "appleMoveTime",
+        activeEnergyKcal: 180,
+        activeEnergyGoalKcal: 350,
+        moveTimeMinutes: 47,
+        moveTimeGoalMinutes: 60,
+        exerciseMinutes: 12,
+        exerciseGoalMinutes: null,
+        standHours: 7,
+        standHoursGoal: null,
+      },
+    ]);
+    const asked = queryActivitySummaries({
+      startDate: "2026-01-14",
+      endDate: "2026-01-20",
+    });
+    expect(calls).toEqual([
+      {
+        method: "queryActivitySummaries",
+        payload: { startDate: "2026-01-14", endDate: "2026-01-20" },
+      },
+    ]);
+    const days = await asked;
+    // Second: a SEVEN-day ask can resolve two rows. HealthKit has no summary
+    // for a day the watch was off, so the answer is not a dense series and the
+    // caller must read `date`, never the index — the 15th is simply absent.
+    expect(days.map((d) => d.date)).toEqual(["2026-01-14", "2026-01-16"]);
+    // The ring pair to draw depends on the mode: this day was scored on
+    // MINUTES, so 180 of 350 kcal is not the ring that user closed.
+    expect(days[1]?.moveMode).toBe("appleMoveTime");
+    expect(days[1]?.moveTimeMinutes).toBe(47);
+    // A goal HealthKit does not have stays null — never Apple's default 30,
+    // which would draw a ring the user was never scored against.
+    expect(days[1]?.exerciseGoalMinutes).toBeNull();
+    expect(days[1]?.standHoursGoal).toBeNull();
+    expect(days[0]?.exerciseGoalMinutes).toBe(30);
   });
 
   it("resolves the authorization signal verbatim, not a grant verdict", async () => {

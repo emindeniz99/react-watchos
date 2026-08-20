@@ -653,6 +653,20 @@ export const invokeShapes: StructDef[] = [
         optional: true,
         doc: "also ask for HKObjectType.workoutType() — saved workouts, not a quantity either",
       },
+      {
+        // The third read that is not a quantity type. `HKActivitySummary` is
+        // its own object type — one object carrying all three rings and their
+        // goals — so like sleep and saved workouts it can only reach the sheet
+        // through a flag of its own. It asks for NOTHING else: unlike
+        // `workoutHistory`, whose totals are computed from the samples recorded
+        // during the workout, a summary is a single object HealthKit hands over
+        // whole, so the ask is exactly one row.
+        name: "activitySummaries",
+        swift: "Bool?",
+        ts: "boolean",
+        optional: true,
+        doc: "also ask for HKObjectType.activitySummaryType() — the Activity rings, not a quantity either",
+      },
     ],
   },
   {
@@ -712,6 +726,29 @@ export const invokeShapes: StructDef[] = [
       { name: "startMs", swift: "Double", ts: "number" },
       { name: "endMs", swift: "Double", ts: "number" },
       { name: "limit", swift: "Int?", ts: "number", optional: true },
+    ],
+  },
+  {
+    // The one health read that does NOT take a `{startMs, endMs}` window, and
+    // the deviation is the whole design. HealthKit matches an activity summary
+    // by `DateComponents` identifying "the day as perceived by the user", which
+    // Apple's own parameter doc notes "may be longer or shorter than 24 hours
+    // (for example, if the user traveled across time zones)". An INSTANT is not
+    // that day: somebody has to convert one into the other, and that conversion
+    // is where the off-by-one lives — a caller who sends `Date.UTC(y, m, d)` for
+    // "today" asks for yesterday's rings west of Greenwich, and gets a plausible
+    // wrong answer rather than an error. So the wire carries the day itself,
+    // `"YYYY-MM-DD"`, and nothing on either side converts anything.
+    //
+    // No `limit` either: the window IS the cap (one row per day, refused past
+    // the ceiling), so a second knob could only mean "drop some days", which is
+    // a chart with holes in it.
+    swift: "ActivitySummariesRequest",
+    ts: "ActivitySummariesRequest",
+    doc: "js/src/health.ts queryActivitySummaries -> ActivitySummariesPlan.",
+    fields: [
+      { name: "startDate", swift: "String", ts: "string" },
+      { name: "endDate", swift: "String", ts: "string" },
     ],
   },
   {
@@ -1271,6 +1308,83 @@ export const invokeShapes: StructDef[] = [
         name: "stage",
         swift: "String",
         ts: '"inBed" | "awake" | "asleepCore" | "asleepDeep" | "asleepREM" | "asleepUnspecified"',
+      },
+    ],
+  },
+  {
+    // The ONLY shape in this family that carries GOALS, which is why it exists:
+    // no quantity type exposes one (`appleExerciseTime` reports the minutes and
+    // nothing else), and a ring is a value MEASURED AGAINST a goal — without the
+    // second number there is no arc to draw, so a rings complication was simply
+    // not expressible before this read.
+    swift: "ActivitySummary",
+    ts: "ActivitySummary",
+    doc: "One DAY's Activity rings — three value/goal pairs plus the day they belong to.",
+    fields: [
+      {
+        // The day this row IS, `"YYYY-MM-DD"` — never an instant, for the
+        // reason `ActivitySummariesRequest` gives at length. Every row carries
+        // it because HealthKit returns NO row for a day it has no summary for
+        // (a watch left on the charger), so a week's answer can be five rows
+        // long and position in the array cannot be read as a date. The rows are
+        // sorted OLDEST FIRST natively — the descriptor takes no sort
+        // descriptors and Apple promises `result(for:)` no order at all, so a
+        // chart drawn straight off the array would be correct only by luck.
+        name: "date",
+        swift: "String",
+        ts: "string",
+      },
+      {
+        // HKActivityMoveMode (watchOS 7.0): which quantity the MOVE ring
+        // measures. Under-18 accounts — and anyone who picked Move Time in
+        // Settings — close a MINUTES ring rather than a calorie one, so a
+        // renderer that always drew energy would draw them a ring that never
+        // fills while their watch says it closed. Keep in sync with
+        // ActivityMoveMode in ReactWatchSupport (codegen.test.ts pins the two).
+        name: "moveMode",
+        swift: "String",
+        ts: '"activeEnergy" | "appleMoveTime"',
+      },
+      // The move ring, both spellings. Whichever `moveMode` names is the one to
+      // draw; the other pair is still reported because it costs two numbers and
+      // saves the caller a second query on the day a user switches modes.
+      { name: "activeEnergyKcal", swift: "Double", ts: "number" },
+      {
+        // `HKActivitySummary.activeEnergyBurnedGoal` — non-optional at every
+        // watchOS this package supports, so it is a plain `number`. Present
+        // whatever the `moveMode` is, which is exactly why it is not always the
+        // goal the user was SCORED against: on an `appleMoveTime` day that is
+        // `moveTimeGoalMinutes`.
+        name: "activeEnergyGoalKcal",
+        swift: "Double",
+        ts: "number",
+      },
+      { name: "moveTimeMinutes", swift: "Double", ts: "number" },
+      { name: "moveTimeGoalMinutes", swift: "Double", ts: "number" },
+      // The exercise ring. Minutes, not `...Ms`: this is a counter the watch
+      // increments and a goal the user sets in whole minutes (Apple's own
+      // `appleExerciseTime` read reports "min" too), not a stopwatch duration
+      // like `WorkoutSummary.durationMs`.
+      { name: "exerciseMinutes", swift: "Double", ts: "number" },
+      {
+        // `exerciseTimeGoal` is OPTIONAL (watchOS 9.0) and stays optional here:
+        // `null` means HealthKit has no goal for that day, which is a real
+        // state — an old summary written before goals were per-day. Substituting
+        // Apple's default 30 would draw a ring the user never had.
+        name: "exerciseGoalMinutes",
+        swift: "Double?",
+        ts: "number | null",
+      },
+      // The stand ring. HealthKit measures stand hours as a COUNT (the ring is
+      // "10 of 12 hours"), so these are counts of hours, not durations.
+      { name: "standHours", swift: "Double", ts: "number" },
+      {
+        // `standHoursGoal`, same watchOS 9.0 optionality and the same rule as
+        // `exerciseGoalMinutes`: a missing goal rides as `null` rather than as
+        // an invented 12.
+        name: "standHoursGoal",
+        swift: "Double?",
+        ts: "number | null",
       },
     ],
   },
@@ -2039,6 +2153,25 @@ export const hostMethods: HostMethod[] = [
     doc: "Saved HKWorkouts in the window, newest first (HKSampleQueryDescriptor + HKSamplePredicate.workout) — what a \"your last five runs\" screen lists.",
     request: "WorkoutHistoryRequest",
     response: "WorkoutSummary[]",
+  },
+  {
+    // The rings, with their GOALS — the one thing the quantity vocabulary
+    // structurally cannot report. `appleExerciseTime` and `appleStandTime` are
+    // already readable as quantities, but no `HKQuantityType` exposes the goal
+    // they are scored against, and half a ring is not a ring: this is the read
+    // that makes a rings complication possible at all.
+    //
+    // Feature "health" like its siblings, and it is a HISTORY disclosure in the
+    // fullest sense — the rings say when the user moved, every day, for as far
+    // back as they are asked for.
+    name: "queryActivitySummaries",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "The Activity rings — move, exercise and stand, each with its goal — one row per DAY, oldest first (HKActivitySummaryQueryDescriptor). Days with no summary are absent, so every row names its own date.",
+    request: "ActivitySummariesRequest",
+    response: "ActivitySummary[]",
   },
   // --- Workout control (feature "workouts"), SEPARATE from "health" on the
   //     ARCH-07 authorization-unit rule the `push` split established: this

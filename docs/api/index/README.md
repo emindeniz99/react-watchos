@@ -15,6 +15,8 @@
 
 ## Interfaces
 
+- [ActivitySummariesQuery](interfaces/ActivitySummariesQuery.md)
+- [ActivitySummary](interfaces/ActivitySummary.md)
 - [AlertActionProps](interfaces/AlertActionProps.md)
 - [AlertProps](interfaces/AlertProps.md)
 - [BleConnectOptions](interfaces/BleConnectOptions.md)
@@ -134,6 +136,7 @@
 
 ## Type Aliases
 
+- [ActivityMoveMode](type-aliases/ActivityMoveMode.md)
 - [BleState](type-aliases/BleState.md)
 - [CalendarAccessResult](type-aliases/CalendarAccessResult.md)
 - [CalendarEntity](type-aliases/CalendarEntity.md)
@@ -324,6 +327,7 @@
 - [playHaptic](functions/playHaptic.md)
 - [publishWidgets](functions/publishWidgets.md)
 - [purchase](functions/purchase.md)
+- [queryActivitySummaries](functions/queryActivitySummaries.md)
 - [queryHealthDailyStatistics](functions/queryHealthDailyStatistics.md)
 - [queryHealthSamples](functions/queryHealthSamples.md)
 - [queryHealthStatistics](functions/queryHealthStatistics.md)

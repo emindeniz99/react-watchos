@@ -117,6 +117,26 @@ final class InvokeContractTests: XCTestCase {
         XCTAssertFalse(plan.scheduledInPast)
     }
 
+    /// And the rings read, whose shipped decoder carries the most rules of any
+    /// in the family: the strict `"YYYY-MM-DD"` parse, the INCLUSIVE range, and
+    /// the day ceiling. The generated `ActivitySummariesRequest` proves the
+    /// schema and the JS wrapper agree; only running the real payload through
+    /// `ActivitySummariesPlan` proves the schema and the HANDLER do — that the
+    /// wrapper's date strings are the spelling the plan accepts, and that its
+    /// week is counted as seven days rather than six.
+    func testQueryActivitySummariesDecodesWithTheShippedDecoder() throws {
+        let json = try String(
+            data: requestFixture("queryActivitySummaries"), encoding: .utf8)
+        let plan = try ActivitySummariesPlan.decode(
+            json: try XCTUnwrap(json)
+        ).get()
+        XCTAssertEqual(plan.start.iso, "2026-01-14")
+        XCTAssertEqual(plan.end.iso, "2026-01-20")
+        // Seven dates asked for, seven days counted — a half-open reading would
+        // say six, and would query one day short of what the caller asked for.
+        XCTAssertEqual(plan.dayCount, 7)
+    }
+
     /// The other one: `saveUpdate`'s payload is decoded inside
     /// `OTASequencer.stage` by `UpdatePlan`, off-main.
     func testSaveUpdateDecodesWithTheShippedDecoder() throws {
