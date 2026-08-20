@@ -54,10 +54,11 @@ actually matter:
    the watch's own APNs token, App-Group storage shared with the widget. The
    iPhone is an option, not a dependency.
 3. **Health goes deeper than a heart-rate demo.** HealthKit reads (steps,
-   active energy, distance, SpO2, sleep stages — and a whole week's daily
-   buckets in *one* query), real workout control that saves an `HKWorkout`
-   with live metrics and an optional GPS route, and WorkoutKit plans you can
-   compose in TypeScript and hand to Apple's Workout app.
+   active energy, distance, heart rate + resting heart rate + HRV, SpO2,
+   sleep stages — and a whole week's daily buckets in *one* query), real
+   workout control that saves an `HKWorkout` with live metrics and an optional
+   GPS route, and WorkoutKit plans you can compose in TypeScript and hand to
+   Apple's Workout app.
 4. **The JS half updates over the air, signed.** Ed25519 with the keyId inside
    the signed bytes, anti-rollback, crash-loop rollback to known-good,
    re-verification at every boot — and unsigned updates refused by default.

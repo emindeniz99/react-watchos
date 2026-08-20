@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { hostMethods } from "../codegen/schema";
+import { healthQuantityTypes, hostMethods } from "../codegen/schema";
 import { HOST_FEATURES } from "../src/generated/wire";
 import type { SensorKind } from "../src/sensors";
 
@@ -498,6 +498,63 @@ describe("the daily statistics collection is contiguous, not sparse", () => {
       "private static func quantity(\n        _ statistic: HealthStatistic, from statistics: HKStatistics\n    ) -> HKQuantity? {",
     );
     expect(src.match(/Self\.quantity\(/g) ?? []).toHaveLength(2);
+  });
+});
+
+describe("the read vocabulary cannot half-widen into the host bridge", () => {
+  const src = read("ReactWatchHost/HealthQueryBridge.swift");
+
+  it("every declared quantity type has a HealthKit type AND a unit", () => {
+    // THE HAZARD: both switches live in `#if os(watchOS)` code no Linux job
+    // compiles, so a type added to the schema (and therefore to the Support
+    // enum, which `codegen.test.ts` pins) with no case here is green on CI and
+    // a build failure only on device — the same half-widen the SensorKind scan
+    // at the top of this file closes, one door over.
+    const cases = (from: string, to: string) => {
+      const body = src.slice(src.indexOf(from), src.indexOf(to));
+      return [...body.matchAll(/case \.(\w+):/g)].map((m) => m[1]).sort();
+    };
+    const declared = [...healthQuantityTypes].sort();
+    expect(
+      cases("static func quantityType(for kind:", "/// The unit each type"),
+    ).toEqual(declared);
+    expect(
+      cases("static func unit(for kind:", "/// The sleep-analysis"),
+    ).toEqual(declared);
+    // Presence is not enough: an arm must READ the type it is NAMED for.
+    // `case .restingHeartRate: HKQuantityType(.heartRate)` — the slip a
+    // duplicated arm invites — compiles, satisfies the two checks above, and
+    // ships instantaneous heart rate under a resting-heart-rate label.
+    const arms = [...src.matchAll(/case \.(\w+): HKQuantityType\(\.(\w+)\)/g)];
+    expect(arms.map((m) => m[1]).sort()).toEqual(declared);
+    for (const [, kind, identifier] of arms) expect(identifier).toBe(kind);
+  });
+
+  it("names and measures the same unit for every read type", () => {
+    // The Support side NAMES the unit and the Host side MEASURES it. They
+    // compile independently, so a mismatch ships a chart that LIES rather than
+    // failing a build — which is why every pair is pinned here, not just the
+    // one that most recently moved.
+    const UNITS: Record<string, [hk: string, wire: string]> = {
+      stepCount: ["HKUnit.count()", "count"],
+      activeEnergyBurned: ["HKUnit.kilocalorie()", "kcal"],
+      distanceWalkingRunning: ["HKUnit.meter()", "m"],
+      heartRate: ["HKUnit.count().unitDivided(by: .minute())", "count/min"],
+      oxygenSaturation: ["HKUnit.percent()", "fraction"],
+      // SDNN in seconds would type-check, ship, and report 0.045 where the
+      // Health app shows 45 — under a label that still said "ms".
+      heartRateVariabilitySDNN: ["HKUnit.secondUnit(with: .milli)", "ms"],
+      restingHeartRate: [
+        "HKUnit.count().unitDivided(by: .minute())",
+        "count/min",
+      ],
+    };
+    expect(Object.keys(UNITS).sort()).toEqual([...healthQuantityTypes].sort());
+    const support = read("ReactWatchSupport/HealthQueryPlan.swift");
+    for (const [kind, [hk, wire]] of Object.entries(UNITS)) {
+      expect(src).toContain(`case .${kind}: ${hk}`);
+      expect(support).toContain(`case .${kind}: "${wire}"`);
+    }
   });
 });
 

@@ -175,7 +175,7 @@ export const components: Component[] = [
  * reasoning as commit `2fd7739` (`fix!: narrow SensorKind to the four bound
  * kinds`): an open string type-checks, returns a plausible promise, and
  * resolves `null` forever. Every one is `HKQuantityTypeIdentifier` at watchOS
- * 2.0-3.0, far below the v10 floor, so none needs an `@available` gate.
+ * 2.0-4.0, far below the v10 floor, so none needs an `@available` gate.
  *
  * The unit each is reported in is fixed NATIVELY (never chosen by JS — a unit
  * string on the wire is a drift surface with no gate); `HealthQuantityKind` in
@@ -188,6 +188,8 @@ export const healthQuantityTypes: string[] = [
   "distanceWalkingRunning",
   "heartRate",
   "oxygenSaturation",
+  "heartRateVariabilitySDNN",
+  "restingHeartRate",
 ];
 
 /**

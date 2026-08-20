@@ -46,6 +46,8 @@ import ReactWatchSupport
         case .distanceWalkingRunning: HKQuantityType(.distanceWalkingRunning)
         case .heartRate: HKQuantityType(.heartRate)
         case .oxygenSaturation: HKQuantityType(.oxygenSaturation)
+        case .heartRateVariabilitySDNN: HKQuantityType(.heartRateVariabilitySDNN)
+        case .restingHeartRate: HKQuantityType(.restingHeartRate)
         }
     }
 
@@ -59,6 +61,8 @@ import ReactWatchSupport
         case .distanceWalkingRunning: HKUnit.meter()
         case .heartRate: HKUnit.count().unitDivided(by: .minute())
         case .oxygenSaturation: HKUnit.percent()
+        case .heartRateVariabilitySDNN: HKUnit.secondUnit(with: .milli)
+        case .restingHeartRate: HKUnit.count().unitDivided(by: .minute())
         }
     }
 

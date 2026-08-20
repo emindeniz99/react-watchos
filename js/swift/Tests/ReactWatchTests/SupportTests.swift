@@ -2719,6 +2719,10 @@ final class HealthQueryPlanTests: XCTestCase {
         // "fraction", never "percent": HKUnit.percent() yields 0…1, and calling
         // it percent is how a caller multiplies by 100 twice.
         XCTAssertEqual(HealthQuantityKind.oxygenSaturation.unit, "fraction")
+        // "ms", never seconds: SDNN runs in the tens of milliseconds, so a
+        // seconds unit reports 0.045 where the Health app shows 45.
+        XCTAssertEqual(HealthQuantityKind.heartRateVariabilitySDNN.unit, "ms")
+        XCTAssertEqual(HealthQuantityKind.restingHeartRate.unit, "count/min")
     }
 
     func testOnlySumIsLegalForACumulativeType() {
@@ -2731,6 +2735,40 @@ final class HealthQueryPlanTests: XCTestCase {
         XCTAssertFalse(HealthStatistic.sum.isLegal(for: .heartRate))
         XCTAssertTrue(HealthStatistic.average.isLegal(for: .heartRate))
         XCTAssertTrue(HealthStatistic.max.isLegal(for: .oxygenSaturation))
+    }
+
+    func testTheStressRecoveryPairIsDiscrete() {
+        // Apple documents both as DISCRETE, so a caller asking for the "total
+        // HRV this week" gets an INVALID_REQUEST naming the rule rather than
+        // the native throw a summed discrete type produces.
+        XCTAssertFalse(HealthQuantityKind.heartRateVariabilitySDNN.isCumulative)
+        XCTAssertFalse(HealthQuantityKind.restingHeartRate.isCumulative)
+        for kind in [HealthQuantityKind.heartRateVariabilitySDNN, .restingHeartRate] {
+            XCTAssertFalse(HealthStatistic.sum.isLegal(for: kind))
+            XCTAssertTrue(HealthStatistic.average.isLegal(for: kind))
+            XCTAssertTrue(HealthStatistic.min.isLegal(for: kind))
+            XCTAssertTrue(HealthStatistic.max.isLegal(for: kind))
+            XCTAssertTrue(HealthStatistic.mostRecent.isLegal(for: kind))
+        }
+    }
+
+    func testTheStressRecoveryPairDecodesAndRefusesASum() {
+        let plan = try? HealthStatisticsPlan.decode(
+            json: #"""
+                {"type":"heartRateVariabilitySDNN","statistic":"average",
+                 "startMs":1000,"endMs":2000}
+                """#
+        ).get()
+        XCTAssertEqual(plan?.kind, .heartRateVariabilitySDNN)
+        XCTAssertEqual(plan?.statistic, .average)
+        let refused = HealthStatisticsPlan.decode(
+            json: #"{"type":"restingHeartRate","statistic":"sum","startMs":1000,"endMs":2000}"#
+        )
+        guard case .failure(let error) = refused else {
+            return XCTFail("sum over a discrete type must be rejected")
+        }
+        XCTAssertTrue(error.message.contains("not valid for"))
+        XCTAssertTrue(error.message.contains("restingHeartRate"))
     }
 
     func testStatisticsPlanDecodesALegalRequest() {

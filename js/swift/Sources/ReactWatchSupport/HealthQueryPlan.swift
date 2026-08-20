@@ -38,6 +38,8 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
     case distanceWalkingRunning
     case heartRate
     case oxygenSaturation
+    case heartRateVariabilitySDNN
+    case restingHeartRate
 
     /// Whether HealthKit treats this as a CUMULATIVE quantity (summable over a
     /// window) rather than a DISCRETE one (sampled). This is the axis that
@@ -46,14 +48,16 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
     public var isCumulative: Bool {
         switch self {
         case .stepCount, .activeEnergyBurned, .distanceWalkingRunning: true
-        case .heartRate, .oxygenSaturation: false
+        case .heartRate, .oxygenSaturation, .heartRateVariabilitySDNN, .restingHeartRate: false
         }
     }
 
     /// The wire unit string, matching the `HKUnit` the bridge reads with.
     /// `oxygenSaturation` is `"fraction"`, not `"percent"`: `HKUnit.percent()`
     /// yields 0…1, and naming it `percent` is how a caller ends up multiplying
-    /// by 100 twice.
+    /// by 100 twice. `heartRateVariabilitySDNN` is `"ms"`, never seconds: SDNN
+    /// runs in the tens of milliseconds, so reading it in seconds reports
+    /// `0.045` where the Health app shows `45`.
     public var unit: String {
         switch self {
         case .stepCount: "count"
@@ -61,6 +65,8 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
         case .distanceWalkingRunning: "m"
         case .heartRate: "count/min"
         case .oxygenSaturation: "fraction"
+        case .heartRateVariabilitySDNN: "ms"
+        case .restingHeartRate: "count/min"
         }
     }
 }

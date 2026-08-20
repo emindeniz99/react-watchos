@@ -150,6 +150,90 @@ describe("health reads", () => {
     );
   });
 
+  it("reports each new type in its own native unit, unasked", async () => {
+    // The two types added together are the case where a caller-chosen unit
+    // would have to lie: SDNN is milliseconds and resting heart rate is bpm,
+    // so neither request carries a unit and each response names its own. (The
+    // per-type unit TABLE itself is Swift — `HealthQueryPlanTests` pins it.)
+    const hrvCalls = installHost({
+      value: 45,
+      unit: "ms",
+      startMs: 1,
+      endMs: 2,
+    });
+    const hrv = await queryHealthStatistics({
+      type: "heartRateVariabilitySDNN",
+      statistic: "average",
+      startMs: 1,
+      endMs: 2,
+    });
+    // 45, not 0.045 — the whole reason the native side reads SDNN in
+    // milliseconds instead of seconds.
+    expect(hrv.value).toBe(45);
+    expect(hrv.unit).toBe("ms");
+    const restingCalls = installHost({
+      value: 58,
+      unit: "count/min",
+      startMs: 1,
+      endMs: 2,
+    });
+    const resting = await queryHealthStatistics({
+      type: "restingHeartRate",
+      statistic: "average",
+      startMs: 1,
+      endMs: 2,
+    });
+    expect(resting.value).toBe(58);
+    expect(resting.unit).toBe("count/min");
+    expect([...hrvCalls, ...restingCalls].map((c) => c.payload)).toEqual([
+      {
+        type: "heartRateVariabilitySDNN",
+        statistic: "average",
+        startMs: 1,
+        endMs: 2,
+      },
+      {
+        type: "restingHeartRate",
+        statistic: "average",
+        startMs: 1,
+        endMs: 2,
+      },
+    ]);
+  });
+
+  it("surfaces the native refusal of a sum over a discrete type", async () => {
+    // Both new types are DISCRETE, so `sum` is the one statistic HealthKit
+    // would THROW on. The rule is decided natively (HealthQueryPlan) and this
+    // asserts the reason reaches the caller instead of being flattened into a
+    // bare failure — a caller cannot read Apple's statistics matrix otherwise.
+    const g = globalThis as Record<string, unknown>;
+    g.__host = {
+      invoke: (id: number) => {
+        (g.__rejectInvoke as (i: number, j: string) => void)(
+          id,
+          JSON.stringify({
+            code: "INVALID_REQUEST",
+            message:
+              "statistic 'sum' is not valid for 'heartRateVariabilitySDNN'",
+          }),
+        );
+      },
+    };
+    await expect(
+      queryHealthStatistics({
+        type: "heartRateVariabilitySDNN",
+        statistic: "sum",
+        startMs: 1,
+        endMs: 2,
+      }),
+    ).rejects.toMatchObject({
+      code: "INVALID_REQUEST",
+      // The REASON, not just the code: a caller cannot read Apple's statistics
+      // matrix, so flattening this to a bare failure is the regression.
+      message: expect.stringContaining("not valid for"),
+    });
+  });
+
   it("rejects UNAVAILABLE with no invoke-capable host (tests / widget)", async () => {
     await expect(
       querySleepSamples({ startMs: 1, endMs: 2 }),
