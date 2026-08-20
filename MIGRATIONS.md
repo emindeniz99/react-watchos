@@ -5,7 +5,7 @@ Pre-1.0, **breaking changes ship as minor versions** (`0.x` semver:
 changed; this file says what a consumer *does* about it. Entries are newest
 first, and only versions with consumer-facing action items appear.
 
-## 0.4.x → next
+## 0.4.x → 0.5.0
 
 **The shipping build now minifies by default.** `buildBundles([…])` defaults
 to `minify: true`, and `npx react-watchos build` does the same. Measured on
