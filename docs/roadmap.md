@@ -136,11 +136,12 @@ as of 2026-08-06):
   `projects/react-native-watchos/js` to `js` in this repo (2026-08-06);
   `release-please-config.json` / `.release-please-manifest.json` both use the
   short key.
-- **Publish workflow** (`publishConfig.provenance` requires publishing from
-  GitHub Actions with `id-token: write`): `release.yml` +
-  `release-please.yml` are landing 2026-08-06 — first green run still
-  pending, and the npm trusted-publisher attachment happens after the
-  bootstrap publish.
+- ✅ **DONE — publish workflow** (`publishConfig.provenance` requires
+  publishing from GitHub Actions with `id-token: write`): landed 2026-08-06 as
+  `release.yml` + `release-please.yml`; the trusted-publisher attachment was
+  made after the bootstrap publish and 0.1.0 through 0.5.0 are on npm. The two
+  files merged into a single `release.yml` on 2026-08-20 — see the closed
+  follow-up below for why.
 - ✅ **DONE — blob strip**: history rewritten 2026-08-06; zero
   `app/targets/watch/assets/bundle.js` objects remain in the repo's history
   (`git rev-list --all --objects` finds none).
@@ -473,12 +474,17 @@ earn their keep.
   side is unit-tested. A single shared vector file asserted from all three
   would stop a silent drift that presents as "every boot falls back to
   parsing the source".
-- **Publishing still needs one manual dispatch.** release-please creates the
-  GitHub Release with the default `GITHUB_TOKEN`, and GitHub's recursion
-  guard drops events produced by that token, so `release: published` never
-  reaches `release.yml` (observed on 0.2.0, 0.2.1, 0.3.0 and 0.4.0). Creating
-  the Release with a PAT or GitHub App token would close the loop; until then
-  the runbook in `release.yml`'s header is the process.
+- ✅ **DONE — publishing no longer needs a manual dispatch** (2026-08-20).
+  release-please creates the GitHub Release with the default `GITHUB_TOKEN`,
+  and GitHub does not start workflow runs from events raised by that token, so
+  `release: published` never reached `release.yml` once — 0.2.0, 0.2.1, 0.3.0,
+  0.4.0 and 0.5.0 were each published by hand. `release-please.yml` is now
+  folded into `release.yml` as job 1, and the npm publish is job 2 of the SAME
+  run, gated on the action's own `js--release_created` output with a
+  manifest-version-vs-npm check as the safety net. A PAT or GitHub App token
+  was the other way to close the loop; one run needs neither. Note this
+  prevents the NEXT stranded release — it did not recover 0.5.0, which was
+  already dispatched by hand and is npm's `latest`.
 - **Two upstream bugs are carried as local patches, with no issue filed.**
   `react-native-worklets`' babel plugin calls `numericLiteral(-27)`, which
   `@babel/types` >= 7.28 rejects (present in every release through the latest
