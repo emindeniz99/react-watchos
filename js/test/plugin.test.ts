@@ -416,6 +416,12 @@ describe("targetConfig (options -> apple-targets config)", () => {
       workouts: true,
     });
     expect(both.infoPlist.NSHealthShareUsageDescription).toContain("sleep");
+    // The same mismatch, one category over: SpO2 has been readable since the
+    // sheet was first reworded and no word in it covered blood oxygen. Pinned
+    // because the drift is silent — the sheet renders fine while under-asking.
+    expect(both.infoPlist.NSHealthShareUsageDescription).toContain(
+      "blood oxygen",
+    );
     // Workouts alone genuinely IS heart-rate-only — don't over-promise there.
     expect(
       watchTargetConfig({ ...demoOpts, healthKit: false, workouts: true })

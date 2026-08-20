@@ -15,10 +15,23 @@ on:
         description: "Xcode version (e.g. 16.2, 26.0, latest-stable)"
         default: "latest-stable"
         required: false
-  # Nightly: the pbxproj-editing plugin and the SwiftUI host are the most
-  # fragile surfaces in the repo and Linux CI can't compile them (NF-30) —
-  # a scheduled run catches breakage within a day instead of at the next
-  # manual dispatch. (CX-013's "not a PR gate" decision stands.)
+  # Post-merge, path-filtered: the watchOS half of the health bridge, the
+  # SwiftUI host and the widget infra compile to an EMPTY module off-watchOS,
+  # so `swift test` on Linux proves nothing about them (NF-30) — a change can
+  # sit broken on main until the nightly. Running here means every push that
+  # TOUCHES that surface is compiled and unit-tested on a watchOS simulator
+  # within the hour. This is deliberately post-merge and not a `pull_request`
+  # trigger, so CX-013's "native compilation is not a required PR gate" still
+  # stands: it reports, it does not block.
+  push:
+    branches: [main]
+    paths:
+      - "js/swift/**"
+      - "js/plugin/**"
+      - "app/**"
+      - ".github/workflows/build.yml"
+  # Nightly: catches the breakage a path filter cannot see — an Xcode or
+  # apple-targets release moving under us with no commit of ours involved.
   schedule:
     - cron: "23 3 * * *"
 
