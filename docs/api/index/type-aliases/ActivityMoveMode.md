@@ -8,7 +8,7 @@
 
 > **ActivityMoveMode** = `WireActivitySummary`\[`"moveMode"`\]
 
-Defined in: [js/src/health.ts:91](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L91)
+Defined in: [js/src/health.ts:98](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L98)
 
 Which quantity the **move** ring measures (`HKActivityMoveMode`).
 

@@ -613,6 +613,120 @@ public struct ActivitySummariesPlan: Equatable, Sendable {
     }
 }
 
+/// A validated `startHealthUpdates` request — the one health request that arms
+/// a LONG-RUNNING query instead of asking a question.
+///
+/// Two rules live here rather than in the watchOS bridge, for this file's usual
+/// reason (Linux can run them): the type must be one of the fourteen the read
+/// vocabulary names, and the coalescing floor must be a number that describes a
+/// live screen.
+public struct HealthUpdatesPlan: Equatable, Sendable {
+    public let kind: HealthQuantityKind
+    /// How long the bridge must wait between two pushes for this type. NOT a
+    /// sampling rate — HealthKit decides when a sample exists — and not a
+    /// filter either: batches that arrive inside the floor are HELD in the
+    /// bridge and MERGED into the next push. Dropping one would be data loss,
+    /// which is the difference between this and `workout.metrics` coalescing
+    /// next door, where the payload is level state and the newest reading is the
+    /// whole answer. Merging rather than pacing is what makes the floor a render
+    /// knob at all: N held batches cost one push, not N pushes a floor apart.
+    public let minIntervalMs: Double
+
+    public init(kind: HealthQuantityKind, minIntervalMs: Double) {
+        self.kind = kind
+        self.minIntervalMs = minIntervalMs
+    }
+
+    /// One push per second unless the caller says otherwise. Chosen against the
+    /// COST rather than the source rate: every push is a bridge crossing plus a
+    /// synchronous React commit (`runSync`), and a watch screen showing a number
+    /// cannot be read faster than that anyway.
+    public static let defaultMinIntervalMs: Double = 1000
+
+    /// The ceiling, and it exists because the floor is a HOLD: a batch waits
+    /// out the interval, so a ten-minute "floor" is a screen that shows a
+    /// ten-minute-old number and looks broken rather than throttled. Past a
+    /// minute the honest tool is a one-shot read on a timer, and the message
+    /// says so.
+    public static let maxMinIntervalMs: Double = 60_000
+
+    /// The native-event name this type's samples arrive on, and THE definition
+    /// of it — js/src/health.ts builds the same string from
+    /// `HEALTH_UPDATE_EVENT_PREFIX` and `health-package-guards.test.ts` pins
+    /// the two against each other.
+    ///
+    /// It lives here, in the Linux-testable half, precisely because the name is
+    /// an unchecked STRING on both sides: nothing compares a Swift literal to a
+    /// JS constant, and a typo in either yields a subscription that never fires,
+    /// with no error anywhere to say why. Deriving it from the kind's raw value
+    /// also means a fifteenth read type gets its event name for free instead of
+    /// needing a second table to forget.
+    public static let eventPrefix = "health.samples."
+
+    public static func eventName(for kind: HealthQuantityKind) -> String {
+        eventPrefix + kind.rawValue
+    }
+
+    public var eventName: String { Self.eventName(for: kind) }
+
+    private struct Payload: Decodable {
+        let type: String?
+        let minIntervalMs: Double?
+    }
+
+    public static func decode(json: String) -> Result<HealthUpdatesPlan, HealthRequestError> {
+        guard
+            let payload = try? JSONDecoder().decode(
+                Payload.self, from: Data(json.utf8))
+        else { return invalid("startHealthUpdates needs a JSON object") }
+        guard let kind = payload.type.flatMap(HealthQuantityKind.init(rawValue:))
+        else {
+            return invalid(
+                "unknown health type '\(payload.type ?? "")' — expected one of "
+                    + HealthQuantityKind.allCases.map(\.rawValue).joined(separator: ", "))
+        }
+        let interval = payload.minIntervalMs ?? defaultMinIntervalMs
+        guard interval.isFinite, interval >= 0, interval <= maxMinIntervalMs else {
+            return invalid(
+                "minIntervalMs must be 0...\(Int(maxMinIntervalMs)) ms (got "
+                    + "\(payload.minIntervalMs ?? .nan)) — it HOLDS a batch rather "
+                    + "than dropping it, so a longer floor is a stale screen: "
+                    + "poll queryHealthStatistics on a timer instead")
+        }
+        return .success(HealthUpdatesPlan(kind: kind, minIntervalMs: interval))
+    }
+}
+
+/// A validated `stopHealthUpdates` request — a type and nothing else.
+///
+/// Its own struct rather than `HealthUpdatesPlan` with the interval ignored: a
+/// stop carrying a knob reads as if it re-tunes the stream. The message names
+/// the method the caller actually called, which is why every plan in this file
+/// has its own decode.
+public struct HealthUpdatesStopPlan: Equatable, Sendable {
+    public let kind: HealthQuantityKind
+
+    public init(kind: HealthQuantityKind) { self.kind = kind }
+
+    private struct Payload: Decodable {
+        let type: String?
+    }
+
+    public static func decode(json: String) -> Result<HealthUpdatesStopPlan, HealthRequestError> {
+        guard
+            let payload = try? JSONDecoder().decode(
+                Payload.self, from: Data(json.utf8))
+        else { return invalid("stopHealthUpdates needs a JSON object") }
+        guard let kind = payload.type.flatMap(HealthQuantityKind.init(rawValue:))
+        else {
+            return invalid(
+                "unknown health type '\(payload.type ?? "")' — expected one of "
+                    + HealthQuantityKind.allCases.map(\.rawValue).joined(separator: ", "))
+        }
+        return .success(HealthUpdatesStopPlan(kind: kind))
+    }
+}
+
 /// The read types a `requestHealthAuthorization` asks for.
 ///
 /// The result it reports is deliberately thin, because HealthKit gives nothing

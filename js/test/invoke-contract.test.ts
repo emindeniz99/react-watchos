@@ -63,6 +63,7 @@ import type {
   WorkoutSummary,
 } from "../src/health";
 import {
+  __resetHealthUpdatesForTest,
   queryActivitySummaries,
   queryHealthDailyStatistics,
   queryHealthSamples,
@@ -70,6 +71,7 @@ import {
   querySleepSamples,
   queryWorkoutHistory,
   requestHealthAuthorization,
+  startHealthUpdates,
 } from "../src/health";
 import type { IAPProduct, PurchaseResult } from "../src/iap";
 import { getProducts, purchase } from "../src/iap";
@@ -538,6 +540,9 @@ afterEach(() => {
   delete g.__host;
   delete g.__resolveInvoke;
   delete g.__rejectInvoke;
+  // The one wrapper in this file with module-level state: a live-updates
+  // subscription refcount that outlives the host it was started against.
+  __resetHealthUpdatesForTest();
 });
 
 describe("invoke contract fixtures (ARCH-11)", () => {
@@ -631,6 +636,17 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       startDate: "2026-01-14",
       endDate: "2026-01-20",
     });
+    // The one SUBSCRIPTION in the family, both halves of it. `minIntervalMs`
+    // rides explicitly because the field-coverage assertion below wants every
+    // declared field in some fixture, and it is the knob a caller omits. The
+    // stop is driven through the real `stop()` so the fixture is the payload a
+    // React effect cleanup actually sends — the refcount is what decides it is
+    // sent at all.
+    const liveSteps = startHealthUpdates("stepCount", () => {}, {
+      minIntervalMs: 2000,
+    });
+    await liveSteps.started;
+    liveSteps.stop();
     await startWorkout("running", {
       location: "outdoor",
       metricsIntervalMs: 2000,

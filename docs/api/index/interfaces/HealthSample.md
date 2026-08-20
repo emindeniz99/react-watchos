@@ -6,7 +6,7 @@
 
 # Interface: HealthSample
 
-Defined in: [js/src/health.ts:205](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L205)
+Defined in: [js/src/health.ts:212](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L212)
 
 One raw quantity sample.
 
@@ -16,7 +16,7 @@ One raw quantity sample.
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:207](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L207)
+Defined in: [js/src/health.ts:214](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L214)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:207](https://github.com/emindeniz99/react-watchos/
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:206](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L206)
+Defined in: [js/src/health.ts:213](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L213)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [js/src/health.ts:206](https://github.com/emindeniz99/react-watchos/
 
 > **unit**: `string`
 
-Defined in: [js/src/health.ts:210](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L210)
+Defined in: [js/src/health.ts:217](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L217)
 
 Same per-type unit as [HealthStatisticsResult.unit](HealthStatisticsResult.md#unit).
 
@@ -42,4 +42,4 @@ Same per-type unit as [HealthStatisticsResult.unit](HealthStatisticsResult.md#un
 
 > **value**: `number`
 
-Defined in: [js/src/health.ts:208](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L208)
+Defined in: [js/src/health.ts:215](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L215)

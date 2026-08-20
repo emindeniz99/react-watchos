@@ -1,5 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { __resetHealthUpdatesForTest, startHealthUpdates } from "../src/health";
 import {
+  HEALTH_UPDATE_EVENT_PREFIX,
   queryActivitySummaries,
   queryHealthDailyStatistics,
   queryHealthSamples,
@@ -8,12 +10,17 @@ import {
   queryWorkoutHistory,
   requestHealthAuthorization,
 } from "../src/index";
+import { dispatchNativeEvent } from "../src/nativeEvents";
 
 afterEach(() => {
   const g = globalThis as Record<string, unknown>;
   delete g.__host;
   delete g.__resolveInvoke;
   delete g.__rejectInvoke;
+  // The live-updates refcount is module state: a test that leaves a token
+  // behind would make the NEXT test's first subscriber skip its start invoke
+  // and listen to a stream nobody armed.
+  __resetHealthUpdatesForTest();
 });
 
 /** A host that records every invoke and settles it with `result`. */
@@ -377,6 +384,260 @@ describe("health reads", () => {
     await expect(
       querySleepSamples({ startMs: 1, endMs: 2 }),
     ).rejects.toMatchObject({ code: "UNAVAILABLE" });
+  });
+});
+
+describe("live health updates", () => {
+  /** One sample row, the shape `queryHealthSamples` returns verbatim. */
+  const sample = (value: number, startMs: number) => ({
+    startMs,
+    endMs: startMs + 1000,
+    value,
+    unit: "count/min",
+  });
+
+  it("arms one query, routes its samples, and stops on the last unsubscribe", () => {
+    const calls = installHost(null);
+    const seen: unknown[] = [];
+    const live = startHealthUpdates("heartRate", (update) => seen.push(update));
+    // The START is an invoke, not the fire-and-forget `sensor` op: it can fail
+    // (no HealthKit, an unreadable type) and the failure has to settle
+    // somewhere. `minIntervalMs` is absent because the caller omitted it —
+    // native owns the default rather than JS restating it.
+    expect(calls).toEqual([
+      { method: "startHealthUpdates", payload: { type: "heartRate" } },
+    ]);
+
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}heartRate`, {
+      samples: [sample(61, 1_768_396_800_000), sample(64, 1_768_396_801_000)],
+    });
+    // NARROWED in the wrapper: a handler is handed a typed `HealthUpdate` with
+    // the type it subscribed to, never the channel's raw record.
+    expect(seen).toEqual([
+      {
+        type: "heartRate",
+        samples: [sample(61, 1_768_396_800_000), sample(64, 1_768_396_801_000)],
+        // The newest row, computed where non-emptiness was just proved — so the
+        // "current heart rate" screen this API exists for reads `u.latest.value`
+        // instead of an index `noUncheckedIndexedAccess` widens to `undefined`
+        // or an `.at(-1)` this package's ES2020 target does not have.
+        latest: sample(64, 1_768_396_801_000),
+      },
+    ]);
+
+    live.stop();
+    expect(calls[1]).toEqual({
+      method: "stopHealthUpdates",
+      payload: { type: "heartRate" },
+    });
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}heartRate`, {
+      samples: [sample(70, 1_768_396_802_000)],
+    });
+    expect(seen).toHaveLength(1);
+    // Idempotent: React StrictMode runs a cleanup twice, and a second stop
+    // invoke would take down a stream a remount had already restarted.
+    live.stop();
+    expect(calls).toHaveLength(2);
+  });
+
+  it("shares one native query and fires each subscriber exactly once", () => {
+    const calls = installHost(null);
+    // The SAME function for both, which is the case `registerNativeListener`
+    // keys on a fresh entry for: a `Set<handler>` would collapse these into one
+    // member, and the first unsubscribe would silence the second subscription
+    // while its caller still believed it was listening.
+    let fired = 0;
+    const shared = () => {
+      fired += 1;
+    };
+    const first = startHealthUpdates("stepCount", shared, {
+      minIntervalMs: 2000,
+    });
+    const second = startHealthUpdates("stepCount", shared, {
+      minIntervalMs: 50,
+    });
+    // ONE start, and the FIRST subscriber's options win — the native query is
+    // shared, so the second's 50ms cannot re-tune it (the `startSensor` rule).
+    expect(calls).toEqual([
+      {
+        method: "startHealthUpdates",
+        payload: { type: "stepCount", minIntervalMs: 2000 },
+      },
+    ]);
+    // Both subscribers get the same settlement: the second must not believe a
+    // stream is live that the first failed to arm.
+    expect(second.started).toBe(first.started);
+
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}stepCount`, {
+      samples: [{ startMs: 1, endMs: 2, value: 12, unit: "count" }],
+    });
+    expect(fired).toBe(2);
+
+    // The stream outlives the first unsubscribe — one subscriber is still
+    // watching, so no stop crosses the bridge.
+    first.stop();
+    expect(calls).toHaveLength(1);
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}stepCount`, {
+      samples: [{ startMs: 3, endMs: 4, value: 3, unit: "count" }],
+    });
+    expect(fired).toBe(3);
+
+    second.stop();
+    expect(calls[1]?.method).toBe("stopHealthUpdates");
+  });
+
+  it("rejects a failed start and lets the next subscriber retry", async () => {
+    const g = globalThis as Record<string, unknown>;
+    const rejected: string[] = [];
+    g.__host = {
+      invoke: (id: number, method: string) => {
+        rejected.push(method);
+        (g.__rejectInvoke as (i: number, j: string) => void)(
+          id,
+          JSON.stringify({
+            code: "UNAVAILABLE",
+            message: "HealthKit is not available on this device",
+          }),
+        );
+      },
+    };
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const live = startHealthUpdates("vo2Max", () => {});
+    // The whole reason the start rides `invoke`: a stream that could not be
+    // armed says so, instead of leaving a screen on "—" forever the way the
+    // reply-less `sensor` op would.
+    await expect(live.started).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    // ... and it is loud even for a caller who never awaits `started`.
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+
+    // A failed start left NO query behind, so the per-type state must go with
+    // it: otherwise the next subscriber would see a non-empty refcount, send no
+    // start of its own, and listen forever to a stream that was never armed.
+    const retry = startHealthUpdates("vo2Max", () => {});
+    await expect(retry.started).rejects.toMatchObject({ code: "UNAVAILABLE" });
+    // Each failure also sends a STOP. The per-type entry is gone, so no
+    // subscriber can ever send one later, and some failures are ambiguous about
+    // what native did — a timeout while the authorization sheet is up leaves a
+    // query that may still arm. Native never refuses a stop for a stream that is
+    // not running, so the redundant case (this one) costs a no-op invoke.
+    expect(rejected).toEqual([
+      "startHealthUpdates",
+      "stopHealthUpdates",
+      "startHealthUpdates",
+      "stopHealthUpdates",
+    ]);
+  });
+
+  it("keeps a retry's stream when a token from the FAILED start is dropped", async () => {
+    // What the identity-TOKEN Set buys over a count plus the `cleaned` latch.
+    // The first start fails, so its entry is deleted while its subscriber is
+    // still holding a `stop` it has not called; a retry then creates a SECOND
+    // entry with its own token. When the original finally cleans up, `cleaned`
+    // is false — it never ran — so the only thing standing between it and a
+    // spurious `stopHealthUpdates` that would kill the retry's live stream is
+    // that its token is not a member of the new entry's set.
+    const g = globalThis as Record<string, unknown>;
+    const calls: string[] = [];
+    let failNext = true;
+    g.__host = {
+      invoke: (id: number, method: string) => {
+        calls.push(method);
+        if (method === "startHealthUpdates" && failNext) {
+          failNext = false;
+          (g.__rejectInvoke as (i: number, j: string) => void)(
+            id,
+            JSON.stringify({ code: "UNAVAILABLE", message: "no HealthKit" }),
+          );
+          return;
+        }
+        (g.__resolveInvoke as (i: number, j: string) => void)(id, "null");
+      },
+    };
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const doomed = startHealthUpdates("stepCount", () => {});
+    await expect(doomed.started).rejects.toMatchObject({
+      code: "UNAVAILABLE",
+    });
+    logged.mockRestore();
+
+    const seen: number[] = [];
+    const retry = startHealthUpdates("stepCount", (u) =>
+      seen.push(u.samples.length),
+    );
+    await retry.started;
+    calls.length = 0;
+
+    doomed.stop();
+    expect(calls).toEqual([]);
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}stepCount`, {
+      samples: [{ startMs: 1, endMs: 2, value: 9, unit: "count" }],
+    });
+    expect(seen).toEqual([1]);
+    retry.stop();
+    expect(calls).toEqual(["stopHealthUpdates"]);
+  });
+
+  it("never hands a handler a push it cannot read", () => {
+    installHost(null);
+    const seen: unknown[] = [];
+    const live = startHealthUpdates("stepCount", (update) =>
+      seen.push(update.samples.length),
+    );
+    // Native never pushes either of these — an update with nothing added is
+    // dropped natively, and the key names are pinned by the ARCH-11 producer
+    // scan — so both would be a native bug. Delivering them anyway would move
+    // the failure into the screen's `samples.at(-1)`.
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}stepCount`, {
+      samples: [],
+    });
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}stepCount`, {});
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}stepCount`, undefined);
+    expect(seen).toEqual([]);
+    live.stop();
+  });
+
+  it("gives a late subscriber the NEXT sample, never the last one", () => {
+    installHost(null);
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}heartRate`, {
+      samples: [sample(61, 1)],
+    });
+    const seen: unknown[] = [];
+    const live = startHealthUpdates("heartRate", (u) => seen.push(u));
+    // EDGE-triggered: `health.samples.*` is deliberately absent from
+    // `REPLAYED_EVENTS`, because replaying a sample would fabricate a reading
+    // that did not just occur — a "current heart rate" screen would show a
+    // number from before it mounted as if it had arrived live. A screen that
+    // needs a value at mount reads one with queryHealthStatistics.
+    expect(seen).toEqual([]);
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}heartRate`, {
+      samples: [sample(64, 2)],
+    });
+    expect(seen).toHaveLength(1);
+    live.stop();
+  });
+
+  it("subscribes per TYPE, so one type's samples reach only its own screen", () => {
+    const calls = installHost(null);
+    const steps: number[] = [];
+    const bpm: number[] = [];
+    const liveSteps = startHealthUpdates("stepCount", (u) =>
+      steps.push(u.samples.length),
+    );
+    const liveBpm = startHealthUpdates("heartRate", (u) =>
+      bpm.push(u.samples.length),
+    );
+    expect(calls.map((c) => c.payload)).toEqual([
+      { type: "stepCount" },
+      { type: "heartRate" },
+    ]);
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}heartRate`, {
+      samples: [sample(61, 1)],
+    });
+    expect(steps).toEqual([]);
+    expect(bpm).toEqual([1]);
+    liveSteps.stop();
+    liveBpm.stop();
   });
 });
 

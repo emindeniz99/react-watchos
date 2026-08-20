@@ -752,6 +752,47 @@ export const invokeShapes: StructDef[] = [
     ],
   },
   {
+    // The one request in this family that starts a LONG-RUNNING thing rather
+    // than asking a question, and the only one whose answer arrives on the
+    // event channel. It rides `invoke` anyway — deliberately, and unlike the
+    // `sensor` direct method next door, which is fire-and-forget with no reply
+    // path at all: starting a HealthKit stream can FAIL (no HealthKit on this
+    // watch, a malformed type, the authorization sheet never resolving), and a
+    // start whose failure has nowhere to go is a screen that renders "—"
+    // forever with no error anywhere. `invoke` is the channel that settles.
+    swift: "HealthUpdatesRequest",
+    ts: "HealthUpdatesRequest",
+    doc: "js/src/health.ts startHealthUpdates -> HealthUpdatesPlan (an HKAnchoredObjectQueryDescriptor).",
+    fields: [
+      // The SAME closed vocabulary the one-shot reads use, so a live sample and
+      // a `queryHealthSamples` row for the same type arrive in the same unit —
+      // a screen that reads the total once and then streams must not have its
+      // numbers change meaning halfway.
+      { name: "type", swift: "String", ts: "HealthQuantityType" },
+      {
+        // The coalescing floor, ms. Not a sampling rate: HealthKit decides when
+        // a sample lands, and this only bounds how often a batch may CROSS the
+        // bridge — every sample still arrives, in the next batch. Optional
+        // because the native default (1000 ms) is the right answer for the
+        // screens this exists for.
+        name: "minIntervalMs",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+    ],
+  },
+  {
+    // A type and nothing else. Deliberately its own struct rather than a reuse
+    // of `HealthUpdatesRequest` with the interval ignored: a stop that carried
+    // a knob would invite the reading that it re-tunes the stream, and the two
+    // grow apart the moment either takes a second field.
+    swift: "HealthUpdatesStopRequest",
+    ts: "HealthUpdatesStopRequest",
+    doc: "js/src/health.ts stops the live stream for one type -> HealthUpdatesStopPlan.",
+    fields: [{ name: "type", swift: "String", ts: "HealthQuantityType" }],
+  },
+  {
     swift: "StartWorkoutRequest",
     ts: "StartWorkoutRequest",
     doc: "js/src/workout.ts startWorkout -> HKWorkoutConfiguration + the metrics knob.",
@@ -2172,6 +2213,43 @@ export const hostMethods: HostMethod[] = [
     doc: "The Activity rings — move, exercise and stand, each with its goal — one row per DAY, oldest first (HKActivitySummaryQueryDescriptor). Days with no summary are absent, so every row names its own date.",
     request: "ActivitySummariesRequest",
     response: "ActivitySummary[]",
+  },
+  {
+    // The one health method that is not a READ but a SUBSCRIPTION: it arms an
+    // `HKAnchoredObjectQueryDescriptor` and every sample HealthKit saves from
+    // then on is pushed as `health.samples.<type>` until the matching stop.
+    // Same `health` feature as the reads — it discloses exactly the same
+    // samples, just as they land instead of on demand.
+    //
+    // Two channels, on purpose. The DELIVERY is the name-routed event channel,
+    // because a stream has no single answer to resolve with. The START is an
+    // invoke, because it is FALLIBLE — no HealthKit on this watch, an
+    // authorization round trip, a type this binary cannot read — and the
+    // `sensor` direct method, the only other start in this package, has no
+    // reply path at all: the repo's own review calls that the one bridge left
+    // behind, and a health start that failed silently would be a screen stuck
+    // on "—" with nothing logged anywhere.
+    //
+    // No `response` shape: resolving IS the answer ("the query is armed").
+    name: "startHealthUpdates",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "Arms a live HKAnchoredObjectQueryDescriptor for one quantity type; new samples arrive on the `health.samples.<type>` event until stopHealthUpdates. Foreground-only — no background-delivery entitlement is involved.",
+    request: "HealthUpdatesRequest",
+  },
+  {
+    // Idempotent by design, and it never refuses: it is called from an effect
+    // CLEANUP, where a rejection has no caller left to handle it — stopping a
+    // stream that is already stopped is the outcome the caller wanted.
+    name: "stopHealthUpdates",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "Stops the live stream for one quantity type (cancels its query task). A stop for a type that is not streaming resolves — there is nothing to refuse.",
+    request: "HealthUpdatesStopRequest",
   },
   // --- Workout control (feature "workouts"), SEPARATE from "health" on the
   //     ARCH-07 authorization-unit rule the `push` split established: this

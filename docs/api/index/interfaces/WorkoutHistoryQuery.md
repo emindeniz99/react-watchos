@@ -6,7 +6,7 @@
 
 # Interface: WorkoutHistoryQuery
 
-Defined in: [js/src/health.ts:155](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L155)
+Defined in: [js/src/health.ts:162](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L162)
 
 Request for [queryWorkoutHistory](../functions/queryWorkoutHistory.md).
 
@@ -16,7 +16,7 @@ Request for [queryWorkoutHistory](../functions/queryWorkoutHistory.md).
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:157](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L157)
+Defined in: [js/src/health.ts:164](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L164)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:157](https://github.com/emindeniz99/react-watchos/
 
 > `optional` **limit?**: `number`
 
-Defined in: [js/src/health.ts:164](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L164)
+Defined in: [js/src/health.ts:171](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L171)
 
 Cap on workouts returned, applied to the *whole* window before you see
  it. Hard ceiling 1000 — and **omitting it caps at 1000 too**, silently
@@ -39,4 +39,4 @@ Cap on workouts returned, applied to the *whole* window before you see
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:156](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L156)
+Defined in: [js/src/health.ts:163](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L163)

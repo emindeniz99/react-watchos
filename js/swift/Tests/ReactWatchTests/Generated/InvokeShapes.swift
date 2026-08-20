@@ -206,6 +206,19 @@ struct ActivitySummariesRequest: InvokeShape {
     static let declaredKeys: Set<String> = ["startDate", "endDate"]
 }
 
+/// js/src/health.ts startHealthUpdates -> HealthUpdatesPlan (an HKAnchoredObjectQueryDescriptor).
+struct HealthUpdatesRequest: InvokeShape {
+    let type: String
+    let minIntervalMs: Double?
+    static let declaredKeys: Set<String> = ["type", "minIntervalMs"]
+}
+
+/// js/src/health.ts stops the live stream for one type -> HealthUpdatesStopPlan.
+struct HealthUpdatesStopRequest: InvokeShape {
+    let type: String
+    static let declaredKeys: Set<String> = ["type"]
+}
+
 /// js/src/workout.ts startWorkout -> HKWorkoutConfiguration + the metrics knob.
 struct StartWorkoutRequest: InvokeShape {
     let activityType: String
@@ -658,6 +671,8 @@ enum InvokeShapes {
         "querySleepSamples": { try decodeStrict(SleepSamplesRequest.self, from: $0) },
         "queryWorkoutHistory": { try decodeStrict(WorkoutHistoryRequest.self, from: $0) },
         "queryActivitySummaries": { try decodeStrict(ActivitySummariesRequest.self, from: $0) },
+        "startHealthUpdates": { try decodeStrict(HealthUpdatesRequest.self, from: $0) },
+        "stopHealthUpdates": { try decodeStrict(HealthUpdatesStopRequest.self, from: $0) },
         "startWorkout": { try decodeStrict(StartWorkoutRequest.self, from: $0) },
         "endWorkout": { try decodeStrict(EndWorkoutRequest.self, from: $0) },
         "scheduleWorkoutPlan": { try decodeStrict(ScheduleWorkoutPlanRequest.self, from: $0) },

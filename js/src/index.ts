@@ -205,6 +205,10 @@ export type {
   HealthStatistic,
   HealthStatisticsQuery,
   HealthStatisticsResult,
+  HealthUpdate,
+  HealthUpdateHandler,
+  HealthUpdateOptions,
+  HealthUpdatesSubscription,
   SleepSample,
   SleepSamplesQuery,
   SleepStage,
@@ -212,6 +216,7 @@ export type {
   WorkoutSummary,
 } from "./health";
 export {
+  HEALTH_UPDATE_EVENT_PREFIX,
   queryActivitySummaries,
   queryHealthDailyStatistics,
   queryHealthSamples,
@@ -219,6 +224,7 @@ export {
   querySleepSamples,
   queryWorkoutHistory,
   requestHealthAuthorization,
+  startHealthUpdates,
 } from "./health";
 export type {
   HostBridge,

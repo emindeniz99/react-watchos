@@ -3243,6 +3243,107 @@ final class HealthQueryPlanTests: XCTestCase {
             ).get())
     }
 
+    func testHealthUpdatesPlanNamesTheEventItsSamplesArriveOn() {
+        // THE unchecked string of this feature. The event name is a Swift
+        // literal on one side and a JS constant on the other, and nothing
+        // compares them: a typo in either yields a subscription that never
+        // fires, with no error anywhere. So the name has ONE definition, here,
+        // where `swift test` can read it — `health-package-guards.test.ts` pins
+        // the JS constant against this same source.
+        XCTAssertEqual(HealthUpdatesPlan.eventPrefix, "health.samples.")
+        XCTAssertEqual(
+            HealthUpdatesPlan.eventName(for: .stepCount), "health.samples.stepCount")
+        // Derived from the kind's raw value rather than a second table, so a
+        // fifteenth read type gets its event name for free instead of getting
+        // a missing arm that silently never pushes. Every name distinct, and
+        // every one prefixed — a name collision would fan one type's samples
+        // out to another type's subscribers.
+        let names = HealthQuantityKind.allCases.map(HealthUpdatesPlan.eventName(for:))
+        XCTAssertEqual(Set(names).count, HealthQuantityKind.allCases.count)
+        for (kind, name) in zip(HealthQuantityKind.allCases, names) {
+            XCTAssertEqual(name, "health.samples.\(kind.rawValue)")
+        }
+    }
+
+    func testHealthUpdatesPlanDefaultsAndBoundsTheCoalescingFloor() {
+        let defaulted = try? HealthUpdatesPlan.decode(
+            json: #"{"type":"heartRate"}"#
+        ).get()
+        XCTAssertEqual(defaulted?.kind, .heartRate)
+        // One push per second unless asked otherwise — chosen against the COST
+        // (a bridge crossing plus a synchronous commit each), not against the
+        // rate HealthKit saves at.
+        XCTAssertEqual(defaulted?.minIntervalMs, 1000)
+        XCTAssertEqual(HealthUpdatesPlan.defaultMinIntervalMs, 1000)
+        // 0 is legal and means "every batch, as it lands".
+        XCTAssertEqual(
+            try? HealthUpdatesPlan.decode(
+                json: #"{"type":"heartRate","minIntervalMs":0}"#
+            ).get().minIntervalMs, 0)
+        XCTAssertEqual(
+            try? HealthUpdatesPlan.decode(
+                json: #"{"type":"stepCount","minIntervalMs":60000}"#
+            ).get().minIntervalMs, HealthUpdatesPlan.maxMinIntervalMs)
+    }
+
+    func testHealthUpdatesPlanRefusesAFloorThatWouldStallTheScreen() {
+        // The ceiling exists because the floor HOLDS a batch rather than
+        // dropping it: a ten-minute "floor" is a screen showing a ten-minute-old
+        // number, which reads as broken rather than throttled. Refused with the
+        // rule and the alternative named, like every message in this file.
+        guard
+            case .failure(let tooSlow) = HealthUpdatesPlan.decode(
+                json: #"{"type":"stepCount","minIntervalMs":60001}"#)
+        else { return XCTFail("a floor past the ceiling must be refused") }
+        XCTAssertTrue(tooSlow.message.contains("minIntervalMs"))
+        XCTAssertTrue(tooSlow.message.contains("queryHealthStatistics"))
+        // Negative and non-finite are refused for the same reason a window's
+        // ends must be finite: neither describes a wait.
+        for bad in ["-1", "1e400"] {
+            XCTAssertNil(
+                try? HealthUpdatesPlan.decode(
+                    json: #"{"type":"stepCount","minIntervalMs":\#(bad)}"#
+                ).get(), "minIntervalMs \(bad) must be refused")
+        }
+    }
+
+    func testHealthUpdatesPlansRefuseATypeNothingCanRead() {
+        // The SAME closed vocabulary the one-shot reads use, and the message
+        // names the legal values — a live stream for a type the bridge has no
+        // unit for could only report a number with no meaning.
+        guard
+            case .failure(let unknown) = HealthUpdatesPlan.decode(
+                json: #"{"type":"bloodGlucose"}"#)
+        else { return XCTFail("an unknown type must be refused") }
+        XCTAssertTrue(unknown.message.contains("bloodGlucose"))
+        XCTAssertTrue(unknown.message.contains("stepCount"))
+        // Sleep is a CATEGORY type and the rings are neither: neither is
+        // expressible here, which is the same reason they need their own
+        // authorization flags rather than riding `read`.
+        XCTAssertNil(
+            try? HealthUpdatesPlan.decode(json: #"{"type":"sleep"}"#).get())
+        guard case .failure(let notJSON) = HealthUpdatesPlan.decode(json: "[]")
+        else { return XCTFail("a non-object payload must be refused") }
+        XCTAssertTrue(notJSON.message.contains("startHealthUpdates"))
+    }
+
+    func testHealthUpdatesStopPlanIsATypeAndNothingElse() {
+        XCTAssertEqual(
+            try? HealthUpdatesStopPlan.decode(
+                json: #"{"type":"heartRate"}"#
+            ).get().kind, .heartRate)
+        // Its own decoder, so the message names the method the caller actually
+        // called — the reason every plan in this file has one.
+        guard case .failure(let notJSON) = HealthUpdatesStopPlan.decode(json: "7")
+        else { return XCTFail("a non-object payload must be refused") }
+        XCTAssertTrue(notJSON.message.contains("stopHealthUpdates"))
+        guard
+            case .failure(let unknown) = HealthUpdatesStopPlan.decode(
+                json: #"{"type":"steps"}"#)
+        else { return XCTFail("an unknown type must be refused") }
+        XCTAssertTrue(unknown.message.contains("steps"))
+    }
+
     func testAuthorizationPlanNeedsAtLeastOneTypeAndRejectsUnknownNames() {
         let both = try? HealthAuthorizationPlan.decode(
             json: #"{"read":["stepCount","heartRate"],"sleep":true}"#

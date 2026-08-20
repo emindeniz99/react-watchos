@@ -6,6 +6,7 @@ import type {
   WorkoutActivityType,
 } from "./generated/wire";
 import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
+import { registerNativeListener, type Unsubscribe } from "./nativeEvents";
 
 /**
  * HealthKit **reads**: aggregate statistics, raw samples, and sleep stages.
@@ -25,6 +26,12 @@ import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
  * how HealthKit stores a summary. It is also the only read here that reports a
  * goal at all: no quantity type has one, and a ring is a value measured
  * *against* a goal.
+ *
+ * {@link startHealthUpdates} is the only thing here that is not a read at all:
+ * it SUBSCRIBES, so a screen showing today's steps or the current heart rate
+ * updates itself as samples land instead of polling. It reports the same rows,
+ * in the same units, as {@link queryHealthSamples} — it just does not wait to
+ * be asked.
  *
  * ### The one thing to understand about HealthKit reads
  *
@@ -515,4 +522,272 @@ export function queryActivitySummaries(
   request: ActivitySummariesQuery,
 ): Promise<ActivitySummary[]> {
   return invoke<ActivitySummary[]>("queryActivitySummaries", request);
+}
+
+/** The native-event name prefix a live stream's samples arrive on:
+ *  `health.samples.<type>`, e.g. `health.samples.heartRate`.
+ *
+ *  Exported because it is an **unchecked string on both sides** — a JS constant
+ *  here, a Swift literal in `HealthUpdatesPlan.eventPrefix` — and nothing
+ *  compares them at compile time: a typo in either yields a subscription that
+ *  never fires, with no error anywhere to say why. `health-package-guards.test`
+ *  pins the two against each other, and it can only do that if the JS half is a
+ *  named constant rather than an inline template string.
+ *
+ *  Exported from the package the way every other event name is
+ *  (`SENSOR_EVENT_PREFIX`, `WORKOUT_METRICS_EVENT`), though a caller has little
+ *  use for it: {@link startHealthUpdates} builds the name and narrows the
+ *  payload, and a raw `registerNativeListener` on it gets neither. */
+export const HEALTH_UPDATE_EVENT_PREFIX = "health.samples.";
+
+/** One batch of samples that just landed in HealthKit, as
+ *  {@link startHealthUpdates} delivers it. */
+export interface HealthUpdate {
+  /** The type these samples are for — the same value passed to
+   *  {@link startHealthUpdates}, so one handler can serve two subscriptions. */
+  type: HealthQuantityType;
+  /**
+   * The new samples, **oldest first** (sorted natively — HealthKit promises
+   * `addedSamples` no order), each identical in shape and unit to a
+   * {@link queryHealthSamples} row. Never empty: an update with nothing added
+   * is not pushed at all — reach for {@link latest} rather than indexing, which
+   * under this package's strictness needs a `!` the wrapper has already earned.
+   *
+   * **Additions only.** The anchored query also reports objects DELETED from
+   * HealthKit, and this stream drops them: a wire row is `{startMs, endMs,
+   * value, unit}` with no sample identity, so a subscriber could not tell which
+   * of its rows a deletion retracted. A value the user then deletes in the
+   * Health app is therefore not withdrawn here — re-read with
+   * {@link queryHealthSamples} or {@link queryHealthStatistics} if that matters.
+   */
+  samples: HealthSample[];
+  /**
+   * The newest sample in this batch — `samples` is never empty, so this always
+   * exists, which is the point: it is the whole answer for a "current heart
+   * rate" screen without an index or a non-null assertion.
+   *
+   * For a "today's steps" screen it is **not** the answer: HealthKit stores
+   * steps as many small samples, so the running total comes from
+   * {@link queryHealthStatistics} and this stream is what tells you when to
+   * re-read it.
+   */
+  latest: HealthSample;
+}
+
+/** Handler for {@link startHealthUpdates}. */
+export type HealthUpdateHandler = (update: HealthUpdate) => void;
+
+/** Options for {@link startHealthUpdates}. */
+export interface HealthUpdateOptions {
+  /**
+   * Minimum gap between two pushes for this type, in ms. Default 1000, maximum
+   * 60000 (a wider floor rejects `INVALID_REQUEST`).
+   *
+   * Not a sampling rate — HealthKit decides when a sample exists — and not a
+   * filter: batches that arrive inside the floor are **held and merged**, so
+   * they ride the next push together rather than the older one being dropped to
+   * make room (which is what `workout.metrics` does, and can, because a metric
+   * is level state). It is a **battery and render knob**: every push crosses the
+   * bridge and commits a React render synchronously, so raising it really does
+   * cut the number of pushes — N held batches cost one — at the price of up to
+   * `minIntervalMs` of staleness.
+   *
+   * Only the **first** subscriber's value takes effect — the native stream is
+   * shared, exactly like `startSensor`'s options.
+   */
+  minIntervalMs?: number;
+}
+
+/**
+ * What {@link startHealthUpdates} returns: a cleanup, plus the promise the
+ * fallible *start* settles on.
+ *
+ * Two members rather than one, because both halves are load-bearing and neither
+ * can carry the other. A bare `Promise<Unsubscribe>` would make the React case
+ * — the only case — an async dance whose cleanup can run before the promise
+ * resolves; a bare `Unsubscribe` (the `startSensor` shape) would leave a failed
+ * start with nowhere to go, which is the wart this API deliberately does not
+ * repeat.
+ */
+export interface HealthUpdatesSubscription {
+  /**
+   * Settles when native has the query **armed** — or, if the app is in the
+   * background, queued to arm on the next foreground (see the foreground-only
+   * note on {@link startHealthUpdates}) — and rejects when it could not be:
+   * `UNAVAILABLE` on a watch without HealthKit, `INVALID_REQUEST` for a bad
+   * `minIntervalMs`. Awaiting it is optional — a rejection is also logged, so a
+   * caller who ignores it still gets a diagnostic instead of a screen stuck on
+   * "—" — but awaiting is what lets a UI say *why* there is no data.
+   *
+   * It does **not** report a denied read grant: HealthKit answers an
+   * authorization request the same way whether the user allowed or refused, by
+   * design, so a refused type is indistinguishable from one with no samples yet.
+   *
+   * A start that is cancelled by its own `stop()` before it finishes (React
+   * StrictMode's mount/unmount/remount does this every time) **resolves**:
+   * nothing failed, the subscriber simply left.
+   */
+  started: Promise<void>;
+  /**
+   * Drops this subscriber and, when it is the last one for the type, stops the
+   * native query. Idempotent, and safe to call before {@link started} settles.
+   */
+  stop: Unsubscribe;
+}
+
+// Per-type set of live subscriber TOKENS and the shared start promise — the
+// `startSensor` refcount verbatim, and for the same reason: one native query
+// feeds every subscriber for a type, so it starts on the first and stops when
+// the last leaves. A Set of identity tokens rather than a count is what makes a
+// LATE cleanup safe — each cleanup removes only its own token, so one from
+// before a stop/restart is not a member and does nothing, where a shared count
+// would zero the new subscribers' stream.
+const liveUpdates = new Map<
+  HealthQuantityType,
+  { tokens: Set<object>; started: Promise<void> }
+>();
+
+/** Test-only: clears the per-type subscriber state (not part of the public
+ *  API), the `__resetSensorCountsForTest` counterpart. */
+export function __resetHealthUpdatesForTest(): void {
+  liveUpdates.clear();
+}
+
+/**
+ * Live HealthKit updates for one quantity type: `handler` is called as new
+ * samples land, so a screen showing today's steps or the current heart rate
+ * updates itself instead of polling.
+ *
+ * ```ts
+ * useEffect(
+ *   () => startHealthUpdates("heartRate", (u) => setBpm(u.latest.value)).stop,
+ *   [],
+ * );
+ * ```
+ *
+ * Backed by an `HKAnchoredObjectQueryDescriptor` (watchOS 8.5). Needs the type
+ * in `requestHealthAuthorization({ read: [...] })` — and asks for it itself if
+ * you did not, so a missing grant is a prompt rather than a stream that never
+ * fires.
+ *
+ * **NEW samples only.** A subscriber gets what lands from *now on*, never a
+ * backlog: history is {@link queryHealthSamples}'s job, and replaying it here
+ * would hand a screen a thousand-row first push. A **second** subscriber to the
+ * same type joins the running query and likewise sees the next sample, not the
+ * last one — the event is edge-triggered, so nothing is replayed to a late
+ * listener. Read the current value once with {@link queryHealthStatistics} and
+ * let this keep it fresh.
+ *
+ * **Foreground only.** The query is stopped when the app backgrounds and
+ * re-armed when it returns — this package ships no background-delivery
+ * entitlement, so an armed query would deliver nothing while the app is away
+ * and wake it for nothing when it came back. Samples saved while backgrounded
+ * are **not** replayed on return, so re-read the number you display on the same
+ * foreground.
+ *
+ * **Not a heart-rate monitor for a workout.** `startHeartRate` runs a real
+ * `HKWorkoutSession` + `HKLiveWorkoutBuilder`: it samples at ~1 Hz, keeps the
+ * app alive, and occupies the one workout slot watchOS allows a process. This
+ * runs no session and needs no background mode; it reports heart-rate samples
+ * as HealthKit saves them, which off a workout is every few minutes. During a
+ * workout, reach for the session; on a screen showing today's numbers, reach
+ * for this.
+ *
+ * Every subscriber gets its own subscription even when two pass the *same*
+ * function: one call, one `stop`, one delivery.
+ */
+export function startHealthUpdates(
+  type: HealthQuantityType,
+  handler: HealthUpdateHandler,
+  options?: HealthUpdateOptions,
+): HealthUpdatesSubscription {
+  const off = registerNativeListener(
+    HEALTH_UPDATE_EVENT_PREFIX + type,
+    (payload) => {
+      // NARROWED here, so a handler is never handed the channel's raw
+      // `Record<string, unknown>`. The key names are pinned natively (the
+      // ARCH-11 producer scan), so a payload that fails this is a native bug,
+      // not a caller error — and calling the handler with a non-array would
+      // only move the crash into the screen's `.at(-1)`.
+      const samples = payload?.samples;
+      if (!Array.isArray(samples) || samples.length === 0) return;
+      const rows = samples as HealthSample[];
+      // `latest` is computed HERE, where non-emptiness has just been proved, so
+      // the interface can promise a `HealthSample` rather than making every
+      // caller re-prove it with a `!` or an index this package's
+      // `noUncheckedIndexedAccess` would widen to `| undefined`.
+      handler({
+        type,
+        samples: rows,
+        latest: rows[rows.length - 1] as HealthSample,
+      });
+    },
+  );
+  const token = {};
+  let entry = liveUpdates.get(type);
+  if (!entry) {
+    // First subscriber: it owns the start, and its options win (the native
+    // query is shared). The promise is kept per type so a LATER subscriber
+    // awaits the same settlement instead of believing a stream is live that
+    // failed to arm.
+    const started = invoke<void>(
+      "startHealthUpdates",
+      {
+        type,
+        ...(options?.minIntervalMs === undefined
+          ? {}
+          : { minIntervalMs: options.minIntervalMs }),
+      },
+      // The same watchdog `requestHealthAuthorization` uses, and for its reason:
+      // native asks for the type it is about to read, so this start can be
+      // sitting on the HealthKit authorization SHEET, which blocks on the user
+      // and routinely outlasts the 30s default. Timing out there would reject a
+      // start that then succeeds.
+      { timeoutMs: USER_MEDIATED_INVOKE_TIMEOUT_MS },
+    );
+    entry = { tokens: new Set<object>(), started };
+    liveUpdates.set(type, entry);
+    started.catch((error) => {
+      // A failed start leaves no subscriber able to stop the type — every token
+      // holder's `stop()` finds no entry — so the state must go, and a stop must
+      // go with it. Dropping the entry is what lets the NEXT subscriber retry
+      // instead of listening forever to a stream that was never armed; sending
+      // the stop is what covers the failures whose native side is AMBIGUOUS (a
+      // timeout, a settle dropped by a reload's generation guard), where a query
+      // may yet arm with nothing left in JS to take it down. Native never
+      // refuses a stop for a stream that is not running, so the redundant case
+      // costs one no-op invoke — and it cannot take down a retry's stream, since
+      // it is sent before any later subscriber's start.
+      if (liveUpdates.get(type) === entry) liveUpdates.delete(type);
+      invoke<void>("stopHealthUpdates", { type }).catch(() => {});
+      // Logged as well as rejected: `started` is optional to await, and a
+      // silent failure here is a screen showing "—" with nothing to explain it.
+      console.error(`startHealthUpdates("${type}") failed:`, error);
+    });
+  }
+  entry.tokens.add(token);
+  let cleaned = false;
+  return {
+    started: entry.started,
+    stop: () => {
+      // Idempotent: a double cleanup (React StrictMode) or one that outlived a
+      // failed start must not send a spurious stop — the token is no longer a
+      // member, so the guarded delete below does nothing.
+      if (cleaned) return;
+      cleaned = true;
+      off();
+      const current = liveUpdates.get(type);
+      if (current?.tokens.delete(token) && current.tokens.size === 0) {
+        liveUpdates.delete(type);
+        // Fire-and-forget by design — this runs in an effect cleanup, where a
+        // rejection has no caller left and would surface as an unhandled
+        // rejection on a routine unmount. Native never refuses a stop for a
+        // stream that is not running, so the only way here is a malformed type,
+        // which is a bug worth a line rather than a throw.
+        invoke<void>("stopHealthUpdates", { type }).catch((error) => {
+          console.error(`stopHealthUpdates("${type}") failed:`, error);
+        });
+      }
+    },
+  };
 }

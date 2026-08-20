@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { healthQuantityTypes, hostMethods } from "../codegen/schema";
+import {
+  healthQuantityTypes,
+  hostMethods,
+  invokeShapes,
+} from "../codegen/schema";
 import { HOST_FEATURES } from "../src/generated/wire";
+import { HEALTH_UPDATE_EVENT_PREFIX } from "../src/health";
 import type { SensorKind } from "../src/sensors";
 
 /**
@@ -17,6 +22,10 @@ import type { SensorKind } from "../src/sensors";
 
 const swiftRoot = join(__dirname, "../swift/Sources");
 const read = (rel: string) => readFileSync(join(swiftRoot, rel), "utf8");
+/** The JS half, read as SOURCE — the few rules below that pin a JS string
+ *  against a Swift one have to see both as text or they pin nothing. */
+const healthTs = () =>
+  readFileSync(join(__dirname, "../src/health.ts"), "utf8");
 
 describe("the sensor union and the Swift switch cannot half-widen", () => {
   // A Record keyed by the union, not a list: adding a member to `SensorKind`
@@ -869,6 +878,318 @@ describe("the rings read is keyed by DAY, and the goals are the point", () => {
     // By `serial`, the calendar-free arithmetic the day ceiling is counted
     // with — not by a `Date`, which would need a zone to compare two days.
     expect(body()).not.toContain("$0.day.iso");
+  });
+});
+
+describe("the live sample stream is named once and lives only in the foreground", () => {
+  const bridge = () => read("ReactWatchHost/HealthQueryBridge.swift");
+  const host = () => read("ReactWatchHost/ReactWatchHost.swift");
+  const support = () => read("ReactWatchSupport/HealthQueryPlan.swift");
+  /** The query builder's body: decl -> the next member. */
+  const query = () => {
+    const src = bridge();
+    return src.slice(
+      src.indexOf("private func startQuery(_ plan: HealthUpdatesPlan) {"),
+      src.indexOf("func stopUpdates(_ plan: HealthUpdatesStopPlan) {"),
+    );
+  };
+  /** Comments stripped — every rule below is NAMED in the prose explaining
+   *  it, so a raw scan would match the documentation of a rule instead of a
+   *  violation of it. */
+  const code = () => bridge().replace(/^\s*\/\/.*$/gm, "");
+
+  it("spells the event name in exactly one place, and JS agrees with it", () => {
+    // THE typo gate. The event name is an unchecked STRING on both sides — a
+    // Swift literal and a JS constant — and nothing compares them: a typo in
+    // either yields a subscription that never fires, with no error anywhere to
+    // say why. So there is one definition per side and this pins them equal.
+    expect(support()).toContain(
+      `public static let eventPrefix = "${HEALTH_UPDATE_EVENT_PREFIX}"`,
+    );
+    // ... and only one per side. The bridge asks the PLAN for the name
+    // (`plan.eventName`) and the host forwards whatever it is handed, so a
+    // second hand-written literal — the way the two halves would drift — fails
+    // here rather than on a watch.
+    const spelled = (src: string) =>
+      src.split(`"${HEALTH_UPDATE_EVENT_PREFIX}`).length - 1;
+    expect(spelled(support())).toBe(1);
+    expect(spelled(code())).toBe(0);
+    expect(spelled(host().replace(/^\s*\/\/.*$/gm, ""))).toBe(0);
+    expect(query()).toContain("let event = plan.eventName");
+    // Derived from the kind's raw value, so a fifteenth read type gets its
+    // event name for free instead of needing a second table to forget.
+    expect(support()).toContain("eventPrefix + kind.rawValue");
+  });
+
+  it("is a subscription on the INVOKE channel, not the reply-less sensor op", () => {
+    // The start is FALLIBLE — no HealthKit, an unreadable type, an
+    // authorization round trip — so it settles. `sensor` is the counter-example
+    // and the reason: a fire-and-forget direct method with no reply path, where
+    // a stream that never starts is a screen showing "—" and nothing in the log.
+    for (const name of ["startHealthUpdates", "stopHealthUpdates"]) {
+      const method = hostMethods.find((m) => m.name === name);
+      expect(method?.via).toBe("invoke");
+      expect(method?.feature).toBe("health");
+      expect(method?.targets).toEqual(["watch"]);
+      // No `response`: resolving IS the answer, and the samples arrive on the
+      // event channel rather than as a return value.
+      expect(method?.response).toBeUndefined();
+    }
+    // The STOP is the one health method not gated on `healthAvailable`: it runs
+    // in an effect cleanup, where a rejection has no caller left and would
+    // surface as an unhandled rejection on a routine unmount.
+    const stop = host().slice(
+      host().indexOf(
+        "private func handleStopHealthUpdates(id: Int, payload: String) {",
+      ),
+      host().indexOf("private func settleHealth("),
+    );
+    expect(stop).not.toContain("healthAvailable");
+    expect(stop).toContain("health.stopUpdates(plan)");
+    // The START is gated, like every other health method.
+    expect(
+      host().slice(
+        host().indexOf(
+          "private func handleStartHealthUpdates(id: Int, payload: String) {",
+        ),
+        host().indexOf(
+          "private func handleStopHealthUpdates(id: Int, payload: String) {",
+        ),
+      ),
+    ).toContain("guard healthAvailable(id: id) else { return }");
+  });
+
+  it("delivers NEW samples only, with no cap that could end the stream", () => {
+    // `anchor: nil` means "everything matching, then updates", so the PREDICATE
+    // is what keeps the backlog out: samples still running or saved for an
+    // interval reaching into now match, ones already over do not. A subscriber
+    // that wants history has `queryHealthSamples`; replaying it here would hand
+    // a screen a thousand-row first push on a device with a few MB of headroom.
+    expect(query()).toContain("anchor: nil");
+    expect(query()).toContain("withStart: Date(), end: nil");
+    // No `limit`: Apple documents it as the maximum number of samples the QUERY
+    // returns — a total, not a page — so a limit on a long-running stream would
+    // end it silently after N samples, the one failure a live screen cannot see.
+    expect(query()).toContain("limit: nil");
+    // Sorted, because `addedSamples` carries no order promise and
+    // `samples.at(-1)` is the newest value a heart-rate screen renders.
+    expect(query()).toContain(".sorted { $0.startDate < $1.startDate }");
+    // An update with nothing added is not pushed: an empty batch would wake
+    // every subscriber and commit a render to say nothing happened.
+    expect(query()).toContain("guard !rows.isEmpty else { continue }");
+    // The descriptor family, not the callback class — whose cancellation and
+    // off-main `updateHandler` this file would have to hand-roll around.
+    expect(code()).toContain("HKAnchoredObjectQueryDescriptor(");
+    expect(code()).not.toContain("HKAnchoredObjectQuery(");
+  });
+
+  it("emits a sample row with the SAME keys queryHealthSamples returns", () => {
+    // The gap the ARCH-11 producer scan structurally cannot cover: that scan
+    // reads invoke RESPONSES, and this payload rides the event channel, where
+    // nothing decodes it strictly. A renamed key here degrades to `undefined`
+    // on a watch with every other gate still green — so the row is pinned
+    // against the schema's own `HealthSample` fields, in both directions.
+    const declared = invokeShapes.find((shape) => shape.ts === "HealthSample");
+    expect(declared).toBeDefined();
+    const emitted = new Set(
+      [...query().matchAll(/^\s*"(\w+)":/gm)].map((m) => m[1] as string),
+    );
+    expect([...emitted].sort()).toEqual(
+      (declared?.fields ?? []).map((f) => f.name).sort(),
+    );
+    // And the unit is the READ table's, not a second spelling: a screen that
+    // reads a total once and then streams must not have its numbers change
+    // meaning halfway.
+    expect(query()).toContain("let unit = Self.unit(for: kind)");
+    expect(query()).toContain("let unitName = kind.unit");
+    // The row keys are only half of it: the payload WRAPPER key is the same
+    // unchecked string pair as the event name — a Swift literal here, a
+    // `payload?.samples` read in health.ts — and renaming the Swift half would
+    // leave every gate green while `Array.isArray(samples)` fails on every push
+    // and the handler silently never fires.
+    const wrapperKey = "samples";
+    expect(host()).toContain(
+      `pushNativeEvent(event, payload: ["${wrapperKey}": samples])`,
+    );
+    expect(healthTs()).toContain(`const samples = payload?.${wrapperKey};`);
+  });
+
+  it("coalesces by MERGING held batches, so none is dropped and none paces", () => {
+    // Every push is a bridge crossing plus a synchronous React commit, so an
+    // uncoalesced stream re-renders at sample rate — the cost `workout.metrics`
+    // already coalesces against. Two differences, and the buffer serves both:
+    // metrics are level state, so `emitMetricsIfDue` drops a too-early one and
+    // loses nothing, while a sample stream is edge-triggered and a dropped batch
+    // is data the caller can never get back; and N held batches merge into ONE
+    // push, where sleeping between iterations would make them N pushes a floor
+    // apart — the same render cost the knob was raised to avoid.
+    expect(query()).toContain("let buffer = UpdateBuffer()");
+    expect(query()).toContain("buffer.rows.append(contentsOf: rows)");
+    expect(query()).toContain("buffer.take()");
+    // The sleep is in the FLUSH, never in the `for try await` body: leaving a
+    // batch unconsumed inside Apple's sequence would make the never-drop promise
+    // HealthKit's to keep, and its buffering policy is documented nowhere.
+    const loop = query().slice(
+      query().indexOf("for try await update in descriptor.results(for: store)"),
+      query().indexOf("buffer.flush = Task {"),
+    );
+    expect(loop).not.toContain("Task.sleep(");
+    // A cancelled task still stops draining the sequence when the floor is 0
+    // (legal, and it means "every batch, as it lands"), where nothing else in
+    // the loop body suspends.
+    expect(loop).toContain("try Task.checkCancellation()");
+    // The emit guard is this task's OWN identity. `wantedUpdates` cannot answer
+    // it: a background pause deliberately keeps that entry, so an in-flight
+    // batch would push into an app nobody can see, and a stop-then-restart would
+    // make it push alongside the new stream. The epoch moves on every stop,
+    // pause, teardown and supersession, so it covers all of them without relying
+    // on Apple observing cancellation promptly.
+    expect(query()).not.toContain("self.wantedUpdates[kind] != nil");
+    expect(
+      query().split("guard let self, self.updateEpochs[kind] == epoch else")
+        .length - 1,
+    ).toBe(3);
+    // Which is only true if the pause moves the epoch too — the one supersession
+    // path that leaves `wantedUpdates` intact by design.
+    const pause = code().slice(
+      code().indexOf("func pauseUpdatesForBackground() {"),
+      code().indexOf("func resumeUpdatesFromForeground() {"),
+    );
+    expect(pause).toContain(
+      "updateEpochs[kind] = (updateEpochs[kind] ?? 0) + 1",
+    );
+  });
+
+  it("stops every stream on teardown, before the runtime is freed", () => {
+    // The push path is name-routed with NO generation guard, so a query that
+    // outlived `tearDownGeneration()` would deliver `health.samples.*` into the
+    // runtime `boot()` is about to install — one that never subscribed.
+    // `sensors.stopAll()`'s reason, for the one stream that is not a sensor.
+    const teardown = host().slice(
+      host().indexOf("private func tearDownGeneration() {"),
+      host().indexOf(
+        "private func installFreshRuntime() throws -> JSRuntime {",
+      ),
+    );
+    expect(teardown).toContain("health.stopAllUpdates()");
+    expect(teardown.indexOf("health.stopAllUpdates()")).toBeLessThan(
+      teardown.indexOf("runtime?.shutdown()"),
+    );
+  });
+
+  it("is foreground-only: paused on background, re-armed on active", () => {
+    // A backgrounded app is not unmounted, so JS effect cleanups never fire and
+    // native owns the policy (the P0-3 rule the heart-rate pump lives by). And
+    // this package ships no background-delivery entitlement, so an armed query
+    // would deliver nothing while the app is away and wake it for nothing when
+    // it returned.
+    const scene = host().slice(
+      host().indexOf("func handleScenePhase(background: Bool) {"),
+    );
+    const active = scene.indexOf("} else {");
+    expect(scene.indexOf("health.pauseUpdatesForBackground()")).toBeLessThan(
+      active,
+    );
+    expect(
+      scene.indexOf("health.resumeUpdatesFromForeground()"),
+    ).toBeGreaterThan(active);
+    // The DESIRED state survives the pause — that is what makes the resume a
+    // restart rather than a guess — while the task handles do not.
+    const pause = code().slice(
+      code().indexOf("func pauseUpdatesForBackground() {"),
+      code().indexOf("func resumeUpdatesFromForeground() {"),
+    );
+    expect(pause).toContain("updateTasks.removeAll()");
+    expect(pause).not.toContain("wantedUpdates.removeAll()");
+    // No background delivery is requested anywhere: Apple gates that behind an
+    // entitlement this package does not ship, and asking for it without one is
+    // how the feature would fail at runtime instead of at review.
+    expect(code()).not.toContain("enableBackgroundDelivery");
+    expect(host()).not.toContain("enableBackgroundDelivery");
+  });
+
+  it("cannot arm an orphan query out of the authorization window", () => {
+    // The window is real: the sheet is a suspension, and a stop — or React
+    // StrictMode's stop-then-restart — lands inside it. Without the epoch the
+    // superseded start would resume, see the SECOND start's `wantedUpdates`
+    // entry, and arm a second query whose handle is immediately overwritten: an
+    // orphan pushing duplicate samples with nothing left to cancel it.
+    const begin = code().slice(
+      code().indexOf("func beginUpdates(_ plan: HealthUpdatesPlan) -> Int? {"),
+      code().indexOf(
+        "func finishUpdates(_ plan: HealthUpdatesPlan, epoch: Int) async",
+      ),
+    );
+    const start = code().slice(
+      code().indexOf(
+        "func finishUpdates(_ plan: HealthUpdatesPlan, epoch: Int) async",
+      ),
+      code().indexOf("private func startQuery(_ plan: HealthUpdatesPlan) {"),
+    );
+    expect(start).toContain("guard updateEpochs[kind] == epoch else");
+    expect(start).toContain("guard !isBackgrounded else");
+    // The epoch and the desired state are CLAIMED synchronously, and the claim
+    // is a true no-op for a type already streaming. Both halves matter: bumping
+    // the epoch past a running task's would break the self-heal below (its tail
+    // would never clear a finished handle, and nothing could re-arm), and
+    // re-latching `wantedUpdates` would silently re-arm the next foreground at
+    // the SECOND subscriber's interval — contradicting the first-subscriber-wins
+    // rule `HealthUpdateOptions` documents.
+    expect(begin.indexOf("guard updateTasks[kind] == nil else")).toBeLessThan(
+      begin.indexOf("updateEpochs[kind] = epoch"),
+    );
+    expect(begin.indexOf("updateEpochs[kind] = epoch")).toBeLessThan(
+      begin.indexOf("wantedUpdates[kind] = plan"),
+    );
+    // ... and the async half claims NOTHING, or a stop that ran while the
+    // authorization sheet was up would have nothing to supersede.
+    expect(start).not.toContain("wantedUpdates[kind] = plan");
+    // The host claims BEFORE it hops. `invoke` is a synchronous QuickJS
+    // callback and the matching stop is synchronous, so a start whose state
+    // landed only inside its `Task` would be invisible to a stop — or to
+    // `tearDownGeneration()` — issued in the same JS turn, and would then arm a
+    // query with no subscriber left and nothing able to cancel it.
+    const handler = host().slice(
+      host().indexOf(
+        "private func handleStartHealthUpdates(id: Int, payload: String) {",
+      ),
+      host().indexOf(
+        "private func handleStopHealthUpdates(id: Int, payload: String) {",
+      ),
+    );
+    expect(handler).toContain("guard let epoch = health.beginUpdates(plan)");
+    expect(handler.indexOf("health.beginUpdates(plan)")).toBeLessThan(
+      handler.indexOf("Task {"),
+    );
+    expect(handler).toContain("bridge.finishUpdates(plan, epoch: epoch)");
+    // The epoch moves on a STOP too, or a start still inside the window would
+    // resume and arm the stream the stop just took down.
+    expect(code()).toContain(
+      "updateEpochs[kind] = (updateEpochs[kind] ?? 0) + 1",
+    );
+    // One task per type, always, and the resume bumps the epoch too — so a
+    // start still inside its window is superseded by a foreground resume
+    // rather than racing it.
+    expect(query()).toContain("guard updateTasks[kind] == nil else { return }");
+    expect(query()).toContain("let epoch = (updateEpochs[kind] ?? 0) + 1");
+    // A stream HealthKit ends on its own clears its handle, so `wanted` with no
+    // task is what the next foreground re-arms — the `sensor.heartRate`
+    // recovery rule. Epoch-guarded, or a task cancelled to make room for a
+    // newer one would clear the newer one's handle on the way out.
+    expect(query()).toContain(
+      "guard let self, self.updateEpochs[kind] == epoch else { return }",
+    );
+  });
+
+  it("touches its main-confined state only from the main actor", () => {
+    // HealthKit produces these elements on its own queue. The whole bridge is
+    // `@MainActor`, so the query's `Task` inherits that isolation and every
+    // `await` resumes on main — which is why this file needs none of
+    // WorkoutBridge's `nonisolated(unsafe)` hops, and why the AsyncSequence was
+    // chosen over `HKAnchoredObjectQuery`'s off-main `updateHandler`.
+    expect(bridge()).toContain("@MainActor final class HealthQueryBridge {");
+    expect(code()).not.toContain("nonisolated(unsafe)");
+    expect(code()).not.toContain("DispatchQueue.main.async");
   });
 });
 

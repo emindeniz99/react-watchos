@@ -6,7 +6,7 @@
 
 # Interface: PedometerData
 
-Defined in: [js/src/generated/wire.ts:565](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L565)
+Defined in: [js/src/generated/wire.ts:576](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L576)
 
 ONE shape on both carriers: the sensor.pedometer push AND queryPedometer.
 
@@ -16,7 +16,7 @@ ONE shape on both carriers: the sensor.pedometer push AND queryPedometer.
 
 > `optional` **averageActivePaceSecPerMeter?**: `number`
 
-Defined in: [js/src/generated/wire.ts:574](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L574)
+Defined in: [js/src/generated/wire.ts:585](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L585)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/generated/wire.ts:574](https://github.com/emindeniz99/react-
 
 > `optional` **currentCadenceStepsPerSec?**: `number`
 
-Defined in: [js/src/generated/wire.ts:573](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L573)
+Defined in: [js/src/generated/wire.ts:584](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L584)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [js/src/generated/wire.ts:573](https://github.com/emindeniz99/react-
 
 > `optional` **currentPaceSecPerMeter?**: `number`
 
-Defined in: [js/src/generated/wire.ts:572](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L572)
+Defined in: [js/src/generated/wire.ts:583](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L583)
 
 ***
 
@@ -40,7 +40,7 @@ Defined in: [js/src/generated/wire.ts:572](https://github.com/emindeniz99/react-
 
 > `optional` **distanceMeters?**: `number`
 
-Defined in: [js/src/generated/wire.ts:569](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L569)
+Defined in: [js/src/generated/wire.ts:580](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L580)
 
 ***
 
@@ -48,7 +48,7 @@ Defined in: [js/src/generated/wire.ts:569](https://github.com/emindeniz99/react-
 
 > **endMs**: `number`
 
-Defined in: [js/src/generated/wire.ts:567](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L567)
+Defined in: [js/src/generated/wire.ts:578](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L578)
 
 ***
 
@@ -56,7 +56,7 @@ Defined in: [js/src/generated/wire.ts:567](https://github.com/emindeniz99/react-
 
 > `optional` **floorsAscended?**: `number`
 
-Defined in: [js/src/generated/wire.ts:570](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L570)
+Defined in: [js/src/generated/wire.ts:581](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L581)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [js/src/generated/wire.ts:570](https://github.com/emindeniz99/react-
 
 > `optional` **floorsDescended?**: `number`
 
-Defined in: [js/src/generated/wire.ts:571](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L571)
+Defined in: [js/src/generated/wire.ts:582](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L582)
 
 ***
 
@@ -72,7 +72,7 @@ Defined in: [js/src/generated/wire.ts:571](https://github.com/emindeniz99/react-
 
 > **startMs**: `number`
 
-Defined in: [js/src/generated/wire.ts:566](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L566)
+Defined in: [js/src/generated/wire.ts:577](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L577)
 
 ***
 
@@ -80,4 +80,4 @@ Defined in: [js/src/generated/wire.ts:566](https://github.com/emindeniz99/react-
 
 > **steps**: `number`
 
-Defined in: [js/src/generated/wire.ts:568](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L568)
+Defined in: [js/src/generated/wire.ts:579](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L579)

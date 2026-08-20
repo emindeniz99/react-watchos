@@ -344,6 +344,71 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
                 + predicate.predicateFormat)
     }
 
+    /// The live stream's descriptor, for the WHOLE read vocabulary.
+    ///
+    /// `HKAnchoredObjectQueryDescriptor` is generic over its sample type and is
+    /// the only query in this bridge that is never `await`ed to completion, so
+    /// what a watch can check that Linux cannot is that the descriptor binds and
+    /// carries the two decisions the stream is made of: no anchor (the backlog
+    /// is kept out by the PREDICATE, not by an anchor) and no limit (Apple
+    /// documents `limit` as the maximum the QUERY returns — a total, not a page
+    /// — so one would end a long-running stream silently).
+    @MainActor
+    func testTheLiveStreamDescriptorBindsForEveryReadType() {
+        for kind in HealthQuantityKind.allCases {
+            let descriptor = HKAnchoredObjectQueryDescriptor(
+                predicates: [
+                    .quantitySample(
+                        type: HealthQueryBridge.quantityType(for: kind),
+                        predicate: HKQuery.predicateForSamples(
+                            withStart: Date(timeIntervalSince1970: 1_768_396_800),
+                            end: nil))
+                ],
+                anchor: nil,
+                limit: nil)
+            XCTAssertEqual(descriptor.predicates.count, 1, "\(kind.rawValue)")
+            XCTAssertNil(descriptor.anchor, "\(kind.rawValue)")
+            XCTAssertNil(descriptor.limit, "\(kind.rawValue)")
+        }
+    }
+
+    /// The predicate that decides what "new" means — the stream's one design
+    /// decision, and one only HealthKit's own builder can answer.
+    ///
+    /// With `anchor: nil` the first result is everything MATCHING, so an
+    /// unbounded predicate would replay a subscriber's whole history. The bound
+    /// is an open-ended window from the moment the stream starts, under
+    /// HealthKit's default options — which Apple documents as `endDate >= start`
+    /// once `end` is nil. That is OVERLAP, and it is load-bearing in one
+    /// direction: step and energy samples are written AFTER the minutes they
+    /// cover, so a sample whose START precedes the subscribe instant still
+    /// matches, while one already OVER does not. A start-date rule would drop
+    /// exactly the samples a live steps screen exists to show.
+    @MainActor
+    func testTheLiveStreamMatchesOnTheSampleEndDateNotItsStart() {
+        let since = Date(timeIntervalSince1970: 1_768_396_800)
+        let live = HKQuery.predicateForSamples(withStart: since, end: nil)
+        XCTAssertTrue(
+            live.predicateFormat.contains(HKPredicateKeyPathEndDate),
+            "the live predicate is not matching on the sample end date: "
+                + live.predicateFormat)
+        // The comparison that makes the claim above checkable rather than a
+        // hope: the CLOSED form of the same builder does constrain the start,
+        // so its absence from the open-ended form is a real difference and not
+        // a key path HealthKit simply never names.
+        let closed = HKQuery.predicateForSamples(
+            withStart: since, end: Date(timeIntervalSince1970: 1_768_483_200))
+        XCTAssertTrue(
+            closed.predicateFormat.contains(HKPredicateKeyPathStartDate),
+            "a closed window is expected to constrain the start date: "
+                + closed.predicateFormat)
+        XCTAssertFalse(
+            live.predicateFormat.contains(HKPredicateKeyPathStartDate),
+            "the live predicate is constraining the sample START, which drops "
+                + "every sample HealthKit saves for a window that began before "
+                + "the stream did: " + live.predicateFormat)
+    }
+
     /// The move ring, by CASE and in both directions. `HKActivityMoveMode` is an
     /// ObjC enum that exists only on watchOS, so this table cannot be checked
     /// anywhere else — and getting it wrong does not fail, it tells a move-time

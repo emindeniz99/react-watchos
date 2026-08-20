@@ -63,7 +63,10 @@ actually matter:
    one thing no quantity type exposes and the reason a rings complication was
    unbuildable before); the user's **saved workout history**
    (`queryWorkoutHistory` — what a "your last five runs" list renders, energy
-   and distance included); real workout control that saves an `HKWorkout` with
+   and distance included); **live foreground updates**
+   (`startHealthUpdates` — an anchored query per type, so a screen showing
+   today's steps or the current heart rate refreshes itself as samples land
+   instead of polling); real workout control that saves an `HKWorkout` with
    live metrics and an optional GPS route; and WorkoutKit plans you can
    compose in TypeScript and hand to Apple's Workout app.
 4. **The JS half updates over the air, signed.** Ed25519 with the keyId inside

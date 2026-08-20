@@ -137,6 +137,34 @@ final class InvokeContractTests: XCTestCase {
         XCTAssertEqual(plan.dayCount, 7)
     }
 
+    /// And the SUBSCRIPTION, whose two payloads are the only ones in the family
+    /// that a React effect sends on its own — the start from the first
+    /// subscriber, the stop from the last one's cleanup. Running both through
+    /// the shipped decoders is what proves the wrapper's `minIntervalMs` is a
+    /// number the plan accepts rather than one its own ceiling refuses, and
+    /// that the stop payload is a type the bridge can actually find a stream
+    /// for.
+    func testHealthUpdatesDecodeWithTheShippedDecoders() throws {
+        let startJson = try String(
+            data: requestFixture("startHealthUpdates"), encoding: .utf8)
+        let start = try HealthUpdatesPlan.decode(
+            json: try XCTUnwrap(startJson)
+        ).get()
+        XCTAssertEqual(start.kind, .stepCount)
+        XCTAssertEqual(start.minIntervalMs, 2000)
+        // The name the samples will arrive on, derived from the same payload —
+        // the one string in this feature nothing compares at compile time.
+        XCTAssertEqual(start.eventName, "health.samples.stepCount")
+        let stopJson = try String(
+            data: requestFixture("stopHealthUpdates"), encoding: .utf8)
+        let stop = try HealthUpdatesStopPlan.decode(
+            json: try XCTUnwrap(stopJson)
+        ).get()
+        // The stop must name the SAME type the start armed, or the cleanup
+        // leaves a stream running for a screen that is gone.
+        XCTAssertEqual(stop.kind, start.kind)
+    }
+
     /// The other one: `saveUpdate`'s payload is decoded inside
     /// `OTASequencer.stage` by `UpdatePlan`, off-main.
     func testSaveUpdateDecodesWithTheShippedDecoder() throws {
