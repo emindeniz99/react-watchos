@@ -36,9 +36,12 @@ guideline in prose.
 > renders the WidgetKit timelines, and the widget extension embeds its own
 > engine so a Control Center button can update them with the app closed.
 >
-> Health goes past a heart-rate demo: HealthKit reads (steps, energy, sleep,
-> SpO2, HRV, resting heart rate — a week of daily buckets in one query), real
-> workout sessions that save an `HKWorkout` with a route, and WorkoutKit plans
+> Health goes past a heart-rate demo: HealthKit reads across fourteen quantity
+> types — activity (steps, flights, distance, active and resting energy,
+> exercise and stand time), cardio (heart rate and its resting/walking
+> averages, HRV, respiratory rate, VO2 max) and SpO2 — plus sleep stages, the
+> one category read, and a week of daily buckets in one query; real workout
+> sessions that save an `HKWorkout` with a route, and WorkoutKit plans
 > composed in TypeScript.
 >
 > OTA updates to the JS half are Ed25519-signed with anti-rollback and
@@ -89,7 +92,8 @@ count.
    - React-authored complications: the app's React renders WidgetKit
      timelines; the widget extension embeds its own QuickJS (~6 MB measured
      peak vs a ~30 MB budget) for Control-Center intents with the app closed.
-   - Health without a fake workout: HealthKit statistics/sample queries, a
+   - Health without a fake workout: HealthKit statistics/sample queries over
+     fourteen quantity types (activity, cardio, SpO2) plus sleep stages, a
      week of daily buckets from one `HKStatisticsCollectionQueryDescriptor`,
      and real workout control that saves the `HKWorkout` — plus WorkoutKit
      plans handed to Apple's Workout app. The honesty mechanism is worth the
@@ -159,9 +163,11 @@ frequency UI is delegated to native (`TimerText`), and the React Compiler
 is on by default in the build preset. Measured pipeline cost: 0.5–0.75 ms per
 interaction on **x86** quickjs-ng [E4: on-device number pending].
 
-**"How deep does the health support go?"** Reads: steps, active energy,
-distance, heart rate, resting heart rate, HRV (SDNN), SpO2 and sleep
-stages, plus daily buckets for a week in one query. Writes/sessions: a
+**"How deep does the health support go?"** Reads: fourteen quantity types —
+steps, flights climbed, distance, active and resting energy, exercise and
+stand time, heart rate with its resting and walking averages, HRV (SDNN),
+respiratory rate, VO2 max and SpO2 — plus sleep stages, the one category
+read, and daily buckets for a week in one query. Writes/sessions: a
 real `HKWorkoutSession` with pause/resume, live metrics, an optional GPS
 route, and a saved `HKWorkout`. Plans: compose a custom, single-goal or
 pacer workout in TypeScript, hand it to Apple's Workout app,

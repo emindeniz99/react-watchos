@@ -6,7 +6,7 @@
 
 # Interface: HealthStatisticsQuery
 
-Defined in: [js/src/health.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L77)
+Defined in: [js/src/health.ts:86](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L86)
 
 Request for [queryHealthStatistics](../functions/queryHealthStatistics.md).
 
@@ -16,7 +16,7 @@ Request for [queryHealthStatistics](../functions/queryHealthStatistics.md).
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:83](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L83)
+Defined in: [js/src/health.ts:92](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L92)
 
 Absolute ms since epoch (exclusive). Must be after `startMs`.
 
@@ -26,7 +26,7 @@ Absolute ms since epoch (exclusive). Must be after `startMs`.
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:81](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L81)
+Defined in: [js/src/health.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L90)
 
 Absolute ms since epoch (inclusive).
 
@@ -36,7 +36,7 @@ Absolute ms since epoch (inclusive).
 
 > **statistic**: `"sum"` \| `"average"` \| `"min"` \| `"max"` \| `"mostRecent"`
 
-Defined in: [js/src/health.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L79)
+Defined in: [js/src/health.ts:88](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L88)
 
 ***
 
@@ -44,4 +44,4 @@ Defined in: [js/src/health.ts:79](https://github.com/emindeniz99/react-watchos/b
 
 > **type**: [`HealthQuantityType`](../type-aliases/HealthQuantityType.md)
 
-Defined in: [js/src/health.ts:78](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L78)
+Defined in: [js/src/health.ts:87](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L87)

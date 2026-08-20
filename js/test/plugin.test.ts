@@ -422,6 +422,23 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(both.infoPlist.NSHealthShareUsageDescription).toContain(
       "blood oxygen",
     );
+    // The 2026-08-20 widening repeated the shape a third time: seven more
+    // quantity types, four of them categories no word in the sheet implied.
+    // Every one that isn't covered by a neighbouring phrase is pinned, because
+    // the failure is always the same silent under-promise. The words are plain
+    // English, and Apple's own label where that is already plain — so
+    // `respiratoryRate` is "respiratory rate" (what the sheet's own row says),
+    // while `vo2Max` becomes "cardio fitness" and `basalEnergyBurned` is named
+    // rather than left to a bare "energy".
+    for (const category of [
+      "respiratory rate",
+      "cardio fitness",
+      "flights climbed",
+      "active and resting energy",
+      "exercise and stand time",
+    ]) {
+      expect(both.infoPlist.NSHealthShareUsageDescription).toContain(category);
+    }
     // Workouts alone genuinely IS heart-rate-only — don't over-promise there.
     expect(
       watchTargetConfig({ ...demoOpts, healthKit: false, workouts: true })

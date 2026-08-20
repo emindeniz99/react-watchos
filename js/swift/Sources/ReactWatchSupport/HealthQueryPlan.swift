@@ -40,6 +40,13 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
     case oxygenSaturation
     case heartRateVariabilitySDNN
     case restingHeartRate
+    case appleExerciseTime
+    case basalEnergyBurned
+    case respiratoryRate
+    case flightsClimbed
+    case vo2Max
+    case walkingHeartRateAverage
+    case appleStandTime
 
     /// Whether HealthKit treats this as a CUMULATIVE quantity (summable over a
     /// window) rather than a DISCRETE one (sampled). This is the axis that
@@ -47,8 +54,14 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
     /// `HealthStatistic.isLegal(for:)`.
     public var isCumulative: Bool {
         switch self {
-        case .stepCount, .activeEnergyBurned, .distanceWalkingRunning: true
-        case .heartRate, .oxygenSaturation, .heartRateVariabilitySDNN, .restingHeartRate: false
+        case .stepCount, .activeEnergyBurned, .distanceWalkingRunning,
+            .appleExerciseTime, .basalEnergyBurned, .flightsClimbed,
+            .appleStandTime:
+            true
+        case .heartRate, .oxygenSaturation, .heartRateVariabilitySDNN,
+            .restingHeartRate, .respiratoryRate, .vo2Max,
+            .walkingHeartRateAverage:
+            false
         }
     }
 
@@ -58,6 +71,19 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
     /// by 100 twice. `heartRateVariabilitySDNN` is `"ms"`, never seconds: SDNN
     /// runs in the tens of milliseconds, so reading it in seconds reports
     /// `0.045` where the Health app shows `45`.
+    ///
+    /// `vo2Max` is the third of that family and the least obvious: it is a
+    /// COMPOUND volume/mass/time unit, so a plausible-looking `HKUnit.liter()
+    /// .unitDivided(by:…)` type-checks and ships a number 1000× off — Apple
+    /// states the watch estimates the 14-60 range, so a slipped prefix reports
+    /// `0.045`-style nonsense under a label that still says the right thing.
+    /// The label is Apple's OWN spelling for this sample type: its `HKUnit`
+    /// string table and the Health app both say `ml/kg/min`, so a chart axis
+    /// reads like the app the number came from. Nothing parses the wire string
+    /// back (the Host COMPOSES the unit instead), which is just as well — the
+    /// `HKUnit(from:)` grammar page allows only ONE division symbol, a rule
+    /// that same page's own table entry breaks, and mentions no parentheses at
+    /// all, so there is no spelling that satisfies both.
     public var unit: String {
         switch self {
         case .stepCount: "count"
@@ -67,6 +93,13 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
         case .oxygenSaturation: "fraction"
         case .heartRateVariabilitySDNN: "ms"
         case .restingHeartRate: "count/min"
+        case .appleExerciseTime: "min"
+        case .basalEnergyBurned: "kcal"
+        case .respiratoryRate: "count/min"
+        case .flightsClimbed: "count"
+        case .vo2Max: "ml/kg/min"
+        case .walkingHeartRateAverage: "count/min"
+        case .appleStandTime: "min"
         }
     }
 }
@@ -90,6 +123,15 @@ public enum HealthStatistic: String, CaseIterable, Sendable {
 
     /// `.sum` is legal only for a cumulative type; the other four only for a
     /// discrete one.
+    ///
+    /// The second half is THIS package's rule, not HealthKit's. Apple documents
+    /// `.mostRecent` as an option of its own — "the system returns the most
+    /// recent quantity from the matching samples" — outside the `discrete*`
+    /// family, and states only that a discrete option cannot be COMBINED with a
+    /// cumulative one; it nowhere says `.mostRecent` is refused for a
+    /// cumulative type. Narrowing to one aggregate family per type is the
+    /// promise we can keep without a device to check the wider one on: a chart
+    /// can never ask for a scalar HealthKit may decline to compute.
     public func isLegal(for kind: HealthQuantityKind) -> Bool {
         self == .sum ? kind.isCumulative : !kind.isCumulative
     }
@@ -217,9 +259,8 @@ public struct HealthStatisticsPlan: Equatable, Sendable {
         guard statistic.isLegal(for: kind) else {
             return invalid(
                 "statistic '\(statistic.rawValue)' is not valid for "
-                    + "'\(kind.rawValue)': HealthKit accepts only 'sum' for a "
-                    + "cumulative type and only average/min/max/mostRecent for a "
-                    + "discrete one")
+                    + "'\(kind.rawValue)': a cumulative type takes only 'sum', "
+                    + "a discrete one only average/min/max/mostRecent")
         }
         return HealthWindow.decode(
             startMs: payload.startMs, endMs: payload.endMs, limit: nil

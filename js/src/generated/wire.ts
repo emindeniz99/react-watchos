@@ -22,6 +22,13 @@ export type HealthQuantityType =
   | "oxygenSaturation"
   | "heartRateVariabilitySDNN"
   | "restingHeartRate"
+  | "appleExerciseTime"
+  | "basalEnergyBurned"
+  | "respiratoryRate"
+  | "flightsClimbed"
+  | "vo2Max"
+  | "walkingHeartRateAverage"
+  | "appleStandTime"
   ;
 
 /** Every live HKWorkoutActivityType member (the 3 deprecated spellings excluded). Swift maps the NAME to the case; raw values are undocumented. */

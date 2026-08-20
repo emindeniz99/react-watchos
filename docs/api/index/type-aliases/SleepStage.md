@@ -8,6 +8,6 @@
 
 > **SleepStage** = `WireSleepSample`\[`"stage"`\]
 
-Defined in: [js/src/health.ts:58](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L58)
+Defined in: [js/src/health.ts:67](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L67)
 
 A sleep interval's stage (`HKCategoryValueSleepAnalysis`).

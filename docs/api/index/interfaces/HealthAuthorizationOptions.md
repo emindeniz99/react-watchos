@@ -6,7 +6,7 @@
 
 # Interface: HealthAuthorizationOptions
 
-Defined in: [js/src/health.ts:68](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L68)
+Defined in: [js/src/health.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L77)
 
 Options for [requestHealthAuthorization](../functions/requestHealthAuthorization.md).
 
@@ -16,7 +16,7 @@ Options for [requestHealthAuthorization](../functions/requestHealthAuthorization
 
 > **read**: [`HealthQuantityType`](../type-aliases/HealthQuantityType.md)[]
 
-Defined in: [js/src/health.ts:70](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L70)
+Defined in: [js/src/health.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L79)
 
 Quantity types to ask for.
 
@@ -26,7 +26,7 @@ Quantity types to ask for.
 
 > `optional` **sleep?**: `boolean`
 
-Defined in: [js/src/health.ts:73](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L73)
+Defined in: [js/src/health.ts:82](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L82)
 
 Also ask for sleep analysis — a HealthKit *category* type, so it isn't
  expressible in `read`. Required before [querySleepSamples](../functions/querySleepSamples.md).

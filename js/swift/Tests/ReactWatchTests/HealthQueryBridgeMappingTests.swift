@@ -22,8 +22,9 @@ import XCTest
 /// than failing a build — which is why every pair is pinned here.
 ///
 /// Every assertion is driven off `HealthQuantityKind.allCases` and every table
-/// below is an exhaustive `switch`, so an eighth read type cannot land with its
-/// mapping unasserted: this file stops compiling until someone writes the arm.
+/// below is an exhaustive `switch`, so a fifteenth read type cannot land with
+/// its mapping unasserted: this file stops compiling until someone writes the
+/// arm.
 ///
 /// The `@MainActor` on each test is load-bearing, not decoration:
 /// `HealthQueryBridge` is a `@MainActor` class, which isolates its statics too,
@@ -53,8 +54,8 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
     }
 
     /// The same slip from the other side, and the half that needs no table:
-    /// seven kinds that resolve to six types means one of them is reading
-    /// someone else's data, whichever arm is wrong.
+    /// fourteen kinds that resolve to thirteen types means one of them is
+    /// reading someone else's data, whichever arm is wrong.
     @MainActor
     func testNoTwoKindsReadTheSameType() {
         let identifiers = HealthQuantityKind.allCases.map {
@@ -101,6 +102,32 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
             "heartRateVariabilitySDNN is not read in milliseconds")
     }
 
+    /// The same backstop for the one COMPOUND unit, and the reason it needs
+    /// its own: `is(compatibleWith:)` below is prefix-BLIND, so litres for
+    /// millilitres, or grams for kilograms, each stays "compatible" with
+    /// `HKQuantityType(.vo2Max)` while moving the reading by 1000× (both at
+    /// once, by 1e6×) under a label that still says ml/kg/min. The family arm in `expectedUnitString` re-derives
+    /// the same expression the bridge uses, which catches later drift but not a
+    /// slip written by the same hand on the same day. A conversion catches both.
+    @MainActor
+    func testVO2MaxIsReadInMillilitresPerKilogramPerMinute() {
+        let unit = HealthQueryBridge.unit(for: .vo2Max)
+        let oneLitrePerKilogramMinute = HKQuantity(
+            unit: HKUnit.liter().unitDivided(
+                by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: HKUnit.minute())),
+            doubleValue: 1)
+        // Same hazard as the SDNN test: a wrong-FAMILY unit raises an ObjC
+        // exception that takes the whole test process down instead of failing
+        // one case, so ask the compatibility question first.
+        guard oneLitrePerKilogramMinute.`is`(compatibleWith: unit) else {
+            XCTFail("vo2Max is not read in a volume/mass/time unit at all")
+            return
+        }
+        XCTAssertEqual(
+            oneLitrePerKilogramMinute.doubleValue(for: unit), 1000, accuracy: 1e-9,
+            "vo2Max is not read in millilitres per kilogram per minute")
+    }
+
     /// HealthKit refuses a unit its type cannot express, and the refusal is a
     /// THROW from a live query — a runtime failure on a wrist, after a
     /// permission sheet the user already granted. `is(compatibleWith:)` asks the
@@ -138,7 +165,7 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
     /// `HKQuantityTypeIdentifier` + the capitalized case name) but not the
     /// strings they hold, so deriving the identifier here would pin a naming
     /// convention this repo cannot check. The `switch` is exhaustive, which is
-    /// what makes an eighth kind a build error in this file too, and it is
+    /// what makes a fifteenth kind a build error in this file too, and it is
     /// written from the case names rather than copied from the bridge — the
     /// point is that two independent hands agree.
     private static func identifier(
@@ -152,23 +179,55 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
         case .oxygenSaturation: .oxygenSaturation
         case .heartRateVariabilitySDNN: .heartRateVariabilitySDNN
         case .restingHeartRate: .restingHeartRate
+        case .appleExerciseTime: .appleExerciseTime
+        case .basalEnergyBurned: .basalEnergyBurned
+        case .respiratoryRate: .respiratoryRate
+        case .flightsClimbed: .flightsClimbed
+        case .vo2Max: .vo2Max
+        case .walkingHeartRateAverage: .walkingHeartRateAverage
+        case .appleStandTime: .appleStandTime
         }
     }
 
     /// What `HKUnit.unitString` must report for each kind: the wire string
-    /// itself for six of the seven, so the Support name and the Host
-    /// measurement cross-check each other. The `oxygenSaturation` arm pins only
-    /// the unit FAMILY — its wire label deliberately is not HealthKit's own
-    /// spelling, and stays pinned textually on the Linux side by
-    /// js/test/health-package-guards.test.ts.
+    /// itself for twelve of the fourteen, so the Support name and the Host
+    /// measurement cross-check each other. Two arms pin only the unit FAMILY,
+    /// re-deriving the expectation from an `HKUnit` and asserting nothing about
+    /// how HealthKit SPELLS it. Be clear about what that is worth: the derived
+    /// expression is the bridge's own, so a family arm catches later drift, not
+    /// a slip made while writing it — the MAGNITUDE is pinned by the two
+    /// conversion tests above. Both arms stay pinned textually on the Linux
+    /// side by js/test/health-package-guards.test.ts.
+    ///
+    /// The exact-string arms rest on Apple's `HKUnit(from:)` table giving one
+    /// spelling for each of them ("count", "kcal", "m", "min", and "ms" as the
+    /// milli- prefix on "s"), plus the precedent of the sim runs on 2026-08-06
+    /// and 08-10, where the standalone `count`, `kcal` and `m` arms went green
+    /// — i.e. a standalone unit does render as its table string. `min` is the
+    /// one spelling in this change with no run behind it yet.
     private static func expectedUnitString(for kind: HealthQuantityKind) -> String {
         switch kind {
         // Apple: percent "measures a value between 0.0 and 1.0". So the wire
         // says "fraction" — calling it percent is how a caller ends up
         // multiplying by 100 twice.
         case .oxygenSaturation: HKUnit.percent().unitString
+        // The wire label matches Apple's table entry (`ml/kg/min`), but that
+        // table is the PARSER's input vocabulary, not a promise about what
+        // `unitString` prints back for a composed compound — and the same page
+        // accepts both `L` and `l` for litres while its own rule allows one
+        // division symbol, which this entry breaks. So there is no canonical
+        // spelling to assert here, and guessing one is a red `watchos-tests`
+        // job on a file no Linux machine can compile. Pin what matters instead:
+        // the bridge measures millilitres per kilogram per minute, by
+        // conversion in `testVO2MaxIsReadInMillilitresPerKilogramPerMinute`.
+        case .vo2Max:
+            HKUnit.literUnit(with: .milli).unitDivided(
+                by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: HKUnit.minute())
+            ).unitString
         case .stepCount, .activeEnergyBurned, .distanceWalkingRunning, .heartRate,
-            .heartRateVariabilitySDNN, .restingHeartRate:
+            .heartRateVariabilitySDNN, .restingHeartRate, .appleExerciseTime,
+            .basalEnergyBurned, .respiratoryRate, .flightsClimbed,
+            .walkingHeartRateAverage, .appleStandTime:
             kind.unit
         }
     }

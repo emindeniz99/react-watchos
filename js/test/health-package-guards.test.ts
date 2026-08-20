@@ -548,12 +548,70 @@ describe("the read vocabulary cannot half-widen into the host bridge", () => {
         "HKUnit.count().unitDivided(by: .minute())",
         "count/min",
       ],
+      appleExerciseTime: ["HKUnit.minute()", "min"],
+      basalEnergyBurned: ["HKUnit.kilocalorie()", "kcal"],
+      respiratoryRate: [
+        "HKUnit.count().unitDivided(by: .minute())",
+        "count/min",
+      ],
+      flightsClimbed: ["HKUnit.count()", "count"],
+      // The one compound unit with three components to get wrong. Apple says
+      // the watch estimates the 14-60 range, so a slipped prefix (litres, or
+      // grams) reports 0.045-style nonsense under a label that still says
+      // ml/kg/min.
+      vo2Max: [
+        "HKUnit.literUnit(with: .milli).unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: HKUnit.minute()))",
+        "ml/kg/min",
+      ],
+      walkingHeartRateAverage: [
+        "HKUnit.count().unitDivided(by: .minute())",
+        "count/min",
+      ],
+      appleStandTime: ["HKUnit.minute()", "min"],
     };
     expect(Object.keys(UNITS).sort()).toEqual([...healthQuantityTypes].sort());
     const support = read("ReactWatchSupport/HealthQueryPlan.swift");
+    // Each arm is extracted WHOLE and compared exactly, rather than searched
+    // for as a substring. Two reasons, both of which a `toContain` gets wrong:
+    // `vo2Max`'s expression is past swift-format's 100 columns, so the arm is
+    // WRAPPED in the source and only a whitespace-insensitive match sees it;
+    // and a substring match is satisfied by a PREFIX, so an arm silently
+    // extended to `HKUnit.count().unitDivided(by: .minute())` would still pass
+    // under a wire label that still said "count". Line comments go first —
+    // flattening newlines away would weld a comment onto the arm below it, and
+    // a needle satisfied from inside a comment pins nothing.
+    const flat = (text: string) => text.replace(/\s+/g, "");
+    const arms = (text: string, from: string, to: string) => {
+      const body = text
+        .slice(text.indexOf(from), text.indexOf(to))
+        .replace(/\/\/[^\n]*/g, "");
+      const marks = [...body.matchAll(/case \.(\w+):/g)];
+      return Object.fromEntries(
+        marks.map((m, i) => [
+          m[1],
+          // The last arm's slice runs into the switch's closing braces.
+          flat(
+            body.slice(
+              m.index + m[0].length,
+              i + 1 < marks.length ? marks[i + 1].index : body.length,
+            ),
+          ).replace(/\}+$/, ""),
+        ]),
+      );
+    };
+    const measured = arms(
+      src,
+      "static func unit(for kind:",
+      "/// The sleep-analysis",
+    );
+    const named = arms(
+      support,
+      "public var unit: String {",
+      "/// The statistic a",
+    );
     for (const [kind, [hk, wire]] of Object.entries(UNITS)) {
-      expect(src).toContain(`case .${kind}: ${hk}`);
-      expect(support).toContain(`case .${kind}: "${wire}"`);
+      expect(measured[kind]).toBe(flat(hk));
+      expect(named[kind]).toBe(flat(`"${wire}"`));
     }
   });
 });

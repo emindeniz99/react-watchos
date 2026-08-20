@@ -45,12 +45,21 @@ export type { HealthQuantityType };
  * Which aggregate to compute. Derived from the wire request so the union can't
  * drift from the schema — which matters more than usual here:
  * `HKStatisticsOptions` is a bitmask whose cumulative and discrete halves are
- * mutually exclusive per type, and the wrong pairing **throws** natively.
- * `"sum"` is legal only for a cumulative type (`stepCount`,
- * `activeEnergyBurned`, `distanceWalkingRunning`); `"average" | "min" | "max" |
- * "mostRecent"` only for a discrete one (`heartRate`, `oxygenSaturation`,
- * `heartRateVariabilitySDNN`, `restingHeartRate`). An illegal pairing rejects
- * `INVALID_REQUEST` *before* the query runs.
+ * mutually exclusive per type, and the wrong pairing **throws** natively. So
+ * which of the two families a type belongs to is the one thing to look up
+ * before calling — HealthKit decides it, not this package:
+ *
+ * - **Cumulative** — `"sum"` only. Things that accumulate over a window:
+ *   `stepCount`, `flightsClimbed`, `distanceWalkingRunning`,
+ *   `activeEnergyBurned`, `basalEnergyBurned`, `appleExerciseTime`,
+ *   `appleStandTime`.
+ * - **Discrete** — `"average" | "min" | "max" | "mostRecent"` only. Things
+ *   that are *measured* at an instant: `heartRate`, `restingHeartRate`,
+ *   `walkingHeartRateAverage`, `heartRateVariabilitySDNN`, `respiratoryRate`,
+ *   `oxygenSaturation`, `vo2Max`.
+ *
+ * An illegal pairing rejects `INVALID_REQUEST` *before* the query runs, with a
+ * message naming the rule.
  */
 export type HealthStatistic = HealthStatisticsRequest["statistic"];
 
@@ -106,10 +115,20 @@ export interface HealthStatisticsResult {
   /** `null` when HealthKit returned no statistic for the window. Not
    *  distinguishable from a denied read — see the module doc. */
   value: number | null;
-  /** The unit `value` is in, fixed natively per type: `"count"` (steps),
-   *  `"kcal"`, `"m"`, `"count/min"` (bpm — heart rate and resting heart rate),
-   *  `"ms"` (HRV SDNN, **milliseconds**: 45, not 0.045), `"fraction"` (SpO2,
-   *  **0…1**, not 0…100). Reported so a chart can label its axis. */
+  /** The unit `value` is in, fixed natively per type — never chosen by the
+   *  caller — and reported so a chart can label its axis:
+   *
+   *  - `"count"` — `stepCount`, `flightsClimbed`
+   *  - `"count/min"` — every rate: `heartRate`, `restingHeartRate`,
+   *    `walkingHeartRateAverage`, `respiratoryRate`
+   *  - `"m"` — `distanceWalkingRunning`
+   *  - `"kcal"` — `activeEnergyBurned`, `basalEnergyBurned`
+   *  - `"min"` — `appleExerciseTime`, `appleStandTime`
+   *  - `"ms"` — `heartRateVariabilitySDNN`, **milliseconds**: 45, not 0.045
+   *  - `"fraction"` — `oxygenSaturation`, **0…1**, not 0…100
+   *  - `"ml/kg/min"` — `vo2Max`. Apple states the watch estimates the 14-60
+   *    range, so a value near 0.04 is a slipped unit prefix, not a reading
+   */
   unit: string;
   startMs: number;
   endMs: number;

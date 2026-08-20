@@ -48,6 +48,13 @@ import ReactWatchSupport
         case .oxygenSaturation: HKQuantityType(.oxygenSaturation)
         case .heartRateVariabilitySDNN: HKQuantityType(.heartRateVariabilitySDNN)
         case .restingHeartRate: HKQuantityType(.restingHeartRate)
+        case .appleExerciseTime: HKQuantityType(.appleExerciseTime)
+        case .basalEnergyBurned: HKQuantityType(.basalEnergyBurned)
+        case .respiratoryRate: HKQuantityType(.respiratoryRate)
+        case .flightsClimbed: HKQuantityType(.flightsClimbed)
+        case .vo2Max: HKQuantityType(.vo2Max)
+        case .walkingHeartRateAverage: HKQuantityType(.walkingHeartRateAverage)
+        case .appleStandTime: HKQuantityType(.appleStandTime)
         }
     }
 
@@ -63,6 +70,20 @@ import ReactWatchSupport
         case .oxygenSaturation: HKUnit.percent()
         case .heartRateVariabilitySDNN: HKUnit.secondUnit(with: .milli)
         case .restingHeartRate: HKUnit.count().unitDivided(by: .minute())
+        case .appleExerciseTime: HKUnit.minute()
+        case .basalEnergyBurned: HKUnit.kilocalorie()
+        case .respiratoryRate: HKUnit.count().unitDivided(by: .minute())
+        case .flightsClimbed: HKUnit.count()
+        // Composed, not parsed from `HealthQuantityKind.unit`: `HKUnit(from:)`
+        // THROWS an ObjC exception on a string it dislikes, and this is the one
+        // read whose unit has three components to get wrong. Built as
+        // ml / (kg * min) so the grouping is in the type system rather than in
+        // a string whose two division symbols Apple's own parser rule forbids.
+        case .vo2Max:
+            HKUnit.literUnit(with: .milli).unitDivided(
+                by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: HKUnit.minute()))
+        case .walkingHeartRateAverage: HKUnit.count().unitDivided(by: .minute())
+        case .appleStandTime: HKUnit.minute()
         }
     }
 

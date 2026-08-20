@@ -2711,19 +2711,54 @@ final class HealthQueryPlanTests: XCTestCase {
 
     func testUnitsAreFixedPerTypeAndNameSpO2AsAFraction() {
         // The wire unit is chosen natively and only REPORTED to JS, so these
-        // strings are the contract a chart labels its axis from.
-        XCTAssertEqual(HealthQuantityKind.stepCount.unit, "count")
-        XCTAssertEqual(HealthQuantityKind.activeEnergyBurned.unit, "kcal")
-        XCTAssertEqual(HealthQuantityKind.distanceWalkingRunning.unit, "m")
-        XCTAssertEqual(HealthQuantityKind.heartRate.unit, "count/min")
-        // "fraction", never "percent": HKUnit.percent() yields 0…1, and calling
-        // it percent is how a caller multiplies by 100 twice.
-        XCTAssertEqual(HealthQuantityKind.oxygenSaturation.unit, "fraction")
-        // "ms", never seconds: SDNN runs in the tens of milliseconds, so a
-        // seconds unit reports 0.045 where the Health app shows 45.
-        XCTAssertEqual(HealthQuantityKind.heartRateVariabilitySDNN.unit, "ms")
-        XCTAssertEqual(HealthQuantityKind.restingHeartRate.unit, "count/min")
+        // strings are the contract a chart labels its axis from. A TABLE rather
+        // than a run of asserts, checked against `allCases` below: at fourteen
+        // types a reader can still see a wrong line but no longer a MISSING one.
+        let expected: [HealthQuantityKind: String] = [
+            .stepCount: "count",
+            .activeEnergyBurned: "kcal",
+            .distanceWalkingRunning: "m",
+            .heartRate: "count/min",
+            // "fraction", never "percent": HKUnit.percent() yields 0…1, and
+            // calling it percent is how a caller multiplies by 100 twice.
+            .oxygenSaturation: "fraction",
+            // "ms", never seconds: SDNN runs in the tens of milliseconds, so a
+            // seconds unit reports 0.045 where the Health app shows 45.
+            .heartRateVariabilitySDNN: "ms",
+            .restingHeartRate: "count/min",
+            .appleExerciseTime: "min",
+            .basalEnergyBurned: "kcal",
+            .respiratoryRate: "count/min",
+            .flightsClimbed: "count",
+            // The SDNN failure mode one family over, and worse because the
+            // unit is compound: Apple states the watch estimates the 14-60
+            // range, so litres-for-millilitres reports 0.045-style nonsense
+            // under a label that still says ml/kg/min — Apple's own spelling
+            // for this sample type, in its HKUnit table and in the Health app.
+            .vo2Max: "ml/kg/min",
+            .walkingHeartRateAverage: "count/min",
+            .appleStandTime: "min",
+        ]
+        XCTAssertEqual(
+            Set(expected.keys), Set(HealthQuantityKind.allCases),
+            "a read type ships with no pinned wire unit")
+        for (kind, unit) in expected {
+            XCTAssertEqual(kind.unit, unit, "\(kind.rawValue) reports the wrong unit")
+        }
     }
+
+    /// The cumulative half of the vocabulary, transcribed from each type's
+    /// docs page ("measure cumulative values" / "measure discrete values") and
+    /// deliberately INDEPENDENT of `HealthQuantityKind.isCumulative` — it is
+    /// what the two tests below check that property against. Reading the
+    /// expectation off `isCumulative` instead would assert nothing: `isLegal`
+    /// is defined in terms of it, so a flipped arm would simply move a kind to
+    /// the other side of the assertion and still pass.
+    private static let cumulativeKinds: Set<HealthQuantityKind> = [
+        .stepCount, .activeEnergyBurned, .distanceWalkingRunning,
+        .appleExerciseTime, .basalEnergyBurned, .flightsClimbed,
+        .appleStandTime,
+    ]
 
     func testOnlySumIsLegalForACumulativeType() {
         // HKStatisticsOptions' halves are mutually exclusive per type and the
@@ -2735,6 +2770,31 @@ final class HealthQueryPlanTests: XCTestCase {
         XCTAssertFalse(HealthStatistic.sum.isLegal(for: .heartRate))
         XCTAssertTrue(HealthStatistic.average.isLegal(for: .heartRate))
         XCTAssertTrue(HealthStatistic.max.isLegal(for: .oxygenSaturation))
+        // And the same rule as a TOTAL partition over every kind: exactly `sum`
+        // or exactly the other four, never both and never neither. The
+        // expectation comes from the transcribed set above, so a flipped
+        // `isCumulative` arm fails here as well as in the test below.
+        for kind in HealthQuantityKind.allCases {
+            let legal = HealthStatistic.allCases.filter { $0.isLegal(for: kind) }
+            XCTAssertEqual(
+                legal,
+                Self.cumulativeKinds.contains(kind)
+                    ? [.sum] : [.average, .min, .max, .mostRecent],
+                "\(kind.rawValue) accepts the wrong statistics")
+        }
+    }
+
+    func testTheCumulativeAxisMatchesWhatAppleDocumentsPerType() {
+        // `isCumulative` decides which statistics are legal, and HealthKit
+        // enforces the real answer by THROWING mid-query — so a wrong arm here
+        // ships either a native crash or a refusal that blames Apple's matrix
+        // for our table. `allCases` makes the discrete half the complement of
+        // the transcribed cumulative set, so neither list can rot alone.
+        for kind in HealthQuantityKind.allCases {
+            XCTAssertEqual(
+                kind.isCumulative, Self.cumulativeKinds.contains(kind),
+                "\(kind.rawValue) is on the wrong side of the cumulative axis")
+        }
     }
 
     func testTheStressRecoveryPairIsDiscrete() {
