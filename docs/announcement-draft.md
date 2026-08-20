@@ -37,9 +37,9 @@ guideline in prose.
 > engine so a Control Center button can update them with the app closed.
 >
 > Health goes past a heart-rate demo: HealthKit reads (steps, energy, sleep,
-> SpO2 — a week of daily buckets in one query), real workout sessions that
-> save an `HKWorkout` with a route, and WorkoutKit plans composed in
-> TypeScript.
+> SpO2, HRV, resting heart rate — a week of daily buckets in one query), real
+> workout sessions that save an `HKWorkout` with a route, and WorkoutKit plans
+> composed in TypeScript.
 >
 > OTA updates to the JS half are Ed25519-signed with anti-rollback and
 > crash-loop rollback — and unsigned updates are refused by default.
@@ -160,10 +160,11 @@ is on by default in the build preset. Measured pipeline cost: 0.5–0.75 ms per
 interaction on **x86** quickjs-ng [E4: on-device number pending].
 
 **"How deep does the health support go?"** Reads: steps, active energy,
-distance, SpO2, sleep stages, plus daily buckets for a week in one query.
-Writes/sessions: a real `HKWorkoutSession` with pause/resume, live metrics,
-an optional GPS route, and a saved `HKWorkout`. Plans: compose a custom,
-single-goal or pacer workout in TypeScript, hand it to Apple's Workout app,
+distance, heart rate, resting heart rate, HRV (SDNN), SpO2 and sleep
+stages, plus daily buckets for a week in one query. Writes/sessions: a
+real `HKWorkoutSession` with pause/resume, live metrics, an optional GPS
+route, and a saved `HKWorkout`. Plans: compose a custom, single-goal or
+pacer workout in TypeScript, hand it to Apple's Workout app,
 schedule/list/remove it. Honest scope: **the health and workout bridges are
 watchOS-only code that Linux cannot compile and the simulator signs without
 the HealthKit entitlement, so they are ③-owed on device** — status.md marks

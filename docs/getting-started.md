@@ -90,6 +90,15 @@ import { watchBuildOptions } from "react-watchos/build"; // esbuild preset
   graph and fails rather than emitting such a bundle.
 - **No copied build config:** `watchBuildOptions({ entry, outfile })` is the
   QuickJS-correct esbuild preset (shim inject, es2020, neutral IIFE).
+- **What minifies, and what doesn't:** the shipping entries minify by default —
+  `buildBundles([…])` and `npx react-watchos build` (605 KB → 195 KB on the
+  reference app, and a 1.4 MB QuickJS heap instead of 2.1 MB). `watchBuildOptions`
+  and `npx react-watchos dev` do not, because minification renames locals and
+  React's frame builder reads `fn.name`, so your components become `at t` in a
+  stack. Opt out of the shipped one with `--no-minify` / `{ minify: false }`.
+  The repo's OWN `pnpm --filter react-watchos build` (above) is the exception
+  and stays unminified — `test/react-compiler.test.ts` reads that bundle's
+  text; `build:min` is the minified in-repo artifact.
 - **Extending natively:** `getHost()` + `QuickJSHostGlobal` are public — see
   [extending.md](./extending.md) for the "add a native capability"
   recipe, and [updates.md](./updates.md) for how updates commit.
@@ -114,9 +123,12 @@ hand-written target config (the plugin composes apple-targets internally and
 4. `npx expo prebuild` — the plugin generates the target configs, creates the
    targets via apple-targets, links the SwiftPM products, and merges each
    target's Info.plist in one pass (no post-prebuild step).
-5. Build your watch JS with the preset (`watchBuildOptions`) into the target's
-   assets; ship OTA updates by signing the manifest with `signManifest` from
-   `react-watchos/manifest`.
+5. Build your watch JS into the target's assets with
+   `buildBundles([{ entry, outfile, manifest }])` — or
+   `npx react-watchos build --entry … --asset …`. Both minify by default;
+   reach for `watchBuildOptions` only to hand-assemble the esbuild call, and
+   pass `{ minify: true }` when you do. Ship OTA updates by signing the
+   manifest with `signManifest` from `react-watchos/manifest`.
 
 ## Host policy (least privilege for OTA bundles)
 

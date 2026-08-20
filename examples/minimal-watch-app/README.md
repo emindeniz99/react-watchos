@@ -27,7 +27,13 @@ pnpm install       # installs react + the renderer via the workspace dependency
 pnpm typecheck
 pnpm test          # runApp + MemoryHost + /testing query helpers
 pnpm build         # dist/bundle.js (the IIFE the watch target evaluates)
+pnpm build:unminified   # the same production bundle, readable (~3x bigger)
 ```
+
+`build` is **minified** — on the reference app that is 605 KB -> 195 KB and a
+third less QuickJS heap. The cost is that your components' names are gone from
+stack traces (`at t`, not `at ShoppingList`), so reach for `build:unminified`
+while you are chasing one.
 
 `package.json` pulls the renderer in with a pnpm workspace dependency (a
 non-workspace consumer would use a registry version, or `file:`/`link:` to a

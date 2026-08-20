@@ -48,8 +48,9 @@ export type { HealthQuantityType };
  * mutually exclusive per type, and the wrong pairing **throws** natively.
  * `"sum"` is legal only for a cumulative type (`stepCount`,
  * `activeEnergyBurned`, `distanceWalkingRunning`); `"average" | "min" | "max" |
- * "mostRecent"` only for a discrete one (`heartRate`, `oxygenSaturation`). An
- * illegal pairing rejects `INVALID_REQUEST` *before* the query runs.
+ * "mostRecent"` only for a discrete one (`heartRate`, `oxygenSaturation`,
+ * `heartRateVariabilitySDNN`, `restingHeartRate`). An illegal pairing rejects
+ * `INVALID_REQUEST` *before* the query runs.
  */
 export type HealthStatistic = HealthStatisticsRequest["statistic"];
 
@@ -106,8 +107,9 @@ export interface HealthStatisticsResult {
    *  distinguishable from a denied read — see the module doc. */
   value: number | null;
   /** The unit `value` is in, fixed natively per type: `"count"` (steps),
-   *  `"kcal"`, `"m"`, `"count/min"` (bpm), `"fraction"` (SpO2, **0…1**, not
-   *  0…100). Reported so a chart can label its axis. */
+   *  `"kcal"`, `"m"`, `"count/min"` (bpm — heart rate and resting heart rate),
+   *  `"ms"` (HRV SDNN, **milliseconds**: 45, not 0.045), `"fraction"` (SpO2,
+   *  **0…1**, not 0…100). Reported so a chart can label its axis. */
   unit: string;
   startMs: number;
   endMs: number;

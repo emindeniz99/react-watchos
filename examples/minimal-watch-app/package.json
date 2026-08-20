@@ -6,7 +6,7 @@
   "description": "Minimal external app on the react-watchos engine (no source reach-in)",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "build:min": "node scripts/build.mjs --minify",
+    "build:unminified": "node scripts/build.mjs --no-minify",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

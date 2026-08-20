@@ -6,8 +6,12 @@ import { writeOTAManifest } from "../esbuild/manifest.mts";
 import { buildOptions, bundleVersion, root, targets } from "./config.ts";
 import { unprovidedFeatures } from "./releaseContract.ts";
 
-// `npm run build -- --minify` (or MINIFY=1) roughly halves the bundle;
-// unminified keeps watch-side stack traces readable during development.
+// `npm run build -- --minify` (or MINIFY=1) cuts the bundle to under a third
+// (620,055 B -> 199,674 B measured here), so the published preset's shipping
+// entry minifies by default. This script deliberately does NOT follow, and not
+// for readable traces: its output is a TEST FIXTURE as much as an artifact —
+// see the WHY at `minify = false` in ./config.ts. `build:min` is the minified
+// in-repo artifact.
 const minify = process.argv.includes("--minify") || !!process.env.MINIFY;
 
 // Validate the declared capability contract (ARCH-02) before building: a bundle

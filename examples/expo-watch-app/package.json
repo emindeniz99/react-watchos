@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "build:targets": "node scripts/build-targets.mjs",
+    "build:targets:unminified": "node scripts/build-targets.mjs --no-minify",
     "ota:serve": "node scripts/serve-ota.mjs",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

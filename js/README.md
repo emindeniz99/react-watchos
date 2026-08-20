@@ -130,7 +130,8 @@ await buildBundles([
 
 (For full control over the esbuild call, `watchBuildOptions({ entry, outfile })`
 returns the options and you run your own `esbuild.build` — `buildBundles` is the
-batteries-included wrapper around it.)
+batteries-included wrapper around it. It defaults `minify: false` because it is
+also the dev build's preset, so pass `{ minify: true }` when the bundle ships.)
 
 **3. Swift glue** — `npx react-watchos scaffold` generates
 `targets/widget/ReactWidgets.swift` (a `@main WidgetBundle` whose widgets render
@@ -206,6 +207,15 @@ Notes:
   a `define`, esbuild `plugins` (e.g. the React Compiler), and an OTA `manifest`.
   `buildBundles` needs `esbuild` installed (optional peer); reach for
   `watchBuildOptions` directly only to hand-assemble the esbuild options.
+
+  **The two disagree about minification, on purpose.** `buildBundles` is the
+  shipping entry, so it defaults `minify: true` — measured on this repo's own
+  bundles that is 605 KB → 195 KB for the app and ~501 KB → ~150 KB for the
+  widget, plus a QuickJS heap of 1.4 MB instead of 2.1 MB. `watchBuildOptions`
+  defaults `minify: false`, because it is also what the live-reload dev build
+  uses and minification costs you your own component names in a stack trace
+  (`at t`, not `at ShoppingList` — host frames like `at VStack` survive). Pass
+  `{ minify: false }` / `{ minify: true }` to say which you want explicitly.
 - `react-watchos/manifest` — `writeOTAManifest({ distDir, version, … })`,
   the OTA `manifest.json` stamper (also used by `buildBundles`' `manifest`).
 - `react-watchos/testing` — `findByType` / `findByText` for asserting
@@ -221,7 +231,15 @@ npx react-watchos dev --entry watch-ui/entry.tsx        # live-reload server
 npx react-watchos inspector                             # live tree/log/error UI
 npx react-watchos build --entry watch-ui/entry.tsx \
   --asset targets/watch/assets/bundle.js                # one-shot build + copy
+npx react-watchos build --entry watch-ui/entry.tsx --no-minify   # readable
 ```
+
+`build` ships, so it **minifies** (≈-68% bytes, a third less QuickJS heap);
+`--no-minify` opts out when you need your components' names in a stack trace.
+The `dev` command's own bundle is never minified — that is the point of it —
+but a DEBUG launch still boots the shipped ASSET bundle until your first edit,
+and widgets are never dev-served at all: read
+[docs/debugging.md](../docs/debugging.md) before you read a boot crash.
 
 **The polling contract:** a DEBUG watch build polls
 `http://127.0.0.1:8788/bundle.js` every 2 seconds and hot-restarts its QuickJS

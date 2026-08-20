@@ -118,10 +118,11 @@ function watchTargetConfig(opts: ResolvedOptions) {
   }
   if (opts.healthKit) {
     // Reads are no longer heart-rate-only (js/src/health.ts adds steps, active
-    // energy, distance, SpO2 and sleep), and this string is what the user is
-    // shown when the permission sheet opens — a sheet that says "heart rate"
-    // while the app asks for sleep history is the kind of mismatch App Review
-    // and users both read as a lie. Consumer `infoPlist` overrides still win.
+    // energy, distance, SpO2, HRV, resting heart rate and sleep), and this
+    // string is what the user is shown when the permission sheet opens — a
+    // sheet that says "heart rate" while the app asks for sleep history is the
+    // kind of mismatch App Review and users both read as a lie. Consumer
+    // `infoPlist` overrides still win.
     infoPlist.NSHealthShareUsageDescription =
       infoPlist.NSHealthShareUsageDescription ??
       "Read your heart rate, steps, energy, distance and sleep to show " +

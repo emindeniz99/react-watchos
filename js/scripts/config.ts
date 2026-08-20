@@ -93,6 +93,12 @@ export const outfile = targets[0].outfile;
 export const bundleVersion = 1;
 
 export function buildOptions({
+  // Stays OFF while the published preset's `buildBundles` defaults ON: this is
+  // the REPO's own `pnpm build`, which the test suite reads as a fixture —
+  // test/react-compiler.test.ts asserts the bundle contains
+  // "react/compiler-runtime", a string minification erases. `build:min` is the
+  // minified artifact; flipping this default would fail that test, not ship
+  // anything.
   minify = false,
   target = targets[0],
 }: { minify?: boolean; target?: BuildTarget } = {}): BuildOptions {

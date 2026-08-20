@@ -31,6 +31,11 @@ pnpm --filter expo-watch-app test          # runApp + MemoryHost + /testing
 pnpm --filter expo-watch-app build:targets # -> watch + widget bundles
 ```
 
+`build:targets` **minifies** both bundles — measured on THIS example: watch
+508 KB -> 154 KB, widget 492 KB -> 146 KB. Add `--no-minify` — or run
+`build:targets:unminified` — when you need your own component names back in a
+stack trace; it is the same production build, just readable.
+
 It consumes the renderer through the pnpm workspace (`"react-watchos":
 "workspace:*"`), so there is a single React instance and no alias / nodePaths /
 tsconfig-paths glue.

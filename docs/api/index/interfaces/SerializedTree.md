@@ -6,7 +6,7 @@
 
 # Interface: SerializedTree
 
-Defined in: [js/src/generated/wire.ts:111](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L111)
+Defined in: [js/src/generated/wire.ts:113](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L113)
 
 A committed UI tree. `seq` acks the highest processed event.
 
@@ -16,7 +16,7 @@ A committed UI tree. `seq` acks the highest processed event.
 
 > **root**: [`SerializedNode`](SerializedNode.md) \| `null`
 
-Defined in: [js/src/generated/wire.ts:114](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L114)
+Defined in: [js/src/generated/wire.ts:116](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L116)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/generated/wire.ts:114](https://github.com/emindeniz99/react-
 
 > **seq**: `number`
 
-Defined in: [js/src/generated/wire.ts:113](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L113)
+Defined in: [js/src/generated/wire.ts:115](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L115)
 
 ***
 
@@ -32,4 +32,4 @@ Defined in: [js/src/generated/wire.ts:113](https://github.com/emindeniz99/react-
 
 > **v**: `1`
 
-Defined in: [js/src/generated/wire.ts:112](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L112)
+Defined in: [js/src/generated/wire.ts:114](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L114)

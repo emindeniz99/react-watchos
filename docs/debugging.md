@@ -234,10 +234,28 @@ Stated plainly, because the gap is real:
   tree snapshot.
 - **No Safari Web Inspector.** That attaches to JavaScriptCore/WebKit, neither
   of which exists on watchOS.
-- **No source maps today.** The build does not emit them, so stack frames name
-  positions in the bundled file. Unminified DEBUG bundles keep original
-  function names, which is usually enough to locate the throw; if you are
-  chasing a stack in a minified bundle, rebuild without `--minify` first.
+- **No source maps, and the shipped bundle is minified.** The build emits no
+  source maps, so a frame names a position in the bundled file — and since
+  2026-08-20 the shipping path minifies by default (`react-watchos build`,
+  `buildBundles`), which renames locals. React's production frame builder uses
+  `fn.displayName || fn.name`, so YOUR components come out as `at t` instead of
+  `at ShoppingList`. Host frames (`at VStack`, `at Text`) are string literals in
+  the renderer and stay readable, as does the diagnostics ring.
+- **A DEBUG launch is not automatically running a readable bundle.** Two cases
+  bite. (1) `ReactWatchModel.start()`
+  ([`ReactWatchHost.swift:312`](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift#L312))
+  calls `boot()` — which loads the applied OTA bundle if there is one, else the
+  **shipped asset bundle** (`load()` → `otaSequencer.boot` → `loadShipped`) —
+  *before* the `#if DEBUG startDevReload()` on line 446, and `pollDevServer()`
+  deliberately does not reboot on its first fetch. So a DEBUG watch app runs
+  that bundle (minified, if that is how you built it) until your first source
+  edit, and **a crash at boot is a crash in THAT bundle**, not in the
+  dev-server one.
+  (2) Widget bundles are never dev-served at all — there is no polling loop in
+  the widget host — so a widget always runs its asset bundle. When you are
+  chasing either, rebuild the asset with `--no-minify` (CLI) or
+  `{ minify: false }` (`buildBundles`) and re-run; `react-watchos dev` itself
+  already builds its live-reload bundle unminified.
 - **A device DEBUG build bakes in the LAN packager host at port 8081**, and
   nothing checks WHOSE packager answers. Run a second project's Metro on 8081
   and the watch/phone silently loads that project's bundle — you get someone
