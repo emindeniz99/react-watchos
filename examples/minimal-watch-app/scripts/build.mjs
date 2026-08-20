@@ -10,7 +10,12 @@ import { watchBuildOptions } from "react-watchos/build";
 // (the React-dedupe requirement — see the renderer README).
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const outfile = join(root, "dist/bundle.js");
-const minify = process.argv.includes("--minify") || !!process.env.MINIFY;
+// Minified by default, because this is the artifact you copy into the watch
+// target; see the `minify` JSDoc in `react-watchos/build` for the measured
+// bytes/heap/boot. `--no-minify` (pnpm build:unminified) gives back the
+// component names in stack traces; it is still a PRODUCTION build (the preset
+// pins NODE_ENV=production), just a readable one.
+const minify = !process.argv.includes("--no-minify");
 
 await build(
   watchBuildOptions({

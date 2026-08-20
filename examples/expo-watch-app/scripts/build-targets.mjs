@@ -13,7 +13,12 @@ import {
 // REACT_WATCH_OTA_URL and gets an OTA `manifest.json` stamped next to it; the
 // widget bundle is shipped, not OTA'd, so it needs neither.
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const minify = process.argv.includes("--minify") || !!process.env.MINIFY;
+// Both shipped bundles are minified by default — it is the widget that makes
+// this matter most, since its bytecode loads into the 16 MB widget heap.
+// `--no-minify` (pnpm build:targets:unminified) trades that back for named
+// component frames in a stack; see the `minify` JSDoc in `react-watchos/build`
+// for the measured bytes/heap/boot.
+const minify = !process.argv.includes("--no-minify");
 
 await buildBundles(
   [

@@ -1,8 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { build } from "esbuild";
 import { beforeAll, describe, expect, it } from "vitest";
+import { buildOptions, targets } from "../scripts/config.ts";
 
 /**
  * Runs the real production bundle inside a real QuickJS interpreter
@@ -285,7 +287,20 @@ describe.skipIf(!qjsAvailable && !requireQjs)("quickjs smoke", () => {
     renderedGauge: number;
   };
 
-  beforeAll(() => {
+  // The shape consumers actually SHIP. `buildBundles` / `react-watchos build`
+  // minify by default, but this repo's own `pnpm build` deliberately does not
+  // (it is a react-compiler.test.ts fixture — see the WHY at the `minify`
+  // default in scripts/config.ts), so every gate above boots a bundle nobody
+  // ships. Minify renames LOCALS while this harness reaches the bundle only
+  // through globals and prop names, so the two must agree — and that agreement
+  // is exactly what `mangleProps` would break.
+  let minifiedResult: typeof result;
+  // Guards the gate itself: if this ever stopped being a MINIFIED build it
+  // would quietly become a second copy of the run above.
+  let shippedBytes = 0;
+  let devBytes = 0;
+
+  beforeAll(async () => {
     // Reached with qjs missing only under REQUIRE_QJS=1 (otherwise the suite
     // is skipped above) — fail with a message that names the fix.
     if (!qjsAvailable) {
@@ -303,6 +318,7 @@ describe.skipIf(!qjsAvailable && !requireQjs)("quickjs smoke", () => {
       { stdio: "pipe" },
     );
     const bundle = readFileSync(bundlePath, "utf8");
+    devBytes = bundle.length;
     const dir = mkdtempSync(join(tmpdir(), "qjs-smoke-"));
 
     const appScript = join(dir, "smoke-app.js");
@@ -317,6 +333,44 @@ describe.skipIf(!qjsAvailable && !requireQjs)("quickjs smoke", () => {
     intentResult = JSON.parse(
       execFileSync("qjs", [intentScript], { encoding: "utf8" }).trim(),
     );
+
+    const appTarget = targets.find((t) => t.name === "app");
+    if (!appTarget) throw new Error("qjs-smoke: no `app` target in config.ts");
+    const minifiedBundlePath = join(dir, "bundle.min.js");
+    await build({
+      ...buildOptions({ minify: true, target: appTarget }),
+      outfile: minifiedBundlePath,
+      logLevel: "silent",
+    });
+    shippedBytes = statSync(minifiedBundlePath).size;
+    const minifiedScript = join(dir, "smoke-app-min.js");
+    writeFileSync(
+      minifiedScript,
+      harnessPrelude +
+        readFileSync(minifiedBundlePath, "utf8") +
+        harnessEpilogue,
+    );
+    minifiedResult = JSON.parse(
+      execFileSync("qjs", [minifiedScript], { encoding: "utf8" }).trim(),
+    );
+  }, 120_000);
+
+  it("runs the SHIPPED (minified) bundle end to end, not just the dev one", () => {
+    // Same assertions as the unminified run above: mount, lazy routes, a
+    // dispatch that mutates state. If minification ever broke the host bridge
+    // (a renamed global, a mangled prop) this is where it surfaces — the
+    // default `buildBundles` output is what every consumer boots.
+    expect(minifiedResult.rootType).toBe("NavigationStack");
+    expect(minifiedResult.lazyAtLaunch).toBe(true);
+    expect(minifiedResult.navResult).toEqual({ handled: true, accepted: true });
+    expect(minifiedResult.initialCount).toBe("Count: 0");
+    expect(minifiedResult.pressResult).toEqual({
+      handled: true,
+      accepted: true,
+    });
+    expect(minifiedResult.countAfterPress).toBe("Count: 1");
+    // …and it really was the minified build (measured -68%, so 0.6 is slack).
+    expect(shippedBytes).toBeLessThan(devBytes * 0.6);
   });
 
   it("renders the initial navigation tree inside QuickJS", () => {

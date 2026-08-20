@@ -38,7 +38,32 @@ export interface WatchBuildOptions {
   entry?: string;
   /** Where to write the IIFE bundle. */
   outfile?: string;
-  /** Minify (≈halves size; off keeps traces). */
+  /**
+   * Minify (renames locals, drops whitespace/comments). Defaults to `false`
+   * here (`watchBuildOptions` — dev + hand-assembly) and to `true` in
+   * {@link buildBundles} (the shipping entry); see the WHY comment at each
+   * default. Measured on this repo's own bundles: app 605 KB -> 195 KB (-68%),
+   * widget ~501 KB -> ~150 KB (-70%); a reporting consumer's widget went
+   * 1065 KB -> 476 KB
+   * (-55%). Bytes are not the main prize — run through the reference C host
+   * (`tools/embed-smoke/run.sh`, the exact embedding sequence JSRuntime.swift
+   * uses) the same app bundle boots in 31.7 ms (parse 24.5 + eval 7.3) against
+   * 44.1 ms (36.1 + 8.0) unminified, and holds a 1.4 MB QuickJS heap against
+   * 2.1 MB. A third less heap matters on the platform where memory is the
+   * first wall.
+   *
+   * The cost is real and it is exactly one thing: React's production frame
+   * builder reads `fn.displayName || fn.name`, nothing here sets a
+   * displayName, and no source maps are emitted — so a USER component frame in
+   * an ErrorBoundary/inspector stack reads `at t`, not `at ShoppingList`. HOST
+   * frames (`at VStack`, `at Text`) are string literals in src/components.ts
+   * and survive, and the diagnostics ring is minification-immune.
+   *
+   * NEVER add `mangleProps` alongside this. The wire protocol ships prop names
+   * verbatim (src/serialize.ts) and the `__host` bridge is property names, so
+   * renaming properties would silently break rendering and every native call.
+   * Plain `minify` renames LOCALS only — which is exactly what makes it safe.
+   */
   minify?: boolean;
   /**
    * Run the React Compiler over app + renderer source (auto-memoization ->
@@ -60,6 +85,10 @@ export interface WatchBuildOptions {
 export function watchBuildOptions({
   entry,
   outfile,
+  // Deliberately the OPPOSITE default from `buildBundles` below — the two
+  // disagree on purpose. This is the function `react-watchos dev` builds the
+  // live-reload bundle with, where named component frames in a stack are the
+  // whole reason you are looking at it; `buildBundles` is what ships.
   minify = false,
   reactCompiler = false,
   nodePaths,
@@ -132,6 +161,22 @@ export interface BuildBundleResult {
   manifest?: OTAManifest | undefined;
 }
 
+/** Shared options for a whole {@link buildBundles} run (per-target knobs live
+ *  on {@link BundleTarget}). */
+export interface BuildBundlesOptions {
+  /**
+   * Minify. Defaults to **`true`** here — this is the shipping entry, the
+   * opposite default from {@link WatchBuildOptions.minify} (`false`, dev), on
+   * purpose. See that JSDoc for the measured bytes/heap/boot and the one cost
+   * (your own component frames read `at t`).
+   */
+  minify?: boolean;
+  /** @see WatchBuildOptions.reactCompiler */
+  reactCompiler?: boolean;
+  /** @see WatchBuildOptions.nodePaths */
+  nodePaths?: string[];
+}
+
 /**
  * Build one or more watch bundles in a single call — the batteries-included
  * companion to {@link watchBuildOptions}, so a consumer with both a watch UI and
@@ -150,10 +195,15 @@ export interface BuildBundleResult {
 export async function buildBundles(
   targets: BundleTarget[],
   {
-    minify = false,
+    // Minified by DEFAULT, the opposite of `watchBuildOptions` above and for
+    // the opposite reason: this is the SHIPPING entry (multi-target + OTA
+    // manifest stamp), where -68% bytes, a third less QuickJS heap and ~28%
+    // faster boot beat readable USER component frames. Pass `{ minify: false }`
+    // when you need those frames back out of a shipped bundle.
+    minify = true,
     reactCompiler = false,
     nodePaths,
-  }: { minify?: boolean; reactCompiler?: boolean; nodePaths?: string[] } = {},
+  }: BuildBundlesOptions = {},
 ): Promise<BuildBundleResult[]> {
   if (!Array.isArray(targets) || targets.length === 0) {
     throw new Error("buildBundles: pass a non-empty array of targets");

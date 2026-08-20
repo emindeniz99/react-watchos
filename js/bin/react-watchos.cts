@@ -32,7 +32,18 @@ function buildFlags(args: string[]) {
       entry: { type: "string" },
       outfile: { type: "string", default: path.join("dist", "bundle.js") },
       asset: { type: "string" },
-      minify: { type: "boolean", default: false },
+      // `build` ships, so it minifies by default (see the preset's `minify`
+      // JSDoc for the measured bytes/heap/boot and the one cost). parseArgs is
+      // strict, so the escape hatch has to be declared — and it is declared
+      // SEPARATELY rather than as parseArgs' `allowNegative` pair, because that
+      // pairing is last-flag-wins while the opt-out has to win in either order
+      // (see the resolution below); `--minify` stays declared as the explicit
+      // affirmative so scripts already passing it don't hard-fail with
+      // ERR_PARSE_ARGS_UNKNOWN_OPTION for asking for what they now get anyway.
+      // Both are declared for parse-ACCEPTANCE only — the resolution below is
+      // the single source of truth, so neither carries a default here.
+      minify: { type: "boolean" },
+      "no-minify": { type: "boolean" },
       version: { type: "string", default: "1" },
       host: { type: "string", default: process.env.DEV_HOST ?? "127.0.0.1" },
       port: { type: "string", default: process.env.DEV_PORT ?? "8788" },
@@ -46,7 +57,13 @@ function buildFlags(args: string[]) {
   }
   // Re-spread so the narrowed `entry: string` (the exit above is `never`)
   // reaches the callers' types, not the optional parseArgs shape.
-  return { ...values, entry: values.entry };
+  return {
+    ...values,
+    entry: values.entry,
+    // `--no-minify` beats `--minify` whatever the order, so the escape hatch
+    // stays reachable when it is appended to a wrapper script's fixed argv.
+    minify: !values["no-minify"],
+  };
 }
 
 /** One-shot bundle build via the published preset (+ OTA manifest stamp). */
@@ -101,7 +118,11 @@ async function dev(args: string[]) {
   }
   const { watchBuildOptions } = await import("../esbuild/preset.mts");
   const ctx = await context(
-    watchBuildOptions({ entry: f.entry, outfile: f.outfile }),
+    // Stated, not inherited: the live-reload bundle is the one you read stack
+    // traces out of, so its readability is this call site's contract and not a
+    // default that could follow `buildBundles` the next time shipping wins an
+    // argument. `build` (which ships) minifies; `dev` does not.
+    watchBuildOptions({ entry: f.entry, outfile: f.outfile, minify: false }),
   );
   await ctx.watch();
   const { hosts, port } = await ctx.serve({
@@ -226,9 +247,11 @@ switch (command) {
         "      when the widget target is enabled. Then run `expo prebuild` — the\n" +
         "      plugin links the SwiftPM packages + merges the Info.plists.\n\n" +
         "  react-watchos build --entry <file> [--outfile dist/bundle.js]\n" +
-        "                      [--asset <copy-to>] [--minify] [--version <n>]\n" +
+        "                      [--asset <copy-to>] [--no-minify] [--version <n>]\n" +
         "      One-shot QuickJS-correct bundle build (published esbuild preset)\n" +
-        "      + OTA manifest stamp next to the outfile.\n\n" +
+        "      + OTA manifest stamp next to the outfile. Minified by default\n" +
+        "      (~-68% bytes, a third less QuickJS heap); --no-minify keeps the\n" +
+        "      component names in stack traces at that cost.\n\n" +
         "  react-watchos dev --entry <file> [--outfile dist/bundle.js]\n" +
         "                    [--host 127.0.0.1] [--port 8788]\n" +
         "      Live-reload server. DEBUG watch builds poll /bundle.js every 2s\n" +

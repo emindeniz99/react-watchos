@@ -5,7 +5,38 @@ Pre-1.0, **breaking changes ship as minor versions** (`0.x` semver:
 changed; this file says what a consumer *does* about it. Entries are newest
 first, and only versions with consumer-facing action items appear.
 
-## 0.3.x → next
+## 0.4.x → next
+
+**The shipping build now minifies by default.** `buildBundles([…])` defaults
+to `minify: true`, and `npx react-watchos build` does the same. Measured on
+this repo's own bundles: the app went 605 KB → 195 KB (-68%) and the widget
+~501 KB → ~150 KB (-70%); through the reference C host the minified bundle
+also holds a 1.4 MB QuickJS heap instead of 2.1 MB and boots in 31.7 ms
+instead of 44.1 ms. The dev path is unchanged and stays readable —
+`watchBuildOptions` still defaults to `minify: false`, and `react-watchos dev`
+pins it there explicitly.
+
+It is not free: minification renames locals, and React's production frame
+builder uses `fn.displayName || fn.name`, so your own components appear in
+ErrorBoundary/inspector stacks as `at t` rather than `at ShoppingList`. Host
+frames (`at VStack`, `at Text`) and the diagnostics ring are unaffected. Prop
+names are never renamed (the wire protocol and the `__host` bridge are property
+names — `mangleProps` is deliberately not used).
+
+Action: none to keep the new default — unless your build script already passes
+`minify` to `buildBundles` explicitly, in which case your value still wins and
+nothing changes. `examples/expo-watch-app/scripts/build-targets.mjs` did exactly
+that until this release (`--minify`/`MINIFY=1`, i.e. `false` with no flag set),
+so anyone who copied it keeps shipping the same bytes; delete the option to take
+the new default, or invert it to `--no-minify` the way both examples now do.
+
+To opt out deliberately, pass `--no-minify` to the CLI or `{ minify: false }` to
+`buildBundles`; `--minify` still parses, and `--no-minify` wins if both are
+given. If you assert on your bundle's TEXT in a test (e.g. that a string
+appears in the output), that assertion now reads a minified bundle — build
+that fixture with the opt-out.
+
+## 0.3.x → 0.4.0
 
 **Duplicate native-event subscriptions now fire once each, not once total.**
 `registerNativeListener` (and everything built on it — `onBleState`,
