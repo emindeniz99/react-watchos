@@ -155,7 +155,11 @@ public struct HealthWindow: Equatable, Sendable {
     public let startMs: Double
     public let endMs: Double
     /// Clamped to 1...`maxLimit`; nil = "no cap the caller asked for", which
-    /// the bridge turns into HealthKit's own unlimited sentinel.
+    /// every query in the bridge turns into `maxLimit` — NOT into HealthKit's
+    /// unlimited sentinel (`HKObjectQueryNoLimit`), which a watch cannot afford
+    /// (see `maxLimit`). Omitting `limit` therefore still truncates, which
+    /// `WorkoutHistoryQuery.limit`'s JSDoc states for the query most likely to
+    /// be asked for a whole year at once.
     public let limit: Int?
 
     public var start: Date { Date(timeIntervalSince1970: startMs / 1000) }
@@ -344,6 +348,36 @@ public struct SleepSamplesPlan: Equatable, Sendable {
     }
 }
 
+/// A validated `queryWorkoutHistory` request — a window and a cap, and no type
+/// at all: the thing being read IS the workout, not a measurement of one.
+///
+/// Not folded into `SleepSamplesPlan` despite the identical fields. The two
+/// decode DIFFERENT methods, and the message a bad request comes back with
+/// names the method the caller actually called — which is the whole reason
+/// these messages exist (rule: name the rule and the legal values, not "bad
+/// request"). They also grow apart: sleep's next field is a stage filter,
+/// this one's is an activity filter.
+public struct WorkoutHistoryPlan: Equatable, Sendable {
+    public let window: HealthWindow
+
+    private struct Payload: Decodable {
+        let startMs: Double?
+        let endMs: Double?
+        let limit: Int?
+    }
+
+    public static func decode(json: String) -> Result<WorkoutHistoryPlan, HealthRequestError> {
+        guard
+            let payload = try? JSONDecoder().decode(
+                Payload.self, from: Data(json.utf8))
+        else { return invalid("queryWorkoutHistory needs a JSON object") }
+        return HealthWindow.decode(
+            startMs: payload.startMs, endMs: payload.endMs, limit: payload.limit
+        )
+        .map { WorkoutHistoryPlan(window: $0) }
+    }
+}
+
 /// The read types a `requestHealthAuthorization` asks for.
 ///
 /// The result it reports is deliberately thin, because HealthKit gives nothing
@@ -354,10 +388,16 @@ public struct SleepSamplesPlan: Equatable, Sendable {
 public struct HealthAuthorizationPlan: Equatable, Sendable {
     public let kinds: [HealthQuantityKind]
     public let sleep: Bool
+    /// Saved workouts (`HKObjectType.workoutType()`), which is neither a
+    /// quantity nor a category type and so cannot ride the `read` list either.
+    /// A read of the user's workout HISTORY — unrelated to the `workouts`
+    /// feature next door, which authorizes RECORDING one.
+    public let workoutHistory: Bool
 
     private struct Payload: Decodable {
         let read: [String]?
         let sleep: Bool?
+        let workoutHistory: Bool?
     }
 
     public static func decode(json: String) -> Result<HealthAuthorizationPlan, HealthRequestError> {
@@ -373,11 +413,14 @@ public struct HealthAuthorizationPlan: Equatable, Sendable {
             kinds.append(kind)
         }
         let sleep = payload.sleep ?? false
-        guard !kinds.isEmpty || sleep else {
+        let workoutHistory = payload.workoutHistory ?? false
+        guard !kinds.isEmpty || sleep || workoutHistory else {
             return invalid(
                 "requestHealthAuthorization needs at least one read type "
-                    + "(or sleep: true)")
+                    + "(or sleep: true, or workoutHistory: true)")
         }
-        return .success(HealthAuthorizationPlan(kinds: kinds, sleep: sleep))
+        return .success(
+            HealthAuthorizationPlan(
+                kinds: kinds, sleep: sleep, workoutHistory: workoutHistory))
     }
 }

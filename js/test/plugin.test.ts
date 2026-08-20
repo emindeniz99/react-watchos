@@ -430,12 +430,17 @@ describe("targetConfig (options -> apple-targets config)", () => {
     // `respiratoryRate` is "respiratory rate" (what the sheet's own row says),
     // while `vo2Max` becomes "cardio fitness" and `basalEnergyBurned` is named
     // rather than left to a bare "energy".
+    // `queryWorkoutHistory` (same day) reads SAVED WORKOUTS —
+    // `HKObjectType.workoutType()`, not a quantity type, and its own row in the
+    // sheet. Recording a workout is what the UPDATE string covers; nothing in
+    // the read sentence implied being shown the user's whole workout history.
     for (const category of [
       "respiratory rate",
       "cardio fitness",
       "flights climbed",
       "active and resting energy",
       "exercise and stand time",
+      "your saved workouts",
     ]) {
       expect(both.infoPlist.NSHealthShareUsageDescription).toContain(category);
     }

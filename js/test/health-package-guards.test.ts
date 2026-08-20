@@ -616,6 +616,127 @@ describe("the read vocabulary cannot half-widen into the host bridge", () => {
   });
 });
 
+describe("the saved-workout read is a HISTORY read", () => {
+  it("is gated by `health`, never by `workouts`", () => {
+    // The authorization-unit rule, stated where it can fail: `workouts`
+    // authorizes RECORDING one workout — a write, background execution and the
+    // single session slot — while this discloses every workout the user has,
+    // including ones other apps saved. Filing it under `workouts` would let an
+    // app that asked to record a run read years of history instead, which is
+    // the exact mismatch ARCH-07 split the two features to prevent.
+    const history = hostMethods.find((m) => m.name === "queryWorkoutHistory");
+    expect(history?.feature).toBe("health");
+    expect(history?.targets).toEqual(["watch"]);
+  });
+
+  it("reads energy and distance the un-deprecated way, and never guesses zero", () => {
+    // `HKWorkout.totalEnergyBurned` / `.totalDistance` are DEPRECATED (watchOS
+    // 11.0 / 27.0) and they also answer the wrong question: they cannot
+    // distinguish "no samples" from zero. `statistics(for:)` returns nil for a
+    // workout that measured nothing, which is what rides the wire as `null`.
+    // Neither half compiles on Linux, so this is the only gate before a device.
+    const src = read("ReactWatchHost/HealthQueryBridge.swift");
+    const body = src.slice(
+      src.indexOf("func workoutHistory(_ plan: WorkoutHistoryPlan)"),
+      src.indexOf("private static func total("),
+    );
+    expect(body).toContain("Self.total(");
+    expect(body).toContain("NSNull()");
+    expect(src).toContain("workout.statistics(for: type)?.sumQuantity()");
+    // The VALIDATED plan is what the query runs on. Nothing here compiles on
+    // Linux, so a bridge that decoded the window and then queried a hardcoded
+    // range — or dropped the cap and pulled a year of workouts into a watch's
+    // memory — would pass every other gate in this file.
+    expect(body).toContain(
+      "withStart: plan.window.start, end: plan.window.end",
+    );
+    expect(body).toContain("plan.window.limit ?? HealthWindow.maxLimit");
+    // Comments stripped first: both deprecated names are NAMED in the doc
+    // comment that explains why they are not used, so scanning the raw file
+    // would match the prose that documents the rule instead of a violation.
+    const code = src.replace(/^\s*\/\/.*$/gm, "");
+    expect(code).not.toContain("totalEnergyBurned");
+    expect(code).not.toContain("totalDistance");
+    // The activity name comes from the GENERATED table, read backwards — a
+    // second hand-written mapping is a second thing to drift, and this one
+    // would mislabel a stranger's workout rather than fail.
+    expect(body).toContain("WorkoutActivityName.name(");
+  });
+
+  it("reads distance under the type the ACTIVITY records it in", () => {
+    // HealthKit has no single "distance": a ride's metres are
+    // `distanceCycling`, a swim's are `distanceSwimming`. A fixed
+    // `distanceWalkingRunning` read therefore reports null for every ride in
+    // the list — indistinguishable, on the wire, from the yoga session the
+    // field's own JSDoc says null means. The live workout already knew this
+    // rule, which is the point of the assertions below: ONE table, so the same
+    // ride cannot report 12 km while it runs and "—" once it is saved.
+    const history = read("ReactWatchHost/HealthQueryBridge.swift");
+    const body = history.slice(
+      history.indexOf("func workoutHistory(_ plan: WorkoutHistoryPlan)"),
+      history.indexOf("private static func total("),
+    );
+    expect(body).toContain("WorkoutDistance.identifier(");
+    // Comments stripped first, like the sibling check above: every rule here
+    // is NAMED in the prose that explains it.
+    const code = (rel: string) => read(rel).replace(/^\s*\/\/.*$/gm, "");
+    // The table lives in exactly one file: neither bridge may spell a distance
+    // identifier of its own.
+    for (const rel of [
+      "ReactWatchHost/HealthQueryBridge.swift",
+      "ReactWatchHost/WorkoutBridge.swift",
+    ]) {
+      expect(code(rel)).not.toContain(".distanceCycling");
+      expect(code(rel)).not.toContain(".distanceSwimming");
+    }
+    const table = code("ReactWatchHost/WorkoutDistanceType.swift");
+    for (const arm of [
+      "case .cycling, .handCycling: .distanceCycling",
+      "case .swimming: .distanceSwimming",
+      "case .wheelchairWalkPace, .wheelchairRunPace: .distanceWheelchair",
+      "default: .distanceWalkingRunning",
+    ]) {
+      expect(table).toContain(arm);
+    }
+    // watchOS 11.0 types, above this package's v10 floor: in the table they
+    // would need an `@available` gate the package does not have anywhere.
+    for (const above of [
+      "distanceRowing",
+      "distancePaddleSports",
+      "distanceCrossCountrySkiing",
+      "distanceSkatingSports",
+    ]) {
+      expect(table).not.toContain(`.${above}`);
+    }
+  });
+
+  it("puts the workout type through the same authorization door as sleep", () => {
+    // `HKObjectType.workoutType()` is neither a quantity nor a category type,
+    // so it can only reach the sheet through its own flag — and the query must
+    // request it itself, or a caller who never called
+    // requestHealthAuthorization gets a silently empty list instead of a
+    // prompt (the rule every other read in this file follows).
+    const src = read("ReactWatchHost/HealthQueryBridge.swift");
+    expect(src).toContain(
+      "if plan.workoutHistory { types.formUnion(Self.workoutHistoryTypes) }",
+    );
+    expect(src).toContain("await ensureRequested(Self.workoutHistoryTypes)");
+    // And the set is the workout type PLUS what the summary actually reads.
+    // `HKWorkout.statistics(for:)` is computed from the quantity samples
+    // associated with the workout, each authorized on its own, so a request
+    // for the workout type alone risks every row reporting null energy and
+    // null distance under a grant the user was never asked for.
+    const types = src.slice(
+      src.indexOf("static var workoutHistoryTypes"),
+      src.indexOf("static func stage(forCategoryValue"),
+    );
+    expect(types).toContain(
+      "[workoutType, HKQuantityType(.activeEnergyBurned)]",
+    );
+    expect(types).toContain("WorkoutDistance.allIdentifiers");
+  });
+});
+
 describe("the new features are watch-only", () => {
   it("no health / workouts method reaches the widget runtime", () => {
     // Not a special case — a consequence. `HostInvokeFeatures.byMethod` is

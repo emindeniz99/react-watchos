@@ -196,6 +196,7 @@ public enum HostInvokeFeatures {
         "queryHealthStatistics": "health",
         "queryPedometer": "sensors",
         "querySleepSamples": "health",
+        "queryWorkoutHistory": "health",
         "readReceivedFile": "connectivity",
         "registerForRemoteNotifications": "push",
         "removeAllScheduledWorkoutPlans": "workoutPlans",

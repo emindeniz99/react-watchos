@@ -1,0 +1,19 @@
+[
+  {
+    "id": "6C7F1B0E-6C3E-4B0A-9F1D-2A9E4F1B7C10",
+    "startMs": 1768460400000,
+    "endMs": 1768462245000,
+    "durationMs": 1800000,
+    "activityType": "running",
+    "activeEnergyKcal": 312.5,
+    "distanceMeters": 5412.75
+  },
+  {
+    "id": "9B1DEB4D-3B7D-4BAD-9BDD-2B0D7B3DCB6D",
+    "startMs": 1768390000000,
+    "endMs": 1768392700000,
+    "durationMs": 2700000,
+    "activeEnergyKcal": null,
+    "distanceMeters": null
+  }
+]

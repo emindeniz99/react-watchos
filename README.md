@@ -58,9 +58,11 @@ actually matter:
    active + resting energy, exercise and stand time), the cardio set (heart
    rate, resting and walking averages, HRV, respiratory rate, VO2 max) and
    SpO2 — plus sleep stages, the one *category* read, and a whole week's
-   daily buckets in *one* query; real workout control that saves an
-   `HKWorkout` with live metrics and an optional GPS route; and WorkoutKit
-   plans you can compose in TypeScript and hand to Apple's Workout app.
+   daily buckets in *one* query; the user's **saved workout history**
+   (`queryWorkoutHistory` — what a "your last five runs" list renders, energy
+   and distance included); real workout control that saves an `HKWorkout` with
+   live metrics and an optional GPS route; and WorkoutKit plans you can
+   compose in TypeScript and hand to Apple's Workout app.
 4. **The JS half updates over the air, signed.** Ed25519 with the keyId inside
    the signed bytes, anti-rollback, crash-loop rollback to known-good,
    re-verification at every boot — and unsigned updates refused by default.

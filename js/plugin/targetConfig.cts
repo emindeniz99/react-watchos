@@ -127,7 +127,9 @@ function watchTargetConfig(opts: ResolvedOptions) {
     // matches the rows the sheet renders under it. Blood oxygen was the
     // omission fixed in 15c6840; the 2026-08-20 widening added four more no
     // word here covered — exercise/stand time, respiratory rate, cardio fitness
-    // and flights climbed. Only two groupings, both of things a reader would
+    // and flights climbed; `queryWorkoutHistory` the same day added SAVED
+    // WORKOUTS, which is not a quantity type at all but does render its own row
+    // in the sheet. Only two groupings, both of things a reader would
     // not expect listed separately: "heart rate and its variability" covers
     // `heartRate`, `restingHeartRate`, `walkingHeartRateAverage` and
     // `heartRateVariabilitySDNN`, and "distance" covers
@@ -139,7 +141,7 @@ function watchTargetConfig(opts: ResolvedOptions) {
       "Read your Health data to show it in this app: heart rate and its " +
         "variability, respiratory rate, blood oxygen and cardio fitness; " +
         "steps, flights climbed, distance, active and resting energy, " +
-        "exercise and stand time; and sleep.";
+        "exercise and stand time; your saved workouts; and sleep.";
     infoPlist.NSHealthUpdateUsageDescription =
       infoPlist.NSHealthUpdateUsageDescription ??
       "Record a workout session to read live heart rate.";

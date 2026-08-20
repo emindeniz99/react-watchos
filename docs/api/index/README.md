@@ -123,11 +123,13 @@
 - [WidgetRenderContext](interfaces/WidgetRenderContext.md)
 - [WidgetTimeline](interfaces/WidgetTimeline.md)
 - [WidgetTimelineEntry](interfaces/WidgetTimelineEntry.md)
+- [WorkoutHistoryQuery](interfaces/WorkoutHistoryQuery.md)
 - [WorkoutMetrics](interfaces/WorkoutMetrics.md)
 - [WorkoutPlanBlock](interfaces/WorkoutPlanBlock.md)
 - [WorkoutPlanCommon](interfaces/WorkoutPlanCommon.md)
 - [WorkoutPlanIntervalStep](interfaces/WorkoutPlanIntervalStep.md)
 - [WorkoutPlanStep](interfaces/WorkoutPlanStep.md)
+- [WorkoutSummary](interfaces/WorkoutSummary.md)
 - [ZStackProps](interfaces/ZStackProps.md)
 
 ## Type Aliases
@@ -327,6 +329,7 @@
 - [queryHealthStatistics](functions/queryHealthStatistics.md)
 - [queryPedometer](functions/queryPedometer.md)
 - [querySleepSamples](functions/querySleepSamples.md)
+- [queryWorkoutHistory](functions/queryWorkoutHistory.md)
 - [readReceivedFile](functions/readReceivedFile.md)
 - [registerControl](functions/registerControl.md)
 - [registerForRemoteNotifications](functions/registerForRemoteNotifications.md)

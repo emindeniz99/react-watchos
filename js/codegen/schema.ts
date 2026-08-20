@@ -643,6 +643,16 @@ export const invokeShapes: StructDef[] = [
         optional: true,
         doc: "also ask for sleepAnalysis — a CATEGORY type, not a quantity",
       },
+      {
+        // Named for the READ, not for the `workouts` feature next door: this
+        // flag widens the sheet by the saved-workout row, and asking for it has
+        // nothing to do with the grant that RECORDS one.
+        name: "workoutHistory",
+        swift: "Bool?",
+        ts: "boolean",
+        optional: true,
+        doc: "also ask for HKObjectType.workoutType() — saved workouts, not a quantity either",
+      },
     ],
   },
   {
@@ -681,6 +691,23 @@ export const invokeShapes: StructDef[] = [
   {
     swift: "SleepSamplesRequest",
     ts: "SleepSamplesRequest",
+    fields: [
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      { name: "limit", swift: "Int?", ts: "number", optional: true },
+    ],
+  },
+  {
+    // A window plus a cap — and deliberately NOT `SleepSamplesRequest`, whose
+    // three fields are identical today: that struct's NAME is a promise about
+    // sleep, and the two grow along different axes (a stage filter there, an
+    // activity filter here), so sharing it would buy one struct and cost a fork
+    // the first time either moves. The reuse this family DOES take
+    // (`queryHealthDailyStatistics` on `HealthStatisticsRequest`) is the other
+    // case: two queries asking the same question over the same window.
+    swift: "WorkoutHistoryRequest",
+    ts: "WorkoutHistoryRequest",
+    doc: "js/src/health.ts queryWorkoutHistory -> WorkoutHistoryPlan.",
     fields: [
       { name: "startMs", swift: "Double", ts: "number" },
       { name: "endMs", swift: "Double", ts: "number" },
@@ -1244,6 +1271,65 @@ export const invokeShapes: StructDef[] = [
         name: "stage",
         swift: "String",
         ts: '"inBed" | "awake" | "asleepCore" | "asleepDeep" | "asleepREM" | "asleepUnspecified"',
+      },
+    ],
+  },
+  {
+    swift: "WorkoutSummary",
+    ts: "WorkoutSummary",
+    doc: "One SAVED HKWorkout — the row a \"recent workouts\" list renders.",
+    fields: [
+      {
+        // HKObject.uuid. A list needs a stable key, and a detail screen needs
+        // to name the row it opened. It is also the id `WorkoutState`'s
+        // `endedWorkoutId` reports, so the workout this app just finished can
+        // be found again in this list rather than guessed at by timestamp.
+        name: "id",
+        swift: "String",
+        ts: "string",
+      },
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      {
+        // HKWorkout.duration, in ms like every other duration on this wire
+        // (Apple reports it in seconds). NOT endMs - startMs: `duration`
+        // EXCLUDES paused time, so the two disagree for any workout the user
+        // paused, and a row that says "45:12" means this one.
+        name: "durationMs",
+        swift: "Double",
+        ts: "number",
+      },
+      {
+        // Omitted rather than guessed when this binary's vocabulary has no name
+        // for the stored case — the WorkoutState / ScheduledWorkoutSummary rule
+        // verbatim, and here it is not hypothetical: this list contains
+        // workouts OTHER apps saved, including the three deprecated activity
+        // spellings this package excludes.
+        name: "activityType",
+        swift: "String?",
+        ts: "WorkoutActivityType",
+        optional: true,
+      },
+      {
+        // `null`, never 0 and never omitted. Read through `statistics(for:)`
+        // (the un-deprecated path), where nil means NO SAMPLES — a manually
+        // logged session, or one another app saved as a bare total, burned an
+        // unknown amount rather than zero. Same encoding, same reason, as
+        // `HealthStatisticsResult.value`.
+        name: "activeEnergyKcal",
+        swift: "Double?",
+        ts: "number | null",
+      },
+      {
+        // Same nil-is-not-zero rule, and the field the argument was always
+        // about: an indoor yoga session records no distance at all, which is a
+        // different fact from "covered zero metres". Read from the type the
+        // ACTIVITY records under (`WorkoutDistance` on the native side) — a
+        // ride's metres are `distanceCycling`, so a fixed walking/running read
+        // would report null for every ride and call it "measured nothing".
+        name: "distanceMeters",
+        swift: "Double?",
+        ts: "number | null",
       },
     ],
   },
@@ -1936,6 +2022,23 @@ export const hostMethods: HostMethod[] = [
     via: "invoke",
     request: "SleepSamplesRequest",
     response: "SleepSample[]",
+  },
+  {
+    // Feature "health", NOT "workouts", and the split is the point: `workouts`
+    // authorizes RECORDING one (a permanent write, background execution, the
+    // one session slot watchOS allows), while this READS the user's saved
+    // workout HISTORY — potentially years of it, including workouts other apps
+    // wrote. Disclosing that under the grant someone gave to record a run is
+    // exactly the mismatch ARCH-07 split the two features to prevent, and
+    // SupportTests pins that the two stay separately deniable.
+    name: "queryWorkoutHistory",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "Saved HKWorkouts in the window, newest first (HKSampleQueryDescriptor + HKSamplePredicate.workout) — what a \"your last five runs\" screen lists.",
+    request: "WorkoutHistoryRequest",
+    response: "WorkoutSummary[]",
   },
   // --- Workout control (feature "workouts"), SEPARATE from "health" on the
   //     ARCH-07 authorization-unit rule the `push` split established: this

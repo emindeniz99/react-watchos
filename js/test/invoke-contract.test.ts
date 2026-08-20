@@ -51,18 +51,21 @@ import type {
   SleepSample as WireSleepSample,
   UpdateState as WireUpdateState,
   WorkoutState as WireWorkoutState,
+  WorkoutSummary as WireWorkoutSummary,
 } from "../src/generated/wire";
 import { INVOKE_SHAPES } from "../src/generated/wire";
 import type {
   HealthSample,
   HealthStatisticsResult,
   SleepSample,
+  WorkoutSummary,
 } from "../src/health";
 import {
   queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,
+  queryWorkoutHistory,
   requestHealthAuthorization,
 } from "../src/health";
 import type { IAPProduct, PurchaseResult } from "../src/iap";
@@ -272,6 +275,31 @@ const sleepSamples: SleepSample[] = [
     stage: "asleepDeep",
   },
 ];
+// Two saved workouts, and the second is the one that matters: a workout ANOTHER
+// app saved, whose activity this binary's vocabulary has no name for (so
+// `activityType` is absent rather than guessed) and which recorded neither
+// energy nor distance samples — so the fixture makes the `null`s ride the wire
+// as values rather than as omissions, while the first row exercises the full
+// set.
+const workoutSummaries: WorkoutSummary[] = [
+  {
+    id: "6C7F1B0E-6C3E-4B0A-9F1D-2A9E4F1B7C10",
+    startMs: 1_768_460_400_000,
+    endMs: 1_768_462_245_000,
+    durationMs: 1_800_000,
+    activityType: "running",
+    activeEnergyKcal: 312.5,
+    distanceMeters: 5_412.75,
+  },
+  {
+    id: "9B1DEB4D-3B7D-4BAD-9BDD-2B0D7B3DCB6D",
+    startMs: 1_768_390_000_000,
+    endMs: 1_768_392_700_000,
+    durationMs: 2_700_000,
+    activeEnergyKcal: null,
+    distanceMeters: null,
+  },
+];
 // WorkoutKit plans. The id is a real UUID on purpose: native REJECTS a
 // non-UUID rather than minting a replacement, so a fixture carrying a
 // made-up string would encode the opposite of the contract.
@@ -423,6 +451,7 @@ const RESULTS: Record<string, unknown> = {
   queryHealthDailyStatistics: healthDailyStatistics,
   queryHealthSamples: healthSamples,
   querySleepSamples: sleepSamples,
+  queryWorkoutHistory: workoutSummaries,
   endWorkout: workoutState,
   getWorkoutState: workoutState,
   queryPedometer: pedometerData,
@@ -523,7 +552,11 @@ describe("invoke contract fixtures (ARCH-11)", () => {
     // Health reads: `sleep` and `limit` are optional but still declared, and
     // the field-coverage assertion below requires every declared field to ride
     // some fixture — so each call opts into all of them.
-    await requestHealthAuthorization({ read: ["stepCount"], sleep: true });
+    await requestHealthAuthorization({
+      read: ["stepCount"],
+      sleep: true,
+      workoutHistory: true,
+    });
     await queryHealthStatistics({
       type: "stepCount",
       statistic: "sum",
@@ -549,6 +582,11 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       startMs: 1_768_396_800_000,
       endMs: 1_768_483_200_000,
       limit: 50,
+    });
+    await queryWorkoutHistory({
+      startMs: 1_768_396_800_000,
+      endMs: 1_768_483_200_000,
+      limit: 20,
     });
     await startWorkout("running", {
       location: "outdoor",
@@ -800,6 +838,16 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       ),
     );
     writeFixture(
+      "queryWorkoutHistory",
+      "response",
+      JSON.stringify(
+        await queryWorkoutHistory({
+          startMs: 1_768_396_800_000,
+          endMs: 1_768_483_200_000,
+        }),
+      ),
+    );
+    writeFixture(
       "scheduleWorkoutPlan",
       "response",
       JSON.stringify(
@@ -921,6 +969,7 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
     const healthSampleExact: Exact<HealthSample, WireHealthSample> = true;
     const sleepSampleExact: Exact<SleepSample, WireSleepSample> = true;
     const workoutStateExact: Exact<WorkoutState, WireWorkoutState> = true;
+    const workoutSummaryExact: Exact<WorkoutSummary, WireWorkoutSummary> = true;
     const fileTransferHandleExact: Exact<
       FileTransferHandle,
       WireFileTransferHandle
@@ -955,6 +1004,7 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       healthSampleExact,
       sleepSampleExact,
       workoutStateExact,
+      workoutSummaryExact,
       fileTransferHandleExact,
       fileTransferStatusExact,
       connectivityStateExact,
@@ -962,6 +1012,6 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       calendarEventExact,
       reminderExact,
       scheduledWorkoutExact,
-    ]).toEqual(Array(18).fill(true));
+    ]).toEqual(Array(19).fill(true));
   });
 });

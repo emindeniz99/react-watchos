@@ -2983,6 +2983,67 @@ final class HealthQueryPlanTests: XCTestCase {
             ).get())
     }
 
+    func testWorkoutHistoryPlanCarriesTheWindowAndClampsTheCap() {
+        // Same window rules as every other read — they live in `HealthWindow`,
+        // and this proves the workout query goes through them rather than
+        // growing a second, laxer door.
+        let plan = try? WorkoutHistoryPlan.decode(
+            json: #"{"startMs":1000,"endMs":2000,"limit":5}"#
+        ).get()
+        XCTAssertEqual(plan?.window.startMs, 1000)
+        XCTAssertEqual(plan?.window.endMs, 2000)
+        XCTAssertEqual(plan?.window.limit, 5)
+        // No cap asked for = nil, which the bridge turns into the ceiling.
+        let uncapped = try? WorkoutHistoryPlan.decode(json: window()).get()
+        XCTAssertNil(uncapped?.window.limit)
+        // CLAMPED, not refused, exactly like the sample queries: every workout
+        // crosses the bridge as JSON on a memory-tight watch.
+        let greedy = try? WorkoutHistoryPlan.decode(
+            json: #"{"startMs":1000,"endMs":2000,"limit":100000}"#
+        ).get()
+        XCTAssertEqual(greedy?.window.limit, HealthWindow.maxLimit)
+    }
+
+    func testWorkoutHistoryPlanRefusesAnUnusableWindowByNAME() {
+        // An inverted window resolves an empty list that a caller cannot tell
+        // from "you have never worked out", so it is refused — and the message
+        // names the METHOD, which is the whole reason this plan is its own type
+        // rather than a reused `SleepSamplesPlan`.
+        guard
+            case .failure(let inverted) = WorkoutHistoryPlan.decode(
+                json: #"{"startMs":2000,"endMs":1000}"#)
+        else { return XCTFail("an inverted window must be refused") }
+        XCTAssertTrue(inverted.message.contains("must be after"))
+        guard case .failure(let notJSON) = WorkoutHistoryPlan.decode(json: "[]")
+        else { return XCTFail("a non-object payload must be refused") }
+        XCTAssertTrue(notJSON.message.contains("queryWorkoutHistory"))
+        XCTAssertNil(
+            try? WorkoutHistoryPlan.decode(
+                json: #"{"startMs":1000,"endMs":2000,"limit":0}"#
+            ).get())
+    }
+
+    func testAuthorizationPlanAsksForSavedWorkoutsOnlyWhenTold() {
+        // `HKObjectType.workoutType()` is neither a quantity nor a category
+        // type, so it needs its own flag — and it widens the sheet, so it must
+        // never default on.
+        let asked = try? HealthAuthorizationPlan.decode(
+            json: #"{"read":[],"workoutHistory":true}"#
+        ).get()
+        XCTAssertEqual(asked?.workoutHistory, true)
+        XCTAssertEqual(asked?.sleep, false)
+        XCTAssertEqual(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":["stepCount"]}"#
+            ).get().workoutHistory, false)
+        // Workout history ALONE is a legitimate ask, like sleep alone: a watch
+        // app that only lists past workouts needs no quantity type at all.
+        XCTAssertNotNil(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":[],"workoutHistory":true}"#
+            ).get())
+    }
+
     func testAuthorizationPlanNeedsAtLeastOneTypeAndRejectsUnknownNames() {
         let both = try? HealthAuthorizationPlan.decode(
             json: #"{"read":["stepCount","heartRate"],"sleep":true}"#

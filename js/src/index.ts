@@ -205,12 +205,15 @@ export type {
   SleepSample,
   SleepSamplesQuery,
   SleepStage,
+  WorkoutHistoryQuery,
+  WorkoutSummary,
 } from "./health";
 export {
   queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,
+  queryWorkoutHistory,
   requestHealthAuthorization,
 } from "./health";
 export type {

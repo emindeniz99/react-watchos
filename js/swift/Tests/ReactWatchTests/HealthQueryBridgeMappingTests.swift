@@ -21,10 +21,17 @@ import XCTest
 /// The two compile independently, so a mismatch ships a chart that LIES rather
 /// than failing a build — which is why every pair is pinned here.
 ///
-/// Every assertion is driven off `HealthQuantityKind.allCases` and every table
-/// below is an exhaustive `switch`, so a fifteenth read type cannot land with
-/// its mapping unasserted: this file stops compiling until someone writes the
-/// arm.
+/// Every assertion about the quantity family is driven off
+/// `HealthQuantityKind.allCases` and every table below is an exhaustive
+/// `switch`, so a fifteenth read type cannot land with its mapping unasserted:
+/// this file stops compiling until someone writes the arm.
+///
+/// The saved-workout tests at the end cannot be driven that way —
+/// `HKWorkoutActivityType` is an ObjC `NS_ENUM` with no `allCases` — so they
+/// pin a written-out table of activities instead, plus the two closures that do
+/// hold for the whole vocabulary however it grows: every distance type the
+/// table can return is in the set the read authorizes, and every one of them is
+/// expressible in metres.
 ///
 /// The `@MainActor` on each test is load-bearing, not decoration:
 /// `HealthQueryBridge` is a `@MainActor` class, which isolates its statics too,
@@ -157,6 +164,95 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
                 type.aggregationStyle == .cumulative, kind.isCumulative,
                 "\(kind.rawValue) disagrees with HealthKit about being cumulative")
         }
+    }
+
+    /// The saved-workout read's own object type. `HKObjectType.workoutType()`
+    /// is neither a quantity nor a category type, so it is the one read in this
+    /// bridge that no `HealthQuantityKind` arm can cross-check.
+    @MainActor
+    func testTheHistoryReadReadsTheWorkoutType() {
+        XCTAssertEqual(
+            HealthQueryBridge.workoutType.identifier, HKWorkoutTypeIdentifier,
+            "the saved-workout read is not asking HealthKit for workouts")
+    }
+
+    /// The sheet has to name everything a workout SUMMARY touches. Apple
+    /// computes `HKWorkout.statistics(for:)` from the quantity samples
+    /// ASSOCIATED with the workout, and each of those carries its own read
+    /// grant — so a set missing one of them is a history list that reports
+    /// `null` energy or `null` distance forever, with no row the user could
+    /// have granted. This is also the join no regex can make: the Linux scan
+    /// sees the two source lines, this asks whether the RESULTING set really
+    /// covers every type the query can read.
+    @MainActor
+    func testTheHistoryReadAuthorizesEverythingItReads() {
+        let types = HealthQueryBridge.workoutHistoryTypes
+        XCTAssertTrue(
+            types.contains(HealthQueryBridge.workoutType),
+            "the history read does not ask for the workout type")
+        XCTAssertTrue(
+            types.contains(HKQuantityType(.activeEnergyBurned)),
+            "the history read reports energy it never asked to read")
+        for identifier in WorkoutDistance.allIdentifiers {
+            XCTAssertTrue(
+                types.contains(HKQuantityType(identifier)),
+                "\(identifier.rawValue) can be read but is never asked for")
+        }
+    }
+
+    /// The distance table, from the side that matters: every activity the
+    /// switch names has to resolve to a type the authorization set covers, or
+    /// the row reads null under a grant that was never requested. The mapping
+    /// itself is pinned textually on Linux; what this adds is that the two
+    /// tables AGREE, and that the name-keyed door the live workout uses gives
+    /// the same answer as the enum-keyed one the history read uses.
+    @MainActor
+    func testDistanceIsReadUnderTheTypeTheActivityRecordsItIn() {
+        let expected: [(String, HKWorkoutActivityType, HKQuantityTypeIdentifier)] = [
+            ("running", .running, .distanceWalkingRunning),
+            ("walking", .walking, .distanceWalkingRunning),
+            ("cycling", .cycling, .distanceCycling),
+            ("handCycling", .handCycling, .distanceCycling),
+            ("swimming", .swimming, .distanceSwimming),
+            ("wheelchairWalkPace", .wheelchairWalkPace, .distanceWheelchair),
+            ("wheelchairRunPace", .wheelchairRunPace, .distanceWheelchair),
+            ("downhillSkiing", .downhillSkiing, .distanceDownhillSnowSports),
+            ("snowboarding", .snowboarding, .distanceDownhillSnowSports),
+            // No distance type of its own: the default reads a type that
+            // exists and has no samples, which is the `null` the wire wants.
+            ("yoga", .yoga, .distanceWalkingRunning),
+        ]
+        for (name, activity, identifier) in expected {
+            XCTAssertEqual(
+                WorkoutDistance.identifier(for: activity), identifier,
+                "\(name) reads the wrong distance type")
+            XCTAssertEqual(
+                WorkoutDistance.identifier(forName: name), identifier,
+                "\(name) resolves differently by name than by case")
+            XCTAssertTrue(
+                WorkoutDistance.allIdentifiers.contains(identifier),
+                "\(identifier.rawValue) is reachable but unauthorized")
+            XCTAssertTrue(
+                HKQuantityType(identifier).`is`(compatibleWith: .meter()),
+                "\(identifier.rawValue) is not a distance at all")
+        }
+        // A name this binary's vocabulary excludes — Apple deprecated `dance`
+        // at watchOS 7.0 — takes the default rather than trapping, the same
+        // answer a session with no plan at all gets.
+        XCTAssertEqual(
+            WorkoutDistance.identifier(forName: "dance"), .distanceWalkingRunning)
+        XCTAssertEqual(
+            WorkoutDistance.identifier(forName: nil), .distanceWalkingRunning)
+    }
+
+    /// The units the summary reads in, asked the way the quantity family above
+    /// is asked: HealthKit refuses an inexpressible unit by THROWING from a
+    /// live query, on a wrist, after the sheet was already granted.
+    @MainActor
+    func testTheSummaryReadsEnergyInKilocalories() {
+        XCTAssertTrue(
+            HKQuantityType(.activeEnergyBurned).`is`(compatibleWith: .kilocalorie()),
+            "the workout summary reads energy in a unit that is not energy")
     }
 
     /// The identifier each kind is NAMED for, written out rather than derived

@@ -6,7 +6,7 @@
 
 # Interface: HealthStatisticsResult
 
-Defined in: [js/src/health.ts:114](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L114)
+Defined in: [js/src/health.ts:139](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L139)
 
 One aggregate over a window.
 
@@ -16,7 +16,7 @@ One aggregate over a window.
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:134](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L134)
+Defined in: [js/src/health.ts:159](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L159)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:134](https://github.com/emindeniz99/react-watchos/
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:133](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L133)
+Defined in: [js/src/health.ts:158](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L158)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [js/src/health.ts:133](https://github.com/emindeniz99/react-watchos/
 
 > **unit**: `string`
 
-Defined in: [js/src/health.ts:132](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L132)
+Defined in: [js/src/health.ts:157](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L157)
 
 The unit `value` is in, fixed natively per type — never chosen by the
  caller — and reported so a chart can label its axis:
@@ -54,7 +54,7 @@ The unit `value` is in, fixed natively per type — never chosen by the
 
 > **value**: `number` \| `null`
 
-Defined in: [js/src/health.ts:117](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L117)
+Defined in: [js/src/health.ts:142](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L142)
 
 `null` when HealthKit returned no statistic for the window. Not
  distinguishable from a denied read — see the module doc.

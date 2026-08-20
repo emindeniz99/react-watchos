@@ -2,6 +2,7 @@ import type {
   HealthQuantityType,
   HealthStatisticsRequest,
   SleepSample as WireSleepSample,
+  WorkoutActivityType,
 } from "./generated/wire";
 import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
 
@@ -10,10 +11,12 @@ import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
  *
  * Separate from `startHeartRate` (a live push stream under the `sensors`
  * feature) and from `startWorkout` (a permanent write under `workouts`): these
- * four disclose the user's stored health *history*, which is its own
- * authorization unit — an app that wants live heart rate during a meditation
- * timer must be able to refuse sleep-history reads. Gated by the `health`
- * feature (ARCH-07).
+ * disclose the user's stored health *history*, which is its own authorization
+ * unit — an app that wants live heart rate during a meditation timer must be
+ * able to refuse sleep-history reads. Gated by the `health` feature (ARCH-07).
+ * {@link queryWorkoutHistory} is here rather than with `startWorkout` for
+ * exactly that reason: reading years of saved workouts is a disclosure, not a
+ * recording.
  *
  * ### The one thing to understand about HealthKit reads
  *
@@ -29,8 +32,11 @@ import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
  * Apple exposes (would the sheet be shown), never a grant/deny verdict. Design
  * the UI so "no data yet" is an acceptable rendering.
  *
- * Every symbol used natively is watchOS 8.5 or below — well under this
- * package's watchOS 10 floor — so nothing here is version-gated. HealthKit is
+ * Every symbol used natively is watchOS 9.0 or below — the queries themselves
+ * are the watchOS 8.5 `HK*QueryDescriptor` family, and `HKWorkout.statistics(for:)`
+ * (how {@link queryWorkoutHistory} reads energy and distance, since Apple
+ * deprecated the `total*` properties) is 9.0 — well under this package's
+ * watchOS 10 floor, so nothing here is version-gated. HealthKit is
  * **device-only** in practice: the simulator run script deliberately signs
  * without the `healthkit` entitlement (see docs/running-on-sim.md), so on a
  * simulator these calls have no data to return.
@@ -80,6 +86,12 @@ export interface HealthAuthorizationOptions {
   /** Also ask for sleep analysis — a HealthKit *category* type, so it isn't
    *  expressible in `read`. Required before {@link querySleepSamples}. */
   sleep?: boolean;
+  /** Also ask for saved workouts (`HKObjectType.workoutType()`) — neither a
+   *  quantity nor a category type, so it isn't expressible in `read` either.
+   *  Required before {@link queryWorkoutHistory}. Nothing to do with the
+   *  `workouts` *feature*, which authorizes *recording* a workout: this only
+   *  widens the read sheet by the saved-workouts row. */
+  workoutHistory?: boolean;
 }
 
 /** Request for {@link queryHealthStatistics}. */
@@ -107,6 +119,19 @@ export interface SleepSamplesQuery {
   startMs: number;
   endMs: number;
   /** Cap on intervals returned. Hard ceiling 1000. */
+  limit?: number;
+}
+
+/** Request for {@link queryWorkoutHistory}. */
+export interface WorkoutHistoryQuery {
+  startMs: number;
+  endMs: number;
+  /** Cap on workouts returned, applied to the *whole* window before you see
+   *  it. Hard ceiling 1000 — and **omitting it caps at 1000 too**, silently
+   *  dropping the oldest workouts of a wider window, so a "whole year" screen
+   *  should page by window rather than ask for one. If you are filtering the
+   *  result down to one activity ("my last five runs"), ask for more than
+   *  five. */
   limit?: number;
 }
 
@@ -152,6 +177,49 @@ export interface SleepSample {
 }
 
 /**
+ * One saved workout — the fields a "recent workouts" row actually renders.
+ *
+ * Deliberately not everything an `HKWorkout` carries: `metadata` (free-form
+ * and app-private), `device`, `sourceRevision`, `workoutEvents` (pause/lap
+ * markers — a detail screen's problem, not a list's), `HKWorkoutActivity`
+ * multisport segments and the full `allStatistics` map are all left off. They
+ * are what a *detail* view would want, and each one is a wire cost paid by
+ * every row of every list; a later method can add them without moving this
+ * shape.
+ */
+export interface WorkoutSummary {
+  /** The saved `HKWorkout`'s UUID — a stable list key, and the same id
+   *  `WorkoutState.endedWorkoutId` reports for a workout this app just
+   *  finished, so the two can be matched rather than guessed at. */
+  id: string;
+  startMs: number;
+  endMs: number;
+  /** Time the workout was *running*, in ms. Not `endMs - startMs`: HealthKit's
+   *  `duration` excludes paused time, and this is the number a row shows. */
+  durationMs: number;
+  /** Omitted when this binary's vocabulary has no name for the stored
+   *  activity — the list contains workouts other apps saved, so naming the
+   *  wrong one would be worse than naming none. */
+  activityType?: WorkoutActivityType;
+  /** Active energy burned, kcal. `null` means the workout recorded **no**
+   *  energy samples — a manually logged session, say — not that it burned
+   *  zero. See {@link queryWorkoutHistory} for the two other things `null`
+   *  covers. */
+  activeEnergyKcal: number | null;
+  /** Distance, metres, read from the quantity type the workout's *activity*
+   *  records under — `distanceCycling` for a ride, `distanceSwimming` for a
+   *  swim, `distanceWheelchair` for the wheelchair paces,
+   *  `distanceDownhillSnowSports` for skiing and snowboarding, walking/running
+   *  for everything else. `null` means no distance samples at all, which is
+   *  what an indoor yoga session honestly looks like — not 0.
+   *
+   *  Rowing, paddling, cross-country skiing and skating record under types
+   *  Apple introduced at watchOS 11, above this package's floor, so they read
+   *  as walking/running and will usually be `null`. */
+  distanceMeters: number | null;
+}
+
+/**
  * Shows the HealthKit permission sheet for the given read types (a silent
  * no-op re-prompt if they were already asked for), and reports **whether the
  * sheet was going to be shown** — `"prompted"`, `"alreadyRequested"`, or
@@ -172,6 +240,9 @@ export function requestHealthAuthorization(
     {
       read: options.read,
       ...(options.sleep === undefined ? {} : { sleep: options.sleep }),
+      ...(options.workoutHistory === undefined
+        ? {}
+        : { workoutHistory: options.workoutHistory }),
     },
     { timeoutMs: USER_MEDIATED_INVOKE_TIMEOUT_MS },
   );
@@ -247,4 +318,41 @@ export function querySleepSamples(
   request: SleepSamplesQuery,
 ): Promise<SleepSample[]> {
   return invoke<SleepSample[]>("querySleepSamples", request);
+}
+
+/**
+ * The workouts already **saved** in `[startMs, endMs)`, newest first — a
+ * "your last five runs" screen, as opposed to {@link getWorkoutState} (the
+ * live one) or `listScheduledWorkoutPlans` (future ones).
+ *
+ * A workout matches when it **overlaps** the window — it ended at or after
+ * `startMs` and started before `endMs` — which is HealthKit's default matching
+ * and not the `[startMs, endMs)` rule the reads above describe. The difference
+ * only shows up here, because only a workout is long enough for it to matter:
+ * a hike that began at 23:10 and ended at 00:40 is in *both* days' lists, and
+ * since rows sort by start time it lands last in the later one.
+ *
+ * Needs `requestHealthAuthorization({ read: [], workoutHistory: true })` first
+ * — saved workouts are their own HealthKit object type and can't ride the
+ * `read` list. That one flag asks for the energy and distance types too, not
+ * just the workout: a workout's totals are computed from the samples recorded
+ * *during* it, each of which is authorized on its own, so the sheet shows
+ * those rows as well.
+ *
+ * The list includes workouts **other apps saved**, which is the whole point of
+ * a history read and also why `activityType` can be missing: an activity this
+ * package's vocabulary excludes is omitted rather than mislabelled.
+ *
+ * `activeEnergyKcal` and `distanceMeters` are `null` when the workout recorded
+ * no samples of that kind — never `0` standing in for "didn't measure". Two
+ * cases beyond "didn't measure" land there too: an app that saved only a
+ * *total* with no per-sample data behind it (the un-deprecated read computes
+ * these from the samples, so it cannot see such a total), and a type the user
+ * declined in the sheet. An empty array still means "denied, or no data, or
+ * outside the window you were granted"; see the module doc.
+ */
+export function queryWorkoutHistory(
+  request: WorkoutHistoryQuery,
+): Promise<WorkoutSummary[]> {
+  return invoke<WorkoutSummary[]>("queryWorkoutHistory", request);
 }

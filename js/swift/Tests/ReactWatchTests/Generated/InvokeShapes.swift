@@ -160,7 +160,9 @@ struct HealthAuthorizationRequest: InvokeShape {
     let read: [String]
     /// also ask for sleepAnalysis — a CATEGORY type, not a quantity
     let sleep: Bool?
-    static let declaredKeys: Set<String> = ["read", "sleep"]
+    /// also ask for HKObjectType.workoutType() — saved workouts, not a quantity either
+    let workoutHistory: Bool?
+    static let declaredKeys: Set<String> = ["read", "sleep", "workoutHistory"]
 }
 
 /// js/src/health.ts queryHealthStatistics -> HealthStatisticsPlan.
@@ -181,6 +183,14 @@ struct HealthSamplesRequest: InvokeShape {
 }
 
 struct SleepSamplesRequest: InvokeShape {
+    let startMs: Double
+    let endMs: Double
+    let limit: Int?
+    static let declaredKeys: Set<String> = ["startMs", "endMs", "limit"]
+}
+
+/// js/src/health.ts queryWorkoutHistory -> WorkoutHistoryPlan.
+struct WorkoutHistoryRequest: InvokeShape {
     let startMs: Double
     let endMs: Double
     let limit: Int?
@@ -467,6 +477,21 @@ struct SleepSample: InvokeShape {
     static let declaredKeys: Set<String> = ["startMs", "endMs", "stage"]
 }
 
+/// One SAVED HKWorkout — the row a "recent workouts" list renders.
+struct WorkoutSummary: InvokeShape {
+    let id: String
+    let startMs: Double
+    let endMs: Double
+    let durationMs: Double
+    let activityType: String?
+    let activeEnergyKcal: Double?
+    let distanceMeters: Double?
+    static let declaredKeys: Set<String> = [
+        "id", "startMs", "endMs", "durationMs", "activityType", "activeEnergyKcal",
+        "distanceMeters",
+    ]
+}
+
 /// The live workout, plus the LAST ended one — see getWorkoutState's JSDoc.
 struct WorkoutState: InvokeShape {
     let state: String
@@ -603,6 +628,7 @@ enum InvokeShapes {
         "queryHealthDailyStatistics": { try decodeStrict(HealthStatisticsRequest.self, from: $0) },
         "queryHealthSamples": { try decodeStrict(HealthSamplesRequest.self, from: $0) },
         "querySleepSamples": { try decodeStrict(SleepSamplesRequest.self, from: $0) },
+        "queryWorkoutHistory": { try decodeStrict(WorkoutHistoryRequest.self, from: $0) },
         "startWorkout": { try decodeStrict(StartWorkoutRequest.self, from: $0) },
         "endWorkout": { try decodeStrict(EndWorkoutRequest.self, from: $0) },
         "scheduleWorkoutPlan": { try decodeStrict(ScheduleWorkoutPlanRequest.self, from: $0) },
@@ -642,6 +668,7 @@ enum InvokeShapes {
         },
         "queryHealthSamples": { try decodeStrict(arrayOf: HealthSample.self, from: $0) },
         "querySleepSamples": { try decodeStrict(arrayOf: SleepSample.self, from: $0) },
+        "queryWorkoutHistory": { try decodeStrict(arrayOf: WorkoutSummary.self, from: $0) },
         "endWorkout": { try decodeStrict(WorkoutState.self, from: $0) },
         "getWorkoutState": { try decodeStrict(WorkoutState.self, from: $0) },
         "scheduleWorkoutPlan": { try decodeStrict(ScheduledWorkoutSummary.self, from: $0) },

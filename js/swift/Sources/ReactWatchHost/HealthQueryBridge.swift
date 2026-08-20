@@ -91,6 +91,33 @@ import ReactWatchSupport
     /// is why `requestHealthAuthorization` carries a separate `sleep` flag.
     static let sleepType = HKCategoryType(.sleepAnalysis)
 
+    /// Saved workouts. `HKObjectType.workoutType()` is neither a quantity nor a
+    /// category type — it is its own thing — which is why
+    /// `requestHealthAuthorization` carries a separate `workoutHistory` flag
+    /// for it, exactly as it does for sleep.
+    static let workoutType = HKObjectType.workoutType()
+
+    /// Every type a workout SUMMARY reads — the workout itself plus the
+    /// quantity types its energy and distance are computed from.
+    ///
+    /// `HKWorkout.statistics(for:)` is not a property of the workout: Apple
+    /// documents it as calculated "based on the `HKQuantitySample` objects
+    /// ASSOCIATED with the workout", and a quantity sample carries its own
+    /// per-type read grant. Authorizing the workout type alone would therefore
+    /// risk a history list whose every row reports `activeEnergyKcal` and
+    /// `distanceMeters` as null — silently, forever, and reported to JS as
+    /// "this workout measured nothing". Asking for a type that is already
+    /// readable costs nothing, so the ask is the whole set the read can touch:
+    /// the distance one a given row needs is not knowable until after the query
+    /// has run.
+    static var workoutHistoryTypes: Set<HKObjectType> {
+        var types: Set<HKObjectType> = [workoutType, HKQuantityType(.activeEnergyBurned)]
+        for identifier in WorkoutDistance.allIdentifiers {
+            types.insert(HKQuantityType(identifier))
+        }
+        return types
+    }
+
     /// `HKCategoryValueSleepAnalysis` -> the wire stage. Mapped by CASE, never
     /// by raw value: Apple does not document the integers, and a hardcoded
     /// table that drifted would mislabel someone's night rather than fail.
@@ -177,6 +204,14 @@ import ReactWatchSupport
     ) -> Set<HKObjectType> {
         var types = Set(plan.kinds.map { Self.quantityType(for: $0) as HKObjectType })
         if plan.sleep { types.insert(Self.sleepType) }
+        // No new ENTITLEMENT and no new usage-description key ride along with
+        // this one: reading saved workouts is covered by
+        // `com.apple.developer.healthkit` + `NSHealthShareUsageDescription`,
+        // both of which js/plugin/targetConfig.cts already writes. What it does
+        // add is ROWS in the sheet the user sees — saved workouts, and the
+        // energy/distance types their summaries are computed from — which is
+        // why that key's default sentence names all three.
+        if plan.workoutHistory { types.formUnion(Self.workoutHistoryTypes) }
         return types
     }
 
@@ -349,6 +384,98 @@ import ReactWatchSupport
         } catch {
             return .error(error.localizedDescription)
         }
+    }
+
+    /// Saved workouts in the window, newest first — the list a "your last five
+    /// runs" screen renders. The one read in this file whose SUBJECT is the
+    /// workout rather than a measurement taken during one.
+    ///
+    /// `HKSamplePredicate.workout(_:)` is generic over `HKWorkout`, so the
+    /// descriptor's result is `[HKWorkout]` with no cast and no
+    /// `compactMap { $0 as? }` that could silently drop rows.
+    ///
+    /// Energy and distance are read through `statistics(for:)` rather than
+    /// `totalEnergyBurned`/`totalDistance`, which Apple deprecated (watchOS
+    /// 11.0 / 27.0). The replacement is also the more honest one: a nil
+    /// statistic means the workout recorded NO samples of that type — an indoor
+    /// yoga session has no distance at all — and that is a different fact from
+    /// "covered zero metres", so it crosses the wire as `null`. It is a
+    /// narrower read too, and the JSDoc says so: a workout another app saved as
+    /// a TOTAL with no per-sample data behind it has no statistics to compute.
+    ///
+    /// The window predicate is HealthKit's default (`options: []`), which Apple
+    /// documents as `endDate >= start AND startDate < end` — OVERLAP, not
+    /// start-containment. Deliberate, and the same rule the sample reads above
+    /// run under (`HKQueryOptions` is unexposed by design — see
+    /// docs/design-health-package.md): for a near-instantaneous quantity sample
+    /// the two rules coincide, and for an hour-long workout overlap is the one
+    /// that keeps a hike from vanishing because the caller's window cut it in
+    /// half. `queryWorkoutHistory`'s JSDoc states this rule rather than the
+    /// `[startMs, endMs)` framing the other reads use.
+    func workoutHistory(_ plan: WorkoutHistoryPlan) async -> Outcome {
+        await ensureRequested(Self.workoutHistoryTypes)
+        let descriptor = HKSampleQueryDescriptor(
+            predicates: [
+                .workout(
+                    HKQuery.predicateForSamples(
+                        withStart: plan.window.start, end: plan.window.end))
+            ],
+            sortDescriptors: [SortDescriptor(\.startDate, order: .reverse)],
+            limit: plan.window.limit ?? HealthWindow.maxLimit)
+        do {
+            let workouts: [HKWorkout] = try await descriptor.result(for: store)
+            return .ok(
+                Self.json(
+                    workouts.map { workout in
+                        var row: [String: Any] = [
+                            "id": workout.uuid.uuidString,
+                            "startMs": workout.startDate.timeIntervalSince1970 * 1000,
+                            "endMs": workout.endDate.timeIntervalSince1970 * 1000,
+                            // `duration` is seconds and EXCLUDES paused time, so
+                            // it is not endMs - startMs. Reported in ms like
+                            // every other duration on this wire.
+                            "durationMs": workout.duration * 1000,
+                            "activeEnergyKcal": Self.total(
+                                HKQuantityType(.activeEnergyBurned), of: workout,
+                                in: .kilocalorie()) ?? NSNull(),
+                            // NOT `distanceWalkingRunning` for everything: a
+                            // ride's metres are `distanceCycling` and a swim's
+                            // are `distanceSwimming`, so a fixed type would
+                            // report null for every ride in the list and call
+                            // it "measured nothing". `WorkoutDistance` is the
+                            // same table the LIVE workout reads through.
+                            "distanceMeters": Self.total(
+                                HKQuantityType(
+                                    WorkoutDistance.identifier(
+                                        for: workout.workoutActivityType)),
+                                of: workout, in: .meter()) ?? NSNull(),
+                        ]
+                        // OMITTED rather than guessed when this binary's
+                        // vocabulary has no name for the stored case — the
+                        // `getWorkoutState` rule verbatim, and not hypothetical
+                        // here: this list also contains workouts OTHER apps
+                        // saved, including the deprecated activity spellings
+                        // this package excludes. Reuses the generated table
+                        // backwards; a second mapping would be a second thing
+                        // to drift.
+                        if let name = WorkoutActivityName.name(
+                            for: workout.workoutActivityType)
+                        {
+                            row["activityType"] = name
+                        }
+                        return row
+                    }))
+        } catch {
+            return .error(error.localizedDescription)
+        }
+    }
+
+    /// One workout's summed statistic for a type, or nil when it recorded no
+    /// samples of that type. `nil` is the answer, never 0 — see the caller.
+    private static func total(
+        _ type: HKQuantityType, of workout: HKWorkout, in unit: HKUnit
+    ) -> Double? {
+        workout.statistics(for: type)?.sumQuantity()?.doubleValue(for: unit)
     }
 
     /// JSON for an already-JSON-safe object/array (numbers, strings, NSNull).

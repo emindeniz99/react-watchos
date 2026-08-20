@@ -4,6 +4,7 @@ import {
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,
+  queryWorkoutHistory,
   requestHealthAuthorization,
 } from "../src/index";
 
@@ -141,6 +142,73 @@ describe("health reads", () => {
       { read: ["stepCount"] },
       { read: ["stepCount"], sleep: true },
     ]);
+  });
+
+  it("asks for the saved-workout read only when the caller opts in", () => {
+    // Saved workouts are their own HealthKit object type, so asking for them
+    // adds a ROW to the permission sheet — the same reason `sleep` never rides
+    // along by default. And the flag is about READING history: it must not
+    // appear because an app happens to record workouts.
+    const calls = installHost("prompted");
+    requestHealthAuthorization({ read: ["stepCount"] });
+    requestHealthAuthorization({ read: [], workoutHistory: true });
+    expect(calls.map((c) => c.payload)).toEqual([
+      { read: ["stepCount"] },
+      { read: [], workoutHistory: true },
+    ]);
+  });
+
+  it("lists saved workouts and keeps 'not measured' as null, not 0", async () => {
+    // The window rides verbatim like every other read, and the response is
+    // returned as-is: a yoga session with no distance samples resolves
+    // `distanceMeters: null`, which a screen renders as "—" rather than as
+    // "0.00 km". Flattening that to 0 would invent a measurement.
+    const calls = installHost([
+      {
+        id: "6C7F1B0E-6C3E-4B0A-9F1D-2A9E4F1B7C10",
+        startMs: 1_768_460_400_000,
+        endMs: 1_768_462_245_000,
+        durationMs: 1_800_000,
+        activityType: "running",
+        activeEnergyKcal: 312.5,
+        distanceMeters: 5_412.75,
+      },
+      {
+        id: "9B1DEB4D-3B7D-4BAD-9BDD-2B0D7B3DCB6D",
+        startMs: 1_768_390_000_000,
+        endMs: 1_768_392_700_000,
+        durationMs: 2_700_000,
+        activeEnergyKcal: null,
+        distanceMeters: null,
+      },
+    ]);
+    const listed = queryWorkoutHistory({
+      startMs: 1_768_396_800_000,
+      endMs: 1_768_483_200_000,
+      limit: 20,
+    });
+    expect(calls).toEqual([
+      {
+        method: "queryWorkoutHistory",
+        payload: {
+          startMs: 1_768_396_800_000,
+          endMs: 1_768_483_200_000,
+          limit: 20,
+        },
+      },
+    ]);
+    const workouts = await listed;
+    expect(workouts).toHaveLength(2);
+    const [run, unnamed] = workouts;
+    // durationMs is HealthKit's own `duration`, which excludes paused time —
+    // so it is NOT endMs - startMs (1_845_000 here) and a caller that
+    // recomputed it would report the wrong number for any paused workout.
+    expect(run?.durationMs).toBe(1_800_000);
+    expect((run?.endMs ?? 0) - (run?.startMs ?? 0)).toBe(1_845_000);
+    // An activity this binary has no name for is OMITTED, never guessed.
+    expect(unnamed?.activityType).toBeUndefined();
+    expect(unnamed?.distanceMeters).toBeNull();
+    expect(unnamed?.activeEnergyKcal).toBeNull();
   });
 
   it("resolves the authorization signal verbatim, not a grant verdict", async () => {

@@ -6,7 +6,7 @@
 
 # Interface: HealthAuthorizationOptions
 
-Defined in: [js/src/health.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L77)
+Defined in: [js/src/health.ts:83](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L83)
 
 Options for [requestHealthAuthorization](../functions/requestHealthAuthorization.md).
 
@@ -16,7 +16,7 @@ Options for [requestHealthAuthorization](../functions/requestHealthAuthorization
 
 > **read**: [`HealthQuantityType`](../type-aliases/HealthQuantityType.md)[]
 
-Defined in: [js/src/health.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L79)
+Defined in: [js/src/health.ts:85](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L85)
 
 Quantity types to ask for.
 
@@ -26,7 +26,21 @@ Quantity types to ask for.
 
 > `optional` **sleep?**: `boolean`
 
-Defined in: [js/src/health.ts:82](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L82)
+Defined in: [js/src/health.ts:88](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L88)
 
 Also ask for sleep analysis — a HealthKit *category* type, so it isn't
  expressible in `read`. Required before [querySleepSamples](../functions/querySleepSamples.md).
+
+***
+
+### workoutHistory?
+
+> `optional` **workoutHistory?**: `boolean`
+
+Defined in: [js/src/health.ts:94](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L94)
+
+Also ask for saved workouts (`HKObjectType.workoutType()`) — neither a
+ quantity nor a category type, so it isn't expressible in `read` either.
+ Required before [queryWorkoutHistory](../functions/queryWorkoutHistory.md). Nothing to do with the
+ `workouts` *feature*, which authorizes *recording* a workout: this only
+ widens the read sheet by the saved-workouts row.

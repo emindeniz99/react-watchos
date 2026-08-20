@@ -8,7 +8,7 @@
 
 > **HealthStatistic** = `HealthStatisticsRequest`\[`"statistic"`\]
 
-Defined in: [js/src/health.ts:64](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L64)
+Defined in: [js/src/health.ts:70](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L70)
 
 Which aggregate to compute. Derived from the wire request so the union can't
 drift from the schema — which matters more than usual here:

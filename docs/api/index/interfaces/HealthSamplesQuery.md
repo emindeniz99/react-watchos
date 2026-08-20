@@ -6,7 +6,7 @@
 
 # Interface: HealthSamplesQuery
 
-Defined in: [js/src/health.ts:96](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L96)
+Defined in: [js/src/health.ts:108](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L108)
 
 Request for [queryHealthSamples](../functions/queryHealthSamples.md).
 
@@ -16,7 +16,7 @@ Request for [queryHealthSamples](../functions/queryHealthSamples.md).
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:99](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L99)
+Defined in: [js/src/health.ts:111](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L111)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:99](https://github.com/emindeniz99/react-watchos/b
 
 > `optional` **limit?**: `number`
 
-Defined in: [js/src/health.ts:102](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L102)
+Defined in: [js/src/health.ts:114](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L114)
 
 Cap on samples returned. Hard ceiling 1000 — every sample crosses the
  bridge as JSON on a memory-tight watch.
@@ -35,7 +35,7 @@ Cap on samples returned. Hard ceiling 1000 — every sample crosses the
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:98](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L98)
+Defined in: [js/src/health.ts:110](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L110)
 
 ***
 
@@ -43,4 +43,4 @@ Defined in: [js/src/health.ts:98](https://github.com/emindeniz99/react-watchos/b
 
 > **type**: [`HealthQuantityType`](../type-aliases/HealthQuantityType.md)
 
-Defined in: [js/src/health.ts:97](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L97)
+Defined in: [js/src/health.ts:109](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L109)

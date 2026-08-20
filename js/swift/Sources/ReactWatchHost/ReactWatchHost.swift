@@ -775,6 +775,8 @@ final class ReactWatchModel {
             handleQueryHealthSamples(id: id, payload: payload)
         case "querySleepSamples":
             handleQuerySleepSamples(id: id, payload: payload)
+        case "queryWorkoutHistory":
+            handleQueryWorkoutHistory(id: id, payload: payload)
         case "requestCalendarAccess":
             handleRequestCalendarAccess(id: id, payload: payload)
         case "getCalendarEvents":
@@ -3014,6 +3016,25 @@ extension ReactWatchModel {
             Task { [weak self] in
                 guard let bridge = self?.health else { return }
                 let outcome = await bridge.sleepSamples(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// The saved-workout read. Sits with its health siblings rather than with
+    /// the workout-control handlers on purpose: it is gated by `health`, the
+    /// history-disclosure feature, not by `workouts`, which authorizes
+    /// RECORDING one.
+    private func handleQueryWorkoutHistory(id: Int, payload: String) {
+        switch WorkoutHistoryPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.workoutHistory(plan)
                 self?.settleHealth(id: id, generation: gen, outcome)
             }
         }
