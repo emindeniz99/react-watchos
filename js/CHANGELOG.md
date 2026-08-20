@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.5.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.4.0...react-watchos-v0.5.0) (2026-08-20)
+
+
+### ⚠ BREAKING CHANGES
+
+* **build:** buildBundles([...]) and `react-watchos build` now minify. Shipped bundles change bytes, so every OTA releaseId changes (it is FNV-1a over the emitted bytes), and your own components appear in ErrorBoundary/inspector stacks as `at t` rather than `at ShoppingList`. Opt out with --no-minify or { minify: false }. A build script that already passes minify explicitly keeps its own value and is unaffected. If you assert on your bundle's TEXT in a test, build that fixture with the opt-out.
+
+### Features
+
+* **build:** ship minified bundles by default ([1c7e20f](https://github.com/emindeniz99/react-watchos/commit/1c7e20fa61d3e31b22798d9b28057d139fd0704b))
+* **swift:** read HRV SDNN and resting heart rate from HealthKit ([5fb6ef0](https://github.com/emindeniz99/react-watchos/commit/5fb6ef0e47c33ff3c08184c3f5c06858840a697a))
+* **swift:** read the activity rings and their goals ([8521339](https://github.com/emindeniz99/react-watchos/commit/8521339608d55d889ecb77ef5feecc4720e2a18a))
+* **swift:** read the user's saved workout history ([bd66542](https://github.com/emindeniz99/react-watchos/commit/bd665425a82747326df2c13d94964c62c139082e))
+* **swift:** stream new health samples while the app is open ([5ecbd8a](https://github.com/emindeniz99/react-watchos/commit/5ecbd8ad4f8c8f5341f19f035baf5b02975ffbb6))
+* **swift:** widen the HealthKit read vocabulary to fourteen types ([9cd5808](https://github.com/emindeniz99/react-watchos/commit/9cd5808ddce6ac0c9a80d5f3b5b75fb0305175cf))
+
+
+### Bug Fixes
+
+* **plugin:** name blood oxygen on the HealthKit permission sheet ([15c6840](https://github.com/emindeniz99/react-watchos/commit/15c6840520fc9e91fb661a69899d102676727306))
+
 ## [0.4.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.3.0...react-watchos-v0.4.0) (2026-08-12)
 
 
