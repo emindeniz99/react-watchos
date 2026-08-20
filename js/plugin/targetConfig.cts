@@ -117,20 +117,36 @@ function watchTargetConfig(opts: ResolvedOptions) {
     }
   }
   if (opts.healthKit) {
-    // Reads are no longer heart-rate-only (js/src/health.ts adds steps, active
-    // energy, distance, SpO2, HRV, resting heart rate and sleep), and this
-    // string is what the user is shown when the permission sheet opens — a
-    // sheet that says "heart rate" while the app asks for sleep history is the
-    // kind of mismatch App Review and users both read as a lie. Every category
-    // the read vocabulary can ask for is therefore named: blood oxygen was the
-    // one no word here covered, and "heart rate and its variability" covers
-    // `heartRate`, `restingHeartRate` and `heartRateVariabilitySDNN` without
-    // reciting three near-identical phrases at someone reading a sheet.
-    // Consumer `infoPlist` overrides still win.
+    // Reads are no longer heart-rate-only — js/src/health.ts reads fourteen
+    // quantity types plus sleep — and this string is what the user is shown
+    // when the permission sheet opens: a sheet that says "heart rate" while the
+    // app asks for sleep history is the kind of mismatch App Review and users
+    // both read as a lie. So every CATEGORY the read vocabulary can ask for is
+    // named, in plain words, with Apple's own label wherever that label is
+    // already plain ("Respiratory Rate", "Flights Climbed") so the sentence
+    // matches the rows the sheet renders under it. Blood oxygen was the
+    // omission fixed in 15c6840; the 2026-08-20 widening added four more no
+    // word here covered — exercise/stand time, respiratory rate, cardio fitness
+    // and flights climbed; `queryWorkoutHistory` the same day added SAVED
+    // WORKOUTS, which is not a quantity type at all but does render its own row
+    // in the sheet, and `queryActivitySummaries` added a fourth-kind row again:
+    // the ACTIVITY RINGS. The rings are named separately from "exercise and
+    // stand time" on purpose — they are a different HealthKit type and a
+    // different sheet row, and what they add is the GOALS, which no quantity
+    // read exposes. Only two groupings, both of things a reader would
+    // not expect listed separately: "heart rate and its variability" covers
+    // `heartRate`, `restingHeartRate`, `walkingHeartRateAverage` and
+    // `heartRateVariabilitySDNN`, and "distance" covers
+    // `distanceWalkingRunning`. Semicolons rather than one ten-item comma run,
+    // because this is read on a watch-sized sheet. Consumer `infoPlist`
+    // overrides still win.
     infoPlist.NSHealthShareUsageDescription =
       infoPlist.NSHealthShareUsageDescription ??
-      "Read your heart rate and its variability, steps, energy, distance, " +
-        "blood oxygen and sleep to show them in this app.";
+      "Read your Health data to show it in this app: heart rate and its " +
+        "variability, respiratory rate, blood oxygen and cardio fitness; " +
+        "steps, flights climbed, distance, active and resting energy, " +
+        "exercise and stand time; your activity rings and their goals; " +
+        "your saved workouts; and sleep.";
     infoPlist.NSHealthUpdateUsageDescription =
       infoPlist.NSHealthUpdateUsageDescription ??
       "Record a workout session to read live heart rate.";

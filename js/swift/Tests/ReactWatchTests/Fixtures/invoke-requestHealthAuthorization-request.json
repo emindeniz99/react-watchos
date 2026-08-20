@@ -2,5 +2,7 @@
   "read": [
     "stepCount"
   ],
-  "sleep": true
+  "sleep": true,
+  "workoutHistory": true,
+  "activitySummaries": true
 }

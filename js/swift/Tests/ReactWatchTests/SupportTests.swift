@@ -2711,19 +2711,54 @@ final class HealthQueryPlanTests: XCTestCase {
 
     func testUnitsAreFixedPerTypeAndNameSpO2AsAFraction() {
         // The wire unit is chosen natively and only REPORTED to JS, so these
-        // strings are the contract a chart labels its axis from.
-        XCTAssertEqual(HealthQuantityKind.stepCount.unit, "count")
-        XCTAssertEqual(HealthQuantityKind.activeEnergyBurned.unit, "kcal")
-        XCTAssertEqual(HealthQuantityKind.distanceWalkingRunning.unit, "m")
-        XCTAssertEqual(HealthQuantityKind.heartRate.unit, "count/min")
-        // "fraction", never "percent": HKUnit.percent() yields 0…1, and calling
-        // it percent is how a caller multiplies by 100 twice.
-        XCTAssertEqual(HealthQuantityKind.oxygenSaturation.unit, "fraction")
-        // "ms", never seconds: SDNN runs in the tens of milliseconds, so a
-        // seconds unit reports 0.045 where the Health app shows 45.
-        XCTAssertEqual(HealthQuantityKind.heartRateVariabilitySDNN.unit, "ms")
-        XCTAssertEqual(HealthQuantityKind.restingHeartRate.unit, "count/min")
+        // strings are the contract a chart labels its axis from. A TABLE rather
+        // than a run of asserts, checked against `allCases` below: at fourteen
+        // types a reader can still see a wrong line but no longer a MISSING one.
+        let expected: [HealthQuantityKind: String] = [
+            .stepCount: "count",
+            .activeEnergyBurned: "kcal",
+            .distanceWalkingRunning: "m",
+            .heartRate: "count/min",
+            // "fraction", never "percent": HKUnit.percent() yields 0…1, and
+            // calling it percent is how a caller multiplies by 100 twice.
+            .oxygenSaturation: "fraction",
+            // "ms", never seconds: SDNN runs in the tens of milliseconds, so a
+            // seconds unit reports 0.045 where the Health app shows 45.
+            .heartRateVariabilitySDNN: "ms",
+            .restingHeartRate: "count/min",
+            .appleExerciseTime: "min",
+            .basalEnergyBurned: "kcal",
+            .respiratoryRate: "count/min",
+            .flightsClimbed: "count",
+            // The SDNN failure mode one family over, and worse because the
+            // unit is compound: Apple states the watch estimates the 14-60
+            // range, so litres-for-millilitres reports 0.045-style nonsense
+            // under a label that still says ml/kg/min — Apple's own spelling
+            // for this sample type, in its HKUnit table and in the Health app.
+            .vo2Max: "ml/kg/min",
+            .walkingHeartRateAverage: "count/min",
+            .appleStandTime: "min",
+        ]
+        XCTAssertEqual(
+            Set(expected.keys), Set(HealthQuantityKind.allCases),
+            "a read type ships with no pinned wire unit")
+        for (kind, unit) in expected {
+            XCTAssertEqual(kind.unit, unit, "\(kind.rawValue) reports the wrong unit")
+        }
     }
+
+    /// The cumulative half of the vocabulary, transcribed from each type's
+    /// docs page ("measure cumulative values" / "measure discrete values") and
+    /// deliberately INDEPENDENT of `HealthQuantityKind.isCumulative` — it is
+    /// what the two tests below check that property against. Reading the
+    /// expectation off `isCumulative` instead would assert nothing: `isLegal`
+    /// is defined in terms of it, so a flipped arm would simply move a kind to
+    /// the other side of the assertion and still pass.
+    private static let cumulativeKinds: Set<HealthQuantityKind> = [
+        .stepCount, .activeEnergyBurned, .distanceWalkingRunning,
+        .appleExerciseTime, .basalEnergyBurned, .flightsClimbed,
+        .appleStandTime,
+    ]
 
     func testOnlySumIsLegalForACumulativeType() {
         // HKStatisticsOptions' halves are mutually exclusive per type and the
@@ -2735,6 +2770,31 @@ final class HealthQueryPlanTests: XCTestCase {
         XCTAssertFalse(HealthStatistic.sum.isLegal(for: .heartRate))
         XCTAssertTrue(HealthStatistic.average.isLegal(for: .heartRate))
         XCTAssertTrue(HealthStatistic.max.isLegal(for: .oxygenSaturation))
+        // And the same rule as a TOTAL partition over every kind: exactly `sum`
+        // or exactly the other four, never both and never neither. The
+        // expectation comes from the transcribed set above, so a flipped
+        // `isCumulative` arm fails here as well as in the test below.
+        for kind in HealthQuantityKind.allCases {
+            let legal = HealthStatistic.allCases.filter { $0.isLegal(for: kind) }
+            XCTAssertEqual(
+                legal,
+                Self.cumulativeKinds.contains(kind)
+                    ? [.sum] : [.average, .min, .max, .mostRecent],
+                "\(kind.rawValue) accepts the wrong statistics")
+        }
+    }
+
+    func testTheCumulativeAxisMatchesWhatAppleDocumentsPerType() {
+        // `isCumulative` decides which statistics are legal, and HealthKit
+        // enforces the real answer by THROWING mid-query — so a wrong arm here
+        // ships either a native crash or a refusal that blames Apple's matrix
+        // for our table. `allCases` makes the discrete half the complement of
+        // the transcribed cumulative set, so neither list can rot alone.
+        for kind in HealthQuantityKind.allCases {
+            XCTAssertEqual(
+                kind.isCumulative, Self.cumulativeKinds.contains(kind),
+                "\(kind.rawValue) is on the wrong side of the cumulative axis")
+        }
     }
 
     func testTheStressRecoveryPairIsDiscrete() {
@@ -2921,6 +2981,367 @@ final class HealthQueryPlanTests: XCTestCase {
             try? SleepSamplesPlan.decode(
                 json: #"{"startMs":2000,"endMs":1000}"#
             ).get())
+    }
+
+    func testWorkoutHistoryPlanCarriesTheWindowAndClampsTheCap() {
+        // Same window rules as every other read — they live in `HealthWindow`,
+        // and this proves the workout query goes through them rather than
+        // growing a second, laxer door.
+        let plan = try? WorkoutHistoryPlan.decode(
+            json: #"{"startMs":1000,"endMs":2000,"limit":5}"#
+        ).get()
+        XCTAssertEqual(plan?.window.startMs, 1000)
+        XCTAssertEqual(plan?.window.endMs, 2000)
+        XCTAssertEqual(plan?.window.limit, 5)
+        // No cap asked for = nil, which the bridge turns into the ceiling.
+        let uncapped = try? WorkoutHistoryPlan.decode(json: window()).get()
+        XCTAssertNil(uncapped?.window.limit)
+        // CLAMPED, not refused, exactly like the sample queries: every workout
+        // crosses the bridge as JSON on a memory-tight watch.
+        let greedy = try? WorkoutHistoryPlan.decode(
+            json: #"{"startMs":1000,"endMs":2000,"limit":100000}"#
+        ).get()
+        XCTAssertEqual(greedy?.window.limit, HealthWindow.maxLimit)
+    }
+
+    func testWorkoutHistoryPlanRefusesAnUnusableWindowByNAME() {
+        // An inverted window resolves an empty list that a caller cannot tell
+        // from "you have never worked out", so it is refused — and the message
+        // names the METHOD, which is the whole reason this plan is its own type
+        // rather than a reused `SleepSamplesPlan`.
+        guard
+            case .failure(let inverted) = WorkoutHistoryPlan.decode(
+                json: #"{"startMs":2000,"endMs":1000}"#)
+        else { return XCTFail("an inverted window must be refused") }
+        XCTAssertTrue(inverted.message.contains("must be after"))
+        guard case .failure(let notJSON) = WorkoutHistoryPlan.decode(json: "[]")
+        else { return XCTFail("a non-object payload must be refused") }
+        XCTAssertTrue(notJSON.message.contains("queryWorkoutHistory"))
+        XCTAssertNil(
+            try? WorkoutHistoryPlan.decode(
+                json: #"{"startMs":1000,"endMs":2000,"limit":0}"#
+            ).get())
+    }
+
+    func testAuthorizationPlanAsksForSavedWorkoutsOnlyWhenTold() {
+        // `HKObjectType.workoutType()` is neither a quantity nor a category
+        // type, so it needs its own flag — and it widens the sheet, so it must
+        // never default on.
+        let asked = try? HealthAuthorizationPlan.decode(
+            json: #"{"read":[],"workoutHistory":true}"#
+        ).get()
+        XCTAssertEqual(asked?.workoutHistory, true)
+        XCTAssertEqual(asked?.sleep, false)
+        XCTAssertEqual(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":["stepCount"]}"#
+            ).get().workoutHistory, false)
+        // Workout history ALONE is a legitimate ask, like sleep alone: a watch
+        // app that only lists past workouts needs no quantity type at all.
+        XCTAssertNotNil(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":[],"workoutHistory":true}"#
+            ).get())
+    }
+
+    func testActivityDayComponentsAlwaysCarryTheirCalendar() {
+        // THE invariant of the rings read, and the reason `ActivityDay` exists
+        // at all: Apple requires the activity-summary predicate's components to
+        // have a valid `calendar`, and a set without one matches NOTHING — no
+        // throw, no error, just an empty array a caller reads as "you have no
+        // rings". The bridge cannot get this wrong because it never builds a
+        // `DateComponents`; this proves the one place that does.
+        let day = ActivityDay(year: 2026, month: 1, day: 14)
+        let components = day.components
+        XCTAssertEqual(components.calendar, ActivityDay.calendar)
+        XCTAssertEqual(components.calendar?.identifier, .gregorian)
+        XCTAssertEqual(components.year, 2026)
+        XCTAssertEqual(components.month, 1)
+        XCTAssertEqual(components.day, 14)
+        // Gregorian by IDENTIFIER, never `Calendar.current`: on a Buddhist or
+        // Japanese-era locale the day would read back as year 2569 or 8 and
+        // format into a date string nothing could plot.
+        XCTAssertTrue(components.isValidDate)
+    }
+
+    func testActivityDayParsesOnlyAStrictCalendarDay() {
+        let day = ActivityDay(iso: "2026-01-14")
+        XCTAssertEqual(day?.year, 2026)
+        XCTAssertEqual(day?.month, 1)
+        XCTAssertEqual(day?.day, 14)
+        XCTAssertEqual(day?.iso, "2026-01-14")
+        // Zero-padded on the way out, so the wire form sorts as text.
+        XCTAssertEqual(ActivityDay(year: 26, month: 2, day: 3).iso, "0026-02-03")
+        for rejected in [
+            "2026-1-14",  // not zero-padded: does not sort, and is ambiguous
+            "2026-01-14T00:00:00Z",  // an INSTANT — the thing this type keeps off the wire
+            "2026-01-14 ",
+            "26-01-14",
+            "2026/01/14",
+            "+026-01-14",  // Int() would take the sign; the digit check must not
+            "2026-02-30",  // a day that does not exist
+            "2023-02-29",  // ... and the same for a non-leap February
+            "2026-13-01",
+            "2026-00-10",
+            "",
+        ] {
+            XCTAssertNil(
+                ActivityDay(iso: rejected), "'\(rejected)' must be refused")
+        }
+        // A leap day that DOES exist is not collateral damage.
+        XCTAssertNotNil(ActivityDay(iso: "2024-02-29"))
+    }
+
+    func testActivityDayExistenceDoesNotDependOnWhereTheWatchIs() throws {
+        // The refusal must mean the same thing on every wrist. `serial` is
+        // arithmetic for exactly that reason, and so is the existence check:
+        // `DateComponents.isValidDate` resolves the components to an INSTANT
+        // through their calendar, and `Calendar(identifier:)` carries the
+        // system's zone — so in a zone that once skipped a whole calendar day it
+        // answers "no such day" for a perfectly well-formed date, and the same
+        // request would be INVALID_REQUEST on one watch and a valid empty answer
+        // on another.
+        //
+        // Both of these are real: Samoa skipped 2011-12-30 and Kiribati
+        // 1994-12-31 when they moved across the date line.
+        for skipped in ["2011-12-30", "1994-12-31"] {
+            XCTAssertNotNil(
+                ActivityDay(iso: skipped),
+                "'\(skipped)' is a well-formed calendar day and must parse "
+                    + "wherever the watch is")
+        }
+        // ... and this is the check we did NOT use, shown disagreeing. If this
+        // ever stops failing, the hazard is gone and the note above is stale.
+        var zoned = Calendar(identifier: .gregorian)
+        zoned.timeZone = try XCTUnwrap(TimeZone(identifier: "Pacific/Apia"))
+        var components = DateComponents()
+        components.calendar = zoned
+        components.year = 2011
+        components.month = 12
+        components.day = 30
+        XCTAssertFalse(
+            components.isValidDate,
+            "Pacific/Apia is expected to have no 2011-12-30 — the whole reason "
+                + "the existence check is arithmetic")
+    }
+
+    func testActivityDayRoundTripsThroughTheComponentsHealthKitReturns() {
+        // `HKActivitySummary.dateComponents(for:)` is how a returned row says
+        // which day it is FOR, so this is the door the bridge reads through —
+        // and a row that cannot be dated is DROPPED rather than placed
+        // arbitrarily, which is what the nil cases below make possible.
+        let day = ActivityDay(iso: "2024-02-29")
+        XCTAssertEqual(ActivityDay(components: day!.components)?.iso, "2024-02-29")
+        var undated = DateComponents()
+        undated.calendar = ActivityDay.calendar
+        undated.year = 2026
+        XCTAssertNil(ActivityDay(components: undated))
+        var impossible = undated
+        impossible.month = 2
+        impossible.day = 30
+        XCTAssertNil(ActivityDay(components: impossible))
+    }
+
+    func testActivityDaySerialIsCalendarFreeArithmetic() {
+        // The day count feeds a CEILING, so it is arithmetic rather than a
+        // `Calendar` walk — the refusal must not depend on where the watch is
+        // (including the zones where local midnight does not exist on a DST
+        // day, which have no instant to count from at all).
+        XCTAssertEqual(ActivityDay(iso: "1970-01-01")?.serial, 0)
+        XCTAssertEqual(ActivityDay(iso: "1969-12-31")?.serial, -1)
+        XCTAssertEqual(ActivityDay(iso: "2026-01-14")?.serial, 20467)
+        // 2024 is a leap year and 1900 was not — the two rules a hand-rolled
+        // version gets wrong, which is why this is Hinnant's algorithm.
+        XCTAssertEqual(
+            (ActivityDay(iso: "2025-01-01")?.serial ?? 0)
+                - (ActivityDay(iso: "2024-01-01")?.serial ?? 0), 366)
+        XCTAssertEqual(
+            (ActivityDay(iso: "1901-01-01")?.serial ?? 0)
+                - (ActivityDay(iso: "1900-01-01")?.serial ?? 0), 365)
+    }
+
+    func testActivitySummariesPlanCountsDaysInclusively() {
+        let week = try? ActivitySummariesPlan.decode(
+            json: #"{"startDate":"2026-01-14","endDate":"2026-01-20"}"#
+        ).get()
+        XCTAssertEqual(week?.start.iso, "2026-01-14")
+        XCTAssertEqual(week?.end.iso, "2026-01-20")
+        // INCLUSIVE at both ends: seven dates in, seven days counted — and one
+        // date on both ends is the single day a rings complication asks for.
+        XCTAssertEqual(week?.dayCount, 7)
+        let today = try? ActivitySummariesPlan.decode(
+            json: #"{"startDate":"2026-01-14","endDate":"2026-01-14"}"#
+        ).get()
+        XCTAssertEqual(today?.dayCount, 1)
+    }
+
+    func testActivitySummariesPlanRefusesAnUnusableRangeByNAME() {
+        // Refused rather than salvaged, and the message names the METHOD and
+        // the rule — the reason these messages exist at all.
+        guard
+            case .failure(let inverted) = ActivitySummariesPlan.decode(
+                json: #"{"startDate":"2026-01-20","endDate":"2026-01-14"}"#)
+        else { return XCTFail("an inverted range must be refused") }
+        XCTAssertTrue(inverted.message.contains("must be on or after"))
+        guard
+            case .failure(let notADay) = ActivitySummariesPlan.decode(
+                json: #"{"startDate":"2026-01-14T00:00:00Z","endDate":"2026-01-20"}"#)
+        else { return XCTFail("a timestamp must be refused, not converted") }
+        XCTAssertTrue(notADay.message.contains("startDate"))
+        XCTAssertTrue(notADay.message.contains("YYYY-MM-DD"))
+        guard case .failure(let notJSON) = ActivitySummariesPlan.decode(json: "[]")
+        else { return XCTFail("a non-object payload must be refused") }
+        XCTAssertTrue(notJSON.message.contains("queryActivitySummaries"))
+        // A missing end is not half a request.
+        XCTAssertNil(
+            try? ActivitySummariesPlan.decode(
+                json: #"{"startDate":"2026-01-14"}"#
+            ).get())
+    }
+
+    func testActivitySummariesPlanRefusesARangeOverTheCeiling() {
+        // REFUSED, not truncated — `maxDailyBuckets`' rule: a silently
+        // shortened ring history is a chart that lies about the range it was
+        // asked for. There is no `limit` to clamp instead, on purpose: the
+        // answer is one row per day, so a cap could only mean "drop some of the
+        // days you asked for".
+        XCTAssertEqual(ActivitySummariesPlan.maxDays, HealthWindow.maxLimit)
+        // Exactly at the ceiling is allowed; one day more is not.
+        let atCeiling = try? ActivitySummariesPlan.decode(
+            json: #"{"startDate":"2024-01-01","endDate":"2026-09-26"}"#
+        ).get()
+        XCTAssertEqual(atCeiling?.dayCount, ActivitySummariesPlan.maxDays)
+        guard
+            case .failure(let tooWide) = ActivitySummariesPlan.decode(
+                json: #"{"startDate":"2024-01-01","endDate":"2026-09-27"}"#)
+        else { return XCTFail("a range past the ceiling must be refused") }
+        XCTAssertTrue(tooWide.message.contains("1001 days"))
+        XCTAssertTrue(tooWide.message.contains("ceiling"))
+    }
+
+    func testAuthorizationPlanAsksForTheRingsOnlyWhenTold() {
+        // A third sheet ROW that is neither a quantity nor a category type, so
+        // it needs its own flag — and it must never default on.
+        let asked = try? HealthAuthorizationPlan.decode(
+            json: #"{"read":[],"activitySummaries":true}"#
+        ).get()
+        XCTAssertEqual(asked?.activitySummaries, true)
+        XCTAssertEqual(asked?.sleep, false)
+        XCTAssertEqual(asked?.workoutHistory, false)
+        // The rings are NOT implied by the quantity reads that look related:
+        // `appleExerciseTime` is a different HealthKit type from the summary
+        // that knows what that day's exercise GOAL was.
+        XCTAssertEqual(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":["appleExerciseTime"]}"#
+            ).get().activitySummaries, false)
+        // And rings ALONE is a legitimate ask — a rings complication needs no
+        // quantity type at all.
+        XCTAssertNotNil(
+            try? HealthAuthorizationPlan.decode(
+                json: #"{"read":[],"activitySummaries":true}"#
+            ).get())
+    }
+
+    func testHealthUpdatesPlanNamesTheEventItsSamplesArriveOn() {
+        // THE unchecked string of this feature. The event name is a Swift
+        // literal on one side and a JS constant on the other, and nothing
+        // compares them: a typo in either yields a subscription that never
+        // fires, with no error anywhere. So the name has ONE definition, here,
+        // where `swift test` can read it — `health-package-guards.test.ts` pins
+        // the JS constant against this same source.
+        XCTAssertEqual(HealthUpdatesPlan.eventPrefix, "health.samples.")
+        XCTAssertEqual(
+            HealthUpdatesPlan.eventName(for: .stepCount), "health.samples.stepCount")
+        // Derived from the kind's raw value rather than a second table, so a
+        // fifteenth read type gets its event name for free instead of getting
+        // a missing arm that silently never pushes. Every name distinct, and
+        // every one prefixed — a name collision would fan one type's samples
+        // out to another type's subscribers.
+        let names = HealthQuantityKind.allCases.map(HealthUpdatesPlan.eventName(for:))
+        XCTAssertEqual(Set(names).count, HealthQuantityKind.allCases.count)
+        for (kind, name) in zip(HealthQuantityKind.allCases, names) {
+            XCTAssertEqual(name, "health.samples.\(kind.rawValue)")
+        }
+    }
+
+    func testHealthUpdatesPlanDefaultsAndBoundsTheCoalescingFloor() {
+        let defaulted = try? HealthUpdatesPlan.decode(
+            json: #"{"type":"heartRate"}"#
+        ).get()
+        XCTAssertEqual(defaulted?.kind, .heartRate)
+        // One push per second unless asked otherwise — chosen against the COST
+        // (a bridge crossing plus a synchronous commit each), not against the
+        // rate HealthKit saves at.
+        XCTAssertEqual(defaulted?.minIntervalMs, 1000)
+        XCTAssertEqual(HealthUpdatesPlan.defaultMinIntervalMs, 1000)
+        // 0 is legal and means "every batch, as it lands".
+        XCTAssertEqual(
+            try? HealthUpdatesPlan.decode(
+                json: #"{"type":"heartRate","minIntervalMs":0}"#
+            ).get().minIntervalMs, 0)
+        XCTAssertEqual(
+            try? HealthUpdatesPlan.decode(
+                json: #"{"type":"stepCount","minIntervalMs":60000}"#
+            ).get().minIntervalMs, HealthUpdatesPlan.maxMinIntervalMs)
+    }
+
+    func testHealthUpdatesPlanRefusesAFloorThatWouldStallTheScreen() {
+        // The ceiling exists because the floor HOLDS a batch rather than
+        // dropping it: a ten-minute "floor" is a screen showing a ten-minute-old
+        // number, which reads as broken rather than throttled. Refused with the
+        // rule and the alternative named, like every message in this file.
+        guard
+            case .failure(let tooSlow) = HealthUpdatesPlan.decode(
+                json: #"{"type":"stepCount","minIntervalMs":60001}"#)
+        else { return XCTFail("a floor past the ceiling must be refused") }
+        XCTAssertTrue(tooSlow.message.contains("minIntervalMs"))
+        XCTAssertTrue(tooSlow.message.contains("queryHealthStatistics"))
+        // Negative and non-finite are refused for the same reason a window's
+        // ends must be finite: neither describes a wait.
+        for bad in ["-1", "1e400"] {
+            XCTAssertNil(
+                try? HealthUpdatesPlan.decode(
+                    json: #"{"type":"stepCount","minIntervalMs":\#(bad)}"#
+                ).get(), "minIntervalMs \(bad) must be refused")
+        }
+    }
+
+    func testHealthUpdatesPlansRefuseATypeNothingCanRead() {
+        // The SAME closed vocabulary the one-shot reads use, and the message
+        // names the legal values — a live stream for a type the bridge has no
+        // unit for could only report a number with no meaning.
+        guard
+            case .failure(let unknown) = HealthUpdatesPlan.decode(
+                json: #"{"type":"bloodGlucose"}"#)
+        else { return XCTFail("an unknown type must be refused") }
+        XCTAssertTrue(unknown.message.contains("bloodGlucose"))
+        XCTAssertTrue(unknown.message.contains("stepCount"))
+        // Sleep is a CATEGORY type and the rings are neither: neither is
+        // expressible here, which is the same reason they need their own
+        // authorization flags rather than riding `read`.
+        XCTAssertNil(
+            try? HealthUpdatesPlan.decode(json: #"{"type":"sleep"}"#).get())
+        guard case .failure(let notJSON) = HealthUpdatesPlan.decode(json: "[]")
+        else { return XCTFail("a non-object payload must be refused") }
+        XCTAssertTrue(notJSON.message.contains("startHealthUpdates"))
+    }
+
+    func testHealthUpdatesStopPlanIsATypeAndNothingElse() {
+        XCTAssertEqual(
+            try? HealthUpdatesStopPlan.decode(
+                json: #"{"type":"heartRate"}"#
+            ).get().kind, .heartRate)
+        // Its own decoder, so the message names the method the caller actually
+        // called — the reason every plan in this file has one.
+        guard case .failure(let notJSON) = HealthUpdatesStopPlan.decode(json: "7")
+        else { return XCTFail("a non-object payload must be refused") }
+        XCTAssertTrue(notJSON.message.contains("stopHealthUpdates"))
+        guard
+            case .failure(let unknown) = HealthUpdatesStopPlan.decode(
+                json: #"{"type":"steps"}"#)
+        else { return XCTFail("an unknown type must be refused") }
+        XCTAssertTrue(unknown.message.contains("steps"))
     }
 
     func testAuthorizationPlanNeedsAtLeastOneTypeAndRejectsUnknownNames() {

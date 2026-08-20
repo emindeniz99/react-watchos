@@ -273,6 +273,30 @@ const PRODUCERS: Record<string, Producer> = {
       calls: "bridge.sleepSamples(plan)",
     },
   },
+  queryWorkoutHistory: {
+    sites: [
+      {
+        file: HEALTH,
+        decl: "func workoutHistory(_ plan: WorkoutHistoryPlan) async -> Outcome {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleQueryWorkoutHistory(id: Int, payload: String) {",
+      calls: "bridge.workoutHistory(plan)",
+    },
+  },
+  queryActivitySummaries: {
+    sites: [
+      {
+        file: HEALTH,
+        decl: "func activitySummaries(_ plan: ActivitySummariesPlan) async -> Outcome {",
+      },
+    ],
+    delegates: {
+      decl: "private func handleQueryActivitySummaries(id: Int, payload: String) {",
+      calls: "bridge.activitySummaries(plan)",
+    },
+  },
   // Both plan methods resolve the SAME shape from the SAME producer, on
   // purpose: a scheduled workout is a scheduled workout whether you just wrote
   // it or are listing them, and two hand-built dictionaries would be two

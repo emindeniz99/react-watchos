@@ -410,6 +410,14 @@ final class ReactWatchModel {
         workout.onMetrics = { [weak self] payload in
             self?.pushNativeEvent("workout.metrics", payload: payload)
         }
+        // The one HEALTH stream (js/src/health.ts startHealthUpdates). The
+        // bridge names its own event — `HealthUpdatesPlan.eventName`, the single
+        // definition both sides derive from — so this forwards rather than
+        // spelling `health.samples.` a second time, which is the one string in
+        // the feature nothing else can check.
+        health.onSamples = { [weak self] event, samples in
+            self?.pushNativeEvent(event, payload: ["samples": samples])
+        }
         speechBridge.onFinished = { [weak self] text in
             self?.pushNativeEvent("speech.finished", payload: ["text": text])
         }
@@ -554,6 +562,13 @@ final class ReactWatchModel {
         // what ends a pump-only session on reload.
         workout.tearDownForReload()
         sensors.stopAll()
+        // The same rule for the one health stream, which is not a sensor and so
+        // is not in `stopAll()`: `health.samples.*` is name-routed with NO
+        // generation guard, so an anchored query that outlived this teardown
+        // would push samples into the runtime `boot()` is about to install — one
+        // that never subscribed and whose listener map is empty, or worse, whose
+        // fresh subscriber is silently fed a second stream's batches.
+        health.stopAllUpdates()
         bluetooth.resetPendingForReload()
         // Stop native media/session resources tied to the outgoing generation so
         // they can't drain battery or push stale finish/state events into the
@@ -775,6 +790,14 @@ final class ReactWatchModel {
             handleQueryHealthSamples(id: id, payload: payload)
         case "querySleepSamples":
             handleQuerySleepSamples(id: id, payload: payload)
+        case "queryWorkoutHistory":
+            handleQueryWorkoutHistory(id: id, payload: payload)
+        case "queryActivitySummaries":
+            handleQueryActivitySummaries(id: id, payload: payload)
+        case "startHealthUpdates":
+            handleStartHealthUpdates(id: id, payload: payload)
+        case "stopHealthUpdates":
+            handleStopHealthUpdates(id: id, payload: payload)
         case "requestCalendarAccess":
             handleRequestCalendarAccess(id: id, payload: payload)
         case "getCalendarEvents":
@@ -2098,9 +2121,16 @@ final class ReactWatchModel {
     func handleScenePhase(background: Bool) {
         if background {
             sensors.pauseForBackground()
+            // Foreground-only by design: this package ships no
+            // background-delivery entitlement, so an armed anchored query would
+            // deliver nothing while the app is away and wake it for nothing when
+            // it returns. The desired state survives the pause, so the resume is
+            // a restart rather than a guess.
+            health.pauseUpdatesForBackground()
             flushPendingWidgetReload()
         } else {
             sensors.resumeFromForeground()
+            health.resumeUpdatesFromForeground()
             // ARCH-06: while the app was away, a control intent running in the
             // widget extension may have mutated shared state, and a payload
             // published from THIS process is now stale. Foreground is the
@@ -3016,6 +3046,99 @@ extension ReactWatchModel {
                 let outcome = await bridge.sleepSamples(plan)
                 self?.settleHealth(id: id, generation: gen, outcome)
             }
+        }
+    }
+
+    /// The saved-workout read. Sits with its health siblings rather than with
+    /// the workout-control handlers on purpose: it is gated by `health`, the
+    /// history-disclosure feature, not by `workouts`, which authorizes
+    /// RECORDING one.
+    private func handleQueryWorkoutHistory(id: Int, payload: String) {
+        switch WorkoutHistoryPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.workoutHistory(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// The Activity rings. Same three-line shape as its siblings — decode,
+    /// availability, hop — with a plan whose window is a range of DAYS rather
+    /// than a pair of instants, because that is how HealthKit identifies a
+    /// summary (see `ActivityDay`).
+    private func handleQueryActivitySummaries(id: Int, payload: String) {
+        switch ActivitySummariesPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.activitySummaries(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// The one health method that is not a read: it ARMS a live query whose
+    /// samples arrive on the event channel. Same decode -> availability -> hop
+    /// shape as its siblings, and it settles for the same reason they do — the
+    /// start is fallible (no HealthKit, an authorization round trip), and the
+    /// `sensor` direct method next door has no reply path to fail through.
+    ///
+    /// One shape difference: the bridge state is claimed SYNCHRONOUSLY here and
+    /// only the authorization round trip is deferred, because the matching stop
+    /// is synchronous. See `beginUpdates`.
+    private func handleStartHealthUpdates(id: Int, payload: String) {
+        switch HealthUpdatesPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            // CLAIMED before the hop, unlike its read siblings, because this
+            // start has a side effect they do not: it arms a stream. `invoke` is
+            // a synchronous QuickJS callback, so a JS turn that starts and then
+            // stops runs `handleStopHealthUpdates` — which is synchronous — to
+            // completion before this `Task` body ever begins. Registering the
+            // epoch and the desired state here is what gives that stop, and
+            // `tearDownGeneration()`, something to supersede; deferring it would
+            // let the start arm a query with no subscriber left and nothing able
+            // to cancel it. `nil` means the type is already streaming.
+            guard let epoch = health.beginUpdates(plan) else {
+                runtime?.resolveInvoke(id: id, resultJson: "null")
+                return
+            }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health, self?.generation == gen else {
+                    return
+                }
+                let outcome = await bridge.finishUpdates(plan, epoch: epoch)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// Synchronous, and NOT gated on `healthAvailable`, unlike every other
+    /// method here. This is called from a React effect cleanup: a rejection has
+    /// no caller left to handle it (it would surface as an unhandled rejection
+    /// on a routine unmount), and "there is no HealthKit to stop" is the outcome
+    /// the caller wanted anyway. A malformed type still rejects INVALID_REQUEST
+    /// — that is a bug in the caller, not a teardown.
+    private func handleStopHealthUpdates(id: Int, payload: String) {
+        switch HealthUpdatesStopPlan.decode(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            health.stopUpdates(plan)
+            runtime?.resolveInvoke(id: id, resultJson: "null")
         }
     }
 

@@ -53,12 +53,22 @@ actually matter:
    (`WKRunsIndependentlyOfCompanionApp`), `fetch` over the watch's own radio,
    the watch's own APNs token, App-Group storage shared with the widget. The
    iPhone is an option, not a dependency.
-3. **Health goes deeper than a heart-rate demo.** HealthKit reads (steps,
-   active energy, distance, heart rate + resting heart rate + HRV, SpO2,
-   sleep stages — and a whole week's daily buckets in *one* query), real
-   workout control that saves an `HKWorkout` with live metrics and an optional
-   GPS route, and WorkoutKit plans you can compose in TypeScript and hand to
-   Apple's Workout app.
+3. **Health goes deeper than a heart-rate demo.** HealthKit reads across
+   **fourteen quantity types** — the activity set (steps, flights, distance,
+   active + resting energy, exercise and stand time), the cardio set (heart
+   rate, resting and walking averages, HRV, respiratory rate, VO2 max) and
+   SpO2 — plus sleep stages, the one *category* read, and a whole week's
+   daily buckets in *one* query; the **Activity rings with their goals**
+   (`queryActivitySummaries` — move, exercise and stand, per day, which is the
+   one thing no quantity type exposes and the reason a rings complication was
+   unbuildable before); the user's **saved workout history**
+   (`queryWorkoutHistory` — what a "your last five runs" list renders, energy
+   and distance included); **live foreground updates**
+   (`startHealthUpdates` — an anchored query per type, so a screen showing
+   today's steps or the current heart rate refreshes itself as samples land
+   instead of polling); real workout control that saves an `HKWorkout` with
+   live metrics and an optional GPS route; and WorkoutKit plans you can
+   compose in TypeScript and hand to Apple's Workout app.
 4. **The JS half updates over the air, signed.** Ed25519 with the keyId inside
    the signed bytes, anti-rollback, crash-loop rollback to known-good,
    re-verification at every boot — and unsigned updates refused by default.
