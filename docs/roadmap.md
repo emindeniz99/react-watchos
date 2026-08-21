@@ -94,7 +94,12 @@ until the macOS build runs green** — that's the gate.
 ## DX follow-ups from the first real consumer migration (2026-08-06)
 
 Migrating ctrl-a-remote onto the published package surfaced three concrete
-testing-DX gaps — each one forced the consumer to hand-roll internals:
+testing-DX gaps — each one forced the consumer to hand-roll internals.
+**All three shipped** (`feat(js): public test harness` 050867f —
+`js/src/testing.ts` exports `mountApp`/`resetApp`, `installInvokeHost` with
+recorded `{method, payload}` calls and per-method result/reject handlers,
+and `pushDeepLink`; this section predates that commit and is kept as the
+record of why the harness exists):
 
 - **Ship an invoke-recording test host.** Consumers mock the invoke wire by
   hand (`__host.invoke(id, method, payloadJson)` + `__resolveInvoke` +
@@ -112,10 +117,16 @@ testing-DX gaps — each one forced the consumer to hand-roll internals:
   `mountApp()` test helper that tracks and disposes the root (our own suite
   already has one — publish it).
 
-Also owed from the same pass: a MIGRATIONS.md (pre-1.0 breaking changes ship
-as minors; the changelog says WHAT changed, a migration note should say what
-consumers DO — the ctrl-a-remote commit 63e331e3 in the old monorepo is the
-worked example for 0.1.0-era code).
+Also owed from the same pass, ✅ **done 2026-08-21**: MIGRATIONS.md (repo
+root, deliberately not in the npm tarball — mirrors how CHANGELOG.md ships
+nowhere; release reading happens on the repo). Every entry was verified
+against the current source before landing, which killed three false claims
+the changelog alone would have produced — a violating widget does NOT throw
+out of `publishWidgets()` (it is caught per kind and logged), the external
+source map changes no shipped byte, and the knip de-exports were
+unreachable through the exports map, so none of them are breaks. Covers
+0.2.0 → 0.6.0 plus the workspace-era → 0.1.x section (ARCH-09 lazy-mount
+consequences, ARCH-12 channel split) for consumers on pre-npm code.
 
 ## Graduation-review follow-ups (2026-08-06, adversarially verified)
 
