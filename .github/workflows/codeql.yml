@@ -1,0 +1,68 @@
+name: CodeQL
+
+# GitHub's own static analyser, on the two languages this repo has that it can
+# read: the TypeScript/JavaScript renderer + tooling, and the workflow files
+# themselves (the `actions` pack finds the injection and permission classes
+# zizmor covers from a different angle — they disagree often enough to be worth
+# both).
+#
+# Swift is deliberately NOT here. CodeQL's Swift support needs a real macOS
+# build with the watchOS SDK, which is build.yml's on-demand job — running it
+# on every PR would put a 20-minute macOS runner in the PR path for an analysis
+# that mostly sees `#if os(watchOS)` empty modules on any other host.
+#
+# Findings land in the repo's Security tab, not in the PR log, so the FIRST
+# results appear after this merges and the first scan completes.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly: CodeQL ships new queries continuously, and a query added after a
+    # file was last touched would otherwise never run against it.
+    - cron: "37 4 * * 2"
+
+# Read-only by default; the one job that needs more says so itself.
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      # The only elevated grant in this file, and only here: `analyze` uploads
+      # the SARIF results to the Security tab.
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          languages: ${{ matrix.language }}
+          # No `queries:` — the DEFAULT suite, deliberately. `security-extended`
+          # and `security-and-quality` add queries at precision-2 and below;
+          # adopting a scanner at a wide setting is how a Security tab fills
+          # with findings nobody triages and everybody learns to ignore. Start
+          # where the signal is highest and widen once this has been clean for
+          # a while.
+      # No build step: both languages are interpreted/declarative, so CodeQL
+      # extracts them straight from the checkout. (A compiled language would
+      # need `autobuild` or an explicit build here.)
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          category: /language:${{ matrix.language }}
