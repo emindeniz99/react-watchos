@@ -11,9 +11,16 @@
 // `esnext` — class fields, `static {}`, `#p in o`, logical assignment, `/v`
 // regex, even `using` — and raising the target buys 393 B on the app bundle
 // (0.20%), 344 B on the widget (0.22%) and 110 B of BYTECODE (0.05%), all of it
-// esbuild's class-field lowering helper; es2021 saves exactly zero. Not worth
-// narrowing a target the published docs promise, so the floor stays where
-// consumers were told it is.
+// esbuild's class-field lowering helper; es2021 saves exactly zero.
+//
+// And the risk is asymmetric, which is what actually decides it: OTA ships JS
+// SOURCE, evaluated by the engine baked into the INSTALLED app binary — the
+// `.qbc` fast path exists only for the shipped asset and is gated on matching
+// bundle.js (OP-1 in ReactWatchHost). So a bundle built by a newer toolchain
+// can legitimately land on an older vendored engine. A low floor costs 393
+// bytes; a floor set above what some installed app can parse costs a boot
+// failure in the field. Raise this only when a measurement says the
+// down-levelling is worth more than a few tenths of a percent.
 //
 // The preset resolves its OWN install-shims.ts, so a consumer only supplies
 // their entry + outfile. Every build through the preset is gated by
