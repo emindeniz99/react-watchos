@@ -147,6 +147,19 @@ jobs:
       # ReactWatchHost needs Xcode — the separate macOS workflow.
       - name: Build (SwiftPM)
         run: swift build
+      # NB `BundleSmokeTests` (the real production bundle booted through
+      # JSRuntime) SKIPS here, on purpose. It needs js/dist/bundle.js + .qbc,
+      # and this container is swift:6.0 with no Node — Debian's nodejs is too
+      # old for the `--experimental-strip-types` the build scripts are written
+      # against, so making it run means either downloading a Node tarball per
+      # run or making this job wait on `js` for an artifact, serializing two
+      # jobs that are parallel today. Neither buys anything: the SAME bundle is
+      # already booted in this workflow by the C-embed smoke (`js` job, the
+      # reference embedding), and the run that actually matters — the shipped
+      # artifact in the shipped Swift embedding on the watch architecture — is
+      # `watchos-tests` in build.yml, which does build the bundle first.
+      # Locally the test RUNS whenever `pnpm --filter react-watchos build` has
+      # been run, which is the normal state of a dev checkout.
       - name: Wire-contract tests
         run: swift test
       # Exits 0 as of the tail-sweep format pass; this keeps warnings from
