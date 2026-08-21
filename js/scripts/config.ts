@@ -111,6 +111,12 @@ export function buildOptions({
     entry: target.entry,
     outfile: target.outfile,
     minify,
+    // Derived from the SAME declared contract the OTA manifest and the ARCH-01
+    // capability gate read, rather than a second hand-maintained flag that
+    // could disagree with it: a bundle that never declared `network` has no
+    // business carrying the fetch shim (-3,798 B on the widget). Declaring the
+    // feature is therefore what turns the shim back on — one edit, not two.
+    network: target.requiredFeatures.includes("network"),
     reactCompiler: true,
   });
   options.define = {

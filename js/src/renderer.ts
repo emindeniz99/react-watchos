@@ -75,10 +75,16 @@ function hasElementChild(children: unknown): boolean {
   return typeof children === "object" && children !== null;
 }
 
+/** The one wording for the raw-text violation. Hoisted because it is thrown
+ *  from two places (here and appendChildToContainer) and a string literal
+ *  written twice is BUNDLED twice — minification renames locals, it does not
+ *  merge identical strings. */
+const RAW_TEXT_ERROR = "Raw text must be wrapped in a <Text> element";
+
 /** Raw text segments are only legal under a <Text> parent (fail loud). */
 function assertTextParent(parent: Instance, child: Instance): void {
   if (child.rawText && parent.type !== "Text") {
-    throw new Error("Raw text must be wrapped in a <Text> element");
+    throw new Error(RAW_TEXT_ERROR);
   }
 }
 
@@ -224,7 +230,7 @@ const hostConfig: WatchHostConfig<
   },
   appendChildToContainer: (container: Container, child: Instance) => {
     if (child.rawText) {
-      throw new Error("Raw text must be wrapped in a <Text> element");
+      throw new Error(RAW_TEXT_ERROR);
     }
     removeFrom(container.children, child);
     container.children.push(child);
