@@ -8,7 +8,7 @@
 
 > **mountApp**(`element`, `host?`): [`WatchRoot`](../../index/classes/WatchRoot.md)
 
-Defined in: [js/src/testing.ts:68](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L68)
+Defined in: [js/src/testing.ts:74](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L74)
 
 `runApp` for tests: the root is tracked so `resetApp` disposes it — without
 this, the second test in a file hits `runApp`'s single-active-root guard

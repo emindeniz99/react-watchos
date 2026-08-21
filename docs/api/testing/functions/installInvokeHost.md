@@ -8,7 +8,7 @@
 
 > **installInvokeHost**(`handlers?`): `object`
 
-Defined in: [js/src/testing.ts:134](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L134)
+Defined in: [js/src/testing.ts:140](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L140)
 
 Installs a `__host` whose invoke channel records every call and settles it
 on a microtask — the wire every fallible API (BLE, health, connectivity,

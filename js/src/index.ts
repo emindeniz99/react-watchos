@@ -1,3 +1,13 @@
+/**
+ * The public package surface.
+ *
+ * The `@module` tag pins the typedoc module NAME (and with it the whole
+ * docs/api directory layout) so `pnpm docs:api` emits the same tree from any
+ * checkout — without it the name derives from `basePath`, which the config
+ * roots at the repo for stable source links (see js/typedoc.json).
+ *
+ * @module index
+ */
 import type { ReactNode } from "react";
 import type { HostBridge, QuickJSHostGlobal, SerializedTree } from "./host";
 import { dispatchNativeEvent } from "./nativeEvents";

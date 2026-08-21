@@ -6,7 +6,7 @@
 
 # Interface: RecordedInvoke
 
-Defined in: [js/src/testing.ts:106](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L106)
+Defined in: [js/src/testing.ts:112](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L112)
 
 One recorded invoke: the method plus its parsed payload (or undefined).
 
@@ -16,7 +16,7 @@ One recorded invoke: the method plus its parsed payload (or undefined).
 
 > **method**: `string`
 
-Defined in: [js/src/testing.ts:107](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L107)
+Defined in: [js/src/testing.ts:113](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L113)
 
 ***
 
@@ -24,4 +24,4 @@ Defined in: [js/src/testing.ts:107](https://github.com/emindeniz99/react-watchos
 
 > **payload**: `unknown`
 
-Defined in: [js/src/testing.ts:108](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L108)
+Defined in: [js/src/testing.ts:114](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L114)

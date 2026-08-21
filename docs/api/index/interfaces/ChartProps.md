@@ -6,7 +6,7 @@
 
 # Interface: ChartProps
 
-Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L643)
+Defined in: [js/src/components.ts:676](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L676)
 
 Swift Charts (watchOS 9+), minimal declarative form: one mark type over
  one series. For dashboards-on-the-wrist, not full Charts composition.
@@ -84,7 +84,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:647](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L647)
+Defined in: [js/src/components.ts:680](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L680)
 
 Series color (system name or hex); defaults to the accent.
 
@@ -182,7 +182,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > **points**: [`ChartPoint`](ChartPoint.md)[]
 
-Defined in: [js/src/components.ts:645](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L645)
+Defined in: [js/src/components.ts:678](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L678)
 
 ***
 
@@ -204,4 +204,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **type**: `"line"` \| `"bar"` \| `"area"` \| `"point"`
 
-Defined in: [js/src/components.ts:644](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L644)
+Defined in: [js/src/components.ts:677](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L677)
