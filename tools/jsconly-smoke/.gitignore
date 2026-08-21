@@ -1,0 +1,7 @@
+# Build output for the JSCOnly experiment: the host binaries, the throw
+# fixture esbuild writes, and the stack dumps measure/stack scripts capture.
+# All reproducible from build-hosts.sh, none of it source. The ENGINE itself is
+# not here at all — fetch-and-build.sh keeps it in
+# ~/.cache/react-watchos/jsconly/, out of the repo (a WebKit checkout is 475 MB
+# of source and a further ~3 GB of build tree).
+out/
