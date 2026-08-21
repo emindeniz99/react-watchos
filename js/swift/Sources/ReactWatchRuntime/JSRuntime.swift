@@ -371,6 +371,14 @@ public final class JSRuntime {
     /// only valid for this exact quickjs-ng version — load it with
     /// `evaluateBytecode`, which throws on a version mismatch so the caller can
     /// fall back to parsing the source. nil if `source` doesn't compile.
+    ///
+    /// The blob carries NO source text and DOES carry the line/column debug
+    /// tables — the same write policy the build-time compiler applies to the
+    /// shipped bundle (see `qjs_write_obj_bytecode_strip_source` and
+    /// tools/qjs-compile/qjs-compile.c for the measured trade). So
+    /// `Function.prototype.toString` on anything from a cached OTA bundle
+    /// returns no source, exactly as on the shipped `.qbc`, and stacks out of
+    /// it symbolicate normally.
     public func compileToBytecode(_ source: String) -> Data? {
         onOwningQueue {
             if refuseAfterShutdown("compileToBytecode") { return nil }
@@ -384,7 +392,8 @@ public final class JSRuntime {
             var size = 0
             guard
                 let buf = JS_WriteObject(
-                    context, &size, compiled, qjs_write_obj_bytecode()
+                    context, &size, compiled,
+                    qjs_write_obj_bytecode_strip_source()
                 )
             else { return nil }
             defer { js_free(context, buf) }

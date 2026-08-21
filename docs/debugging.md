@@ -325,6 +325,18 @@ tables, not from the embedded text. The one visible consequence is that
 source on-device. Nothing in the runtime reads it; if your code does, it will
 not work from `.qbc`.
 
+The **OTA bytecode cache is written the same way**. When the watch compiles an
+applied OTA bundle on device (`JSRuntime.compileToBytecode` →
+`ota-bundle.qbc`, kept in flash beside the OTA record) it passes the same
+`BYTECODE | STRIP_SOURCE`, debug tables kept — see
+`qjs_write_obj_bytecode_strip_source()` in
+[`quickjs-swift-shim.h`](../js/swift/Sources/CQuickJS/include/quickjs-swift-shim.h).
+It used to keep the source text, which cost **+652 KB of flash and +655 KB of
+QuickJS heap** on an app-bundle-sized OTA (908,332 → 252,952 B of blob;
+1,273,294 → 618,293 B of heap right after `JS_ReadObject`) for stacks that are
+identical either way. So an OTA'd bundle debugs exactly like a shipped one:
+positions yes, `toString` source no.
+
 ## What this is NOT
 
 Stated plainly, because the gap is real:
@@ -350,11 +362,12 @@ Stated plainly, because the gap is real:
   bundle by default, and that holds for the `.qbc` bytecode a release app
   actually boots, not just for `bundle.js`; see
   [Symbolicating a minified stack](#symbolicating-a-minified-stack).
-- **No source text on-device.** The shipped `.qbc` is written with
-  `JS_WRITE_OBJ_STRIP_SOURCE`, so `Function.prototype.toString` on anything
-  from the bundle gives you no source back. Stack *positions* are there (the
-  debug tables are kept on purpose); the *text* is not, and buying it back
-  would roughly quadruple the blob for no gain in a stack.
+- **No source text on-device.** The shipped `.qbc` **and** the on-device OTA
+  bytecode cache are both written with `JS_WRITE_OBJ_STRIP_SOURCE`, so
+  `Function.prototype.toString` on anything from the bundle gives you no source
+  back. Stack *positions* are there (the debug tables are kept on purpose); the
+  *text* is not, and buying it back would roughly quadruple the blob for no
+  gain in a stack.
 - **A DEBUG launch is not automatically running a readable bundle.** Two cases
   bite. (1) `ReactWatchModel.start()`
   ([`ReactWatchHost.swift:312`](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift#L312))
