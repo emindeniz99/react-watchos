@@ -149,9 +149,17 @@ jobs:
       - name: Render the PR body
         id: body
         if: steps.decide.outputs.propose == 'true'
+        # The digest arrives through env, not through `${{ }}` inside the shell:
+        # a template expansion is substituted into the script TEXT before bash
+        # sees it, so any interpolated value is code. This one comes from
+        # sha256sum and could not carry a quote, but the habit is the point —
+        # zizmor's template-injection audit fails the build for exactly this
+        # shape, and correctly.
+        env:
+          TARBALL_SHA256: ${{ steps.vendor.outputs.sha256 }}
         run: |
           node --experimental-strip-types js/scripts/pick-quickjs-release.ts \
-            --render pick.json "${{ steps.vendor.outputs.sha256 }}" > body.md
+            --render pick.json "$TARBALL_SHA256" > body.md
           {
             echo
             echo "### Engine measurements (this run, Linux x86_64 — not a watch)"
