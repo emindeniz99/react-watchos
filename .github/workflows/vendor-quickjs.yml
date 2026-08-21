@@ -76,7 +76,12 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           SOAK_DAYS: ${{ inputs.soak_days || '7' }}
         run: |
-          node --experimental-strip-types js/scripts/pick-quickjs-release.ts > pick.json
+          # The script writes pick.json (machine-readable) and prints the
+          # decision table (human-readable). The table goes to the log AND the
+          # step summary, because a run that decides to do nothing otherwise
+          # reads as a row of "skipped" steps with no statement of what it saw.
+          node --experimental-strip-types js/scripts/pick-quickjs-release.ts \
+            | tee report.md
           action=$(jq -r .action pick.json)
           tag=$(jq -r .tag pick.json)
           {
@@ -84,16 +89,10 @@ jobs:
             echo "tag=$tag"
             echo "branch=chore/vendor-quickjs-ng"
           } >> "$GITHUB_OUTPUT"
-          # Also to stdout: on a "nothing to do" run every later step is
-          # skipped, so without this the log is twelve green seconds that say
-          # nothing and the reason lives only in the Summary tab.
-          echo "vendored $(jq -r .vendoredTag pick.json) | decision: $action | $(jq -r .reason pick.json)"
           {
-            echo "### quickjs-ng watch"
+            echo "## quickjs-ng watch"
             echo
-            echo "- vendored: \`$(jq -r .vendoredTag pick.json)\`"
-            echo "- decision: **$action** — $(jq -r .reason pick.json)"
-            echo "- soaking above the candidate: $(jq -r .soakingCount pick.json)"
+            cat report.md
           } >> "$GITHUB_STEP_SUMMARY"
 
       # The engine numbers BEFORE the bump, so the PR can state the delta rather
