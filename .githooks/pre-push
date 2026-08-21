@@ -38,7 +38,10 @@ if [ -n "$base" ] &&
   git diff --name-only "$base" HEAD 2>/dev/null | grep -q '^\.github/workflows/'; then
   if command -v actionlint >/dev/null 2>&1; then
     echo "pre-push: actionlint…" >&2
-    actionlint .github/workflows/ || {
+    # No path argument: actionlint discovers .github/workflows/** itself.
+    # Handing it the directory is an error ("is a directory"), which this hook
+    # then reported as a finding — the hook's own first catch was itself.
+    actionlint || {
       echo "pre-push: BLOCKED — actionlint findings above." >&2
       status=1
     }
