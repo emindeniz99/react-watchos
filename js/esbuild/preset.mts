@@ -1,8 +1,19 @@
 // The QuickJS-correct esbuild preset, exported as `react-watchos/build`
 // so consumers don't copy this config. It pins the settings the watch engine
-// needs: the shims are force-injected before react/scheduler init, ES2020
-// (both Bellard quickjs and quickjs-ng cover it), a platform-neutral IIFE
-// (no Node/browser globals; one self-contained script the runtime evals).
+// needs: the shims are force-injected before react/scheduler init, ES2020, a
+// platform-neutral IIFE (no Node/browser globals; one self-contained script the
+// runtime evals).
+//
+// ES2020 is a CONSUMER-FACING FLOOR, not an engine limit — the old reason here
+// ("both Bellard quickjs and quickjs-ng cover it") died when this repo stopped
+// using Bellard's engine anywhere. Measured 2026-08-21 against the vendored
+// quickjs-ng 0.16.1: it parses AND runs everything esbuild emits up to
+// `esnext` — class fields, `static {}`, `#p in o`, logical assignment, `/v`
+// regex, even `using` — and raising the target buys 393 B on the app bundle
+// (0.20%), 344 B on the widget (0.22%) and 110 B of BYTECODE (0.05%), all of it
+// esbuild's class-field lowering helper; es2021 saves exactly zero. Not worth
+// narrowing a target the published docs promise, so the floor stays where
+// consumers were told it is.
 //
 // The preset resolves its OWN install-shims.ts, so a consumer only supplies
 // their entry + outfile. Every build through the preset is gated by
