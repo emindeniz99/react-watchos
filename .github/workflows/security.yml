@@ -39,10 +39,20 @@ jobs:
       # action diff-scans BASE..HEAD and hard-errors when they are equal
       # (re-runs, schedules, some pushes). We want the FULL history every
       # time — same invocation as the local pre-publish scan.
+      #
+      # --results=verified,unknown: fail on credentials that are LIVE or whose
+      # verification errored, not on candidates the service definitively
+      # rejected. Day one of codeql.yml proved why: trufflehog's Github
+      # detector reads the SHA pin in `github/codeql-action/init@<40-hex>` —
+      # the pin zizmor requires — as a classic 40-hex token and failed main on
+      # an "unverified" commit hash. Allowlisting that SHA would re-break on
+      # every codeql-action bump; scoping to liveness is structural. The
+      # pattern-regardless-of-liveness axis is gitleaks' job above — this
+      # split is the reason the workflow runs both scanners.
       - name: trufflehog full-history scan
         run: |
           docker run --rm -v "$PWD:/repo" trufflesecurity/trufflehog:3.90.8 \
-            git file:///repo --no-update --fail
+            git file:///repo --no-update --fail --results=verified,unknown
 
   zizmor:
     runs-on: ubuntu-latest
