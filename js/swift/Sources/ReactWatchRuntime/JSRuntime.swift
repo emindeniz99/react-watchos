@@ -109,14 +109,25 @@ public final class JSRuntime {
     /// (the matching `is_handled == true` edge) before anything is reported;
     /// an entry still here when the turn ends really did have no handler.
     ///
-    /// Known gap: the key is the promise's raw address, not an owning
-    /// reference. If quickjs-ng's refcounting GC frees a zero-refcount
-    /// promise synchronously before `drainJobs()` finishes the turn, a new
-    /// object could in principle land at the same address later in that same
-    /// turn, letting an unrelated `is_handled` edge (or a park) match the
-    /// wrong entry. Narrow — needs a promise nothing holds a reference to,
-    /// freed mid-turn — and not covered by a test.
-    private var pendingRejections: [UnsafeRawPointer: String] = [:]
+    /// Each entry OWNS a `JS_DupValue` retain on its promise for exactly as
+    /// long as it sits here. The key alone was not enough: quickjs-ng's
+    /// refcounting frees a reference-less promise MID-TURN, and the very next
+    /// promise allocation reuses the freed address — so a later same-turn
+    /// promise's `is_handled` edge (or park) matched the DEAD promise's key
+    /// and retracted a genuine report (pinned by
+    /// `testFreedPromiseAddressReuseCannotRetractAnotherPromisesReport`,
+    /// which fails on the unretained version). The retain pins the address
+    /// for the entry's lifetime, so a key can never be two promises. Every
+    /// removal frees the retain — the retraction, the drain's report, and a
+    /// shutdown whose skipped drain left entries behind — or the engine's
+    /// leak assertion aborts `JS_FreeRuntime`.
+    private struct PendingRejection {
+        let message: String
+        /// The promise itself, retained (`JS_DupValue`); `JS_FreeValue`d on
+        /// every path that removes the entry.
+        let promise: JSValue
+    }
+    private var pendingRejections: [UnsafeRawPointer: PendingRejection] = [:]
 
     /// - Parameters:
     ///   - memoryLimitBytes: caps the QuickJS heap (the widget extension runs in
@@ -233,6 +244,12 @@ public final class JSRuntime {
         pendingTimers.removeAll()
         globalFnCache.values.forEach { JS_FreeValue(context, $0) }
         globalFnCache.removeAll()
+        // A shutdown requested from inside a turn skipped that turn's drain,
+        // so parked entries can still be here — release their retains before
+        // the context goes away, or JS_FreeRuntime aborts on the leaked
+        // promises. Their reports are deliberately dropped: the caller asked
+        // to stop.
+        pendingRejections.values.forEach { JS_FreeValue(context, $0.promise) }
         pendingRejections.removeAll()
         JS_FreeContext(context)
         JS_FreeRuntime(runtime)
@@ -867,10 +884,16 @@ public final class JSRuntime {
         // attach anywhere in this turn — including a same-turn attach, which
         // `noteRejectionHandled` already removed. See `pendingRejections`.
         if !pendingRejections.isEmpty {
-            let messages = pendingRejections.values
+            let entries = pendingRejections.values
             pendingRejections.removeAll()
-            for message in messages {
-                onError?("promiseRejection", message)
+            // Release every retain BEFORE any report: the messages are
+            // already Strings, and `onError` may run arbitrary host code —
+            // it must find the engine with no half-torn ledger to trip on.
+            for entry in entries {
+                JS_FreeValue(context, entry.promise)
+            }
+            for entry in entries {
+                onError?("promiseRejection", entry.message)
             }
         }
     }
@@ -906,25 +929,37 @@ public final class JSRuntime {
     }
 
     /// Records a "possibly unhandled" rejection, keyed by the promise's
-    /// identity, instead of reporting it immediately — `drainJobs()` reports
-    /// (or drops) it once the current turn finishes. `reason` is formatted to
-    /// a String right away: it is read synchronously off the live JSValue
-    /// here, on the JS thread, same as the old immediate report did.
+    /// identity and RETAINING the promise for the entry's lifetime (see
+    /// `pendingRejections`), instead of reporting it immediately —
+    /// `drainJobs()` reports (or drops) it once the current turn finishes.
+    /// `reason` is formatted to a String right away: it is read synchronously
+    /// off the live JSValue here, on the JS thread, same as the old immediate
+    /// report did.
     fileprivate func notePossiblyUnhandledRejection(
-        promise: UnsafeRawPointer?, reason: JSValue
+        promise: JSValue, reason: JSValue
     ) {
-        guard let promise else { return }
-        pendingRejections[promise] =
-            "Possibly unhandled promise rejection: " + describe(reason)
+        guard let key = qjs_value_get_ptr(promise) else { return }
+        let entry = PendingRejection(
+            message: "Possibly unhandled promise rejection: " + describe(reason),
+            promise: JS_DupValue(context, promise))
+        // A promise settles once, so a same-key entry "cannot" already exist
+        // — but balance it anyway rather than assume: an unfreed displaced
+        // retain would abort teardown, and the ledger should hold locally.
+        if let displaced = pendingRejections.updateValue(entry, forKey: key) {
+            JS_FreeValue(context, displaced.promise)
+        }
     }
 
     /// The matching retraction: a `.catch`/`.then` attached to `promise`
     /// (synchronously, per spec, from `PerformPromiseThen`) before this turn's
     /// drain finished. Removing the entry is what makes a same-turn handler
-    /// invisible to the overlay instead of merely late.
-    fileprivate func noteRejectionHandled(promise: UnsafeRawPointer?) {
-        guard let promise else { return }
-        pendingRejections.removeValue(forKey: promise)
+    /// invisible to the overlay instead of merely late — and releasing the
+    /// entry's retain here is what lets the handled promise die normally.
+    fileprivate func noteRejectionHandled(promise: JSValue) {
+        guard let key = qjs_value_get_ptr(promise) else { return }
+        if let entry = pendingRejections.removeValue(forKey: key) {
+            JS_FreeValue(context, entry.promise)
+        }
     }
 
     #if DEBUG
@@ -1006,17 +1041,18 @@ private func jsDebugPoll(
 /// quickjs-ng calls this whenever a promise's rejection-handled state changes.
 /// Both edges matter now (see `pendingRejections`): "no handler yet" parks a
 /// report, and the matching "handled" edge (a `.catch` attached later in the
-/// SAME turn) retracts it before `drainJobs()` ever surfaces it.
+/// SAME turn) retracts it before `drainJobs()` ever surfaces it. The promise
+/// crosses as the borrowed JSValue itself (not a bare pointer) so the park
+/// can take its own retain.
 private func promiseRejectionTracker(
     ctx: OpaquePointer?, promise: JSValue, reason: JSValue,
     isHandled: Bool, opaque _: UnsafeMutableRawPointer?
 ) {
     guard let runtime = JSRuntime.from(context: ctx) else { return }
-    let promiseId = qjs_value_get_ptr(promise)
     if isHandled {
-        runtime.noteRejectionHandled(promise: promiseId)
+        runtime.noteRejectionHandled(promise: promise)
     } else {
-        runtime.notePossiblyUnhandledRejection(promise: promiseId, reason: reason)
+        runtime.notePossiblyUnhandledRejection(promise: promise, reason: reason)
     }
 }
 
