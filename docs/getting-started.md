@@ -247,8 +247,11 @@ Xcode rebuild.
 
 The qjs smoke test needs a C compiler and nothing else: it builds
 `tools/vendored-qjs` from the vendored quickjs-ng sources — the same files
-SwiftPM compiles for the watch — and caches that build, so the gate runs the
-engine we ship rather than whatever a package manager calls `qjs`.
+SwiftPM compiles for the watch — so the gate runs the engine we ship rather
+than whatever a package manager calls `qjs`. The build is cached per user under
+`${XDG_CACHE_HOME:-~/.cache}/react-watchos/vendored-qjs` (override with
+`QJS_BUILD_DIR`), outside the checkout: ~27 s the first time, ~20 ms after, and
+a second clone or git worktree reuses it.
 `tools/embed-smoke/run.sh` links the same engine objects with a C host and
 runs the bundle through the same embedding calls `JSRuntime.swift` makes. Both
 are also the local crash-repro loop — see [debugging.md](./debugging.md#the-local-repro-loop-no-watch-required).
