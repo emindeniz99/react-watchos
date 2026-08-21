@@ -6,7 +6,7 @@
 
 # Interface: WidgetDefinition
 
-Defined in: [js/src/widgets.ts:235](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L235)
+Defined in: [js/src/widgets.ts:246](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L246)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/widgets.ts:235](https://github.com/emindeniz99/react-watchos
 
 > **families**: [`WidgetFamily`](../type-aliases/WidgetFamily.md)[]
 
-Defined in: [js/src/widgets.ts:238](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L238)
+Defined in: [js/src/widgets.ts:249](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L249)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/widgets.ts:238](https://github.com/emindeniz99/react-watchos
 
 > `optional` **instances?**: () => `string`[]
 
-Defined in: [js/src/widgets.ts:247](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L247)
+Defined in: [js/src/widgets.ts:258](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L258)
 
 Optional: expand this widget into one timeline per instance id, published
 under the key `kind/id` (instead of just `kind`). Use for a configurable
@@ -40,7 +40,7 @@ id as `context.instanceId`.
 
 > **kind**: `string`
 
-Defined in: [js/src/widgets.ts:237](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L237)
+Defined in: [js/src/widgets.ts:248](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L248)
 
 Matches the WidgetKit `kind` in the Swift widget extension.
 
@@ -50,7 +50,7 @@ Matches the WidgetKit `kind` in the Swift widget extension.
 
 > **render**: (`context`) => [`WidgetTimeline`](WidgetTimeline.md)
 
-Defined in: [js/src/widgets.ts:239](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L239)
+Defined in: [js/src/widgets.ts:250](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L250)
 
 #### Parameters
 
