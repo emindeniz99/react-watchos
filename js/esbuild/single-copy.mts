@@ -58,7 +58,7 @@ export function findDuplicateCopies(
 }
 
 /** The build error a duplicated package produces. */
-export function duplicateCopyMessage({ name, roots }: DuplicateCopies): string {
+function duplicateCopyMessage({ name, roots }: DuplicateCopies): string {
   return (
     `this bundle would ship ${roots.length} copies of ${name}:\n` +
     roots.map((r) => `    ${r}`).join("\n") +

@@ -21,7 +21,7 @@ export interface Component {
 }
 
 /** One field of a generated struct. `swift` is absent for TS-only wire types. */
-export interface StructField {
+interface StructField {
   name: string;
   swift?: string;
   ts: string;
@@ -64,7 +64,7 @@ export interface HostArg {
  * it explicitly is what keeps "undescribable by design" distinguishable from
  * "nobody got around to declaring it".
  */
-export type InvokeShapeRef = string;
+type InvokeShapeRef = string;
 
 /** A `__host` bridge method (see the doc on `hostMethods`). */
 export interface HostMethod {

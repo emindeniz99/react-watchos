@@ -243,7 +243,7 @@ export interface UpdateManifest {
  * updates, which is also what a manifest-freeze attacker wants to look like.
  * Throwing distinguishes "endpoint is broken" from "no update".
  */
-export function parseManifest(raw: unknown): UpdateManifest {
+function parseManifest(raw: unknown): UpdateManifest {
   const fail = (what: string): never => {
     throw new Error(`malformed update manifest: ${what}`);
   };

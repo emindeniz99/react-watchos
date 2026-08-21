@@ -48,7 +48,7 @@ export type ColorValue = SystemColorName | `#${string}`;
  * .accessibilityLabel/.accessibilityHint in NodeView). Watch users rely
  * on VoiceOver, so author labels for icon-only or composite controls.
  */
-export interface A11yProps {
+interface A11yProps {
   accessibilityLabel?: string;
   accessibilityHint?: string;
 }
@@ -59,7 +59,7 @@ export interface A11yProps {
  * order: padding → background+cornerRadius → frame → opacity → tint. Colors
  * take the same values as `color` (system name or #RRGGBB[AA] hex).
  */
-export interface ModifierProps {
+interface ModifierProps {
   /** Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`. */
   padding?: number | { horizontal?: number; vertical?: number };
   /** Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom. */
@@ -100,7 +100,7 @@ export interface ModifierProps {
  * gets a direction. Avoid onSwipe on scroll containers — it competes with
  * scrolling and the system swipe-back.
  */
-export interface GestureProps {
+interface GestureProps {
   onLongPress?: () => void;
   onSwipe?: (direction: "left" | "right" | "up" | "down") => void;
   /** Streamed drag translation (quantized to throttle the bridge) — for scrubbing. */

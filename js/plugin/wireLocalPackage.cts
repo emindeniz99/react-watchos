@@ -30,6 +30,12 @@ const WIDGET_PRODUCTS = ["ReactWatchWidget", "ReactWatchCore"];
  * type because node-xcode 3.x ships no TypeScript types. The pbxproj object
  * graph is untyped-by-nature (`any` values), which is honest: node-xcode
  * exposes it as raw parsed plist objects.
+ *
+ * @knipignore plugin/peerDeps.cts and plugin/withNativeWiring.cts both use this,
+ * but as `import("./wireLocalPackage.cts").XcodeProjectLike` — the inline type
+ * form, because these files are CommonJS by construction and carry no ESM
+ * imports. knip's resolver does not follow that form and reports the export as
+ * unused; de-exporting it fails `tsc -p tsconfig.tooling.json`.
  */
 export interface XcodeProjectLike {
   // The pbxproj object graph node-xcode hands back IS untyped — raw parsed

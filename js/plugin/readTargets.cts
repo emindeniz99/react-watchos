@@ -6,7 +6,7 @@ const path = require("node:path");
 // they discover the resolved target names / types / infoPlist without
 // re-parsing the Expo config (the generated files are the resolved truth).
 
-export interface GeneratedTarget {
+interface GeneratedTarget {
   dir: string;
   name: string;
   type: string;
