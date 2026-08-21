@@ -2443,17 +2443,41 @@ final class UpdateURLPolicyTests: XCTestCase {
         }
     }
 
-    // Foundation's URL parser correctly extracts an IPv6 literal's host
-    // WITHOUT brackets (`"::1"`), unlike js update.ts's regex-based host
-    // extraction, which can never produce that string (it stops at the first
-    // `:`) — so js/src/update.ts's `isPrivateHost` can never treat an IPv6
-    // literal as private, by construction, regardless of what it checks for.
-    // Keeping a Swift-only `host == "::1"` allowance would make the two
-    // policies disagree over IPv6 loopback, so it was dropped along with the
-    // dead JS branch: neither side special-cases IPv6 literals.
-    func testIPv6LoopbackIsRefused() {
-        XCTAssertNotNil(UpdateURLPolicy.violation(of: "http://[::1]:8788/m.json"))
-        XCTAssertNotNil(UpdateURLPolicy.violation(of: "http://[::1]/m.json"))
+    // REGRESSION PIN, mirrored in update.ota.test.ts: the JS host regex used
+    // to stop at the first colon, handing isPrivateHost the bare string "["
+    // for `http://[::1]:8080` — so IPv6 loopback was never a usable dev host
+    // on either side (this policy refused it too, to stay contract-paired).
+    // Both now parse the bracketed literal and allow loopback; the PORTED
+    // form is the case that triggered the truncation.
+    func testIPv6LoopbackIsADevHost() {
+        for url in [
+            "http://[::1]:8080/m.json",
+            "http://[::1]/m.json",
+            // Uncompressed spelling of the same address.
+            "http://[0:0:0:0:0:0:0:1]:8788/m.json",
+        ] {
+            XCTAssertNil(UpdateURLPolicy.violation(of: url), url)
+        }
+    }
+
+    // Recorded decision (roadmap 2026-08-12): IPv6 dev hosts are loopback
+    // ONLY — ULA fc00::/7 and link-local fe80::/10 are NOT the IPv6 parallel
+    // of the private-LAN IPv4 ranges. Same matrix as update.ota.test.ts.
+    func testNonLoopbackIPv6IsRefused() {
+        for url in [
+            "http://[::2]:8080/m.json",  // one past loopback
+            "http://[2001:db8::1]/m.json",  // public
+            "http://[fe80::1]/m.json",  // link-local fe80::/10
+            "http://[febf::1]/m.json",  // top of the link-local /10
+            "http://[fc00::1]/m.json",  // ULA fc00::/7
+            "http://[fd12:3456::1]/m.json",  // ULA, fd half of the /7
+            "http://[::ffff:7f00:1]/m.json",  // IPv4-mapped 127.0.0.1 is not ::1
+            "http://[fe80::1%25en0]/m.json",  // a zone id never names loopback
+            "http://[::]/m.json",  // the unspecified address
+            "http://[0:0:0:0:0:0:0:0:1]/m.json",  // 9 groups — not IPv6 at all
+        ] {
+            XCTAssertNotNil(UpdateURLPolicy.violation(of: url), url)
+        }
     }
 
     func testNonHTTPSchemesAndRelativeURLsAreRefused() {
