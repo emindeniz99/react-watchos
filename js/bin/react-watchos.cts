@@ -380,7 +380,7 @@ switch (command) {
         "      `dev --debug` first: that instruments every statement and\n" +
         "      writes the .dbg.json this reads. The watch POSTs its state to\n" +
         "      /debug/poll and blocks there while paused; an editor attaches\n" +
-        "      to the DAP port ({\"debugServer\": 8791} in launch.json).\n" +
+        '      to the DAP port ({"debugServer": 8791} in launch.json).\n' +
         "      Breakpoints, stepping and the top frame's ARGUMENTS — not a\n" +
         "      scope walker; see docs/design-dap-debugger.md for the limits.\n",
     );

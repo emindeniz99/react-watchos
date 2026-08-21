@@ -28,6 +28,9 @@
     "src/shims.ts",
     "src/widgets.ts",
     "src/intents.ts",
+    // reached through esbuild `inject` in a debug build (preset.mts
+    // `debugProbeEntry`) — injection is by path, so knip sees no import
+    "src/debugProbe.ts",
     // the dev inspector server, next to the inferred `bin` entry
     "bin/*.{mts,cts}",
     // the two post-prebuild entries in the exports map, run by path from a
@@ -38,11 +41,11 @@
     "scripts/*.ts",
     // the two esbuild bundle entries (see scripts/config.ts `targets`)
     "demo/*.entry.tsx",
-    // the suite, and the fixture ENTRY that qbc-symbolication.test.ts builds
-    // with esbuild by path — nothing imports it, so without this line it reads
-    // as an unused file
+    // the suite, and the fixture ENTRIES that qbc-symbolication.test.ts and
+    // dap-debugger.test.ts hand to esbuild by path — nothing imports them, so
+    // without this line they read as unused files
     "test/**/*.test.{ts,tsx}",
-    "test/fixtures/*.entry.tsx"
+    "test/fixtures/*.entry.{ts,tsx}"
   ],
 
   "project": [
