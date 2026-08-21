@@ -9,7 +9,7 @@
  * The eval type MUST match the runtime's .js path (JS_EVAL_TYPE_GLOBAL), or the
  * function object shape won't line up with JS_EvalFunction.
  *
- * usage: qjs-compile <bundle.js> <out.qbc> [out.hash]
+ * usage: qjs-compile [--strip-debug] <bundle.js> <out.qbc> [out.hash]
  *
  * The optional third argument writes bundle.js's content hash (FNV-1a 64-bit,
  * lowercase hex, no leading zeros) — byte-for-byte the same algorithm as
@@ -58,8 +58,21 @@ static char *read_file(const char *path, size_t *out_len) {
 }
 
 int main(int argc, char **argv) {
+    // --strip-debug: the escape hatch for a consumer who has decided they do
+    // not want symbolication at all — no map kept, no crash reporter, and the
+    // ~45 KB of flash back. Opt-in and off by default, because a stripped blob
+    // is a ONE-WAY door: `at fn (<null>:0:1)` frames from the field cannot be
+    // recovered later by any tooling, while the default's 45 KB can always be
+    // reclaimed by rebuilding with this flag.
+    int write_flags = JS_WRITE_OBJ_BYTECODE | JS_WRITE_OBJ_STRIP_SOURCE;
+    if (argc > 1 && strcmp(argv[1], "--strip-debug") == 0) {
+        write_flags |= JS_WRITE_OBJ_STRIP_DEBUG;
+        argv++;
+        argc--;
+    }
     if (argc < 3) {
-        fprintf(stderr, "usage: %s <bundle.js> <out.qbc>\n", argv[0]);
+        fprintf(stderr, "usage: %s [--strip-debug] <bundle.js> <out.qbc>\n",
+                argv[0]);
         return 2;
     }
     size_t src_len = 0;
@@ -132,8 +145,7 @@ int main(int argc, char **argv) {
     // debug tables, not from the embedded text. All it buys is a readable
     // Function.prototype.toString, which nothing on the watch reads.
     size_t out_len = 0;
-    uint8_t *out = JS_WriteObject(
-        ctx, &out_len, obj, JS_WRITE_OBJ_BYTECODE | JS_WRITE_OBJ_STRIP_SOURCE);
+    uint8_t *out = JS_WriteObject(ctx, &out_len, obj, write_flags);
     JS_FreeValue(ctx, obj);
     if (!out) {
         fprintf(stderr, "qjs-compile: JS_WriteObject failed\n");

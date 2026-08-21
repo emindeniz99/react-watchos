@@ -23,10 +23,17 @@ cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o qjs-compile \
 # ContentHash.of the source, so the runtime can refuse a stale/hand-swapped
 # pairing — see ReactWatchHost.loadShipped / WidgetIntentRuntime.loadShippedBundle)
 # and drop both next to the target's bundle.js as bundle.qbc / bundle.hash.
+# QJS_STRIP_DEBUG=1 drops the per-opcode line/column tables from the .qbc —
+# the ~45 KB opt-out for a pipeline that keeps no source maps and reads no
+# stacks. Off by default on purpose: stripped frames (`at fn (<null>:0:1>`)
+# are unrecoverable after the fact, while the default's 45 KB always is.
+STRIP_FLAG=""
+[ "${QJS_STRIP_DEBUG:-}" = "1" ] && STRIP_FLAG="--strip-debug"
 compile() {
   out="${1%.js}.qbc"
   hashout="${1%.js}.hash"
-  ./qjs-compile "$1" "$out" "$hashout"
+  # shellcheck disable=SC2086  # STRIP_FLAG is empty or one word, by design
+  ./qjs-compile $STRIP_FLAG "$1" "$out" "$hashout"
   dir="../../app/targets/$2/assets"
   mkdir -p "$dir"
   cp "$out" "$dir/bundle.qbc"

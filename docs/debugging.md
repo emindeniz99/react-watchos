@@ -276,7 +276,14 @@ Keep the map with the build that produced it. A map only matches the exact
 bytes it was emitted for — symbolicating one release's stack against another
 release's map yields confident nonsense.
 
-### This works on the bytecode the watch actually runs
+#The ~45 KB of debug tables in the `.qbc` are themselves optional: a pipeline
+that keeps no maps and reads no stacks can take them back with
+`QJS_STRIP_DEBUG=1 pnpm build:bytecode` (or `qjs-compile --strip-debug`).
+Off by default on purpose — a stripped blob is a one-way door: `<null>:0:1`
+frames from the field can never be recovered by any later tooling, while the
+default's 45 KB can always be reclaimed by rebuilding with the flag.
+
+## This works on the bytecode the watch actually runs
 
 A release watch app does not boot `bundle.js`. It boots `bundle.qbc`, the
 precompiled QuickJS bytecode
