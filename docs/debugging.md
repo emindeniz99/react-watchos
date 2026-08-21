@@ -214,7 +214,10 @@ on Linux/macOS in seconds. Reach for these **before** rebuilding for hardware:
   SwiftPM compiles for the watch. (Needs a C compiler, nothing else. Do **not**
   install a distro `qjs`: that is Bellard's QuickJS, a different engine that
   reports stack frames without line or column, and it is what made source maps
-  look impossible here.)
+  look impossible here.) The same run includes `qbc-symbolication.test.ts`,
+  which takes a throwing `.tsx` all the way to production bytecode and back to
+  the source line — that is the one that tells you whether a stack from the
+  field will be readable at all.
 - **`tools/embed-smoke/run.sh`** — compiles the *vendored* quickjs-ng sources
   with a reference C host and runs the bundle through the exact embedding
   sequence Swift uses, then gates on engine heap and boot time. This is the
@@ -258,15 +261,62 @@ pnpm --filter react-watchos symbolicate dist/bundle.js.map < stack.txt
 ```
 
 Frames it cannot resolve are printed through unchanged rather than dropped.
-The script ([`js/scripts/symbolicate.ts`](../js/scripts/symbolicate.ts)) is
-~40 lines over `@jridgewell/trace-mapping` — the same mapping library the
-JS toolchain (Rollup, Vite, Sentry's tooling) resolves maps with; there is no
-watch-specific magic to it, so a hosted crash reporter fed the same `.map`
-resolves the same frames.
+The script ([`js/scripts/symbolicate.ts`](../js/scripts/symbolicate.ts)) is a
+thin CLI over [`symbolicate-core.ts`](../js/scripts/symbolicate-core.ts) —
+`parseStackFrame` + `symbolicateFrame`, ~40 lines over
+`@jridgewell/trace-mapping`, the same mapping library the JS toolchain (Rollup,
+Vite, Sentry's tooling) resolves maps with. There is no watch-specific magic to
+it, so a hosted crash reporter fed the same `.map` resolves the same frames,
+and your own telemetry pipeline can `import { symbolicateFrame }` instead of
+re-deriving the 1-based/0-based column dance. (Engines report columns 1-based,
+source maps are 0-based; the core does that conversion in exactly one place,
+which is why it is a module and not two copies.)
 
 Keep the map with the build that produced it. A map only matches the exact
 bytes it was emitted for — symbolicating one release's stack against another
 release's map yields confident nonsense.
+
+### This works on the bytecode the watch actually runs
+
+A release watch app does not boot `bundle.js`. It boots `bundle.qbc`, the
+precompiled QuickJS bytecode
+(`JSRuntime.evaluateBytecode` → `JS_ReadObject` + `JS_EvalFunction`), and for a
+while that path reported **nothing**: `tools/qjs-compile` wrote the blob with
+`JS_WRITE_OBJ_STRIP_DEBUG`, which drops the per-opcode line/column tables, so
+every production frame came back as
+
+```
+    at Dp (<null>:0:1)
+```
+
+— no filename, no line, no column, and therefore a source map with nothing to
+resolve. The maps were being emitted faithfully and were inert on the only path
+that shipped.
+
+That flag is gone. **Shipped `.qbc` frames now carry generated positions and
+symbolicate exactly like source-parsed ones** — byte-identical output, same
+`bundle.js:line:column` shape, same command above, no bytecode-specific step.
+The debug tables cost **+45 KB** on the minified app bundle's blob
+(204,979 → 250,361 B; they scale with opcode count, not source size), +36 KB
+of QuickJS heap and +0.07 ms in `JS_ReadObject` (1.23 → 1.31 ms, median of 21
+runs in the vendored engine), with eval unchanged — paid so a crash from the
+field is readable.
+
+[`js/test/qbc-symbolication.test.ts`](../js/test/qbc-symbolication.test.ts) is
+the guard, and it is deliberately end-to-end: a `.tsx` that throws, built
+through the real preset, compiled by the real `qjs-compile`, executed as
+bytecode in the real vendored quickjs-ng, and the resulting `Error.stack`
+resolved back to that `.tsx`'s line and column **through the same
+`symbolicate-core.ts` the CLI uses**. Its first assertion is that the stack
+contains no `<null>` — the regression signature of `STRIP_DEBUG` returning.
+
+What is still stripped is the **source text** (`JS_WRITE_OBJ_STRIP_SOURCE`
+stays on): keeping it roughly quadruples the blob — 250 KB → 903 KB on the app
+bundle — and buys nothing for stacks, because positions come from the debug
+tables, not from the embedded text. The one visible consequence is that
+`Function.prototype.toString` on a function from a shipped bundle returns no
+source on-device. Nothing in the runtime reads it; if your code does, it will
+not work from `.qbc`.
 
 ## What this is NOT
 
@@ -290,7 +340,14 @@ Stated plainly, because the gap is real:
   `at ShoppingList`. Host frames (`at VStack`, `at Text`) are string literals in
   the renderer and stay readable, as does the diagnostics ring. This one is
   **recoverable after the fact** — the build writes a source map beside the
-  bundle by default; see [Symbolicating a minified stack](#symbolicating-a-minified-stack).
+  bundle by default, and that holds for the `.qbc` bytecode a release app
+  actually boots, not just for `bundle.js`; see
+  [Symbolicating a minified stack](#symbolicating-a-minified-stack).
+- **No source text on-device.** The shipped `.qbc` is written with
+  `JS_WRITE_OBJ_STRIP_SOURCE`, so `Function.prototype.toString` on anything
+  from the bundle gives you no source back. Stack *positions* are there (the
+  debug tables are kept on purpose); the *text* is not, and buying it back
+  would roughly quadruple the blob for no gain in a stack.
 - **A DEBUG launch is not automatically running a readable bundle.** Two cases
   bite. (1) `ReactWatchModel.start()`
   ([`ReactWatchHost.swift:312`](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift#L312))
