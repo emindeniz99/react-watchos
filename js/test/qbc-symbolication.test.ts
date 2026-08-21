@@ -148,6 +148,10 @@ describe.skipIf(!qjsAvailable && !requireQjs)(
     let frames: ResolvedFrame[] = [];
     let bundleLineCount = 0;
     let qbcBlob = "";
+    // Shared with the --strip-debug test below, which recompiles the same
+    // bundle with the opt-out flag and compares against these.
+    let bundlePath = "";
+    let qbcPath = "";
 
     beforeAll(async () => {
       // Reached with no compiler only under REQUIRE_QJS=1 (otherwise the suite
@@ -161,8 +165,8 @@ describe.skipIf(!qjsAvailable && !requireQjs)(
         );
       }
       const dir = mkdtempSync(join(tmpdir(), "qbc-symbolication-"));
-      const bundlePath = join(dir, "bundle.min.js");
-      const qbcPath = join(dir, "bundle.qbc");
+      bundlePath = join(dir, "bundle.min.js");
+      qbcPath = join(dir, "bundle.qbc");
 
       // The SHIPPING shape: `buildBundles` minifies by default, and minify is
       // what makes symbolication necessary at all (locals are renamed, so the
@@ -301,6 +305,26 @@ describe.skipIf(!qjsAvailable && !requireQjs)(
       expect(framesAt(throwLine)[0].position?.sourceContent).toContain(
         "// THROW_MARKER",
       );
+    });
+
+    // The opt-out must really opt out: a consumer who keeps no maps and reads
+    // no stacks buys their ~45 KB back with --strip-debug, and this pins that
+    // the flag reaches JS_WriteObject rather than being parsed and ignored.
+    // The <null> frame it asserts is exactly what the default-path test above
+    // forbids — the two tests hold opposite ends of the same switch.
+    it("--strip-debug is a working escape hatch, and smaller", () => {
+      const stripped = qbcPath.replace(/\.qbc$/, ".stripped.qbc");
+      execFileSync(
+        buildTool("qjs-compile"),
+        ["--strip-debug", bundlePath, stripped],
+        { stdio: "pipe" },
+      );
+      expect(statSync(stripped).size).toBeLessThan(statSync(qbcPath).size);
+      const strippedStack = execFileSync(buildTool("qbc-stack"), [stripped], {
+        encoding: "utf8",
+      });
+      expect(strippedStack).toContain("<null>");
+      expect(strippedStack).not.toContain("bundle.js:");
     });
 
     it("still ships bytecode with the SOURCE stripped (STRIP_SOURCE stays)", () => {
