@@ -144,6 +144,12 @@ int main(int argc, char **argv) {
     // byte-identical either way, because the positions above come from the
     // debug tables, not from the embedded text. All it buys is a readable
     // Function.prototype.toString, which nothing on the watch reads.
+    //
+    // The watch applies this SAME policy when it compiles an applied OTA
+    // bundle on device — see qjs_write_obj_bytecode_strip_source() in
+    // js/swift/Sources/CQuickJS/include/quickjs-swift-shim.h, which
+    // JSRuntime.compileToBytecode passes to JS_WriteObject. Two sites, one
+    // decision: change one and change the other.
     size_t out_len = 0;
     uint8_t *out = JS_WriteObject(ctx, &out_len, obj, write_flags);
     JS_FreeValue(ctx, obj);

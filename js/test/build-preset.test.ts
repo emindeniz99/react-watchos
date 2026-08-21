@@ -1,5 +1,12 @@
 import { execFileSync, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +15,7 @@ import { build } from "esbuild";
 import { describe, expect, it } from "vitest";
 import { contentHash } from "../esbuild/manifest.mts";
 import { buildBundles, watchBuildOptions } from "../esbuild/preset.mts";
+import type { SymbolMetadata } from "../esbuild/symbol-store.mts";
 
 // The batteries-included multi-target build: a consumer with a watch bundle +
 // a widget bundle calls this once instead of copying the esbuild boilerplate
@@ -49,6 +57,9 @@ describe("buildBundles", () => {
     expect(watch?.manifest?.releaseId).toBe(
       contentHash(readFileSync(watchOut, "utf8")),
     );
+    // The result reports the manifest's OWN hash, not a second one computed
+    // beside it — one FNV-1a per build, or the two could disagree.
+    expect(watch?.releaseId).toBe(watch?.manifest?.releaseId);
     expect(results.find((r) => r.name === "widget")?.manifest).toBeUndefined();
   });
 
@@ -493,4 +504,204 @@ describe("source map + keepNames defaults", () => {
     await buildBundles([{ name: "app", entry, outfile: dflt }]);
     expect(readFileSync(dflt, "utf8")).not.toContain("shoppingListProbe");
   });
+});
+
+// A map only helps if it is still there when the stack arrives, and the one
+// esbuild writes beside the outfile is overwritten by the next build. The
+// opt-in store is what survives, keyed by the identity the stack itself carries
+// (`releaseId`), and what is pinned here is the LAYOUT — because that layout is
+// a contract between two separate programs: `buildBundles` writes it and
+// `pnpm symbolicate --symbols` reads it (js/test/symbolicate-cli.test.ts drives
+// the other end).
+describe("symbol store", () => {
+  const PROBE_FIXTURE =
+    "function shoppingListProbe() {\n  return 1;\n}\n" +
+    "globalThis.__probeGlobal = shoppingListProbe() + 1;\n";
+
+  const metadataOf = (dir: string): SymbolMetadata =>
+    JSON.parse(readFileSync(join(dir, "metadata.json"), "utf8"));
+
+  // Both targets are built from the SAME entry with the same options, so their
+  // bytes — and therefore their releaseId — are identical. That is not a
+  // contrived case: it is what "one source tree, two bundles" produces whenever
+  // the two happen to agree, and it is the case that decides the layout. Keyed
+  // by release alone, the widget's stack would resolve through whichever map
+  // was written last and come back CONFIDENTLY WRONG rather than fail.
+  it("stores bundle + map + metadata under <releaseId>/<target>", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-symbols-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, PROBE_FIXTURE);
+    const symbols = join(dir, "symbols");
+    const watchOut = join(dir, "watch/app.js");
+    const widgetOut = join(dir, "widget/bundle.js");
+
+    const results = await buildBundles(
+      [
+        { name: "watch", entry, outfile: watchOut, manifest: { version: 7 } },
+        { name: "widget", entry, outfile: widgetOut },
+      ],
+      { symbols },
+    );
+
+    const releaseId = contentHash(readFileSync(watchOut, "utf8"));
+    // The identity is the OTA one, not a new one invented for the store.
+    expect(results[0]?.manifest?.releaseId).toBe(releaseId);
+    expect(results.map((r) => r.releaseId)).toEqual([releaseId, releaseId]);
+    // …and it is reported for the widget too, which stamps no manifest at all.
+    expect(readdirSync(symbols)).toEqual([releaseId]);
+    expect(readdirSync(join(symbols, releaseId)).sort()).toEqual([
+      "watch",
+      "widget",
+    ]);
+
+    const watchDir = join(symbols, releaseId, "watch");
+    expect(results[0]?.symbols).toBe(watchDir);
+    // The bundle is kept beside the map: re-hashing it is how you confirm the
+    // directory name really describes these bytes.
+    expect(readFileSync(join(watchDir, "app.js"), "utf8")).toBe(
+      readFileSync(watchOut, "utf8"),
+    );
+    expect(readFileSync(join(watchDir, "app.js.map"), "utf8")).toBe(
+      readFileSync(`${watchOut}.map`, "utf8"),
+    );
+    expect(metadataOf(watchDir)).toEqual({
+      target: "watch",
+      bundle: "app.js", // the real outfile name, not a hardcoded bundle.js
+      map: "app.js.map",
+      bytes: statSync(watchOut).size,
+      releaseId,
+      minify: true, // buildBundles ships
+      keepNames: false,
+      sourcemap: true,
+    });
+
+    // The widget's entry is its OWN directory with its OWN bundle name.
+    const widgetDir = join(symbols, releaseId, "widget");
+    expect(metadataOf(widgetDir)).toMatchObject({
+      target: "widget",
+      bundle: "bundle.js",
+      map: "bundle.js.map",
+      releaseId,
+    });
+    expect(readFileSync(join(widgetDir, "bundle.js"), "utf8")).toBe(
+      readFileSync(widgetOut, "utf8"),
+    );
+  });
+
+  // Opt-in means opt-in: a build that did not ask for a store must not leave
+  // one behind, and must behave exactly as it did before the option existed.
+  it("writes nothing when `symbols` is absent", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-symbols-off-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, PROBE_FIXTURE);
+    const outfile = join(dir, "bundle.js");
+
+    const [result] = await buildBundles([{ name: "app", entry, outfile }]);
+
+    expect(existsSync(outfile)).toBe(true);
+    expect(result?.symbols).toBeUndefined();
+    expect(readdirSync(dir).sort()).toEqual([
+      "bundle.js",
+      "bundle.js.map",
+      "entry.ts",
+    ]);
+    // …and this build stamped no manifest either, so nothing hashed its bytes:
+    // the FNV-1a is a measured 55 ms on a 628 KB bundle and is computed only
+    // when something reads it (the manifest, or the store).
+    expect(result?.releaseId).toBeUndefined();
+  });
+
+  // The metadata's job is to answer "why is this frame unreadable?" weeks
+  // later, so the three settings that decide that are recorded from the build
+  // that actually ran — and `map: null` says out loud that no map was kept,
+  // rather than leaving the reader to hunt for a file that never existed.
+  it("records the build settings the stack's readability depends on", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-symbols-opts-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, PROBE_FIXTURE);
+    const symbols = join(dir, "symbols");
+    const outfile = join(dir, "bundle.js");
+
+    const [result] = await buildBundles([{ name: "app", entry, outfile }], {
+      symbols,
+      minify: false,
+      keepNames: true,
+      sourcemap: false,
+    });
+
+    const entryDir = result?.symbols ?? "";
+    expect(metadataOf(entryDir)).toMatchObject({
+      map: null,
+      minify: false,
+      keepNames: true,
+      sourcemap: false,
+    });
+    expect(readdirSync(entryDir).sort()).toEqual([
+      "bundle.js",
+      "metadata.json",
+    ]);
+  });
+
+  // The CLI has its own flag plumbing (bin/react-watchos.cts), so the API test
+  // above does not prove `--symbols` reaches the preset — the same reason
+  // `--no-minify` and `--no-sourcemap` are spawned for real rather than trusted.
+  it("exposes --symbols on the CLI", () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-symbols-cli-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, PROBE_FIXTURE);
+    const symbols = join(dir, "symbols");
+    const outfile = join(dir, "dist/bundle.js");
+
+    execFileSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        join(
+          dirname(fileURLToPath(import.meta.url)),
+          "../bin/react-watchos.cts",
+        ),
+        "build",
+        "--entry",
+        entry,
+        "--outfile",
+        outfile,
+        "--symbols",
+        symbols,
+      ],
+      { stdio: "pipe" },
+    );
+
+    const releaseId = contentHash(readFileSync(outfile, "utf8"));
+    // `build` names its single target "app"; the manifest it stamps beside the
+    // outfile and the store directory must agree on the id.
+    expect(
+      JSON.parse(readFileSync(join(dir, "dist/manifest.json"), "utf8"))
+        .releaseId,
+    ).toBe(releaseId);
+    expect(metadataOf(join(symbols, releaseId, "app"))).toMatchObject({
+      target: "app",
+      bundle: "bundle.js",
+      releaseId,
+    });
+
+    // …and a build without the flag still leaves no store (the default path).
+    const bare = join(dir, "bare/bundle.js");
+    execFileSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        join(
+          dirname(fileURLToPath(import.meta.url)),
+          "../bin/react-watchos.cts",
+        ),
+        "build",
+        "--entry",
+        entry,
+        "--outfile",
+        bare,
+      ],
+      { stdio: "pipe" },
+    );
+    expect(readdirSync(join(symbols, releaseId)).sort()).toEqual(["app"]);
+  }, 60_000);
 });

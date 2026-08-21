@@ -24,6 +24,7 @@
   },
   "sideEffects": [
     "./src/install-shims.ts",
+    "./src/debugProbe.ts",
     "./src/shims.ts",
     "./src/widgets.ts",
     "./src/intents.ts"
@@ -81,6 +82,7 @@
     "inspector": "node --experimental-strip-types bin/inspector-server.mts",
     "build:bytecode": "sh ../tools/qjs-compile/run.sh",
     "bench:qjs": "sh ../tools/embed-smoke/bench.sh",
+    "bench:debug": "node --experimental-strip-types scripts/debug-overhead.ts",
     "ota:keygen": "node --experimental-strip-types scripts/ota-keygen.ts",
     "ota:sign": "node --experimental-strip-types scripts/ota-sign.ts",
     "check:size": "node --experimental-strip-types scripts/check-size.ts",

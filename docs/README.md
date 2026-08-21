@@ -116,6 +116,15 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
 - [design-bundler-choice.md](./design-bundler-choice.md) — why the watch bundle
   uses esbuild (not Metro/Vite/Rollup/Bun), and when to revisit Rolldown.
   Verified against the 2026 landscape.
+- [design-dap-debugger.md](./design-dap-debugger.md) — real breakpoints for
+  watch JS without JavaScriptCore. Records the finding that quickjs-ng has **no
+  debug hooks to drive** (only a positionless interrupt watchdog), so the
+  breakpoint moves into a DEBUG-only source transform; and the second finding
+  that `fetch` cannot be the paused transport (it settles by hopping onto the
+  queue a paused debugger is holding), so one synchronous `#if DEBUG` host hook
+  is needed. Prototype landed and gated end-to-end in the vendored engine;
+  measured at +5.2 % bytes / +1.1 % per interaction; the watchOS wiring is
+  flagged as not yet run on hardware.
 - [design-arch-08-runtime-session.md](./design-arch-08-runtime-session.md) —
   ARCH-08 RuntimeSession isolation: the per-runtime vs persistent-transport
   seam, why it's deferred (no failing scenario today), and the shape to build.

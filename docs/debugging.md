@@ -1,17 +1,18 @@
 # Debugging a React app running on a watch
 
 The honest version of "what happens when it breaks, and how do I read it."
-There is no React DevTools here and no breakpoint debugger — see
-[What this is NOT](#what-this-is-not) for why. What there *is* is five
-surfaces, each of which tells you a different thing, a local repro loop that
-runs the real engine on your laptop, and a source map that turns a minified
-`at t` back into your component
+There is no React DevTools here — see [What this is NOT](#what-this-is-not) for
+why. What there *is* is six surfaces, each of which tells you a different
+thing, a local repro loop that runs the real engine on your laptop, and a
+source map that turns a minified `at t` back into your component
 ([Symbolicating a minified stack](#symbolicating-a-minified-stack)).
 
 Every mechanism below is in the shipped code; the file references are the
-proof.
+proof. The one exception is flagged as such: the source-level debugger is a
+landed spike whose watchOS wiring has not run on hardware yet
+([Breakpoints and stepping](#breakpoints-and-stepping-debug-builds)).
 
-## The five surfaces, and when each one is the right one
+## The six surfaces, and when each one is the right one
 
 | Surface | Where you see it | Available in | Use it for |
 |---|---|---|---|
@@ -20,6 +21,7 @@ proof.
 | **Diagnostics ring** | `onDiagnostic(...)` in JS; the native ring holds the last 50 | always, release builds too | structured, machine-readable failures with a session/release id |
 | **Console.app / Xcode console** | Mac, streamed from the watch | always | `console.log`, cold-start timings, widget-extension logs |
 | **Remote inspector** | A browser page on your Mac | DEBUG (opt-in call) | the live committed tree + log/error history |
+| **Source-level debugger** | VS Code on your Mac | DEBUG (opt-in *build*) | stopping on a line and stepping through it |
 
 ## What a crash on-wrist actually looks like
 
@@ -200,6 +202,61 @@ in the JSON at `/snapshot`; the built-in viewer page renders tree, logs and
 errors only — read the raw JSON for the diagnostics ring, or forward it with
 `onDiagnostic`.
 
+## Breakpoints and stepping (DEBUG builds)
+
+You can stop on a line. Not through the engine — quickjs-ng has no debug API,
+and forking it is refused (the vendored sources are re-vendored from upstream
+file-by-file) — but through a DEBUG-only build transform that puts a
+`__dbg(file, line)` probe at every statement boundary. Full rationale, prior
+art and limits: [design-dap-debugger.md](./design-dap-debugger.md).
+
+```sh
+npx react-watchos dev --entry watch-ui/entry.tsx --debug   # instrumented bundle
+npx react-watchos debug                                    # DAP + poll endpoint
+```
+
+Then attach VS Code with a `launch.json` entry — no extension needed, because
+`debugServer` speaks DAP straight to the port:
+
+```jsonc
+{ "type": "node", "request": "attach", "name": "watch js", "debugServer": 8791 }
+```
+
+The watch POSTs its state to `http://127.0.0.1:8790/debug/poll` and **blocks
+there while paused** (override the URL with the `ReactWatchDebugPollURL`
+Info.plist key for a physical watch, exactly like `ReactWatchDevServerURL`).
+Blocking the JS thread freezes the UI — that is what a breakpoint is, and it is
+why none of this exists in a release build.
+
+What you get: breakpoints, `continue`/`next`/`stepIn`/`stepOut`, a call stack
+in **original** `.ts` coordinates (no source map involved — the probe was placed
+by something that could still see your file), and `evaluate`.
+
+What you do NOT get, stated up front so you do not read a wrong value:
+
+- **The variables pane shows the top frame's ARGUMENTS only** — the scope is
+  named `Arguments`, not `Locals`, on purpose. A `const` inside the body or a
+  closure variable is not there; `evaluate` falls back to global scope for
+  anything else.
+- **Statement granularity.** A breakpoint on a line with no statement (a
+  declaration, a blank line, a closing brace) moves down to the next real one,
+  and the editor redraws it there. Stepping out lands on the caller's next
+  statement, not mid-line.
+- **`async`/generator frames drift**: a frame suspended at an `await` stays on
+  the shadow stack while other code runs. Synchronous code — all of React's
+  render path — is correct.
+- **No conditional breakpoints, logpoints, `setVariable`, or exception
+  breakpoints**, and widgets are not debuggable at all.
+- **Not yet run on hardware.** The JS/adapter halves are gated end-to-end in the
+  vendored quickjs-ng and the transport is gated by `swift test`; the twelve
+  lines of watchOS wiring in `ReactWatchHost.swift` need an `xcodebuild` run on
+  a Mac before you should trust them.
+
+Cost, measured on the demo app bundle: **+5.2 % bytes, +4.5 % boot, +1.1 % per
+interaction** with the default (app code only). Instrumenting the renderer too
+(`debugIncludeRenderer`) costs +34.6 % per interaction, which is why it is off.
+Re-measure with `node --experimental-strip-types js/scripts/debug-overhead.ts`.
+
 ## The local repro loop (no watch required)
 
 Most "on-wrist" failures are engine or contract failures, and those reproduce
@@ -276,7 +333,103 @@ Keep the map with the build that produced it. A map only matches the exact
 bytes it was emitted for — symbolicating one release's stack against another
 release's map yields confident nonsense.
 
-#The ~45 KB of debug tables in the `.qbc` are themselves optional: a pipeline
+## Keep your symbols
+
+That last paragraph is advice until something enforces it. By default the map
+lives at `<outfile>.map` and the next build overwrites it, while a crash from
+the field turns up three weeks later carrying a **`releaseId`** and nothing
+else. `--symbols` is the link between the two:
+
+```bash
+react-watchos build --entry src/entry.tsx --outfile dist/bundle.js \
+  --symbols ./symbols
+# [build] symbols -> ./symbols/8c4f1e7a90b3d5e2/app
+```
+
+It is opt-in and additive — without it the build behaves exactly as before —
+and it invents **no new identifier**. `releaseId` is already the FNV-1a over
+the exact shipped bytes: the OTA manifest stamps it, the watch reports it as
+`__bundleReleaseId`, and every record in the diagnostics ring carries it. The
+store is keyed by that and by the target:
+
+```
+symbols/<releaseId>/<target>/bundle.js       the exact bytes that shipped
+                            /bundle.js.map   the map for them
+                            /metadata.json   target, size, releaseId,
+                                             minify / keepNames / sourcemap
+```
+
+The target level is load-bearing, not tidiness. App and widget are separate
+bundles in separate processes, they are routinely built from one source tree in
+one command, and they **share a `releaseId` whenever their bytes match** — so
+keyed by release alone, a widget stack would resolve through the app's map and
+come back confidently wrong rather than failing. The same rule applies to
+`buildBundles`, which takes the directory once for the whole run:
+
+```ts
+await buildBundles(
+  [
+    { name: "app", entry: "src/entry.tsx", outfile: "dist/app/bundle.js",
+      manifest: { version: 3 } },
+    { name: "widget", entry: "src/widget.tsx", outfile: "dist/widget/bundle.js",
+      network: false },
+  ],
+  { symbols: "./symbols" },
+);
+```
+
+### Resolving a field stack
+
+Give the CLI the store and the id the stack arrived with — no map path, no
+guessing which build it came from:
+
+```bash
+pnpm --filter react-watchos symbolicate \
+  --symbols ./symbols --release 8c4f1e7a90b3d5e2 < stack.txt
+# at ShoppingList (../src/ShoppingList.tsx:42:8)   [was t @ bundle.js:1:30]
+```
+
+Add `--target widget` when that release holds more than one bundle; the CLI
+refuses to pick for you. A `releaseId` that is not in the store is an error
+that **lists what is**, so a typo looks like a typo and a store you forgot to
+upload to looks like that instead.
+
+Better still, hand it the whole ring. A diagnostics document — the
+`{ diagnostics: [...] }` the inspector serves, or a bare array of the same
+records — resolves entry by entry, each against **its own** `releaseId`, which
+matters because a ring routinely spans an OTA rollback and is at its most
+interesting exactly then:
+
+```bash
+pnpm --filter react-watchos symbolicate --symbols ./symbols \
+  --diagnostics ring.json          # or pipe it in on stdin
+# [recoverable] js.uncaught (js/watch) release 8c4f1e7a90b3d5e2 2026-08-21T…
+# Error: cannot read property 'id' of undefined
+#     at ShoppingList (../src/ShoppingList.tsx:42:8)   [was t @ bundle.js:1:30]
+```
+
+The frames come out of each record's `details`, because that is where they are:
+a `js.*` diagnostic's details field is the runtime's `message\nstack` text
+(there is no separate `stack` field on a `Diagnostic`). Records with no frames
+print as they are, and one recorded before a bundle loaded — no `releaseId` —
+says so rather than being resolved against a guess.
+
+### Where the directory goes
+
+Wherever you already keep release artifacts, under the same retention as the
+builds themselves: a CI artifact, an object-store prefix, a git-LFS path, the
+`symbols/` directory next to the `.ipa` you archived. We deliberately do not
+pick a vendor and the store is a plain directory tree with no index to
+maintain, so uploading it is `cp -r` / `aws s3 sync` / your CI's upload step,
+and merging two builds' stores is copying one over the other — the `releaseId`
+level makes collisions impossible between different bytes and idempotent
+between identical ones. Two things to hold to: keep it for as long as any
+build might still be running in the field (an OTA rollback can resurrect a
+release you thought was retired), and keep it **private** — the maps carry
+`sourcesContent`, so the store is your source code, and it must never be served
+from the host that serves your bundle.
+
+The ~45 KB of debug tables in the `.qbc` are themselves optional: a pipeline
 that keeps no maps and reads no stacks can take them back with
 `QJS_STRIP_DEBUG=1 pnpm build:bytecode` (or `qjs-compile --strip-debug`).
 Off by default on purpose — a stripped blob is a one-way door: `<null>:0:1`
@@ -325,6 +478,18 @@ tables, not from the embedded text. The one visible consequence is that
 source on-device. Nothing in the runtime reads it; if your code does, it will
 not work from `.qbc`.
 
+The **OTA bytecode cache is written the same way**. When the watch compiles an
+applied OTA bundle on device (`JSRuntime.compileToBytecode` →
+`ota-bundle.qbc`, kept in flash beside the OTA record) it passes the same
+`BYTECODE | STRIP_SOURCE`, debug tables kept — see
+`qjs_write_obj_bytecode_strip_source()` in
+[`quickjs-swift-shim.h`](../js/swift/Sources/CQuickJS/include/quickjs-swift-shim.h).
+It used to keep the source text, which cost **+652 KB of flash and +655 KB of
+QuickJS heap** on an app-bundle-sized OTA (908,332 → 252,952 B of blob;
+1,273,294 → 618,293 B of heap right after `JS_ReadObject`) for stacks that are
+identical either way. So an OTA'd bundle debugs exactly like a shipped one:
+positions yes, `toString` source no.
+
 ## What this is NOT
 
 Stated plainly, because the gap is real:
@@ -335,9 +500,14 @@ Stated plainly, because the gap is real:
   WebKit). The inspector above is the deliberate substitute: `fetch`-based
   polling, which is the transport we *do* have. No component inspector, no
   props editing, no profiler flamegraph.
-- **No breakpoints or stepping.** There is no debugger protocol wired to the
-  embedded engine. Debugging is `console.log`, the diagnostics ring, and the
-  tree snapshot.
+- **No ENGINE-level breakpoints.** quickjs-ng exposes exactly one hook near
+  this problem — `JS_SetInterruptHandler`, a watchdog with no source position
+  and no frame — and the only real QuickJS debugger that exists is an engine
+  fork with a second opcode dispatch table, which the vendoring model refuses.
+  So breakpoints here come from instrumenting your source instead
+  ([Breakpoints and stepping](#breakpoints-and-stepping-debug-builds)), with the
+  limits that implies: statement granularity, arguments instead of locals, and
+  drift across `await`.
 - **No Safari Web Inspector.** That attaches to JavaScriptCore/WebKit, neither
   of which exists on watchOS.
 - **The shipped bundle is minified, so a raw frame reads `at t`.** Since
@@ -350,11 +520,12 @@ Stated plainly, because the gap is real:
   bundle by default, and that holds for the `.qbc` bytecode a release app
   actually boots, not just for `bundle.js`; see
   [Symbolicating a minified stack](#symbolicating-a-minified-stack).
-- **No source text on-device.** The shipped `.qbc` is written with
-  `JS_WRITE_OBJ_STRIP_SOURCE`, so `Function.prototype.toString` on anything
-  from the bundle gives you no source back. Stack *positions* are there (the
-  debug tables are kept on purpose); the *text* is not, and buying it back
-  would roughly quadruple the blob for no gain in a stack.
+- **No source text on-device.** The shipped `.qbc` **and** the on-device OTA
+  bytecode cache are both written with `JS_WRITE_OBJ_STRIP_SOURCE`, so
+  `Function.prototype.toString` on anything from the bundle gives you no source
+  back. Stack *positions* are there (the debug tables are kept on purpose); the
+  *text* is not, and buying it back would roughly quadruple the blob for no
+  gain in a stack.
 - **A DEBUG launch is not automatically running a readable bundle.** Two cases
   bite. (1) `ReactWatchModel.start()`
   ([`ReactWatchHost.swift:312`](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift#L312))
