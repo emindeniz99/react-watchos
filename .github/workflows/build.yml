@@ -209,7 +209,10 @@ jobs:
         run: |
           echo "--- ios/ tree (depth 2) ---"
           find ios -maxdepth 2 -mindepth 1 | sort
-          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          # find, not `ls -d ios/*.xcworkspace`: shellcheck SC2012, and the
+          # glob would expand to the literal pattern if prebuild produced no
+          # workspace, silently setting WORKSPACE to a path that does not exist.
+          WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)
           echo "WORKSPACE=$WORKSPACE" >> "$GITHUB_ENV"
           echo "--- schemes ---"
           xcodebuild -workspace "$WORKSPACE" -list || true

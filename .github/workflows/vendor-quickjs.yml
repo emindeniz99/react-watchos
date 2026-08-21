@@ -208,6 +208,13 @@ jobs:
   gates:
     needs: propose
     if: needs.propose.outputs.propose == 'true'
+    # Stated even though it looks redundant: a called workflow's token can only
+    # be equal to or narrower than the CALLER's, and this file declares
+    # `permissions: {}` at the top. ci.yml's jobs ask for `contents: read`, so
+    # without this the whole run is rejected before any job starts
+    # (conclusion: startup_failure, "No jobs were run").
+    permissions:
+      contents: read
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ needs.propose.outputs.branch }}
@@ -215,6 +222,9 @@ jobs:
   watch-build:
     needs: propose
     if: needs.propose.outputs.propose == 'true'
+    # Same rule as `gates` above.
+    permissions:
+      contents: read
     uses: ./.github/workflows/build.yml
     with:
       ref: ${{ needs.propose.outputs.branch }}
