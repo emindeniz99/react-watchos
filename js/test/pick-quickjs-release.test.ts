@@ -1,4 +1,6 @@
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -348,4 +350,53 @@ describe("the report's older tail", () => {
     );
     expect(text).not.toContain("more |");
   });
+});
+
+// The CLI is real code with its own failure modes — it writes the file the
+// workflow reads with jq, and prints the table the workflow tees into the job
+// summary. RELEASES_JSON is the seam that lets this run without the network
+// (and lets a human replay "why did the bot do that?" against a saved list).
+describe("the CLI", () => {
+  it("writes the machine-readable pick and prints the human table", () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-qjs-cli-"));
+    const releases = join(dir, "releases.json");
+    const out = join(dir, "pick.json");
+    writeFileSync(
+      releases,
+      JSON.stringify([
+        { tag_name: "v0.16.2", published_at: "2026-08-20T12:21:19Z" },
+        { tag_name: "v0.16.1", published_at: "2026-08-04T09:21:52Z" },
+      ]),
+    );
+    const stdout = execFileSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        join(
+          dirname(fileURLToPath(import.meta.url)),
+          "../scripts/pick-quickjs-release.ts",
+        ),
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          RELEASES_JSON: releases,
+          PICK_OUT: out,
+          NOW: "2026-08-21T08:00:00Z",
+        },
+      },
+    );
+
+    expect(stdout).toContain("Decision: NONE");
+    expect(stdout).toContain("`v0.16.2`");
+    expect(stdout).toContain("soaking");
+
+    const pick = JSON.parse(readFileSync(out, "utf8"));
+    expect(pick.action).toBe("none");
+    expect(pick.vendoredTag).toMatch(/^v\d+\.\d+\.\d+/);
+    // The decision instant is persisted so the PR body, rendered minutes later
+    // after the tarball download, cannot report ages from a different clock.
+    expect(pick.checkedAt).toBe("2026-08-21T08:00:00.000Z");
+  }, 30_000);
 });

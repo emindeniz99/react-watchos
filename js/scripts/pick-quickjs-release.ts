@@ -19,6 +19,8 @@
 // release list so the policy is testable, and the CLI at the bottom is the thin
 // shell that fetches, calls it, and writes GITHUB_OUTPUT.
 
+import { readFileSync, writeFileSync } from "node:fs";
+
 /** The subset of GitHub's release payload the policy reads. */
 export interface UpstreamRelease {
   tag_name: string;
@@ -430,10 +432,10 @@ export function renderProposal(
 ): string {
   const candidate = pick.candidate;
   if (!candidate) return `No candidate. ${pick.reason}`;
-  const age = (r: UpstreamRelease): string => {
-    const days = ageInDays(r, opts.now);
-    return days == null ? "?" : `${Math.floor(days)}d old`;
-  };
+  // formatAge, not a second implementation: a release published this morning
+  // reported as "0d old" reads as a bug in the bot rather than as freshness.
+  const age = (r: UpstreamRelease): string =>
+    `${formatAge(ageInDays(r, opts.now))} old`;
   const lines: string[] = [];
 
   if (pick.soaking.length > 0) {
@@ -504,7 +506,6 @@ export function renderProposal(
 // Used by .github/workflows/vendor-quickjs.yml. Prints a JSON document on
 // stdout; the workflow reads it with jq rather than parsing prose.
 if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
-  const { readFileSync } = await import("node:fs");
 
   // Second mode: re-render the PR body once the workflow has the tarball
   // digest (which only exists after the download, i.e. after the decision).
@@ -519,13 +520,14 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
       pick: Pick;
       vendoredTag: string;
       soakDays: number;
+      checkedAt?: string;
     };
     console.log(
       renderProposal(saved.pick, {
         vendoredTag: saved.vendoredTag,
         soakDays: saved.soakDays,
         sha256,
-        now: new Date(),
+        now: saved.checkedAt ? new Date(saved.checkedAt) : new Date(),
       }),
     );
     process.exit(0);
@@ -540,6 +542,22 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
     import.meta.url,
   );
   const vendoredTag = vendoredTagFromHeader(readFileSync(headerPath, "utf8"));
+
+  // A dry-run seam. The workflow never sets this; it exists so the decision can
+  // be reproduced offline against a saved release list — which is how you debug
+  // "why did the bot do that?" without waiting a day for the next schedule, and
+  // how the output below was checked against upstream's real tags.
+  //   RELEASES_JSON=fixture.json node --experimental-strip-types <this file>
+  if (process.env.RELEASES_JSON) {
+    const releases = JSON.parse(
+      readFileSync(process.env.RELEASES_JSON, "utf8"),
+    ) as UpstreamRelease[];
+    const now = process.env.NOW ? new Date(process.env.NOW) : new Date();
+    const pick = pickRelease(releases, { vendoredTag, now, soakDays, skip });
+    writePick(pick, { vendoredTag, soakDays, checkedAt: now });
+    console.log(renderReport(pick, { vendoredTag, soakDays, now }));
+    process.exit(0);
+  }
 
   const headers: Record<string, string> = {
     accept: "application/vnd.github+json",
@@ -563,7 +581,16 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
   // workflow reads `.action`/`.tag` from it with jq), and stdout carries the
   // human decision table — so the log of a run that decides to do nothing still
   // states what it saw and why, instead of a row of "skipped" steps.
-  const { writeFileSync } = await import("node:fs");
+  writePick(pick, { vendoredTag, soakDays, checkedAt: now });
+  console.log(renderReport(pick, { vendoredTag, soakDays, now }));
+}
+
+/** The machine-readable half: what the workflow reads back with jq. */
+function writePick(
+  pick: Pick,
+  meta: { vendoredTag: string; soakDays: number; checkedAt: Date },
+): void {
+  const { vendoredTag, soakDays, checkedAt } = meta;
   writeFileSync(
     process.env.PICK_OUT ?? "pick.json",
     JSON.stringify(
@@ -572,6 +599,12 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
         reason: pick.reason,
         vendoredTag,
         soakDays,
+        // The instant the decision was made. `--render` runs minutes later (the
+        // tarball has to be downloaded first) and MUST reuse this rather than
+        // reading the clock again: every age in the report is relative to it,
+        // and a report whose ages disagree with the decision that produced them
+        // is worse than no report.
+        checkedAt: checkedAt.toISOString(),
         tag: pick.candidate?.tag_name ?? "",
         soakingCount: pick.soaking.length,
         behindCount: pick.behind.length,
@@ -583,5 +616,4 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
       2,
     ),
   );
-  console.log(renderReport(pick, { vendoredTag, soakDays, now }));
 }
