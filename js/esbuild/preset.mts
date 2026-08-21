@@ -53,11 +53,14 @@ export interface WatchBuildOptions {
    * first wall.
    *
    * The cost is real and it is exactly one thing: React's production frame
-   * builder reads `fn.displayName || fn.name`, nothing here sets a
-   * displayName, and no source maps are emitted — so a USER component frame in
-   * an ErrorBoundary/inspector stack reads `at t`, not `at ShoppingList`. HOST
-   * frames (`at VStack`, `at Text`) are string literals in src/components.ts
-   * and survive, and the diagnostics ring is minification-immune.
+   * builder reads `fn.displayName || fn.name` and nothing here sets a
+   * displayName — so a USER component frame in an ErrorBoundary/inspector
+   * stack reads `at t`, not `at ShoppingList`. HOST frames (`at VStack`,
+   * `at Text`) are string literals in src/components.ts and survive, and the
+   * diagnostics ring is minification-immune. The name is recoverable after the
+   * fact through the map ({@link WatchBuildOptions.sourcemap}, on by default —
+   * `pnpm symbolicate`), or kept in the bundle up front for +17 KB
+   * ({@link WatchBuildOptions.keepNames}).
    *
    * NEVER add `mangleProps` alongside this. The wire protocol ships prop names
    * verbatim (src/serialize.ts) and the `__host` bridge is property names, so
@@ -65,6 +68,37 @@ export interface WatchBuildOptions {
    * Plain `minify` renames LOCALS only — which is exactly what makes it safe.
    */
   minify?: boolean;
+  /**
+   * Emit a source map beside the bundle. Defaults to **`true`**, as
+   * `"external"`: the map is written to `<outfile>.map` and NOTHING is added to
+   * the bundle itself — no `sourceMappingURL` comment, so the shipped bytes and
+   * therefore the OTA `releaseId` (an FNV-1a over exactly those bytes) are
+   * identical with it on or off. The map is a build artifact for symbolicating
+   * a stack after the fact; the watch never reads it, and it must never be
+   * copied into a target's assets.
+   *
+   * It is worth having because the engine we ship reports enough to use it.
+   * Measured on the vendored quickjs-ng (tools/vendored-qjs), a minified frame
+   * reads `at n (bundle.js:1:30)` — line AND column — and that resolves through
+   * the map to the original file, line, column and name. (Bellard's QuickJS,
+   * which `apt-get install quickjs` provides and which this repo no longer
+   * uses anywhere, reports neither, which is how "source maps are useless
+   * here" became folklore.)
+   */
+  sourcemap?: boolean;
+  /**
+   * Keep original function names through minification (esbuild `keepNames`).
+   * Defaults to **`false`**.
+   *
+   * Minify renames locals, so React's production frame builder — which reads
+   * `fn.displayName || fn.name` — reports YOUR components as `at t`. This puts
+   * the real names back, with no map and no symbolication step, at a measured
+   * cost of +17.4 KB on the app bundle (199,674 -> 217,444 B, +8.9%) and
+   * +14.0 KB on the widget (+9.4%). Off by default because the source map
+   * recovers the same information for free at rest; turn it on when stacks are
+   * read by something that cannot symbolicate.
+   */
+  keepNames?: boolean;
   /**
    * Run the React Compiler over app + renderer source (auto-memoization ->
    * fewer commits). Needs Babel dev deps — see esbuild/react-compiler.mts.
@@ -90,6 +124,8 @@ export function watchBuildOptions({
   // live-reload bundle with, where named component frames in a stack are the
   // whole reason you are looking at it; `buildBundles` is what ships.
   minify = false,
+  sourcemap = true,
+  keepNames = false,
   reactCompiler = false,
   nodePaths,
   plugins = [],
@@ -129,6 +165,13 @@ export function watchBuildOptions({
     metafile: true,
     ...(nodePaths ? { nodePaths } : {}),
     minify,
+    // "external": the map is written next to the outfile and NO
+    // sourceMappingURL comment is appended, so the bytes that ship — and the
+    // OTA releaseId hashed from exactly those bytes — are unchanged whether
+    // this is on or off. The map is for symbolicating a stack later, not for
+    // the watch, which never reads it.
+    sourcemap: sourcemap ? "external" : false,
+    keepNames,
     logLevel: "info",
   };
 }
@@ -171,6 +214,10 @@ export interface BuildBundlesOptions {
    * (your own component frames read `at t`).
    */
   minify?: boolean;
+  /** @see WatchBuildOptions.sourcemap */
+  sourcemap?: boolean;
+  /** @see WatchBuildOptions.keepNames */
+  keepNames?: boolean;
   /** @see WatchBuildOptions.reactCompiler */
   reactCompiler?: boolean;
   /** @see WatchBuildOptions.nodePaths */
@@ -201,6 +248,8 @@ export async function buildBundles(
     // faster boot beat readable USER component frames. Pass `{ minify: false }`
     // when you need those frames back out of a shipped bundle.
     minify = true,
+    sourcemap = true,
+    keepNames = false,
     reactCompiler = false,
     nodePaths,
   }: BuildBundlesOptions = {},
@@ -235,6 +284,8 @@ export async function buildBundles(
       entry,
       outfile,
       minify,
+      sourcemap,
+      keepNames,
       reactCompiler,
       nodePaths,
       plugins,

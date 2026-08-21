@@ -44,6 +44,15 @@ function buildFlags(args: string[]) {
       // the single source of truth, so neither carries a default here.
       minify: { type: "boolean" },
       "no-minify": { type: "boolean" },
+      // The map is written BESIDE the outfile and never referenced from it
+      // (`sourcemap: "external"`), so it changes no shipped byte and no OTA
+      // releaseId — it is on by default and `--no-sourcemap` exists for the
+      // pipeline that refuses to produce an artifact it will not ship.
+      "no-sourcemap": { type: "boolean" },
+      // The affirmative, because this one costs bytes (+17 KB measured): the
+      // map recovers the same names at rest, so pay in the bundle only when
+      // whatever reads your stacks cannot symbolicate.
+      "keep-names": { type: "boolean" },
       version: { type: "string", default: "1" },
       host: { type: "string", default: process.env.DEV_HOST ?? "127.0.0.1" },
       port: { type: "string", default: process.env.DEV_PORT ?? "8788" },
@@ -63,6 +72,8 @@ function buildFlags(args: string[]) {
     // `--no-minify` beats `--minify` whatever the order, so the escape hatch
     // stays reachable when it is appended to a wrapper script's fixed argv.
     minify: !values["no-minify"],
+    sourcemap: !values["no-sourcemap"],
+    keepNames: values["keep-names"] === true,
   };
 }
 
@@ -79,10 +90,13 @@ async function build(args: string[]) {
         manifest: { version: Number(f.version) },
       },
     ],
-    { minify: f.minify },
+    { minify: f.minify, sourcemap: f.sourcemap, keepNames: f.keepNames },
   );
   for (const r of results) {
-    console.log(`[build] ${r.outfile} (${r.sizeKB} KB)`);
+    console.log(
+      `[build] ${r.outfile} (${r.sizeKB} KB)` +
+        (f.sourcemap ? ` + ${path.basename(r.outfile)}.map` : ""),
+    );
   }
   if (f.asset) {
     fs.mkdirSync(path.dirname(f.asset), { recursive: true });
@@ -122,7 +136,12 @@ async function dev(args: string[]) {
     // traces out of, so its readability is this call site's contract and not a
     // default that could follow `buildBundles` the next time shipping wins an
     // argument. `build` (which ships) minifies; `dev` does not.
-    watchBuildOptions({ entry: f.entry, outfile: f.outfile, minify: false }),
+    watchBuildOptions({
+      entry: f.entry,
+      outfile: f.outfile,
+      minify: false,
+      sourcemap: f.sourcemap,
+    }),
   );
   await ctx.watch();
   const { hosts, port } = await ctx.serve({
@@ -248,10 +267,16 @@ switch (command) {
         "      plugin links the SwiftPM packages + merges the Info.plists.\n\n" +
         "  react-watchos build --entry <file> [--outfile dist/bundle.js]\n" +
         "                      [--asset <copy-to>] [--no-minify] [--version <n>]\n" +
+        "                      [--no-sourcemap] [--keep-names]\n" +
         "      One-shot QuickJS-correct bundle build (published esbuild preset)\n" +
         "      + OTA manifest stamp next to the outfile. Minified by default\n" +
         "      (~-68% bytes, a third less QuickJS heap); --no-minify keeps the\n" +
-        "      component names in stack traces at that cost.\n\n" +
+        "      component names in stack traces at that cost. A source map is\n" +
+        "      written beside the outfile by default and referenced from\n" +
+        "      nowhere, so it costs the shipped bytes nothing — resolve a stack\n" +
+        "      later with `react-watchos`'s symbolicate script. --keep-names\n" +
+        "      instead bakes the names into the bundle (+17 KB), for stacks\n" +
+        "      nothing will symbolicate.\n\n" +
         "  react-watchos dev --entry <file> [--outfile dist/bundle.js]\n" +
         "                    [--host 127.0.0.1] [--port 8788]\n" +
         "      Live-reload server. DEBUG watch builds poll /bundle.js every 2s\n" +

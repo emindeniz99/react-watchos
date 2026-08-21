@@ -13,25 +13,34 @@ import { buildOptions, targets } from "../scripts/config.ts";
  * passes here, the same bundle runs in quickjs-ng on the watch.
  */
 
-// This suite shells out to a real `qjs` binary (see beforeAll). Fresh-clone
-// contributors won't have QuickJS installed, and an unguarded execFileSync
-// would hard-crash the whole file with an opaque ENOENT. So we probe for qjs
-// ONCE here and skip the suite self-describingly when it's absent — the skip
-// shows up in the vitest summary instead of silently dropping coverage.
-// Escape hatch: CI that installs QuickJS sets REQUIRE_QJS=1, which turns a
-// missing qjs into a loud failure so the engine-compatibility gate can never
-// be skipped by accident there.
+// This suite shells out to a real interpreter, and it builds that interpreter
+// from the VENDORED quickjs-ng rather than finding one on PATH. It used to run
+// `qjs` from `apt-get install quickjs`, which is Bellard's QuickJS — a
+// different engine from the quickjs-ng the watch runs, and measurably so: the
+// same minified bundle reports `at o (min.js)` there against
+// `at n (min.js:1:30)` here. A gate that answers for an engine we do not ship
+// is not a gate, so tools/vendored-qjs/build.sh compiles
+// js/swift/Sources/CQuickJS — the sources SwiftPM also compiles for watchOS.
+//
+// The build is ~30 s cold and stamped, so it is a no-op once warm; CI caches
+// it and passes QJS_BIN. What a fresh clone can still lack is a C compiler, so
+// that (and only that) skips the suite self-describingly rather than
+// hard-crashing the file. REQUIRE_QJS=1 turns the skip into a loud failure, so
+// the engine gate can never be silently dropped where it is supposed to run.
 const requireQjs = process.env.REQUIRE_QJS === "1";
-const qjsAvailable = (() => {
+const qjsBin = (() => {
+  const preBuilt = process.env.QJS_BIN;
+  if (preBuilt) return preBuilt;
   try {
-    execFileSync("qjs", ["-e", ""], { stdio: "ignore" });
-    return true;
-  } catch (error) {
-    // Only ENOENT means "not installed"; any other failure (broken install,
-    // bad exit) is NOT a reason to skip — run the suite and fail loud there.
-    return (error as NodeJS.ErrnoException).code !== "ENOENT";
+    return execFileSync(join(__dirname, "../../tools/vendored-qjs/build.sh"), {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "inherit"],
+    }).trim();
+  } catch {
+    return "";
   }
 })();
+const qjsAvailable = qjsBin !== "";
 
 const jsRoot = join(__dirname, "..");
 const bundlePath = join(jsRoot, "dist/bundle.js");
@@ -301,13 +310,15 @@ describe.skipIf(!qjsAvailable && !requireQjs)("quickjs smoke", () => {
   let devBytes = 0;
 
   beforeAll(async () => {
-    // Reached with qjs missing only under REQUIRE_QJS=1 (otherwise the suite
-    // is skipped above) — fail with a message that names the fix.
+    // Reached with no interpreter only under REQUIRE_QJS=1 (otherwise the
+    // suite is skipped above) — fail with a message that names the fix.
     if (!qjsAvailable) {
       throw new Error(
-        "REQUIRE_QJS=1 is set but no `qjs` binary is on PATH. " +
-          "Install QuickJS (e.g. `brew install quickjs`) — this suite is the " +
-          "engine-compatibility gate and must not be skipped in CI.",
+        "REQUIRE_QJS=1 is set but the vendored quickjs-ng could not be built. " +
+          "tools/vendored-qjs/build.sh needs a C compiler (cc); it does NOT " +
+          "want an installed qjs — the point is to run the engine this repo " +
+          "ships. This suite is the engine-compatibility gate and must not be " +
+          "skipped in CI.",
       );
     }
     // --experimental-strip-types runs the .ts build on any Node >= 22.6 (a
@@ -324,14 +335,14 @@ describe.skipIf(!qjsAvailable && !requireQjs)("quickjs smoke", () => {
     const appScript = join(dir, "smoke-app.js");
     writeFileSync(appScript, harnessPrelude + bundle + harnessEpilogue);
     result = JSON.parse(
-      execFileSync("qjs", [appScript], { encoding: "utf8" }).trim(),
+      execFileSync(qjsBin, [appScript], { encoding: "utf8" }).trim(),
     );
 
     const widgetBundle = readFileSync(widgetBundlePath, "utf8");
     const intentScript = join(dir, "smoke-intent.js");
     writeFileSync(intentScript, intentPrelude + widgetBundle + intentEpilogue);
     intentResult = JSON.parse(
-      execFileSync("qjs", [intentScript], { encoding: "utf8" }).trim(),
+      execFileSync(qjsBin, [intentScript], { encoding: "utf8" }).trim(),
     );
 
     const appTarget = targets.find((t) => t.name === "app");
@@ -351,7 +362,7 @@ describe.skipIf(!qjsAvailable && !requireQjs)("quickjs smoke", () => {
         harnessEpilogue,
     );
     minifiedResult = JSON.parse(
-      execFileSync("qjs", [minifiedScript], { encoding: "utf8" }).trim(),
+      execFileSync(qjsBin, [minifiedScript], { encoding: "utf8" }).trim(),
     );
   }, 120_000);
 

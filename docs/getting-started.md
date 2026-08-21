@@ -245,11 +245,13 @@ server every 2s and hot-restart the QuickJS runtime when the bundle
 changes — edit `demo/App.tsx` and the simulator updates without an
 Xcode rebuild.
 
-The qjs smoke test needs a `qjs` binary on PATH (`apt install quickjs` /
-`brew install quickjs`). `tools/embed-smoke/run.sh` additionally compiles
-the vendored quickjs-ng sources with a C host and runs the bundle through
-the same embedding calls `JSRuntime.swift` makes. Both are also the local
-crash-repro loop — see [debugging.md](./debugging.md#the-local-repro-loop-no-watch-required).
+The qjs smoke test needs a C compiler and nothing else: it builds
+`tools/vendored-qjs` from the vendored quickjs-ng sources — the same files
+SwiftPM compiles for the watch — and caches that build, so the gate runs the
+engine we ship rather than whatever a package manager calls `qjs`.
+`tools/embed-smoke/run.sh` links the same engine objects with a C host and
+runs the bundle through the same embedding calls `JSRuntime.swift` makes. Both
+are also the local crash-repro loop — see [debugging.md](./debugging.md#the-local-repro-loop-no-watch-required).
 
 ## Watch app — requires macOS 15+, Xcode 16+
 

@@ -3,8 +3,10 @@
 The honest version of "what happens when it breaks, and how do I read it."
 There is no React DevTools here and no breakpoint debugger — see
 [What this is NOT](#what-this-is-not) for why. What there *is* is five
-surfaces, each of which tells you a different thing, and a local repro loop
-that runs the real engine on your laptop.
+surfaces, each of which tells you a different thing, a local repro loop that
+runs the real engine on your laptop, and a source map that turns a minified
+`at t` back into your component
+([Symbolicating a minified stack](#symbolicating-a-minified-stack)).
 
 Every mechanism below is in the shipped code; the file references are the
 proof.
@@ -197,10 +199,14 @@ on Linux/macOS in seconds. Reach for these **before** rebuilding for hardware:
 
 - **`pnpm --filter react-watchos test`** — the vitest suite, including
   `qjs-smoke.test.ts`, which runs the *real production bundle* inside a real
-  `qjs` interpreter against a JS mock of the `__host` global that mirrors what
-  `JSRuntime.swift` installs. If a bundle passes here, the same bundle runs in
-  quickjs-ng on the watch. (Needs a `qjs` binary: `apt install quickjs` /
-  `brew install quickjs`.)
+  QuickJS interpreter against a JS mock of the `__host` global that mirrors
+  what `JSRuntime.swift` installs. If a bundle passes here, the same bundle
+  runs in quickjs-ng on the watch — because it is the same engine: the harness
+  builds `tools/vendored-qjs` from `js/swift/Sources/CQuickJS`, the sources
+  SwiftPM compiles for the watch. (Needs a C compiler, nothing else. Do **not**
+  install a distro `qjs`: that is Bellard's QuickJS, a different engine that
+  reports stack frames without line or column, and it is what made source maps
+  look impossible here.)
 - **`tools/embed-smoke/run.sh`** — compiles the *vendored* quickjs-ng sources
   with a reference C host and runs the bundle through the exact embedding
   sequence Swift uses, then gates on engine heap and boot time. This is the
@@ -219,6 +225,41 @@ For the simulator specifically, use
 signing trap that makes shared state silently read `0` and look like a
 renderer bug.
 
+## Symbolicating a minified stack
+
+The build writes `<outfile>.map` next to every bundle **by default**, and
+writes it as esbuild's `"external"`: no `sourceMappingURL` comment is appended,
+so not one shipped byte moves and the OTA `releaseId` (an FNV-1a over exactly
+those bytes) is identical with the map on or off. The watch never reads it; it
+is a build artifact you keep so a stack from the field is still readable.
+`--no-sourcemap` (CLI) / `{ sourcemap: false }` (`buildBundles`) opts out.
+
+It is worth keeping because the engine we ship reports enough to use it.
+Measured on the vendored quickjs-ng, a minified frame reads
+
+```
+    at n (bundle.js:1:30)
+```
+
+— line **and column**, which is exactly what a source map is indexed by. Feed
+a stack in on stdin:
+
+```bash
+pnpm --filter react-watchos symbolicate dist/bundle.js.map < stack.txt
+# at k (real.tsx:2:13)   [was k @ real.js:1:4792]
+```
+
+Frames it cannot resolve are printed through unchanged rather than dropped.
+The script ([`js/scripts/symbolicate.ts`](../js/scripts/symbolicate.ts)) is
+~40 lines over `@jridgewell/trace-mapping` — the same mapping library the
+JS toolchain (Rollup, Vite, Sentry's tooling) resolves maps with; there is no
+watch-specific magic to it, so a hosted crash reporter fed the same `.map`
+resolves the same frames.
+
+Keep the map with the build that produced it. A map only matches the exact
+bytes it was emitted for — symbolicating one release's stack against another
+release's map yields confident nonsense.
+
 ## What this is NOT
 
 Stated plainly, because the gap is real:
@@ -234,13 +275,14 @@ Stated plainly, because the gap is real:
   tree snapshot.
 - **No Safari Web Inspector.** That attaches to JavaScriptCore/WebKit, neither
   of which exists on watchOS.
-- **No source maps, and the shipped bundle is minified.** The build emits no
-  source maps, so a frame names a position in the bundled file — and since
+- **The shipped bundle is minified, so a raw frame reads `at t`.** Since
   2026-08-20 the shipping path minifies by default (`react-watchos build`,
-  `buildBundles`), which renames locals. React's production frame builder uses
+  `buildBundles`), which renames locals; React's production frame builder uses
   `fn.displayName || fn.name`, so YOUR components come out as `at t` instead of
   `at ShoppingList`. Host frames (`at VStack`, `at Text`) are string literals in
-  the renderer and stay readable, as does the diagnostics ring.
+  the renderer and stay readable, as does the diagnostics ring. This one is
+  **recoverable after the fact** — the build writes a source map beside the
+  bundle by default; see [Symbolicating a minified stack](#symbolicating-a-minified-stack).
 - **A DEBUG launch is not automatically running a readable bundle.** Two cases
   bite. (1) `ReactWatchModel.start()`
   ([`ReactWatchHost.swift:312`](../js/swift/Sources/ReactWatchHost/ReactWatchHost.swift#L312))
@@ -255,7 +297,9 @@ Stated plainly, because the gap is real:
   the widget host — so a widget always runs its asset bundle. When you are
   chasing either, rebuild the asset with `--no-minify` (CLI) or
   `{ minify: false }` (`buildBundles`) and re-run; `react-watchos dev` itself
-  already builds its live-reload bundle unminified.
+  already builds its live-reload bundle unminified. (`--keep-names` is the
+  middle option: still minified, still ~the shipped shape, names intact for
+  +17 KB.)
 - **A device DEBUG build bakes in the LAN packager host at port 8081**, and
   nothing checks WHOSE packager answers. Run a second project's Metro on 8081
   and the watch/phone silently loads that project's bundle — you get someone

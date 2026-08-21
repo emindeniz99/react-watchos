@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
 import { build } from "esbuild";
 import { describe, expect, it } from "vitest";
 import { contentHash } from "../esbuild/manifest.mts";
@@ -242,4 +243,139 @@ describe("minification defaults", () => {
       child.kill("SIGKILL");
     }
   }, 60_000);
+});
+
+// Source maps are ON by default, `keepNames` is OFF, and the pairing is the
+// point: minification costs you the component name in a stack, and the two
+// options buy it back at opposite prices — the map for free at rest (it is
+// `external`, so not one shipped byte moves), keepNames for +17 KB in the
+// bundle. Pinning both defaults keeps a flip visible: turning the map off
+// would silently make every shipped stack unreadable forever (you cannot
+// symbolicate a build whose map was never written), and turning keepNames on
+// would silently fatten every bundle.
+describe("source map + keepNames defaults", () => {
+  const PROBE_FIXTURE =
+    "function shoppingListProbe() {\n  return 1;\n}\n" +
+    "globalThis.__probeGlobal = shoppingListProbe() + 1;\n";
+
+  it("writes a map beside the bundle without touching the shipped bytes", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-map-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, PROBE_FIXTURE);
+
+    const mapped = join(dir, "mapped.js");
+    await buildBundles([{ name: "app", entry, outfile: mapped }]);
+    expect(existsSync(`${mapped}.map`)).toBe(true);
+
+    const code = readFileSync(mapped, "utf8");
+    // "external", not "linked": no comment is appended, so the bytes the watch
+    // runs — and the OTA releaseId hashed from exactly those bytes — are the
+    // same with the map on or off. That equality is the whole reason this can
+    // be a default.
+    expect(code).not.toContain("sourceMappingURL");
+    const bare = join(dir, "bare.js");
+    await buildBundles([{ name: "app", entry, outfile: bare }], {
+      sourcemap: false,
+    });
+    expect(existsSync(`${bare}.map`)).toBe(false);
+    expect(readFileSync(bare, "utf8")).toBe(code);
+    // …stated the way the OTA manifest states it, since that hash IS the
+    // releaseId a watch compares against.
+    expect(contentHash(readFileSync(bare, "utf8"))).toBe(
+      contentHash(readFileSync(mapped, "utf8")),
+    );
+  });
+
+  // The map is only worth defaulting on if it actually resolves a MINIFIED
+  // frame back to a name — which is what a crash reporter (or js/scripts/
+  // symbolicate.ts) does with the `line:col` the vendored quickjs-ng reports.
+  it("resolves a minified name back to the original through the map", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-map-name-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, PROBE_FIXTURE);
+    const outfile = join(dir, "bundle.js");
+    await buildBundles([{ name: "app", entry, outfile }]);
+
+    // Locate the probe the way you would locate a real frame: through the
+    // one identifier minification cannot rename (a global property), then the
+    // declaration of the local it calls. Searching for the first `function `
+    // in the file would land in the injected shims instead.
+    const code = readFileSync(outfile, "utf8");
+    const call = /globalThis\.__probeGlobal\s*=\s*([A-Za-z_$][\w$]*)\s*\(/.exec(
+      code,
+    );
+    expect(call).not.toBeNull();
+    const minifiedName = call?.[1] ?? "";
+    const at = code.indexOf(`function ${minifiedName}(`) + "function ".length;
+    expect(at).toBeGreaterThan("function ".length - 1);
+    const tracer = new TraceMap(
+      JSON.parse(readFileSync(`${outfile}.map`, "utf8")),
+    );
+    // Everything is on line 1 after minification; source-map columns are
+    // 0-based, which is exactly the string index here.
+    const position = originalPositionFor(tracer, { line: 1, column: at });
+    expect(position.source).toContain("entry.ts");
+    expect(position.name).toBe("shoppingListProbe");
+  });
+
+  // The CLI has its own flag resolution (bin/react-watchos.cts), so the API
+  // defaults above do not prove the flags reach it — same reason `--no-minify`
+  // is spawned for real rather than trusted.
+  it("exposes both toggles on the CLI", () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-map-cli-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, PROBE_FIXTURE);
+    const bin = join(
+      dirname(fileURLToPath(import.meta.url)),
+      "../bin/react-watchos.cts",
+    );
+    const runBuild = (outfile: string, ...flags: string[]): string => {
+      execFileSync(
+        process.execPath,
+        [
+          "--experimental-strip-types",
+          bin,
+          "build",
+          "--entry",
+          entry,
+          "--outfile",
+          outfile,
+          ...flags,
+        ],
+        { stdio: "pipe" },
+      );
+      return readFileSync(outfile, "utf8");
+    };
+
+    const dflt = join(dir, "default.js");
+    expect(runBuild(dflt)).not.toContain("shoppingListProbe");
+    expect(existsSync(`${dflt}.map`)).toBe(true);
+
+    const bare = join(dir, "bare.js");
+    runBuild(bare, "--no-sourcemap");
+    expect(existsSync(`${bare}.map`)).toBe(false);
+
+    const kept = join(dir, "kept.js");
+    expect(runBuild(kept, "--keep-names")).toContain("shoppingListProbe");
+  }, 60_000);
+
+  it("keeps names only when asked", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-keepnames-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, PROBE_FIXTURE);
+
+    const kept = join(dir, "kept.js");
+    await buildBundles([{ name: "app", entry, outfile: kept }], {
+      keepNames: true,
+    });
+    const keptCode = readFileSync(kept, "utf8");
+    expect(keptCode).toContain("__probeGlobal"); // the bundle IS this entry
+    expect(keptCode).toContain("shoppingListProbe"); // …minified, names intact
+
+    // …and the default does not pay for that (the assertion the +17 KB rides
+    // on; the minification suite above states the same from the other side).
+    const dflt = join(dir, "default.js");
+    await buildBundles([{ name: "app", entry, outfile: dflt }]);
+    expect(readFileSync(dflt, "utf8")).not.toContain("shoppingListProbe");
+  });
 });
