@@ -1,3 +1,6 @@
 # Compiled C host binaries (path-anchored so the source dirs stay tracked).
 embed-smoke/embed-host
 qjs-compile/qjs-compile
+# qbc-symbolication.test.ts links this into the OS tmpdir, but it is the tool
+# you compile in place when you are chasing a stack by hand.
+qjs-compile/qbc-stack
