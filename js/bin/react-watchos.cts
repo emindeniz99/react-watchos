@@ -53,6 +53,12 @@ function buildFlags(args: string[]) {
       // map recovers the same names at rest, so pay in the bundle only when
       // whatever reads your stacks cannot symbolicate.
       "keep-names": { type: "boolean" },
+      // The fetch/Headers/AbortController shims ship by default — a bundle
+      // that calls fetch without them fails at runtime, so the safe default is
+      // to include them. `--no-network` is for the bundle whose contract has no
+      // network (a widget extension: shared storage + timelines), worth -3,798 B
+      // measured. Negative-only: there is nothing to affirm, it is the default.
+      "no-network": { type: "boolean" },
       version: { type: "string", default: "1" },
       host: { type: "string", default: process.env.DEV_HOST ?? "127.0.0.1" },
       port: { type: "string", default: process.env.DEV_PORT ?? "8788" },
@@ -74,6 +80,7 @@ function buildFlags(args: string[]) {
     minify: !values["no-minify"],
     sourcemap: !values["no-sourcemap"],
     keepNames: values["keep-names"] === true,
+    network: !values["no-network"],
   };
 }
 
@@ -88,6 +95,7 @@ async function build(args: string[]) {
         outfile: f.outfile,
         name: "app",
         manifest: { version: Number(f.version) },
+        network: f.network,
       },
     ],
     { minify: f.minify, sourcemap: f.sourcemap, keepNames: f.keepNames },
@@ -267,7 +275,7 @@ switch (command) {
         "      plugin links the SwiftPM packages + merges the Info.plists.\n\n" +
         "  react-watchos build --entry <file> [--outfile dist/bundle.js]\n" +
         "                      [--asset <copy-to>] [--no-minify] [--version <n>]\n" +
-        "                      [--no-sourcemap] [--keep-names]\n" +
+        "                      [--no-sourcemap] [--keep-names] [--no-network]\n" +
         "      One-shot QuickJS-correct bundle build (published esbuild preset)\n" +
         "      + OTA manifest stamp next to the outfile. Minified by default\n" +
         "      (~-68% bytes, a third less QuickJS heap); --no-minify keeps the\n" +
@@ -276,7 +284,9 @@ switch (command) {
         "      nowhere, so it costs the shipped bytes nothing — resolve a stack\n" +
         "      later with `react-watchos`'s symbolicate script. --keep-names\n" +
         "      instead bakes the names into the bundle (+17 KB), for stacks\n" +
-        "      nothing will symbolicate.\n\n" +
+        "      nothing will symbolicate. --no-network leaves the fetch shims\n" +
+        "      out (-3.7 KB) for a bundle that declares no network — a widget\n" +
+        "      entry that only reads storage and publishes timelines.\n\n" +
         "  react-watchos dev --entry <file> [--outfile dist/bundle.js]\n" +
         "                    [--host 127.0.0.1] [--port 8788]\n" +
         "      Live-reload server. DEBUG watch builds poll /bundle.js every 2s\n" +

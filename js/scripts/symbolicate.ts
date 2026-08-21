@@ -12,6 +12,13 @@
 // That is the same mechanism a hosted error tracker uses; this script is the
 // local, dependency-light version of it.
 //
+// It works on stacks from the PRODUCTION path too, not just the dev one: the
+// shipped `.qbc` bytecode keeps its line/column tables (tools/qjs-compile
+// passes STRIP_SOURCE but deliberately NOT STRIP_DEBUG), so a frame out of
+// bytecode is identical to a frame out of the parsed source and resolves the
+// same way. js/test/qbc-symbolication.test.ts proves that end to end through
+// this file's own core.
+//
 //   pnpm --filter react-watchos symbolicate dist/bundle.js.map < stack.txt
 //   pbpaste | pnpm --filter react-watchos symbolicate dist/bundle.js.map
 //
@@ -20,7 +27,8 @@
 // is how you lose the one that mattered.
 
 import { readFileSync } from "node:fs";
-import { originalPositionFor, TraceMap } from "@jridgewell/trace-mapping";
+import { TraceMap } from "@jridgewell/trace-mapping";
+import { parseStackFrame, symbolicateFrame } from "./symbolicate-core.ts";
 
 const mapPath = process.argv[2];
 if (!mapPath) {
@@ -39,31 +47,27 @@ const tracer = new TraceMap(
   >[0],
 );
 
-// quickjs-ng frames look like `    at name (/path/bundle.js:1:30)`, and the
-// name is the MINIFIED one — `at n` — which is why the map's own name (when it
-// has one for that position) is preferred below.
-const FRAME = /^(\s*at\s+)(.*?)\s*\((.*):(\d+):(\d+)\)\s*$/;
-
 const stack = readFileSync(0, "utf8");
 for (const line of stack.split("\n")) {
-  const match = FRAME.exec(line);
-  if (!match) {
+  const frame = parseStackFrame(line);
+  if (!frame) {
     console.log(line);
     continue;
   }
-  const [, prefix, minifiedName, file, lineNo, colNo] = match;
-  const position = originalPositionFor(tracer, {
-    line: Number(lineNo),
-    // Source maps are 0-based on columns; engines report 1-based.
-    column: Number(colNo) - 1,
+  // The frame's own name is the MINIFIED one (`at n`), so the map's name for
+  // that position wins whenever it has one.
+  const position = symbolicateFrame({
+    tracer,
+    line: frame.line,
+    column: frame.column,
   });
-  if (position.source == null) {
+  if (!position) {
     console.log(`${line}   [no mapping]`);
     continue;
   }
-  const name = position.name ?? minifiedName;
   console.log(
-    `${prefix}${name} (${position.source}:${position.line}:${(position.column ?? 0) + 1})` +
-      `   [was ${minifiedName} @ ${file.split("/").pop()}:${lineNo}:${colNo}]`,
+    `${frame.prefix}${position.name ?? frame.name} ` +
+      `(${position.source}:${position.line}:${position.column})` +
+      `   [was ${frame.name} @ ${frame.file.split("/").pop()}:${frame.line}:${frame.column}]`,
   );
 }

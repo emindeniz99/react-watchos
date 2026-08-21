@@ -104,15 +104,36 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    // Strip source text + debug line info: the shipped .qbc is the optimized
-    // production artifact, while the dev/source path stays on bundle.js (which
-    // keeps readable watch-side stack traces). Stripping drops the embedded
-    // copy of the source, keeping the blob from dwarfing the bundle it encodes.
+    // STRIP_SOURCE yes, STRIP_DEBUG no — the two are not the same trade.
+    //
+    // STRIP_DEBUG drops the per-opcode line/column tables, and without them
+    // quickjs-ng has nothing to build a frame out of: EVERY production frame
+    // came back as `at fn (<null>:0:1)` — no filename, no line, no column. A
+    // source map is indexed by line+column, so on the path the watch actually
+    // runs (JSRuntime.evaluateBytecode reads this .qbc, not bundle.js) the map
+    // the build faithfully emits beside every bundle was inert, and
+    // `pnpm symbolicate` had nothing to resolve. Keeping the tables makes
+    // bytecode frames byte-identical to the source-parsed ones —
+    // `at d0 (bundle.min.js:16:25030)`, column landing on the real throw site
+    // — for +45.4 KB of .qbc (204,979 -> 250,361 B on the minified app bundle;
+    // the debug tables scale with OPCODE COUNT, not source text), +36 KB of
+    // QuickJS heap (1,056,103 -> 1,092,729 B), +0.07 ms in JS_ReadObject
+    // (1.23 -> 1.31 ms, median of 21 runs) and eval unchanged. Stack positions
+    // on the shipped artifact are worth 45 KB of flash.
+    // js/test/qbc-symbolication.test.ts is the end-to-end guard: it runs THIS
+    // tool's output in the real engine and resolves a frame back to the .tsx,
+    // and it fails on a `<null>` frame — the regression signature of
+    // STRIP_DEBUG coming back.
+    //
+    // STRIP_SOURCE stays on unconditionally: measured on the same bundle,
+    // retaining the source text blows the blob out to 903 KB (+652 KB over the
+    // 250 KB above, more than triple) and buys nothing for stacks — they are
+    // byte-identical either way, because the positions above come from the
+    // debug tables, not from the embedded text. All it buys is a readable
+    // Function.prototype.toString, which nothing on the watch reads.
     size_t out_len = 0;
     uint8_t *out = JS_WriteObject(
-        ctx, &out_len, obj,
-        JS_WRITE_OBJ_BYTECODE | JS_WRITE_OBJ_STRIP_SOURCE |
-            JS_WRITE_OBJ_STRIP_DEBUG);
+        ctx, &out_len, obj, JS_WRITE_OBJ_BYTECODE | JS_WRITE_OBJ_STRIP_SOURCE);
     JS_FreeValue(ctx, obj);
     if (!out) {
         fprintf(stderr, "qjs-compile: JS_WriteObject failed\n");
