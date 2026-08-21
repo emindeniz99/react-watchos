@@ -1,6 +1,46 @@
 import { WIRE_VERSION } from "./generated/wire";
 import type { SerializedNode, SerializedTree } from "./host";
-import type { Container, Instance } from "./renderer";
+
+/**
+ * The wire-visible shape of one node: everything serialization reads, and
+ * nothing else. Two producers build it — the reconciler's `Instance`
+ * (renderer.ts, which adds a container back-reference and the rawText flag) and
+ * the reconciler-free widget walker (staticRender.ts, which builds plain
+ * objects). Narrowing the serializer's input to this shape is what lets BOTH
+ * paths run the same `serializeInstance` verbatim, so the wire bytes cannot
+ * drift between them.
+ */
+export interface SerializableNode {
+  id: number;
+  type: string;
+  props: Record<string, unknown>;
+  children: SerializableNode[];
+}
+
+/** The root slot a commit (or a one-shot walk) collected its top-level nodes in. */
+export interface SerializableRoot {
+  children: SerializableNode[];
+  /** Highest event seq processed; acked on every commit (tree.seq). */
+  lastSeq: number;
+}
+
+/**
+ * A React element child (vs a scalar) — the rich-text trigger. Lives here, not
+ * in the renderer, because it is a SERIALIZATION-shape decision: it is what
+ * decides whether a <Text>'s children fold into `props.text` or become child
+ * nodes. Both render paths consult it (hostConfig.shouldSetTextContent and the
+ * static walker) and must agree.
+ */
+/** The one wording for the raw-text violation. Lives here because BOTH render
+ *  paths throw it — the fiber renderer (twice) and the static walker — and a
+ *  string literal written per-site is bundled per-site: minification renames
+ *  locals, it does not merge identical strings. */
+export const RAW_TEXT_ERROR = "Raw text must be wrapped in a <Text> element";
+
+export function hasElementChild(children: unknown): boolean {
+  if (Array.isArray(children)) return children.some(hasElementChild);
+  return typeof children === "object" && children !== null;
+}
 
 export function textContent(children: unknown): string {
   // Match React: null/undefined/booleans render as nothing, so the idiomatic
@@ -12,7 +52,7 @@ export function textContent(children: unknown): string {
   return String(children);
 }
 
-export function serializeInstance(instance: Instance): SerializedNode {
+export function serializeInstance(instance: SerializableNode): SerializedNode {
   const props: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(instance.props)) {
     if (key === "children" || value === undefined) continue;
@@ -36,7 +76,7 @@ export function serializeInstance(instance: Instance): SerializedNode {
   };
 }
 
-export function serializeTree(container: Container): SerializedTree {
+export function serializeTree(container: SerializableRoot): SerializedTree {
   // The watch host renders exactly one root view, so more than one
   // top-level node has nowhere to go. Without this guard children[1..]
   // are silently dropped; fail loud instead.

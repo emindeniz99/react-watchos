@@ -73,9 +73,18 @@ export const targets: BuildTarget[] = [
     asset: join(root, "../app/targets/widget/assets/bundle.js"),
     // Kept far tighter than the app: the widget bundle's bytecode loads into the
     // extension's 16 MB JS heap under the ~30 MB WidgetKit limit, so size here
-    // trades against MEMORY, not (bytecode) boot. 1 MB is ~6% of the heap —
-    // safe; do NOT match the app's ceiling (docs/budgets-and-limits.md).
-    budgetKB: 1000,
+    // trades against MEMORY, not (bytecode) boot. Do NOT match the app's ceiling
+    // (docs/budgets-and-limits.md).
+    //
+    // Lowered 1000 -> 100 KB when the widget path stopped rendering timelines
+    // through react-reconciler (src/staticRender.ts): the demo widget bundle
+    // went 153,362 -> 27,870 B minified, because the reconciler + scheduler +
+    // renderer adapter were 83.8% of it and existed only for a one-shot static
+    // render. 100 KB is ~3.5x the current bundle — generous for real widget
+    // code — while still failing loudly if the reconciler (~121 KB) is ever
+    // dragged back into this graph by a stray import. That regression is
+    // invisible at 1 MB, which is exactly why the old budget never caught it.
+    budgetKB: 100,
     // The widget bundle only reads/writes shared state and publishes timelines.
     requiredFeatures: ["storage", "widgets"],
   },
