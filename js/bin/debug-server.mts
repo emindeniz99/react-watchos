@@ -20,12 +20,15 @@
  * a POST endpoint. Sharing it would mean putting a proxy in front of esbuild's
  * server for one route.
  */
+
+import { readFileSync } from "node:fs";
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createTcpServer, type Socket } from "node:net";
-import { readFileSync } from "node:fs";
-import type { DebugManifest } from "../esbuild/debug-probe.mts";
+import {
+  DEBUG_MANIFEST_VERSION,
+  type DebugManifest,
+} from "../esbuild/debug-probe.mts";
 import type { ProbeCommand, ProbeState } from "../src/debugWire.ts";
-import { DEBUG_WIRE_VERSION } from "../src/debugWire.ts";
 import { type DapMessage, DapSession } from "./dap-session.mts";
 
 /** How long a paused watch's exchange is held open before answering "nothing". */
@@ -117,12 +120,17 @@ export async function startDebugServer(
   // edits changes the file ids, and a session holding the old manifest would
   // set breakpoints in the wrong file with total confidence.
   const manifest = (): DebugManifest => {
+    const empty: DebugManifest = { v: DEBUG_MANIFEST_VERSION, files: [] };
     try {
-      return JSON.parse(
+      const parsed = JSON.parse(
         readFileSync(options.manifestPath, "utf8"),
       ) as DebugManifest;
+      // A dbg.json speaking a different shape version is worse than none:
+      // its file ids and probe lines would be trusted and wrong. "No
+      // breakpoints possible" is honest; misplaced breakpoints are not.
+      return parsed.v === DEBUG_MANIFEST_VERSION ? parsed : empty;
     } catch {
-      return { v: DEBUG_WIRE_VERSION, files: [] };
+      return empty;
     }
   };
 
@@ -226,7 +234,9 @@ function listen(
   });
 }
 
-function closeServer(server: { close: (cb: () => void) => void }): Promise<void> {
+function closeServer(server: {
+  close: (cb: () => void) => void;
+}): Promise<void> {
   return new Promise((resolve) => {
     server.close(() => {
       resolve();
