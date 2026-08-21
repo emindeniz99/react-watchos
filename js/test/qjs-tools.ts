@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 /** CI's switch: turn the no-C-compiler skip into a loud failure. */
 export const requireQjs = process.env.REQUIRE_QJS === "1";
-export const repoRoot = join(__dirname, "../..");
+const repoRoot = join(__dirname, "../..");
 const vendorInclude = join(repoRoot, "js/swift/Sources/CQuickJS/include");
 
 // The engine objects are built once by tools/vendored-qjs/build.sh and shared
@@ -20,7 +20,7 @@ const vendorInclude = join(repoRoot, "js/swift/Sources/CQuickJS/include");
 // thing that legitimately cannot run this, and that (only that) skips the
 // suites built on this helper; REQUIRE_QJS=1 turns the skip into a loud
 // failure so CI can never silently drop those gates.
-export const objDir = (() => {
+const objDir = (() => {
   try {
     return execFileSync(
       join(repoRoot, "tools/vendored-qjs/build.sh"),
