@@ -5,6 +5,11 @@ import type {
   WorkoutPlanStepRequest,
 } from "./generated/wire";
 import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
+// The workout activity, reused verbatim from the live-session vocabulary:
+// WorkoutKit takes an `HKWorkoutActivityType` too, and the generated name →
+// case switch already covers all 81 live members. The public re-export lives on
+// ./workout (and reaches consumers through src/index.ts from there) — a second
+// one here was never imported by anything.
 import type { WorkoutActivityType } from "./workout";
 
 /**
@@ -64,11 +69,6 @@ import type { WorkoutActivityType } from "./workout";
  * Every symbol used natively is watchOS 10.0 — this package's floor — so
  * nothing here is version-gated.
  */
-
-/** The workout activity, reused verbatim from the live-session vocabulary:
- *  WorkoutKit takes an `HKWorkoutActivityType` too, and the generated name →
- *  case switch already covers all 81 live members. */
-export type { WorkoutActivityType };
 
 /**
  * What a step (or a single-goal workout) is trying to reach.

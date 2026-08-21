@@ -14,6 +14,12 @@
  * Resolved option set with defaults applied (built by plugin/index.cts
  * `resolveOptions`; defined here so every module that consumes it — index,
  * these builders, the CLI scaffold — shares one shape without a cycle).
+ *
+ * @knipignore plugin/index.cts references this from three signatures, but as
+ * `import("./targetConfig.cts").ResolvedOptions` — the inline type form, because
+ * these files are CommonJS by construction and carry no ESM imports. knip's
+ * resolver does not follow that form and reports the export as unused;
+ * de-exporting it fails `tsc -p tsconfig.tooling.json`.
  */
 export interface ResolvedOptions {
   name: string;

@@ -110,7 +110,10 @@ export function buildOptions({
   // anything.
   minify = false,
   target = targets[0],
-}: { minify?: boolean; target?: BuildTarget } = {}): BuildOptions {
+}: {
+  minify?: boolean;
+  target?: BuildTarget;
+} = {}): BuildOptions {
   const otaUrl = process.env.REACT_WATCH_OTA_URL ?? "";
   // The demo build is the shared QuickJS preset (shim inject, es2020,
   // neutral IIFE) with the React Compiler enabled — the same published flag

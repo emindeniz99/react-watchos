@@ -52,7 +52,7 @@ export function textContent(children: unknown): string {
   return String(children);
 }
 
-export function serializeInstance(instance: SerializableNode): SerializedNode {
+function serializeInstance(instance: SerializableNode): SerializedNode {
   const props: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(instance.props)) {
     if (key === "children" || value === undefined) continue;
