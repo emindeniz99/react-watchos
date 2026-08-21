@@ -276,7 +276,103 @@ Keep the map with the build that produced it. A map only matches the exact
 bytes it was emitted for — symbolicating one release's stack against another
 release's map yields confident nonsense.
 
-#The ~45 KB of debug tables in the `.qbc` are themselves optional: a pipeline
+## Keep your symbols
+
+That last paragraph is advice until something enforces it. By default the map
+lives at `<outfile>.map` and the next build overwrites it, while a crash from
+the field turns up three weeks later carrying a **`releaseId`** and nothing
+else. `--symbols` is the link between the two:
+
+```bash
+react-watchos build --entry src/entry.tsx --outfile dist/bundle.js \
+  --symbols ./symbols
+# [build] symbols -> ./symbols/8c4f1e7a90b3d5e2/app
+```
+
+It is opt-in and additive — without it the build behaves exactly as before —
+and it invents **no new identifier**. `releaseId` is already the FNV-1a over
+the exact shipped bytes: the OTA manifest stamps it, the watch reports it as
+`__bundleReleaseId`, and every record in the diagnostics ring carries it. The
+store is keyed by that and by the target:
+
+```
+symbols/<releaseId>/<target>/bundle.js       the exact bytes that shipped
+                            /bundle.js.map   the map for them
+                            /metadata.json   target, size, releaseId,
+                                             minify / keepNames / sourcemap
+```
+
+The target level is load-bearing, not tidiness. App and widget are separate
+bundles in separate processes, they are routinely built from one source tree in
+one command, and they **share a `releaseId` whenever their bytes match** — so
+keyed by release alone, a widget stack would resolve through the app's map and
+come back confidently wrong rather than failing. The same rule applies to
+`buildBundles`, which takes the directory once for the whole run:
+
+```ts
+await buildBundles(
+  [
+    { name: "app", entry: "src/entry.tsx", outfile: "dist/app/bundle.js",
+      manifest: { version: 3 } },
+    { name: "widget", entry: "src/widget.tsx", outfile: "dist/widget/bundle.js",
+      network: false },
+  ],
+  { symbols: "./symbols" },
+);
+```
+
+### Resolving a field stack
+
+Give the CLI the store and the id the stack arrived with — no map path, no
+guessing which build it came from:
+
+```bash
+pnpm --filter react-watchos symbolicate \
+  --symbols ./symbols --release 8c4f1e7a90b3d5e2 < stack.txt
+# at ShoppingList (../src/ShoppingList.tsx:42:8)   [was t @ bundle.js:1:30]
+```
+
+Add `--target widget` when that release holds more than one bundle; the CLI
+refuses to pick for you. A `releaseId` that is not in the store is an error
+that **lists what is**, so a typo looks like a typo and a store you forgot to
+upload to looks like that instead.
+
+Better still, hand it the whole ring. A diagnostics document — the
+`{ diagnostics: [...] }` the inspector serves, or a bare array of the same
+records — resolves entry by entry, each against **its own** `releaseId`, which
+matters because a ring routinely spans an OTA rollback and is at its most
+interesting exactly then:
+
+```bash
+pnpm --filter react-watchos symbolicate --symbols ./symbols \
+  --diagnostics ring.json          # or pipe it in on stdin
+# [recoverable] js.uncaught (js/watch) release 8c4f1e7a90b3d5e2 2026-08-21T…
+# Error: cannot read property 'id' of undefined
+#     at ShoppingList (../src/ShoppingList.tsx:42:8)   [was t @ bundle.js:1:30]
+```
+
+The frames come out of each record's `details`, because that is where they are:
+a `js.*` diagnostic's details field is the runtime's `message\nstack` text
+(there is no separate `stack` field on a `Diagnostic`). Records with no frames
+print as they are, and one recorded before a bundle loaded — no `releaseId` —
+says so rather than being resolved against a guess.
+
+### Where the directory goes
+
+Wherever you already keep release artifacts, under the same retention as the
+builds themselves: a CI artifact, an object-store prefix, a git-LFS path, the
+`symbols/` directory next to the `.ipa` you archived. We deliberately do not
+pick a vendor and the store is a plain directory tree with no index to
+maintain, so uploading it is `cp -r` / `aws s3 sync` / your CI's upload step,
+and merging two builds' stores is copying one over the other — the `releaseId`
+level makes collisions impossible between different bytes and idempotent
+between identical ones. Two things to hold to: keep it for as long as any
+build might still be running in the field (an OTA rollback can resurrect a
+release you thought was retired), and keep it **private** — the maps carry
+`sourcesContent`, so the store is your source code, and it must never be served
+from the host that serves your bundle.
+
+The ~45 KB of debug tables in the `.qbc` are themselves optional: a pipeline
 that keeps no maps and reads no stacks can take them back with
 `QJS_STRIP_DEBUG=1 pnpm build:bytecode` (or `qjs-compile --strip-debug`).
 Off by default on purpose — a stripped blob is a one-way door: `<null>:0:1`
