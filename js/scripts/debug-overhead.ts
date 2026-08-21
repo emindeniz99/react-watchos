@@ -159,7 +159,10 @@ const shapes: Array<{
 const binary = buildEmbedHost();
 const results: Measurement[] = [];
 for (const shape of shapes) {
-  const outfile = join(work, `${shape.debug ? "dbg" : "base"}-${results.length}.js`);
+  const outfile = join(
+    work,
+    `${shape.debug ? "dbg" : "base"}-${results.length}.js`,
+  );
   const options = watchBuildOptions({
     entry: appTarget.entry,
     outfile,
@@ -200,9 +203,7 @@ const columns = [
   "tap ms",
   "vs base",
 ];
-console.log(
-  "shape".padEnd(26) + columns.map((h) => h.padStart(10)).join(""),
-);
+console.log("shape".padEnd(26) + columns.map((h) => h.padStart(10)).join(""));
 const pct = (value: number, reference: number) =>
   `${value >= reference ? "+" : ""}${((value / reference - 1) * 100).toFixed(1)}%`;
 for (const r of results) {
@@ -216,7 +217,9 @@ for (const r of results) {
       (r === base ? "—" : pct(r.bootMs, base.bootMs)).padStart(10) +
       r.heapMB.toFixed(1).padStart(10) +
       r.perDispatchMs.toFixed(3).padStart(10) +
-      (r === base ? "—" : pct(r.perDispatchMs, base.perDispatchMs)).padStart(10),
+      (r === base ? "—" : pct(r.perDispatchMs, base.perDispatchMs)).padStart(
+        10,
+      ),
   );
 }
 console.log();

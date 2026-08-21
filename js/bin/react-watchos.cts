@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+// The directive below is NOT redundant, whatever the lint rule says: its
+// premise ("modules are automatically strict") holds for ESM, and this is a
+// .cts file — loaded as CommonJS both when Node type-strips it in-repo and as
+// the compiled dist-node/react-watchos.cjs the `bin` field points at. CommonJS
+// is sloppy mode without it.
+// biome-ignore lint/suspicious/noRedundantUseStrict: .cts is CommonJS — see above
 "use strict";
 
 // react-watchos CLI.
@@ -374,7 +380,7 @@ switch (command) {
         "      `dev --debug` first: that instruments every statement and\n" +
         "      writes the .dbg.json this reads. The watch POSTs its state to\n" +
         "      /debug/poll and blocks there while paused; an editor attaches\n" +
-        "      to the DAP port ({\"debugServer\": 8791} in launch.json).\n" +
+        '      to the DAP port ({"debugServer": 8791} in launch.json).\n' +
         "      Breakpoints, stepping and the top frame's ARGUMENTS — not a\n" +
         "      scope walker; see docs/design-dap-debugger.md for the limits.\n",
     );

@@ -29,7 +29,7 @@
  * worse than no debugger.
  */
 import { dirname } from "node:path";
-import type { NodePath, PluginObject, types as BabelTypes } from "@babel/core";
+import type { types as BabelTypes, NodePath, PluginObject } from "@babel/core";
 import type { OnLoadArgs, OnLoadResult, Plugin, PluginBuild } from "esbuild";
 
 /** Bumped when the `<outfile>.dbg.json` shape changes. */
@@ -52,7 +52,7 @@ export interface DebugManifest {
 }
 
 /** Build-wide state: file ids, function ids and probe lines. */
-export class DebugRegistry {
+class DebugRegistry {
   readonly files: DebugManifestFile[] = [];
   private readonly byPath = new Map<string, number>();
   /** path → the contiguous function-id block already handed to that file, so
@@ -154,10 +154,11 @@ function functionName(path: NodePath<Fn>, t: typeof BabelTypes): string {
 
 /**
  * The Babel plugin, as a factory over the build-wide {@link DebugRegistry}.
- * Exported so the transform can be tested against a source string directly,
- * with no esbuild build around it.
+ * Module-private on purpose: the tests exercise it through the real esbuild
+ * plugin (dap-debugger.test.ts builds an actual bundle), so a direct export
+ * would be untested public surface.
  */
-export function debugProbeBabelPlugin(
+function debugProbeBabelPlugin(
   registry: DebugRegistry,
 ): (api: { types: typeof BabelTypes }) => PluginObject {
   return ({ types: t }) => {
@@ -377,7 +378,10 @@ export function debugProbePlugin(options: DebugProbeOptions = {}): Plugin {
 
       build.onResolve(
         { filter: new RegExp(`^${DEBUG_INJECT_SPECIFIER}$`) },
-        () => ({ path: DEBUG_INJECT_SPECIFIER, namespace: DEBUG_INJECT_NAMESPACE }),
+        () => ({
+          path: DEBUG_INJECT_SPECIFIER,
+          namespace: DEBUG_INJECT_NAMESPACE,
+        }),
       );
       build.onLoad(
         { filter: /.*/, namespace: DEBUG_INJECT_NAMESPACE },

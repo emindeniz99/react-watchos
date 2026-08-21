@@ -1,0 +1,107 @@
+{
+  "$schema": "./node_modules/knip/schema-jsonc.json",
+
+  // knip — dead files, dead exports, dead dependencies. Scoped to the js/
+  // package; the workspace's other members are thin consumer apps whose only
+  // job is to prove the published package resolves.
+  //
+  // ENTRY POINTS are the whole design. For a LIBRARY "unused export" is
+  // meaningless until knip knows what the public surface is, because the public
+  // surface is unreferenced by definition. Every entry below is a real doorway
+  // into this package: the exports map, the `bin` field, the `sideEffects`
+  // list, the two build entries, and the test suite. Exports OF an entry file
+  // are public and are not reported (`includeEntryExports` stays false), so
+  // what knip does report is genuinely unreachable code.
+  //
+  // JSONC on purpose: every suppression below has to carry its reason, and
+  // plain JSON cannot.
+
+  // Only the doorways knip cannot infer for itself. It already derives the
+  // exports-map targets (".", "./testing", "./build", "./manifest",
+  // "./app.plugin"), the `bin` field, `scripts.codegen`, vitest.config.ts and
+  // .dependency-cruiser.mjs from package.json and its own plugins — listing
+  // those again just earns a "redundant entry pattern" hint on every run, and a
+  // green gate should print nothing.
+  "entry": [
+    // package.json `sideEffects` — imported for their effect, never by name
+    "src/install-shims.ts",
+    "src/shims.ts",
+    "src/widgets.ts",
+    "src/intents.ts",
+    // reached through esbuild `inject` in a debug build (preset.mts
+    // `debugProbeEntry`) — injection is by path, so knip sees no import
+    "src/debugProbe.ts",
+    // the dev inspector server, next to the inferred `bin` entry
+    "bin/*.{mts,cts}",
+    // the two post-prebuild entries in the exports map, run by path from a
+    // consumer's package.json script rather than imported
+    "plugin/link-swift-package.cts",
+    "plugin/merge-target-infoplist.cts",
+    // dev tooling, run directly by Node's type stripping
+    "scripts/*.ts",
+    // the two esbuild bundle entries (see scripts/config.ts `targets`)
+    "demo/*.entry.tsx",
+    // the suite, and the fixture ENTRIES that qbc-symbolication.test.ts and
+    // dap-debugger.test.ts hand to esbuild by path — nothing imports them, so
+    // without this line they read as unused files
+    "test/**/*.test.{ts,tsx}",
+    "test/fixtures/*.entry.{ts,tsx}"
+  ],
+
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "bin/**/*.{mts,cts}",
+    "esbuild/**/*.mts",
+    "plugin/**/*.cts",
+    "codegen/**/*.ts",
+    "scripts/**/*.ts",
+    "demo/**/*.{ts,tsx}",
+    "test/**/*.{ts,tsx}"
+  ],
+
+  // src/generated/ is emitted by `pnpm codegen` from codegen/schema.ts, and the
+  // schema declares the FULL wire vocabulary on purpose — a request type with
+  // no JS caller yet is still half of the contract the Swift side decodes, and
+  // `codegen --check` in ci.yml is what owns this directory. So its unused
+  // exports are silenced, and only those: the files stay in the graph, so an
+  // import INTO them still has to resolve and a stale generated file that
+  // nothing imports would still surface.
+  "ignoreIssues": {
+    "src/generated/**": ["exports", "types", "nsExports", "nsTypes", "enumMembers"]
+  },
+
+  "ignoreDependencies": [
+    // Loaded by a runtime STRING via plugin/peerDeps.cts `loadTransitive()`,
+    // resolved out of the CONSUMER's @expo/config-plugins / @bacons/apple-targets.
+    // The direct dependency is that lookup's last-resort fallback, which is what
+    // makes it work under pnpm's isolated node_modules. No import to see.
+    "@expo/plist",
+    // Named as babel config STRINGS in esbuild/react-compiler.mts
+    // (`presets: ["@babel/preset-typescript", …]`, `plugins: [["babel-plugin-react-compiler", …]]`),
+    // never imported. They are optional peerDependencies carrying matching
+    // devDeps so the version we develop against is a decision.
+    "@babel/preset-react",
+    "@babel/preset-typescript",
+    "babel-plugin-react-compiler",
+    // Same shape, and deliberate: 62409e9 pinned the optional `expo` peer as a
+    // devDep precisely so the plugin's types compile against the SDK consumers
+    // run, instead of whatever auto-install-peers happened to pick. Nothing in
+    // js/ imports it — that is the point of it.
+    "expo",
+    // Run as binaries by scripts/quality.sh, a shell script knip does not read.
+    "@arethetypeswrong/cli",
+    "publint"
+  ],
+
+  // The Swift toolchain: a SYSTEM binary that codegen/generate.ts spawns to
+  // format the Swift it emits, and that package.json's test:swift /
+  // format:swift call. Not an npm package, so there is nothing to declare.
+  "ignoreBinaries": ["swift"],
+
+  // `@knipignore` marks an export knip's resolver cannot see a use for but that
+  // is provably used — the reason lives on the export itself. Two today, both
+  // referenced from a .cts module through the inline `import("./x.cts").T` type
+  // form (the plugin is CommonJS by construction, so it has no ESM imports),
+  // which knip does not follow. De-exporting either one fails `tsc`.
+  "tags": ["-knipignore"]
+}

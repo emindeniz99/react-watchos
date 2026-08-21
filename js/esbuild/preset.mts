@@ -56,9 +56,9 @@ export {
   describeSymbolStore,
   listSymbolStore,
   readSymbolEntry,
+  SYMBOL_METADATA_FILE,
   type SymbolMetadata,
   type SymbolStoreEntry,
-  SYMBOL_METADATA_FILE,
   symbolTargetDir,
   writeSymbolEntry,
 } from "./symbol-store.mts";

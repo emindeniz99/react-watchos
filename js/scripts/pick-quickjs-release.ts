@@ -86,10 +86,7 @@ export interface Pick {
 const DAY_MS = 86_400_000;
 
 /** Age in days, or `null` for a release with no publish time (a draft). */
-export function ageInDays(
-  release: UpstreamRelease,
-  now: Date,
-): number | null {
+export function ageInDays(release: UpstreamRelease, now: Date): number | null {
   if (!release.published_at) return null;
   const published = Date.parse(release.published_at);
   if (Number.isNaN(published)) return null;
@@ -465,7 +462,9 @@ export function renderProposal(
     );
     const notable = (r.body ?? "")
       .split("\n")
-      .filter((line) => /\b(fix|security|CVE|crash|regression|revert)\b/i.test(line))
+      .filter((line) =>
+        /\b(fix|security|CVE|crash|regression|revert)\b/i.test(line),
+      )
       .slice(0, 6);
     for (const line of notable) lines.push(`  - ${line.trim().slice(0, 200)}`);
   }
@@ -506,7 +505,6 @@ export function renderProposal(
 // Used by .github/workflows/vendor-quickjs.yml. Prints a JSON document on
 // stdout; the workflow reads it with jq rather than parsing prose.
 if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
-
   // Second mode: re-render the PR body once the workflow has the tarball
   // digest (which only exists after the download, i.e. after the decision).
   //   pick-quickjs-release.ts --render <pick.json> <sha256>
@@ -571,7 +569,9 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
     { headers },
   );
   if (!response.ok) {
-    throw new Error(`GitHub releases API: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `GitHub releases API: ${response.status} ${response.statusText}`,
+    );
   }
   const releases = (await response.json()) as UpstreamRelease[];
   const now = new Date();

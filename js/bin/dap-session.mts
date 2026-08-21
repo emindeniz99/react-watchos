@@ -261,7 +261,9 @@ export class DapSession {
     const source = (args.source ?? {}) as { path?: string };
     const requested = (args.breakpoints ?? []) as Array<{ line: number }>;
     const manifest = this.readManifest();
-    const index = manifest.files.findIndex((f) => samePath(f.path, source.path));
+    const index = manifest.files.findIndex((f) =>
+      samePath(f.path, source.path),
+    );
     const file = index >= 0 ? manifest.files[index] : undefined;
 
     const verified: Array<{

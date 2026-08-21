@@ -47,6 +47,10 @@ BUNDLE_ID="com.emindeniz99.reactwatch.watch"
 #        a stale pin (e.g. nvm 22.16) makes the EXConstants "Generate
 #        app.config" phase die parsing plugin/index.cts ("Unexpected
 #        identifier 'ReactWatchOptions'"). Re-pin it to the verified node.
+# shellcheck disable=SC2016 # single quotes are REQUIRED: the `$(mise where node)`
+# below is advice text inside a JS template literal, printed for the user to copy.
+# Double-quoting would make the shell run mise here and bake the result into the
+# message — the opposite of what it tells the reader to do.
 node -e 'const [maj,min]=process.versions.node.split(".").map(Number);
 if (maj<22 || (maj===22 && min<18)) {
   console.error(`node ${process.version} is below the >=22.18 type-stripping floor `
@@ -130,7 +134,17 @@ sim_entitlements() {  # $1 = source generated.entitlements, $2 = out path
     || /usr/libexec/PlistBuddy -c "Set :com.apple.security.get-task-allow true" "$2"
 }
 echo "==> Re-signing with sim-safe entitlements (App Group, +get-task-allow, -healthkit)"
-APPEX=$(ls -d "$APP/PlugIns/"*.appex 2>/dev/null | head -1)
+# First .appex in PlugIns/, via a glob rather than `ls` — a build directory
+# path can contain spaces (Xcode DerivedData under "~/Library/Application
+# Support/…" routinely does), and parsing `ls` output splits on them.
+APPEX=""
+for candidate in "$APP/PlugIns/"*.appex; do
+  # No `nullglob` here (this script is portable-ish sh style): an unmatched
+  # glob stays the literal pattern, so check the path really exists.
+  [ -e "$candidate" ] || break
+  APPEX=$candidate
+  break
+done
 if [ -n "${APPEX:-}" ]; then
   sim_entitlements "$ENT_DIR/ReactWatchWidgets/generated.entitlements" "$TMPENT/widget.ent"
   codesign --force --sign - --entitlements "$TMPENT/widget.ent" "$APPEX"

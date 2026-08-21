@@ -38,9 +38,7 @@ function daypartAt(date: Date): Daypart {
 }
 
 /** The current daypart (dated now) plus every boundary in the next 24h. */
-export function daypartEntries(
-  now: number,
-): Array<{ date: number; part: Daypart }> {
+function daypartEntries(now: number): Array<{ date: number; part: Daypart }> {
   const entries = [{ date: now, part: daypartAt(new Date(now)) }];
   for (let dayOffset = 0; dayOffset <= 1; dayOffset++) {
     for (const part of DAYPARTS) {

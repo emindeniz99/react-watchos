@@ -71,7 +71,10 @@ export function reactCompilerPlugin(): Plugin {
               // development: false -> production jsx-runtime (jsx/jsxs), not the
               // larger jsx-dev-runtime. This is the shipped watch bundle; babel
               // would otherwise emit jsxDEV when BABEL_ENV/NODE_ENV isn't set.
-              ["@babel/preset-react", { runtime: "automatic", development: false }],
+              [
+                "@babel/preset-react",
+                { runtime: "automatic", development: false },
+              ],
             ],
             plugins: [["babel-plugin-react-compiler", { target: "19" }]],
           });

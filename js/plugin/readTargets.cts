@@ -6,10 +6,14 @@ const path = require("node:path");
 // they discover the resolved target names / types / infoPlist without
 // re-parsing the Expo config (the generated files are the resolved truth).
 
-export interface GeneratedTarget {
+interface GeneratedTarget {
   dir: string;
   name: string;
   type: string;
+  // This is the consumer's own expo-target.config.js, `require`d back at
+  // runtime — an arbitrary user-authored object. Only `type`/`name`/`infoPlist`
+  // are ever read and each read narrows, so `unknown` would only move the cast.
+  // biome-ignore lint/suspicious/noExplicitAny: user-authored config object — see above
   config: Record<string, any>;
 }
 

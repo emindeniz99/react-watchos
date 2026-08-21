@@ -1,14 +1,15 @@
 import { vi } from "vitest";
 
-// The public testing surface now carries the whole harness (query helpers +
-// mountApp/resetApp/installInvokeHost/pushDeepLink) — re-export so the
-// existing suite exercises exactly the code consumers import.
+// The public testing surface carries the whole harness — re-export the parts
+// the suite reaches for through this file, so those tests exercise exactly the
+// code consumers import. `installInvokeHost` / `pushDeepLink` are deliberately
+// NOT re-exported: their only consumer (testing-helpers.test.tsx) imports them
+// straight from ../src/testing, which is the more honest pinning of the public
+// surface anyway.
 export {
   findByText,
   findByType,
-  installInvokeHost,
   mountApp,
-  pushDeepLink,
   resetApp,
 } from "../src/testing";
 

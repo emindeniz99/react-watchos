@@ -10,9 +10,9 @@ import {
   type ArgType,
   bridgeProtocol,
   components,
-  healthQuantityTypes,
   type HostArg,
   type HostMethod,
+  healthQuantityTypes,
   hostMethods,
   invokeShapes,
   node,
@@ -21,8 +21,8 @@ import {
   structs,
   type TsOnlyDef,
   tsOnly,
-  wireVersion,
   type WireTarget,
+  wireVersion,
   workoutActivityTypes,
 } from "./schema.ts";
 
@@ -284,7 +284,7 @@ function hostBridgeSwift() {
     "    /// Watch-only functions are absent in the widget so JS feature detection",
     "    /// is correct there and a stray call fails loudly, not silently hangs.",
     "    /// `allowedFeatures` is the HostPolicy ceiling (ARCH-07): nil installs",
-    '    /// everything the target backs; otherwise only allowed features\' methods',
+    "    /// everything the target backs; otherwise only allowed features' methods",
     '    /// are installed — except "core" (commit/log/timers/invoke), which is',
     "    /// always installed because the runtime can't operate without it.",
     "    func installHostBridge(",
@@ -511,8 +511,8 @@ function invokeShapesTS() {
     };
   }
   return [
-    "/** ARCH-11: the declared request/result shape of each `via:\"invoke\"`",
-    " *  method that carries one. A value of `\"opaque\"` means the payload is the",
+    '/** ARCH-11: the declared request/result shape of each `via:"invoke"`',
+    ' *  method that carries one. A value of `"opaque"` means the payload is the',
     " *  consuming app's own JSON by contract (the connectivity channels), not an",
     " *  undeclared shape. Methods absent from this table send no payload and",
     " *  return void/null, a bare string, `string[]`, or a boolean. */",

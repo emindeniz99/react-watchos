@@ -15,6 +15,11 @@ const path = require("node:path");
  * Require `id` resolved from `projectRoot` (then this file as a fallback).
  * @returns whatever the consumer's copy exports — callers narrow it
  */
+// The return type is genuinely unknowable here — `id` is a runtime string and
+// the module comes from the CONSUMER's node_modules. Each of the typed loaders
+// below annotates its own return, so the narrowing happens at the call site
+// either way and `unknown` would only add a cast per loader.
+// biome-ignore lint/suspicious/noExplicitAny: consumer-resolved module — see above
 function requireFromProject(projectRoot: string, id: string): any {
   try {
     return require(require.resolve(id, { paths: [projectRoot] }));
@@ -48,6 +53,9 @@ function loadAppleTargets(
 // apple-targets, not hoisted next to a post-prebuild script under pnpm —
 // resolve them through a package that owns them. (Reused by scripts that run
 // outside Expo.)
+// Same as requireFromProject — a runtime `id` resolved out of a peer's
+// node_modules. Both callers (loadXcode, loadPlist) declare the shape they use.
+// biome-ignore lint/suspicious/noExplicitAny: consumer-resolved module — see above
 function loadTransitive(id: string, projectRoot: string): any {
   const bases = ["@expo/config-plugins", "@bacons/apple-targets"];
   for (const base of bases) {
