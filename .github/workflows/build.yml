@@ -15,6 +15,21 @@ on:
         description: "Xcode version (e.g. 16.2, 26.0, latest-stable)"
         default: "latest-stable"
         required: false
+  # Callable from another workflow — see the same block in ci.yml for why. An
+  # engine bump is exactly the change this macOS job exists for: CQuickJS is
+  # compiled for arm64_32 here and nowhere else, so the bot runs it on the
+  # vendor branch before asking anyone to look at the PR.
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to check out. Empty = the caller's own ref."
+        type: string
+        required: false
+      xcode:
+        description: "Xcode version"
+        type: string
+        default: "latest-stable"
+        required: false
   # CX-013 REVERSED, 2026-08-20 (maintainer's call). That decision — "native
   # compilation is not a required PR gate" — was made when the plugin was
   # simpler and the only native surface was a SwiftUI shell. It is now the
@@ -76,11 +91,13 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
-          xcode-version: ${{ github.event.inputs.xcode || 'latest-stable' }}
+          xcode-version: ${{ inputs.xcode || 'latest-stable' }}
       - name: swift-format (check only)
         run: npm run format:swift:check
 
@@ -98,11 +115,13 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
-          xcode-version: ${{ github.event.inputs.xcode || 'latest-stable' }}
+          xcode-version: ${{ inputs.xcode || 'latest-stable' }}
       - name: Test on watchOS simulator (xcodebuild)
         run: |
           set -o pipefail
@@ -129,12 +148,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
-          xcode-version: ${{ github.event.inputs.xcode || 'latest-stable' }}
+          xcode-version: ${{ inputs.xcode || 'latest-stable' }}
 
       - name: Toolchain versions
         run: |

@@ -1,0 +1,47 @@
+name: engine attest
+
+# A required check that fails while the engine's tarball digest is unattested.
+#
+# tools/vendor-quickjs/run.sh demands a SHA-256 obtained out-of-band, because
+# the vendored engine executes every signed OTA bundle: a `curl | tar` would
+# graft whatever the network handed back straight into the trust base. That
+# rule survives a human running the script by hand — they had to type a digest
+# they got somewhere else — but it does NOT survive automation, because the
+# bump bot hashes the very file it just downloaded. Self-consistent, and
+# therefore worthless as evidence.
+#
+# So the check moves to where a human is: any PR touching the vendored engine
+# stays red until someone confirms the digest through a second channel (the
+# upstream release page on a different machine/network, a colleague, a mirror)
+# and adds the `engine-digest-attested` label. Bot or human authored, same rule.
+#
+# It runs on `labeled`/`unlabeled` too, so adding the label re-runs the check
+# and turns it green without a push.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    paths:
+      - "js/swift/Sources/CQuickJS/**"
+
+permissions: {}
+
+jobs:
+  attested:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: The vendored engine needs an out-of-band digest check
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          case ",$LABELS," in
+            *,engine-digest-attested,*)
+              echo "attested — a human confirmed the tarball digest out-of-band"
+              ;;
+            *)
+              echo "::error::This PR changes js/swift/Sources/CQuickJS. Verify the upstream tarball's SHA-256 through a channel that is not this PR, then add the 'engine-digest-attested' label. The command is in the PR body for bot-opened bumps; for a hand bump it is the one tools/vendor-quickjs/run.sh printed."
+              exit 1
+              ;;
+          esac
