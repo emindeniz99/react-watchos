@@ -24,3 +24,7 @@ Thumbs.db
 # Xcode's local SwiftPM state (per-user schemes); never shared.
 .swiftpm/
 .history/
+# Local AI-harness state (agent worktrees, session scratch). Never source:
+# committing it would drag live worktrees and machine-local settings into
+# history the moment an agent runs.
+.claude/
