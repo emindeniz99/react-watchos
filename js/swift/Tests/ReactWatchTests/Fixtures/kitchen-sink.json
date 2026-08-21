@@ -265,6 +265,8 @@
           "value": 5,
           "min": 0,
           "max": 10,
+          "focused": true,
+          "onFocusChange": true,
           "onChange": true
         },
         "children": [

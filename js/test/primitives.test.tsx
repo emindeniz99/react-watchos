@@ -275,6 +275,106 @@ describe("input primitives", () => {
     expect(onChange).toHaveBeenCalledWith(7);
   });
 
+  it("serializes the CrownRotation focus claim and its handler flag", () => {
+    const root = render(
+      <CrownRotation
+        value={5}
+        focused
+        onFocusChange={() => {}}
+        onChange={() => {}}
+      >
+        <Text>5</Text>
+      </CrownRotation>,
+    );
+    expect(root).toMatchObject({
+      type: "CrownRotation",
+      props: { value: 5, focused: true, onFocusChange: true },
+    });
+  });
+
+  it("dispatches focusChange with the boolean to onFocusChange", () => {
+    const onFocusChange = vi.fn();
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(
+      <CrownRotation value={5} focused onFocusChange={onFocusChange}>
+        <Text>5</Text>
+      </CrownRotation>,
+    );
+    const crown = host.lastCommit!.root!;
+    expect(
+      root.dispatchEvent({
+        nodeId: crown.id,
+        event: "focusChange",
+        payload: { focused: false },
+      }),
+    ).toEqual({ handled: true, accepted: true });
+    expect(onFocusChange).toHaveBeenCalledWith(false);
+  });
+
+  it("moves the focus claim between two Crown views on state change", () => {
+    // The multi-Crown screen the roadmap row gates on: one piece of state
+    // derives both claims, and folding onFocusChange (native reporting the
+    // user tapped the other view) hands the Crown over — the committed tree
+    // is the wire-visible proof the claim moved.
+    function TwoCrowns() {
+      const [owner, setOwner] = useState<"a" | "b">("a");
+      const fold = (name: "a" | "b") => (focused: boolean) => {
+        if (focused) setOwner(name);
+      };
+      return (
+        <VStack>
+          <CrownRotation
+            value={1}
+            focused={owner === "a"}
+            onFocusChange={fold("a")}
+            onChange={() => {}}
+          >
+            <Text>a</Text>
+          </CrownRotation>
+          <CrownRotation
+            value={2}
+            focused={owner === "b"}
+            onFocusChange={fold("b")}
+            onChange={() => {}}
+          >
+            <Text>b</Text>
+          </CrownRotation>
+        </VStack>
+      );
+    }
+    const host = new MemoryHost();
+    const root = new WatchRoot(host);
+    root.render(<TwoCrowns />);
+    const claims = () =>
+      host
+        .lastCommit!.root!.children.filter((c) => c.type === "CrownRotation")
+        .map((c) => c.props.focused);
+    // Deterministic serialization: both nodes carry an explicit boolean.
+    expect(claims()).toEqual([true, false]);
+
+    // Native reports Crown focus landed on "b" (the user tapped it); the
+    // fold flips the owner and the commit moves the claim in the same
+    // dispatch flush.
+    const b = host.lastCommit!.root!.children[1];
+    root.dispatchEvent({
+      nodeId: b.id,
+      event: "focusChange",
+      payload: { focused: true },
+    });
+    expect(claims()).toEqual([false, true]);
+
+    // The loser's focusChange(false) — native fires it as focus leaves —
+    // folds to a no-op, not a fight over the claim.
+    const a = host.lastCommit!.root!.children[0];
+    root.dispatchEvent({
+      nodeId: a.id,
+      event: "focusChange",
+      payload: { focused: false },
+    });
+    expect(claims()).toEqual([false, true]);
+  });
+
   it("serializes Slider and dispatches its change", () => {
     const onChange = vi.fn();
     const host = new MemoryHost();
