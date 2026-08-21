@@ -79,6 +79,14 @@ feature-set model supersedes the earlier scalar capability gate).
   and stayed red from ARCH-09 (2026-07-16) until 2026-07-28, because every
   local loop ran the renderer's gates from `js/` while only CI ran the
   examples.
+- **The quality battery — `pnpm --filter react-watchos quality`.** Packaging
+  (publint + attw against a real `pnpm pack` tarball), dead code (knip), the
+  QuickJS-vs-Node module boundary (dependency-cruiser), plus shellcheck, typos
+  and an offline link/anchor check. Same script CI runs, so it reproduces the
+  gate exactly; a standalone binary you don't have installed is a skip with a
+  notice locally and a failure in CI. Deliberately NOT in the pre-push hook —
+  that stays fast. What each check gates, and what was rejected after being
+  measured, is in [`docs/quality-gates.md`](./docs/quality-gates.md).
 - **The Darwin bridges (`BluetoothBridge` et al.) — macOS, on the watch sim:**
   `pnpm test:swift:watch` runs the Swift suite via `xcodebuild test` on a
   watchOS simulator, where the `#if os(watchOS)` code actually compiles, so the
