@@ -356,8 +356,18 @@ const ICON: Record<VerdictKind, string> = {
  */
 export function renderReport(
   pick: Pick,
-  opts: { vendoredTag: string; soakDays: number; now: Date },
+  opts: {
+    vendoredTag: string;
+    soakDays: number;
+    now: Date;
+    /** How many `older` rows to show in full beyond the recent window. */
+    olderExamples?: number;
+    /** `older` releases this fresh are always shown in full. */
+    olderWindowDays?: number;
+  },
 ): string {
+  const olderExamples = opts.olderExamples ?? 3;
+  const olderWindowDays = opts.olderWindowDays ?? 30;
   const lines = [
     `**Decision: ${pick.action.toUpperCase()}** — ${pick.reason}`,
     "",
@@ -368,10 +378,35 @@ export function renderReport(
     "| | release | published | age | verdict |",
     "|---|---|---|---|---|",
   ];
+  // The API hands back 30 releases and most of them predate the vendored
+  // engine, so printing all of them buries the three rows that carry the
+  // decision. Only the `older` tail is thinned — every verdict that could
+  // change what happens (candidate, soaking, skipped, prerelease…) is always
+  // shown in full. An `older` release survives if it is recent enough to still
+  // be interesting OR is one of the first few, so the table always ends with
+  // some history rather than a cliff.
+  const row = (v: ReleaseVerdict): string =>
+    `| ${ICON[v.kind]} | \`${v.tag}\` | ${v.publishedAt?.slice(0, 10) ?? "—"}` +
+    ` | ${formatAge(v.ageDays)} | **${v.kind}** — ${v.reason} |`;
+
+  let olderSeen = 0;
+  const collapsed: ReleaseVerdict[] = [];
   for (const v of pick.considered) {
+    if (v.kind !== "older") {
+      lines.push(row(v));
+      continue;
+    }
+    olderSeen += 1;
+    const recent = v.ageDays != null && v.ageDays <= olderWindowDays;
+    if (recent || olderSeen <= olderExamples) lines.push(row(v));
+    else collapsed.push(v);
+  }
+  if (collapsed.length > 0) {
+    const first = collapsed[0]?.tag;
+    const last = collapsed[collapsed.length - 1]?.tag;
     lines.push(
-      `| ${ICON[v.kind]} | \`${v.tag}\` | ${v.publishedAt?.slice(0, 10) ?? "—"}` +
-        ` | ${formatAge(v.ageDays)} | **${v.kind}** — ${v.reason} |`,
+      `| · | ${collapsed.length} more | — | — | **older** — \`${first}\` down to` +
+        ` \`${last}\`, all predating the vendored engine |`,
     );
   }
   if (pick.action === "propose" && pick.soaking.length > 0) {

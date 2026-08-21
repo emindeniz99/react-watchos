@@ -272,3 +272,80 @@ describe("the decision report", () => {
     expect(formatAge(null)).toBe("unknown");
   });
 });
+
+// The releases API hands back thirty entries and most of them predate the
+// vendored engine. Printing all of them buries the two or three rows that
+// actually carry the decision — so the `older` tail is thinned, and only that
+// tail.
+describe("the report's older tail", () => {
+  const LONG_HISTORY = [
+    release("v0.16.2", 0.9),
+    release("v0.16.1", 93),
+    release("v0.16.0", 140),
+    release("v0.15.1", 200),
+    release("v0.15.0", 260),
+    release("v0.14.0", 320),
+    release("v0.13.0", 400),
+    release("v0.12.1", 480),
+  ];
+  const report = (extra: Partial<UpstreamRelease>[] = []) =>
+    renderReport(
+      pickRelease([...LONG_HISTORY, ...(extra as UpstreamRelease[])], {
+        vendoredTag: "v0.16.1",
+        now: NOW,
+      }),
+      { vendoredTag: "v0.16.1", soakDays: 7, now: NOW },
+    );
+
+  it("shows three older releases in full and collapses the rest", () => {
+    const text = report();
+    for (const tag of ["v0.16.0", "v0.15.1", "v0.15.0"]) {
+      expect(text).toContain(`\`${tag}\``);
+    }
+    // v0.14.0 is the fourth `older` entry and long past the recent window.
+    expect(text).toContain("3 more");
+    expect(text).toContain("`v0.14.0` down to `v0.12.1`");
+  });
+
+  // The decision rows are never thinned — the whole point of the table.
+  it("never collapses a row that could change the outcome", () => {
+    const text = report();
+    expect(text).toContain("`v0.16.2`"); // soaking
+    expect(text).toContain("`v0.16.1`"); // vendored
+    expect(text.split("\n").filter((l) => l.includes("soaking"))).toHaveLength(
+      1,
+    );
+  });
+
+  it("keeps an older release that is still inside the recent window", () => {
+    // Four `older` entries would normally leave the fourth collapsed; this one
+    // is 12 days old, so it stays.
+    const text = renderReport(
+      pickRelease(
+        [
+          release("v0.16.1", 40),
+          release("v0.16.0", 12),
+          release("v0.15.1", 200),
+          release("v0.15.0", 260),
+          release("v0.14.0", 320),
+          release("v0.13.0", 400),
+        ],
+        { vendoredTag: "v0.16.1", now: NOW },
+      ),
+      { vendoredTag: "v0.16.1", soakDays: 7, now: NOW, olderExamples: 1 },
+    );
+    expect(text).toContain("`v0.16.0`"); // 12d old — inside the window
+    expect(text).toContain("more");
+  });
+
+  it("collapses nothing when there is no tail", () => {
+    const text = renderReport(
+      pickRelease([release("v0.16.2", 0.9), release("v0.16.1", 93)], {
+        vendoredTag: "v0.16.1",
+        now: NOW,
+      }),
+      { vendoredTag: "v0.16.1", soakDays: 7, now: NOW },
+    );
+    expect(text).not.toContain("more |");
+  });
+});
