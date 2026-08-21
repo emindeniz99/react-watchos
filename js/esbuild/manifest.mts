@@ -16,12 +16,13 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 // FNV-1a 64-bit content hash, byte-for-byte identical to Swift
-// ReactWatchSupport.ContentHash (same offset basis + prime, UInt64 wraparound,
-// lowercase hex without leading zeros). The host exposes the loaded bundle's
-// ContentHash as `globalThis.__bundleReleaseId`, so JS `checkForUpdate` can
-// compare it to the manifest's `releaseId` and detect a non-breaking fix that
-// kept the same compatibility `version` (CX-025). Verified against Swift in
-// content-hash.test (and ContentHash.swift's vectors).
+// ReactWatchSupport.ContentHash and tools/qjs-compile's fnv1a (same offset
+// basis + prime, UInt64 wraparound, lowercase hex without leading zeros). The
+// host exposes the loaded bundle's ContentHash as `globalThis.__bundleReleaseId`,
+// so JS `checkForUpdate` can compare it to the manifest's `releaseId` and
+// detect a non-breaking fix that kept the same compatibility `version`
+// (CX-025). All three implementations assert the shared vector file
+// Fixtures/content-hash-vectors.json — see content-hash-parity.test.ts.
 const OFFSET = 0xcbf29ce484222325n;
 const PRIME = 0x100000001b3n;
 const MASK = 0xffffffffffffffffn;

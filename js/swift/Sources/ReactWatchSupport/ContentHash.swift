@@ -6,7 +6,10 @@ import Foundation
 /// (e.g. a crash between writing new source and overwriting the cached `.qbc`
 /// leaves the previous bundle's bytecode on disk). FNV-1a, so it's stable across
 /// launches (unlike Swift's per-process `Hasher`) and pure Foundation
-/// (Linux-testable).
+/// (Linux-testable). One of THREE implementations (tools/qjs-compile's fnv1a
+/// and js/esbuild/manifest.mts's contentHash are the others) pinned to the
+/// shared vector file Fixtures/content-hash-vectors.json — see
+/// ContentHashParityVectorTests and js/test/content-hash-parity.test.ts.
 public enum ContentHash {
     public static func of(_ string: String) -> String {
         fnv1a(string.utf8)

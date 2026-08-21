@@ -1,0 +1,30 @@
+{
+  "notes": "FNV-1a 64-bit over the input string UTF-8 bytes; hash is lowercase hex with NO leading zeros. One vector set for the three implementations that must never drift: tools/qjs-compile/qjs-compile.c fnv1a (the [out.hash] stamp), Swift ReactWatchSupport.ContentHash, and js/esbuild/manifest.mts contentHash. Every input is deliberately also a valid JS program, so the C side is asserted through the REAL qjs-compile hash path, not a harness. Static and hand-authored: never regenerate from one implementation, or a drift there would rewrite the expectation it should fail.",
+  "vectors": [
+    {
+      "name": "empty",
+      "input": "",
+      "hash": "cbf29ce484222325"
+    },
+    {
+      "name": "one-byte",
+      "input": ";",
+      "hash": "af63b64c8601abfa"
+    },
+    {
+      "name": "known-swift-vector",
+      "input": "globalThis.__x=42;",
+      "hash": "48f85877cc5dfcc0"
+    },
+    {
+      "name": "leading-zero-hex",
+      "input": "// leading-zero probe 10300",
+      "hash": "66e642a1687bc6"
+    },
+    {
+      "name": "multi-kb-high-bytes",
+      "input": "// héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂 héllo π ⌚ 🙂",
+      "hash": "d252243d91fac823"
+    }
+  ]
+}

@@ -1818,6 +1818,52 @@ final class ContentHashTests: XCTestCase {
     }
 }
 
+// The Swift third of the content-hash parity gate: the FNV-1a 64-bit hash is
+// implemented three times (tools/qjs-compile/qjs-compile.c's `fnv1a`, this
+// package's ContentHash, and js/esbuild/manifest.mts `contentHash`), and a
+// silent drift in any of them presents as "every boot falls back to parsing
+// source" (the .qbc stamp never matches) or "every check reports an update"
+// (releaseId never matches) — no error anywhere. All three assert the SAME
+// static vector file (Fixtures/content-hash-vectors.json); the Node and C
+// thirds live in js/test/content-hash-parity.test.ts, which also guards the
+// file's own coverage shapes. Never regenerate the file from one
+// implementation — that rewrites the expectation with the drift it catches.
+final class ContentHashParityVectorTests: XCTestCase {
+    private struct VectorFile: Decodable {
+        struct Vector: Decodable {
+            let name: String
+            let input: String
+            let hash: String
+        }
+        let vectors: [Vector]
+    }
+
+    private func loadVectors() throws -> [VectorFile.Vector] {
+        let url = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "content-hash-vectors", withExtension: "json",
+                subdirectory: "Fixtures"
+            ),
+            "missing Fixtures/content-hash-vectors.json")
+        let vectors = try JSONDecoder()
+            .decode(VectorFile.self, from: Data(contentsOf: url)).vectors
+        // A decode that quietly came back empty would green-light everything.
+        XCTAssertGreaterThanOrEqual(vectors.count, 5, "vector file hollowed out")
+        return vectors
+    }
+
+    func testSharedVectorsMatchThroughBothOverloads() throws {
+        for vector in try loadVectors() {
+            // The String overload is the loadShipped/OTA-record path; the Data
+            // overload pins the record to the bytecode blob. Same core, and
+            // both must speak the shared format.
+            XCTAssertEqual(ContentHash.of(vector.input), vector.hash, vector.name)
+            XCTAssertEqual(
+                ContentHash.of(Data(vector.input.utf8)), vector.hash, vector.name)
+        }
+    }
+}
+
 /// ARCH-04 atomic apply: the active-bundle record is one Codable unit, so source
 /// and version/signature/bytecodeHash always land together — JSON round-trips
 /// without losing the optional fields.
