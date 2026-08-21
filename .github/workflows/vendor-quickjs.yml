@@ -84,6 +84,10 @@ jobs:
             echo "tag=$tag"
             echo "branch=chore/vendor-quickjs-ng"
           } >> "$GITHUB_OUTPUT"
+          # Also to stdout: on a "nothing to do" run every later step is
+          # skipped, so without this the log is twelve green seconds that say
+          # nothing and the reason lives only in the Summary tab.
+          echo "vendored $(jq -r .vendoredTag pick.json) | decision: $action | $(jq -r .reason pick.json)"
           {
             echo "### quickjs-ng watch"
             echo
