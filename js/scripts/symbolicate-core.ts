@@ -103,13 +103,27 @@ export function symbolicateFrame({
   if (!Number.isFinite(line) || line < 1 || !Number.isFinite(column)) {
     return null;
   }
-  const position = originalPositionFor(tracer, {
+  let position = originalPositionFor(tracer, {
     // Source maps are 0-based on columns; engines report 1-based. The clamp is
     // for the same class of nonsense position as the guard above — a 0 column
     // would otherwise become -1, which the mapper also rejects by throwing.
     column: Math.max(0, column - 1),
     line,
   });
+  // Call-site boundary disagreement, one column wide. On a CALL frame the
+  // engine reports the position of the call opcode, which can land one column
+  // before where esbuild starts the callee identifier's named segment — the
+  // exact lookup then hits a nameless filler segment (often mapping to
+  // whitespace between statements) while the mapping that carries both the
+  // right source line AND the function's original name begins at the very
+  // next column. Observed for real: engine `1:21307` → nameless `36:0`, with
+  // `40:0 QbcSymbolicationFixtureScreen` starting at generated column 21307
+  // (0-based). One step right, only when the exact hit is nameless, and only
+  // taken if the neighbour has a name — anything wider is guessing.
+  if (position.source != null && position.name == null) {
+    const right = originalPositionFor(tracer, { column, line });
+    if (right.source != null && right.name != null) position = right;
+  }
   if (position.source == null || position.line == null) return null;
   return {
     source: position.source,

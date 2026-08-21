@@ -5,9 +5,12 @@ import type {
   PublishedRelevantContext,
   PublishedWidgets,
 } from "./generated/wire";
-import type { SerializedNode } from "./host";
-import { getHost, MemoryHost } from "./host";
-import { WatchRoot } from "./renderer";
+import { getHost } from "./host";
+// The ONE import that decides the widget bundle's size. Reaching renderer.ts
+// (WatchRoot) from here used to drag react-reconciler + scheduler into every
+// widget bundle — 83% of it — to render a static tree once. staticRender.ts is
+// the reconciler-free walker that replaced it; keep this edge pointing there.
+import { renderStatic } from "./staticRender";
 
 export type {
   PublishedEntry,
@@ -52,6 +55,14 @@ export interface EntryRelevance {
 
 export interface WidgetTimelineEntry {
   date: number | Date;
+  /**
+   * The tree for this entry. Rendered ONCE, without the React reconciler
+   * (staticRender.ts), so it must be a pure function of its props and the
+   * stores it reads: no effects run, state setters have nothing to re-render,
+   * and Suspense/lazy/portals throw. Components, `memo`, `forwardRef`,
+   * Fragments, context and the deterministic hooks all work — see
+   * docs/ui-guide.md, "Widget components render without the reconciler".
+   */
   view: ReactNode;
   /** Optional deep link opened when the complication/widget is tapped. */
   url?: string;
@@ -316,17 +327,13 @@ export function unregisterAllWidgets(): void {
   controlRegistry.clear();
 }
 
-/** One-shot render: element in, serialized tree out. No host, no events. */
-export function renderToTree(element: ReactNode): SerializedNode | null {
-  const host = new MemoryHost();
-  const root = new WatchRoot(host);
-  try {
-    root.render(element);
-    return host.lastCommit?.root ?? null;
-  } finally {
-    root.unmount();
-  }
-}
+/**
+ * One-shot render: element in, serialized tree out. No host, no events, no
+ * reconciler — a widget view is a PURE function of its props and the stores it
+ * reads (see staticRender.ts for the why and the exact fiber-path parity
+ * rules).
+ */
+export { renderStatic as renderToTree } from "./staticRender";
 
 function toMs(value: number | Date): number {
   return value instanceof Date ? value.getTime() : value;
@@ -447,7 +454,7 @@ function toPublishedEntry(
   }
   return {
     date,
-    tree: renderToTree(entry.view),
+    tree: renderStatic(entry.view),
     ...(entry.url ? { url: entry.url } : {}),
     ...(relevance ? { relevance } : {}),
   };

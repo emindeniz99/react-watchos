@@ -154,6 +154,41 @@ scarcest thing a publish spends. The
 gauge complication, a corner gauge, a rectangular Smart Stack card, and
 the inline text slot — all from one React render function.
 
+### Widget components render without the reconciler
+
+A timeline entry's `view` is rendered **once**, by a plain element-tree walker
+(`js/src/staticRender.ts`), **not** by React's reconciler. A widget component is
+therefore a **pure function of its props and the stores it reads**:
+
+- **No effects.** `useEffect`/`useLayoutEffect`/`useInsertionEffect` never run —
+  there is no commit for them to run after. Read what you need during render.
+- **No state updates.** `useState`/`useReducer` hand back their initial value,
+  and calling a setter *during* the render throws: there is no second render to
+  produce, so silently dropping the update would be worse. Passing a setter as a
+  prop is fine — function props serialize to the literal `true` and are never
+  invoked on the widget side. Interaction is an AppIntent (`registerIntent`),
+  not a handler in the tree.
+- **No `Suspense`, no `lazy()`, no portals.** These throw, naming the offending
+  type, instead of quietly rendering something a fiber render wouldn't have.
+
+Everything a static tree *can* honour works, and is asserted against the fiber
+path node-for-node (`js/test/staticRender.test.tsx`): function and class
+components, `memo`, `forwardRef`, `Fragment`, arrays and keys, conditional and
+`null` children, context `Provider`/`Consumer` and `useContext` (so
+`ThemeProvider` / `TranslationProvider` work inside a widget), plus `useMemo`,
+`useCallback`, `useRef`, `useSyncExternalStore`, `useId` — and the React
+Compiler's memo cache, so a compiled component needs no special handling.
+
+**Why**: `react-reconciler` + `scheduler` + the renderer adapter were **83.8% of
+the widget bundle** (128,478 B of 153,362 B, minified) and were there only to
+mount a fiber tree, commit it once, take a single serialized node and throw the
+tree away — no host, no events, no second render. Cutting that edge took the
+demo widget bundle from **153,362 B to 27,870 B (−81.8%)**, and in the widget
+extension that is 16 MB-of-JS-heap money spent on every timeline request. The
+app keeps the real reconciler for its UI; `renderToTree` is the same walker in
+both bundles, so the payload the app publishes and the payload the extension
+re-renders in-process cannot disagree.
+
 The extension also embeds its own QuickJS (`IntentRuntime.swift`,
 measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 
