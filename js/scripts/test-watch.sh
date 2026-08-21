@@ -7,6 +7,20 @@
 # pass extra xcodebuild args through (e.g. -only-testing:...).
 set -euo pipefail
 cd "$(dirname "$0")/../swift"
+ROOT="$(cd ../.. && pwd)"
+
+# BundleSmokeTests boots the REAL production bundle (and its .qbc) through
+# JSRuntime on the simulator — the only place the shipped artifact meets the
+# shipped embedding on the watch architecture. Both are BUILD PRODUCTS, not
+# fixtures, so make them when they're missing (the same build-if-missing shape
+# tools/qjs-compile/run.sh uses); otherwise that test skips and this run looks
+# green having proven less than it claims.
+[ -f "$ROOT/js/dist/bundle.js" ] || (cd "$ROOT" && pnpm --filter react-watchos build)
+[ -f "$ROOT/js/dist/bundle.qbc" ] || (cd "$ROOT" && pnpm --filter react-watchos build:bytecode)
+# xcodebuild strips the TEST_RUNNER_ prefix and passes the rest into the test
+# process: with the artifacts present, a skip now FAILS instead of passing
+# quietly (the REQUIRE_QJS posture from the JS engine gate).
+export TEST_RUNNER_REQUIRE_BUNDLE=1
 
 SIM_ID=$(
   xcrun simctl list devices available --json | python3 -c '
