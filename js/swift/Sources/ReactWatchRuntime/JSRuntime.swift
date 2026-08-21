@@ -371,6 +371,14 @@ public final class JSRuntime {
     /// only valid for this exact quickjs-ng version — load it with
     /// `evaluateBytecode`, which throws on a version mismatch so the caller can
     /// fall back to parsing the source. nil if `source` doesn't compile.
+    ///
+    /// The blob carries NO source text and DOES carry the line/column debug
+    /// tables — the same write policy the build-time compiler applies to the
+    /// shipped bundle (see `qjs_write_obj_bytecode_strip_source` and
+    /// tools/qjs-compile/qjs-compile.c for the measured trade). So
+    /// `Function.prototype.toString` on anything from a cached OTA bundle
+    /// returns no source, exactly as on the shipped `.qbc`, and stacks out of
+    /// it symbolicate normally.
     public func compileToBytecode(_ source: String) -> Data? {
         onOwningQueue {
             if refuseAfterShutdown("compileToBytecode") { return nil }
@@ -384,7 +392,8 @@ public final class JSRuntime {
             var size = 0
             guard
                 let buf = JS_WriteObject(
-                    context, &size, compiled, qjs_write_obj_bytecode()
+                    context, &size, compiled,
+                    qjs_write_obj_bytecode_strip_source()
                 )
             else { return nil }
             defer { js_free(context, buf) }
@@ -918,6 +927,43 @@ public final class JSRuntime {
         pendingRejections.removeValue(forKey: promise)
     }
 
+    #if DEBUG
+    // MARK: - Debugger transport (DEBUG only)
+
+    /// The blocking exchange an instrumented bundle's probes call as
+    /// `globalThis.__debugPoll(stateJson) -> commandJson`
+    /// (docs/design-dap-debugger.md). Internal, not part of `HostBridge`: the
+    /// generated bridge is compiled into RELEASE builds and each of its methods
+    /// is an ARCH-01 capability a bundle may require, and a debugger must be
+    /// neither. Installed as a bare global under `#if DEBUG`, the same way the
+    /// host installs `__inspectorUrl`.
+    var debugPoll: ((String) -> String)?
+
+    /// Installs `__debugPoll`. Absent until this is called, which is what makes
+    /// an instrumented bundle safe to run with no debugger attached: the probe
+    /// sees no function, detaches itself, and never asks again.
+    ///
+    /// `handler` is called ON the owning queue, from inside JS, and is expected
+    /// to BLOCK — that is the whole point. A paused debugger has to hold the JS
+    /// thread, and holding it is why `fetch` cannot be the transport here: the
+    /// app runtime's owning queue is `main`, and `fetch` settles by hopping
+    /// back to that queue to call `__resolveFetch`. Blocking main while waiting
+    /// for a hop onto main is a deadlock, not a slow poll.
+    /// ``DebugPollTransport/handler(url:timeout:)`` is the handler that does
+    /// this correctly.
+    public func installDebugPoll(_ handler: @escaping (String) -> String) {
+        onOwningQueue {
+            if refuseAfterShutdown("installDebugPoll") { return }
+            debugPoll = handler
+            let global = JS_GetGlobalObject(context)
+            defer { JS_FreeValue(context, global) }
+            JS_SetPropertyStr(
+                context, global, "__debugPoll",
+                JS_NewCFunction(context, jsDebugPoll, "__debugPoll", 1))
+        }
+    }
+    #endif
+
     private func jsStringLiteral(_ value: String) -> String {
         let data =
             (try? JSONSerialization.data(
@@ -937,6 +983,25 @@ public final class JSRuntime {
 
 // @convention(c) callbacks cannot capture state; the owning JSRuntime is
 // recovered through the context opaque pointer.
+
+#if DEBUG
+/// The `__debugPoll` trampoline (DEBUG only). Synchronous by construction: JS
+/// gets the dev server's answer as this call's RETURN VALUE, with no promise
+/// and no return to the event loop — which is the only shape that can serve a
+/// debugger paused inside a running JS frame.
+private func jsDebugPoll(
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    guard let runtime = JSRuntime.from(context: ctx),
+        let handler = runtime.debugPoll, let argv, argc >= 1,
+        let stateCString = JS_ToCString(ctx, argv[0])
+    else { return qjs_undefined() }
+    let state = String(cString: stateCString)
+    JS_FreeCString(ctx, stateCString)
+    return JS_NewString(ctx, handler(state))
+}
+#endif
 
 /// quickjs-ng calls this whenever a promise's rejection-handled state changes.
 /// Both edges matter now (see `pendingRejections`): "no handler yet" parks a

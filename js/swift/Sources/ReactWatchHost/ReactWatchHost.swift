@@ -607,6 +607,15 @@ final class ReactWatchModel {
         try? js.evaluate(
             "globalThis.__inspectorUrl='http://127.0.0.1:8099/snapshot'"
         )
+        // The source-level debugger's transport (docs/design-dap-debugger.md).
+        // Installed unconditionally in DEBUG, exactly like the inspector URL
+        // above, because only an INSTRUMENTED bundle ever calls it: an ordinary
+        // bundle has no `__dbg` probes and never reaches `__debugPoll`. The
+        // first exchange from an instrumented bundle with no `react-watchos
+        // debug` running fails and the probe detaches itself for the rest of
+        // the runtime's life, so the cost of being wrong here is one refused
+        // connection, not a poll loop.
+        js.installDebugPoll(DebugPollTransport.handler(url: Self.debugPollURL))
         #endif
         return js
     }
@@ -2286,6 +2295,19 @@ final class ReactWatchModel {
             return url
         }
         return URL(string: "http://127.0.0.1:8788/bundle.js")!
+    }()
+    /// Where an instrumented bundle's probes exchange state for commands (the
+    /// `react-watchos debug` contract). Overridable via the
+    /// `ReactWatchDebugPollURL` Info.plist key for the same reason the dev
+    /// bundle URL is: a physical watch needs the Mac's LAN IP, not localhost.
+    private static let debugPollURL: URL = {
+        if let s = Bundle.main.object(
+            forInfoDictionaryKey: "ReactWatchDebugPollURL") as? String,
+            let url = URL(string: s)
+        {
+            return url
+        }
+        return URL(string: "http://127.0.0.1:8790/debug/poll")!
     }()
     @ObservationIgnored private var devTask: Task<Void, Never>?
     @ObservationIgnored private var lastDevBundle: String?

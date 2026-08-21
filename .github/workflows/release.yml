@@ -201,11 +201,33 @@ jobs:
         working-directory: js
         run: pnpm run check:size
       # prepublishOnly never ran the suite at all, so a release could be cut
-      # over red tests. No qjs install and no REQUIRE_QJS here: the real-engine
-      # smoke is CI's gate on every push, and this job holds `id-token: write`,
-      # so it earns no extra apt/network surface.
-      - name: Test (vitest)
+      # over red tests — and until now this job ran that suite WITHOUT the
+      # real-engine gate ("no qjs install and no REQUIRE_QJS here"). That
+      # exclusion was written when the gate meant `apt-get install quickjs`:
+      # apt + network surface in the one job that holds `id-token: write`, spent
+      # on Bellard's QuickJS — not even the engine this package ships. Both
+      # halves of the reason are dead. The gate now BUILDS the vendored
+      # quickjs-ng from the checked-out tree (js/swift/Sources/CQuickJS, the
+      # sources SwiftPM also compiles for watchOS): no download, no package
+      # index, nothing on PATH trusted — just `cc` and ~30 s. What the
+      # exclusion left behind was the worst possible hole: the bytes that go to
+      # the registry were the only bytes never proven to run in the engine we
+      # ship.
+      #
+      # Deliberately NOT cached, unlike ci.yml's identical build: a publish
+      # workflow must never restore a cache another workflow could have
+      # poisoned (zizmor cache-poisoning — same reason setup-node above takes
+      # no `cache:`). Cold every release; 30 s is the price of trust.
+      - name: Build the vendored quickjs-ng (cold — a publish job caches nothing)
+        run: echo "QJS_BIN=$(tools/vendored-qjs/build.sh)" >> "$GITHUB_ENV"
+      - name: Test (vitest + the vendored engine)
         working-directory: js
+        # REQUIRE_QJS turns the local-dev "no C compiler -> skip" guard into a
+        # loud failure: the step above just built the engine, so a skip here
+        # would mean the engine gate silently stopped running on the ONE path
+        # that publishes. QJS_BIN points the suite at that build.
+        env:
+          REQUIRE_QJS: "1"
         run: pnpm run test
       # Scan the EXACT artifact that ships: pack the tarball, extract it and
       # run gitleaks over the contents. The repo-history scan lives in
