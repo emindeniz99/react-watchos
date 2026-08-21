@@ -27,13 +27,18 @@
 // `singleCopyPlugin`: two copies of react in one bundle break hooks at boot,
 // and only the module graph can prove there is one (see single-copy.mts).
 
-import { mkdirSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BuildOptions, Plugin } from "esbuild";
-import { type OTAManifest, writeOTAManifest } from "./manifest.mts";
+import {
+  contentHash,
+  type OTAManifest,
+  writeOTAManifest,
+} from "./manifest.mts";
 import { reactCompilerPlugin } from "./react-compiler.mts";
 import { singleCopyPlugin } from "./single-copy.mts";
+import { writeSymbolEntry } from "./symbol-store.mts";
 
 export { reactCompilerPlugin } from "./react-compiler.mts";
 export {
@@ -41,6 +46,16 @@ export {
   SINGLE_COPY_PACKAGES,
   singleCopyPlugin,
 } from "./single-copy.mts";
+export {
+  describeSymbolStore,
+  listSymbolStore,
+  readSymbolEntry,
+  type SymbolMetadata,
+  type SymbolStoreEntry,
+  SYMBOL_METADATA_FILE,
+  symbolTargetDir,
+  writeSymbolEntry,
+} from "./symbol-store.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -305,6 +320,20 @@ export interface BuildBundleResult {
   outfile: string;
   sizeKB: number;
   manifest?: OTAManifest | undefined;
+  /**
+   * This bundle's identity: FNV-1a over the exact bytes written to `outfile`,
+   * the same hash the OTA manifest stamps and a `Diagnostic` from the field
+   * carries — so this is the id to log, or to name an uploaded artifact by.
+   *
+   * Present whenever it was computed, which is whenever something asked for
+   * it: a target that stamped a `manifest` (which hashes these bytes anyway)
+   * or a run with {@link BuildBundlesOptions.symbols}. Absent otherwise, since
+   * the hash costs a measured 55 ms on a 628 KB bundle and a build that wants
+   * neither has nothing to spend it on.
+   */
+  releaseId?: string | undefined;
+  /** Where this target's symbols were stored, when `symbols` was set. */
+  symbols?: string | undefined;
 }
 
 /** Shared options for a whole {@link buildBundles} run (per-target knobs live
@@ -330,6 +359,21 @@ export interface BuildBundlesOptions {
   reactCompiler?: boolean;
   /** @see WatchBuildOptions.nodePaths */
   nodePaths?: string[];
+  /**
+   * Keep every target's bundle + map + a `metadata.json` under
+   * `<dir>/<releaseId>/<target>/`, so a stack that arrives weeks later with
+   * nothing but a `releaseId` can still find the map that reads it. OPT-IN and
+   * additive: absent, this build behaves exactly as before — the map is still
+   * written beside the outfile and the next build still overwrites it.
+   *
+   * `releaseId` is the ONLY key, on purpose: it is already the FNV-1a over the
+   * exact shipped bytes that the OTA manifest stamps and that every
+   * `Diagnostic` records, so the stack and the store agree without anyone
+   * stamping a second identifier. The target level below it is load-bearing —
+   * see esbuild/symbol-store.mts. Resolve one later with
+   * `pnpm symbolicate --symbols <dir> --release <id>`.
+   */
+  symbols?: string;
 }
 
 /**
@@ -349,6 +393,10 @@ export interface BuildBundlesOptions {
  * two-bundle shape — see {@link WatchBuildOptions.network}). The manifest is
  * stamped against the target's real outfile name, so a bundle not named
  * `bundle.js` still hashes correctly.
+ *
+ * Pass {@link BuildBundlesOptions.symbols} to also keep each target's bundle +
+ * map under `<dir>/<releaseId>/<target>/`, which is what makes a crash stack
+ * from a shipped build readable weeks later.
  */
 export async function buildBundles(
   targets: BundleTarget[],
@@ -364,6 +412,7 @@ export async function buildBundles(
     dev,
     reactCompiler = false,
     nodePaths,
+    symbols,
   }: BuildBundlesOptions = {},
 ): Promise<BuildBundleResult[]> {
   if (!Array.isArray(targets) || targets.length === 0) {
@@ -443,11 +492,43 @@ export async function buildBundles(
           ...manifest,
         })
       : undefined;
+    // The identity, computed at most once and never twice: `writeOTAManifest`
+    // already hashed exactly these bytes, so reuse its answer, and fall back to
+    // manifest.mts's FNV-1a (the single implementation, the one Swift's
+    // ContentHash mirrors) only for a target that stamped no manifest — the
+    // widget, which is shipped rather than OTA'd but whose stacks still need to
+    // find a map. Computed ONLY when something will read it: the hash is a
+    // measured 55 ms on a 628 KB bundle, and a build that asked for no store
+    // and no manifest should not pay it for a field nobody consumes.
+    let releaseId = stamped?.releaseId;
+    let stored: ReturnType<typeof writeSymbolEntry> | undefined;
+    if (symbols) {
+      releaseId ??= contentHash(readFileSync(outfile, "utf8"));
+      stored = writeSymbolEntry({
+        symbolsDir: symbols,
+        releaseId,
+        target: name,
+        outfile,
+        minify,
+        keepNames,
+        sourcemap,
+      });
+    }
     console.log(
       `${name} bundle: ${sizeKB} KB${minify ? " (minified)" : ""}` +
-        (stamped ? ` (OTA v${stamped.version} ${stamped.releaseId})` : ""),
+        (stamped ? ` (OTA v${stamped.version} ${stamped.releaseId})` : "") +
+        (stored
+          ? ` (symbols ${stored.metadata.releaseId}/${basename(stored.dir)})`
+          : ""),
     );
-    results.push({ name, outfile, sizeKB, manifest: stamped });
+    results.push({
+      name,
+      outfile,
+      sizeKB,
+      manifest: stamped,
+      releaseId,
+      symbols: stored?.dir,
+    });
   }
   return results;
 }

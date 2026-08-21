@@ -59,6 +59,13 @@ function buildFlags(args: string[]) {
       // network (a widget extension: shared storage + timelines), worth -3,798 B
       // measured. Negative-only: there is nothing to affirm, it is the default.
       "no-network": { type: "boolean" },
+      // Opt-in symbol store: keep this build's bundle + map under
+      // <dir>/<releaseId>/<target>/ so a stack that comes back from the field
+      // carrying only a releaseId can still find the map that reads it.
+      // Affirmative-only and absent by default — writing artifacts nobody asked
+      // for is not a default, and `releaseId` is the only key (never a second
+      // identifier). Resolve one later with `symbolicate --symbols <dir>`.
+      symbols: { type: "string" },
       version: { type: "string", default: "1" },
       host: { type: "string", default: process.env.DEV_HOST ?? "127.0.0.1" },
       port: { type: "string", default: process.env.DEV_PORT ?? "8788" },
@@ -98,13 +105,22 @@ async function build(args: string[]) {
         network: f.network,
       },
     ],
-    { minify: f.minify, sourcemap: f.sourcemap, keepNames: f.keepNames },
+    {
+      minify: f.minify,
+      sourcemap: f.sourcemap,
+      keepNames: f.keepNames,
+      // Spread rather than passed as `symbols: undefined`: absent must mean
+      // "behave exactly as before", and an explicit undefined would be one
+      // more thing the preset has to defend against.
+      ...(f.symbols ? { symbols: f.symbols } : {}),
+    },
   );
   for (const r of results) {
     console.log(
       `[build] ${r.outfile} (${r.sizeKB} KB)` +
         (f.sourcemap ? ` + ${path.basename(r.outfile)}.map` : ""),
     );
+    if (r.symbols) console.log(`[build] symbols -> ${r.symbols}`);
   }
   if (f.asset) {
     fs.mkdirSync(path.dirname(f.asset), { recursive: true });
@@ -276,6 +292,7 @@ switch (command) {
         "  react-watchos build --entry <file> [--outfile dist/bundle.js]\n" +
         "                      [--asset <copy-to>] [--no-minify] [--version <n>]\n" +
         "                      [--no-sourcemap] [--keep-names] [--no-network]\n" +
+        "                      [--symbols <dir>]\n" +
         "      One-shot QuickJS-correct bundle build (published esbuild preset)\n" +
         "      + OTA manifest stamp next to the outfile. Minified by default\n" +
         "      (~-68% bytes, a third less QuickJS heap); --no-minify keeps the\n" +
@@ -286,7 +303,10 @@ switch (command) {
         "      instead bakes the names into the bundle (+17 KB), for stacks\n" +
         "      nothing will symbolicate. --no-network leaves the fetch shims\n" +
         "      out (-3.7 KB) for a bundle that declares no network — a widget\n" +
-        "      entry that only reads storage and publishes timelines.\n\n" +
+        "      entry that only reads storage and publishes timelines.\n" +
+        "      --symbols keeps the bundle + map under <dir>/<releaseId>/<target>/,\n" +
+        "      so a field stack that carries only a releaseId still finds its\n" +
+        "      map weeks later (docs/debugging.md, 'Keep your symbols').\n\n" +
         "  react-watchos dev --entry <file> [--outfile dist/bundle.js]\n" +
         "                    [--host 127.0.0.1] [--port 8788]\n" +
         "      Live-reload server. DEBUG watch builds poll /bundle.js every 2s\n" +
