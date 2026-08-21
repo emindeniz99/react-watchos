@@ -1,4 +1,3 @@
-import { installFetch } from "./fetch";
 import type { QuickJSHostGlobal } from "./host";
 
 /**
@@ -6,6 +5,14 @@ import type { QuickJSHostGlobal } from "./host";
  * QuickJS lacks. Timers are driven by Swift: setTimeout asks the host to
  * arm a timer, and JSRuntime.swift calls `__fireTimer(id)` when it fires.
  * No-ops on Node, where everything already exists.
+ *
+ * The NETWORK globals (fetch/Headers/AbortController) deliberately do NOT live
+ * here any more — ./install-shims installs them behind a build-time gate. The
+ * shims are injected into every bundle, so anything this function touches is
+ * bundled unconditionally, and calling `installFetch` from here pinned 3,798 B
+ * of fetch into bundles whose declared capability contract has no `network` at
+ * all (this repo's widget). Everything left here is genuinely unconditional:
+ * react and the scheduler do not boot without it.
  */
 export function installShims(): void {
   const g = globalThis as Record<string, unknown> & {
@@ -136,6 +143,4 @@ export function installShims(): void {
     // tolerates that and we have no monotonic source without performance.now().
     g.performance = { now: () => Date.now() };
   }
-
-  installFetch(g);
 }

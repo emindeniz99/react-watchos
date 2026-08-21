@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { installFetch } from "../src/fetch";
 import { Headers } from "../src/index";
-import { installShims } from "../src/shims";
 
 // Simulates the bare QuickJS engine (no native fetch/Headers/AbortController):
-// installShims installs ours; a mock host records requests, settled the way
-// JSRuntime.swift does via __resolveFetch / __rejectFetch.
+// installFetch installs ours; a mock host records requests, settled the way
+// JSRuntime.swift does via __resolveFetch / __rejectFetch. Driven directly
+// rather than through installShims() because these globals are the build-time
+// OPTIONAL half of the shim layer — src/install-shims.ts installs them only
+// when the bundle declared a network (see the `network` preset option).
 const g = globalThis as Record<string, unknown>;
 const SAVED = [
   "fetch",
@@ -40,7 +43,7 @@ describe("fetch shim (QuickJS environment)", () => {
     hostFetch = vi.fn();
     hostAbort = vi.fn();
     g.__host = { fetch: hostFetch, abortFetch: hostAbort, log: () => {} };
-    installShims();
+    installFetch(g);
   });
 
   afterEach(() => {
@@ -320,7 +323,7 @@ describe("fetch shim with a host lacking fetch (reduced/widget host)", () => {
     }
     // A host without a `fetch` method (widget/test), like installMockHost.
     g.__host = { log: () => {} };
-    installShims();
+    installFetch(g);
   });
 
   afterEach(() => {

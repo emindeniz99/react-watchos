@@ -32,6 +32,15 @@ export const rendererRoot = join(here, "..");
 /** The shim entry esbuild must `inject` (captures setTimeout & co. first). */
 export const shimEntry = join(rendererRoot, "src/install-shims.ts");
 
+/**
+ * The define that decides whether {@link shimEntry} installs the NETWORK shims
+ * (fetch/Headers/AbortController) — "1" or "", never absent, because QuickJS
+ * has no `process` to read it from at runtime. Empty folds the branch away and
+ * lets esbuild tree-shake src/fetch.ts out of the bundle entirely; see
+ * {@link WatchBuildOptions.network}.
+ */
+const NET_SHIM_DEFINE = "process.env.REACT_WATCH_NET";
+
 /** Options for {@link watchBuildOptions}. */
 export interface WatchBuildOptions {
   /** App entry (e.g. src/entry.tsx). */
@@ -100,6 +109,26 @@ export interface WatchBuildOptions {
    */
   keepNames?: boolean;
   /**
+   * Include the network shims (`fetch`, `Headers`, `AbortController`) in this
+   * bundle. Defaults to **`true`**: a bundle that calls fetch and didn't get
+   * the shim fails at runtime, so the safe default is to ship it.
+   *
+   * Turn it OFF for a bundle whose feature contract has no network — a widget
+   * extension that only reads shared storage and publishes timelines is the
+   * standard case. Measured on this repo's widget bundle: 153,362 -> 149,564 B
+   * (-3,798 B, -2.5%), which on the extension's 16 MB heap is heap as well as
+   * flash. This has to be a BUILD switch, not a runtime one: the injected
+   * `install-shims` module called `installFetch` unconditionally, and no `if`
+   * can un-bundle code esbuild already had to include. It is spent as a
+   * `define` the injected module branches on (see NET_SHIM_DEFINE), so the
+   * dead branch — and src/fetch.ts behind it — is tree-shaken away.
+   *
+   * Off means `fetch` is simply undefined; nothing here polyfills a rejection,
+   * because a `TypeError: fetch is not a function` at the call site names the
+   * real mistake (this bundle declared no network) better than a fake one.
+   */
+  network?: boolean;
+  /**
    * Run the React Compiler over app + renderer source (auto-memoization ->
    * fewer commits). Needs Babel dev deps — see esbuild/react-compiler.mts.
    */
@@ -126,6 +155,7 @@ export function watchBuildOptions({
   minify = false,
   sourcemap = true,
   keepNames = false,
+  network = true,
   reactCompiler = false,
   nodePaths,
   plugins = [],
@@ -159,6 +189,10 @@ export function watchBuildOptions({
     define: {
       "process.env.NODE_ENV": '"production"',
       "process.env.BUNDLE_VERSION": '"1"',
+      // Read by src/install-shims.ts (injected above) to decide whether the
+      // fetch shims are part of this bundle AT ALL. Always defined, both ways:
+      // an unreplaced read would crash the bundle in QuickJS.
+      [NET_SHIM_DEFINE]: network ? '"1"' : '""',
     },
     plugins: [...plugins, singleCopyPlugin()],
     // Read by singleCopyPlugin to count react copies in the module graph.
@@ -194,6 +228,13 @@ export interface BundleTarget {
   define?: Record<string, string>;
   plugins?: Plugin[];
   manifest?: BundleManifestInput;
+  /**
+   * Per-target network shims. Lives on the TARGET, not on
+   * {@link BuildBundlesOptions}, because it is a property of the bundle's
+   * feature contract: in the two-bundle shape this helper exists for, the app
+   * fetches and the widget doesn't. @see WatchBuildOptions.network
+   */
+  network?: boolean;
 }
 
 /** One built bundle's result. */
@@ -236,8 +277,11 @@ export interface BuildBundlesOptions {
  * `watchBuildOptions` alone never requires esbuild to be installed.
  *
  * A target may also pass `plugins` (esbuild plugins like the React Compiler,
- * forwarded to the preset). The manifest is stamped against the target's real
- * outfile name, so a bundle not named `bundle.js` still hashes correctly.
+ * forwarded to the preset) and `network: false` to leave the fetch shims out of
+ * a bundle whose feature contract has no network (the widget half of that same
+ * two-bundle shape — see {@link WatchBuildOptions.network}). The manifest is
+ * stamped against the target's real outfile name, so a bundle not named
+ * `bundle.js` still hashes correctly.
  */
 export async function buildBundles(
   targets: BundleTarget[],
@@ -275,7 +319,15 @@ export async function buildBundles(
   }
   const results: BuildBundleResult[] = [];
   for (const target of targets) {
-    const { entry, outfile, name = outfile, define, plugins, manifest } = target;
+    const {
+      entry,
+      outfile,
+      name = outfile,
+      define,
+      plugins,
+      manifest,
+      network = true,
+    } = target;
     if (!entry || !outfile) {
       throw new Error("buildBundles: each target needs `entry` and `outfile`");
     }
@@ -286,6 +338,7 @@ export async function buildBundles(
       minify,
       sourcemap,
       keepNames,
+      network,
       reactCompiler,
       nodePaths,
       plugins,

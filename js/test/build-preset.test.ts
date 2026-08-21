@@ -107,6 +107,59 @@ describe("buildBundles", () => {
   });
 });
 
+// The fetch shims are injected, and injection is unconditional bundling: a
+// bundle whose feature contract has no `network` paid 3,711 B for a fetch it
+// can never call (measured on this repo's widget). A runtime gate saves zero
+// bytes, so the switch has to be at build time — and it has to keep DEFAULTING
+// ON, because a bundle that calls fetch without the shim fails on the watch.
+// Both halves of that are asserted here; the probe is `__resolveFetch`, the
+// settle entrypoint JSRuntime.swift calls, since it is a global property name
+// minification cannot rename.
+describe("network shims", () => {
+  const ENTRY = "globalThis.__probeGlobal = 1;\n";
+
+  it("injects fetch by default and omits it for a target that opts out", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-net-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, ENTRY);
+
+    const withNet = join(dir, "app.js");
+    await buildBundles([{ name: "app", entry, outfile: withNet }]);
+    const app = readFileSync(withNet, "utf8");
+    expect(app).toContain("__probeGlobal"); // the bundle IS this entry
+    expect(app).toContain("__resolveFetch");
+
+    const noNet = join(dir, "widget.js");
+    await buildBundles([
+      { name: "widget", entry, outfile: noNet, network: false },
+    ]);
+    const widget = readFileSync(noNet, "utf8");
+    expect(widget).toContain("__probeGlobal");
+    expect(widget).not.toContain("__resolveFetch");
+    // …and the saving is real bytes, not a reshuffle.
+    expect(widget.length).toBeLessThan(app.length);
+
+    // The core shims are NOT part of the trade: timers still beat react's
+    // module init in a network-less bundle (__fireTimer is the host's
+    // callback into them).
+    expect(widget).toContain("__fireTimer");
+  });
+
+  it("honours the switch on watchBuildOptions too (the dev/hand-assembly path)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-net-watch-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, ENTRY);
+
+    const withNet = join(dir, "with-net.js");
+    await build(watchBuildOptions({ entry, outfile: withNet }));
+    expect(readFileSync(withNet, "utf8")).toContain("__resolveFetch");
+
+    const noNet = join(dir, "no-net.js");
+    await build(watchBuildOptions({ entry, outfile: noNet, network: false }));
+    expect(readFileSync(noNet, "utf8")).not.toContain("__resolveFetch");
+  });
+});
+
 // The two defaults DISAGREE on purpose, and this is what pins the disagreement:
 // `buildBundles` ships (minified), `watchBuildOptions` is what `react-watchos
 // dev` builds the live-reload bundle with (readable, because minification is
