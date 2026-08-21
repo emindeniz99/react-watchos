@@ -41,6 +41,21 @@ export const shimEntry = join(rendererRoot, "src/install-shims.ts");
  */
 const NET_SHIM_DEFINE = "process.env.REACT_WATCH_NET";
 
+/**
+ * The dev/ship define — "1" in a dev build, "" in a shipping one, never absent
+ * (QuickJS has no `process`). Wrap dev-only wiring in
+ * `if (process.env.REACT_WATCH_DEV)` and esbuild drops both the branch and
+ * whatever it was the only importer of; this is the ONLY way that code leaves
+ * the bundle, since a static import keeps a module alive however dead the call
+ * site is.
+ *
+ * It exists because `NODE_ENV` cannot do this job: it is pinned to
+ * `"production"` in EVERY build here, dev included, because React's dev bundle
+ * is far too heavy and chatty for the watch — so it says nothing about whether
+ * this build is one you are debugging. See {@link WatchBuildOptions.dev}.
+ */
+const DEV_DEFINE = "process.env.REACT_WATCH_DEV";
+
 /** Options for {@link watchBuildOptions}. */
 export interface WatchBuildOptions {
   /** App entry (e.g. src/entry.tsx). */
@@ -129,6 +144,27 @@ export interface WatchBuildOptions {
    */
   network?: boolean;
   /**
+   * Build for the DEV loop rather than for shipping: defines
+   * `process.env.REACT_WATCH_DEV` to `"1"`, so anything the entry guards with
+   * `if (process.env.REACT_WATCH_DEV)` is kept. In a shipping build the define
+   * is `""`, the branch folds away, and every module reachable only from it is
+   * tree-shaken out — which is the point, because a static `import` keeps a
+   * module in the bundle no matter how dead the call site is. The remote
+   * inspector (src/inspector.ts) is the case this was cut for: it survived at
+   * 1,307 B in the shipped app bundle behind a runtime
+   * `if (globalThis.__inspectorUrl)`.
+   *
+   * Defaults to **`!minify`**, which is not a coincidence but the same
+   * distinction stated once: `watchBuildOptions` (minify off) is what
+   * `react-watchos dev` builds the live-reload bundle with, `buildBundles`
+   * (minify on) is the shipping entry. Pass it explicitly to separate them —
+   * e.g. a minified bundle you still want to inspect.
+   *
+   * NOT `NODE_ENV`: that stays `"production"` in every build (React's dev
+   * bundle is too heavy for the watch), so it cannot also mean "debuggable".
+   */
+  dev?: boolean;
+  /**
    * Run the React Compiler over app + renderer source (auto-memoization ->
    * fewer commits). Needs Babel dev deps — see esbuild/react-compiler.mts.
    */
@@ -156,6 +192,11 @@ export function watchBuildOptions({
   sourcemap = true,
   keepNames = false,
   network = true,
+  // Dev-ness follows `minify` by default rather than being a second knob to
+  // forget: this function IS the dev/hand-assembly path (minify off) and
+  // `buildBundles` IS the shipping one (minify on). Stated explicitly at a
+  // call site that needs the two apart.
+  dev = !minify,
   reactCompiler = false,
   nodePaths,
   plugins = [],
@@ -193,6 +234,9 @@ export function watchBuildOptions({
       // fetch shims are part of this bundle AT ALL. Always defined, both ways:
       // an unreplaced read would crash the bundle in QuickJS.
       [NET_SHIM_DEFINE]: network ? '"1"' : '""',
+      // Read by the app entry to fence off dev-only wiring (the inspector).
+      // Always defined, both ways — an unreplaced read crashes in QuickJS.
+      [DEV_DEFINE]: dev ? '"1"' : '""',
     },
     plugins: [...plugins, singleCopyPlugin()],
     // Read by singleCopyPlugin to count react copies in the module graph.
@@ -259,6 +303,11 @@ export interface BuildBundlesOptions {
   sourcemap?: boolean;
   /** @see WatchBuildOptions.keepNames */
   keepNames?: boolean;
+  /**
+   * @see WatchBuildOptions.dev — defaults to `!minify` there, so this entry
+   * (minified by default) builds a SHIPPING bundle unless you say otherwise.
+   */
+  dev?: boolean;
   /** @see WatchBuildOptions.reactCompiler */
   reactCompiler?: boolean;
   /** @see WatchBuildOptions.nodePaths */
@@ -294,6 +343,7 @@ export async function buildBundles(
     minify = true,
     sourcemap = true,
     keepNames = false,
+    dev,
     reactCompiler = false,
     nodePaths,
   }: BuildBundlesOptions = {},
@@ -339,6 +389,10 @@ export async function buildBundles(
       sourcemap,
       keepNames,
       network,
+      // Undefined here means "let the preset derive it from minify" — spelling
+      // it as `dev: false` would quietly override a `{ minify: false }` caller
+      // who wanted a debuggable bundle.
+      ...(dev === undefined ? {} : { dev }),
       reactCompiler,
       nodePaths,
       plugins,

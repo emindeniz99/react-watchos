@@ -163,7 +163,15 @@ npx react-watchos inspector          # or, in this repo: pnpm --filter react-wat
 
 ```ts
 import { startInspector } from "react-watchos";
-startInspector({ url: "http://127.0.0.1:8099/snapshot" });
+
+// The gate is a DEFINE, not an `if` on a runtime flag: a static import keeps
+// its module in the bundle however dead the call site is, so an inspector
+// started only "in DEBUG" still shipped ~1.3 KB in the release bundle. The
+// preset defines this "1" for dev builds and "" for shipping ones, and esbuild
+// then tree-shakes the whole inspector away. (See `dev` in the build preset.)
+if (process.env.REACT_WATCH_DEV) {
+  startInspector({ url: "http://127.0.0.1:8099/snapshot" });
+}
 ```
 
 Open <http://127.0.0.1:8099>. The page has three columns — **TREE** (the live

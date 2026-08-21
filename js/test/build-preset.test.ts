@@ -108,7 +108,7 @@ describe("buildBundles", () => {
 });
 
 // The fetch shims are injected, and injection is unconditional bundling: a
-// bundle whose feature contract has no `network` paid 3,711 B for a fetch it
+// bundle whose feature contract has no `network` paid 3,798 B for a fetch it
 // can never call (measured on this repo's widget). A runtime gate saves zero
 // bytes, so the switch has to be at build time — and it has to keep DEFAULTING
 // ON, because a bundle that calls fetch without the shim fails on the watch.
@@ -157,6 +157,68 @@ describe("network shims", () => {
     const noNet = join(dir, "no-net.js");
     await build(watchBuildOptions({ entry, outfile: noNet, network: false }));
     expect(readFileSync(noNet, "utf8")).not.toContain("__resolveFetch");
+  });
+});
+
+// Dev-only wiring (the remote inspector is the case in hand) has to leave the
+// SHIPPED bundle, and only a build-time gate can do that: a static import keeps
+// its module alive however dead the call site is, which is how src/inspector.ts
+// kept shipping 1,307 B behind a runtime `if (globalThis.__inspectorUrl)`. The
+// pairing below is the contract — a dev build keeps it, a shipped build drops
+// it AND drops the module behind it — and `NODE_ENV` cannot express it, since
+// it is "production" in both (React's dev bundle is too heavy for the watch).
+describe("dev define", () => {
+  // `devOnlyProbe` is reachable ONLY from the guarded branch, so its survival
+  // is exactly the question "did the dead branch take its module with it?".
+  const DEV_FIXTURE =
+    "function devOnlyProbe() {\n  globalThis.__inspected = 1;\n}\n" +
+    "globalThis.__probeGlobal = 1;\n" +
+    "if (process.env.REACT_WATCH_DEV) devOnlyProbe();\n";
+
+  it("keeps dev-only code out of a shipped bundle and in a dev one", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-dev-define-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, DEV_FIXTURE);
+
+    // buildBundles = the shipping entry: gone, and no raw process.env read
+    // left behind to crash QuickJS.
+    const shipped = join(dir, "shipped.js");
+    await buildBundles([{ name: "app", entry, outfile: shipped }]);
+    const shippedCode = readFileSync(shipped, "utf8");
+    expect(shippedCode).toContain("__probeGlobal"); // the bundle IS this entry
+    expect(shippedCode).not.toContain("__inspected");
+    expect(shippedCode).not.toContain("process.env.REACT_WATCH_DEV");
+
+    // watchBuildOptions = the dev loop: kept.
+    const dev = join(dir, "dev.js");
+    await build(watchBuildOptions({ entry, outfile: dev }));
+    const devCode = readFileSync(dev, "utf8");
+    expect(devCode).toContain("__inspected");
+    expect(devCode).not.toContain("process.env.REACT_WATCH_DEV");
+
+    // …and the derivation is a DEFAULT, not a law: a minified bundle you still
+    // want to inspect asks for it, and an unminified one can ship.
+    const inspectable = join(dir, "inspectable.js");
+    await buildBundles([{ name: "app", entry, outfile: inspectable }], {
+      dev: true,
+    });
+    expect(readFileSync(inspectable, "utf8")).toContain("__inspected");
+
+    const strippedDev = join(dir, "stripped.js");
+    await build(watchBuildOptions({ entry, outfile: strippedDev, dev: false }));
+    expect(readFileSync(strippedDev, "utf8")).not.toContain("__inspected");
+  });
+
+  it("does not let the shipping default override an explicit unminified build", async () => {
+    // `buildBundles({ minify: false })` is documented as "give me the frames
+    // back out of a shipped bundle" — it must follow minify into dev, not
+    // silently pin dev off.
+    const dir = mkdtempSync(join(tmpdir(), "rnw-dev-unmin-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(entry, DEV_FIXTURE);
+    const outfile = join(dir, "unminified.js");
+    await buildBundles([{ name: "app", entry, outfile }], { minify: false });
+    expect(readFileSync(outfile, "utf8")).toContain("__inspected");
   });
 });
 

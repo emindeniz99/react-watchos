@@ -55,5 +55,16 @@ subscribeShopping(() => {
 });
 // DEBUG-only: WatchApp sets __inspectorUrl so the tree + logs stream to
 // the `npm run inspector` viewer.
-const inspectorUrl = (globalThis as { __inspectorUrl?: string }).__inspectorUrl;
-if (inspectorUrl) startInspector({ url: inspectorUrl });
+//
+// The OUTER gate is a build-time define, not a second runtime check: the
+// `__inspectorUrl` test below is what decides whether to connect, but a static
+// import keeps its module in the bundle however dead the call site is, so the
+// whole inspector (1,307 B) shipped in the release bundle regardless. esbuild
+// folds `""` away here and tree-shakes src/inspector.ts out with it; the dev
+// loop (react-watchos dev / pnpm dev — anything unminified) defines "1" and is
+// unaffected. This is the pattern to copy for any dev-only wiring of your own.
+if (process.env.REACT_WATCH_DEV) {
+  const inspectorUrl = (globalThis as { __inspectorUrl?: string })
+    .__inspectorUrl;
+  if (inspectorUrl) startInspector({ url: inspectorUrl });
+}
