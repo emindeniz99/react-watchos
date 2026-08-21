@@ -13,9 +13,12 @@ cd "$(dirname "$0")"
 VENDOR=../../js/swift/Sources/CQuickJS
 # Ensure both bundles exist (build emits app + widget together).
 [ -f ../../js/dist/bundle.js ] || (cd ../.. && pnpm --filter react-watchos build)
+# The engine is compiled ONCE by tools/vendored-qjs/build.sh and linked here:
+# three tools each rebuilding ~100k lines of quickjs.c cost three cold builds a
+# CI run, and CI caches that one build (see .github/workflows/ci.yml).
+OBJ=$(../vendored-qjs/build.sh --objdir)
 cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o qjs-compile \
-  qjs-compile.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
-  "$VENDOR"/libunicode.c "$VENDOR"/dtoa.c -lm -lpthread
+  qjs-compile.c "$OBJ"/*.o -lm -lpthread
 # compile <source.js> <target-dir>: emit <source>.qbc + <source>.hash (OP-1:
 # ContentHash.of the source, so the runtime can refuse a stale/hand-swapped
 # pairing — see ReactWatchHost.loadShipped / WidgetIntentRuntime.loadShippedBundle)

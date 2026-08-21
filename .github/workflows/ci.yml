@@ -36,8 +36,25 @@ jobs:
           node-version: "24"
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-      - name: Install QuickJS (qjs)
-        run: sudo apt-get update && sudo apt-get install -y quickjs
+      # The engine gate runs the engine this repo SHIPS. `apt-get install
+      # quickjs` used to provide it, and that was wrong from the start: the
+      # package is Bellard's QuickJS ("version 2021-03-27"), a different engine
+      # from the vendored quickjs-ng 0.16.1 the watch runs — measurably so, since
+      # the same minified bundle reports `at o (min.js)` there against
+      # `at n (min.js:1:30)` here. So nothing is downloaded: build.sh compiles
+      # js/swift/Sources/CQuickJS, the sources SwiftPM also compiles for watchOS.
+      #
+      # ~30 s cold, free warm. The key is the stamp build.sh computes over the
+      # engine sources, the C hosts, the script and the compiler identity, so a
+      # vendor bump rebuilds exactly once and every other run restores. Keyed per
+      # runner OS + arch, so a macOS job can never restore a Linux binary.
+      - name: Cache the vendored quickjs-ng build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: tools/vendored-qjs/out
+          key: qjs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('js/swift/Sources/CQuickJS/**', 'tools/vendored-qjs/main.c', 'tools/vendored-qjs/build.sh') }}
+      - name: Build the vendored quickjs-ng
+        run: echo "QJS_BIN=$(tools/vendored-qjs/build.sh)" >> "$GITHUB_ENV"
       - name: Install (pnpm workspace)
         run: pnpm install --frozen-lockfile
       - name: Codegen is up to date
@@ -50,10 +67,11 @@ jobs:
         run: pnpm --filter react-watchos build
       - name: Bundle size budget (minified)
         run: pnpm --filter react-watchos check:size
-      - name: Test (vitest + real qjs smoke)
-        # REQUIRE_QJS turns the local-dev "no qjs on PATH -> skip" guard into a
-        # loud failure here: this job installed QuickJS above, so a skip would
-        # mean the engine-compat gate silently stopped running.
+      - name: Test (vitest + the vendored engine)
+        # REQUIRE_QJS turns the local-dev "no C compiler -> skip" guard into a
+        # loud failure here: this job built the engine above, so a skip would
+        # mean the engine-compat gate silently stopped running. QJS_BIN points
+        # the suite at that build instead of anything on PATH.
         env:
           REQUIRE_QJS: "1"
         run: pnpm --filter react-watchos test

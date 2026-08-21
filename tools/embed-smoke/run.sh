@@ -9,9 +9,12 @@ cd "$(dirname "$0")"
 VENDOR=../../js/swift/Sources/CQuickJS
 BUNDLE=../../js/dist/bundle.js
 [ -f "$BUNDLE" ] || (cd ../.. && pnpm --filter react-watchos build)
+# The engine is compiled ONCE by tools/vendored-qjs/build.sh and linked here:
+# three tools each rebuilding ~100k lines of quickjs.c cost three cold builds a
+# CI run, and CI caches that one build (see .github/workflows/ci.yml).
+OBJ=$(../vendored-qjs/build.sh --objdir)
 cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o embed-host \
-  embed-host.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
-  "$VENDOR"/libunicode.c "$VENDOR"/dtoa.c -lm -lpthread
+  embed-host.c "$OBJ"/*.o -lm -lpthread
 # The [mem] diagnostic goes to stderr (the JSON result owns stdout) —
 # capture both so the gate can read it. The `if !` keeps `set -e` from
 # killing the script AT the assignment on a non-zero exit, which would

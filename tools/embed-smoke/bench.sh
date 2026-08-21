@@ -11,13 +11,12 @@ cd "$(dirname "$0")"
 VENDOR=../../js/swift/Sources/CQuickJS
 BUNDLE=../../js/dist/bundle.js
 [ -f "$BUNDLE" ] || (cd ../.. && pnpm --filter react-watchos build)
+OBJ=$(../vendored-qjs/build.sh --objdir)
+# Relink only when the host or the shared engine objects moved; build.sh
+# already decides whether the ENGINE itself needs rebuilding.
 if [ ! -x embed-host ] || [ embed-host -ot embed-host.c ] \
-  || [ embed-host -ot "$VENDOR/quickjs.c" ] \
-  || [ embed-host -ot "$VENDOR/libregexp.c" ] \
-  || [ embed-host -ot "$VENDOR/libunicode.c" ] \
-  || [ embed-host -ot "$VENDOR/dtoa.c" ]; then
+  || [ embed-host -ot "$OBJ/quickjs.o" ]; then
   cc -O2 -std=gnu11 -DNDEBUG -I"$VENDOR/include" -o embed-host \
-    embed-host.c "$VENDOR"/quickjs.c "$VENDOR"/libregexp.c \
-    "$VENDOR"/libunicode.c "$VENDOR"/dtoa.c -lm -lpthread
+    embed-host.c "$OBJ"/*.o -lm -lpthread
 fi
 ./embed-host "$BUNDLE" bench-epilogue.js
