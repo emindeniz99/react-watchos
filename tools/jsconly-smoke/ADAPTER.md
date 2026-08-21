@@ -89,7 +89,7 @@ Apple documentation above is what an app can actually link.
 
 **Consequence:** on watchOS there is no system-framework option at all. The
 only route is the one measured in `README.md` — statically linking a self-built
-JSC — which is where the 13.1× binary and the 16.2 MB resident floor come from.
+JSC — which is where the 13.1× binary and the 16.1 MB resident floor come from.
 The roadmap's original premise was correct.
 
 Sources:
@@ -103,8 +103,8 @@ The rename is not the work. These are:
 
 | `JSRuntime.swift` uses | JSC | Consequence |
 | --- | --- | --- |
-| `JS_ReadObject` + `JS_EvalFunction` (`evaluateBytecode`, the **shipped** boot path) and `JS_WriteObject(…, STRIP_SOURCE)` (the OTA compile path) | **no bytecode API at any C level** | `JSScriptRefPrivate.h` offers `JSScriptCreateFromString`/`JSScriptEvaluate` and no writer. `JSC::serializeBytecode`, `CachedBytecode`, `BytecodeCacheError` are C++ `JS_EXPORT_PRIVATE`. The only shipped cache is the **Objective-C** `JSScript` `…andBytecodeCache:` — `macos(10.15), ios(13.0)`, undocumented, keyed by `computeJSCBytecodeCacheVersion()` so it self-invalidates on any engine change, and the header hands the staleness problem back to the caller ("if the cached bytecode at this location is stale, you should delete that file"). **This deletes `tools/qjs-compile`, the `.qbc` OTA artifact, and `js/test/qbc-symbolication.test.ts`'s subject**, and costs the 5.5 ms → 36.1 ms boot in `README.md`. |
-| `JS_ComputeMemoryUsage(rt, &usage).memory_used_size` | `JSGetMemoryUsageStatistics(ctx)`, **in `JSBasePrivate.h`** | The number exists and is good — `heapSize`, `heapCapacity`, `objectCount`, and it does not lie (1.5 MB, unchanged after a forced GC). But it is a **private** header. `tools/embed-smoke/run.sh`'s 6 MB budget gate is built on a *public* API precisely so it is portable; rebasing it on SPI is a different kind of dependency. Building our own engine makes this a non-issue in practice and a problem in principle. |
+| `JS_ReadObject` + `JS_EvalFunction` (`evaluateBytecode`, the **shipped** boot path) and `JS_WriteObject(…, STRIP_SOURCE)` (the OTA compile path) | **no bytecode API at any C level** | `JSScriptRefPrivate.h` offers `JSScriptCreateFromString`/`JSScriptEvaluate` and no writer. `JSC::serializeBytecode`, `CachedBytecode`, `BytecodeCacheError` are C++ `JS_EXPORT_PRIVATE`. The only shipped cache is the **Objective-C** `JSScript` `…andBytecodeCache:` — `macos(10.15), ios(13.0)`, undocumented, keyed by `computeJSCBytecodeCacheVersion()` so it self-invalidates on any engine change, and the header hands the staleness problem back to the caller ("if the cached bytecode at this location is stale, you should delete that file"). **This deletes `tools/qjs-compile`, the `.qbc` OTA artifact, and `js/test/qbc-symbolication.test.ts`'s subject**, and costs the 5.3 ms → 32.1 ms boot in `README.md`. |
+| `JS_ComputeMemoryUsage(rt, &usage).memory_used_size` | `JSGetMemoryUsageStatistics(ctx)`, **in `JSBasePrivate.h`** | The number exists and is good — `heapSize`, `heapCapacity`, `objectCount`, and it does not lie (1.4 MB, unchanged after a forced GC). But it is a **private** header. `tools/embed-smoke/run.sh`'s 6 MB budget gate is built on a *public* API precisely so it is portable; rebasing it on SPI is a different kind of dependency. Building our own engine makes this a non-issue in practice and a problem in principle. |
 | `JS_SetMemoryLimit(rt, memoryLimitBytes)` — the widget's cap | **no per-runtime equivalent** | `JSC::Options::gcMaxHeapSize` / `forceRAMSize` are **process-global** options, set in C++ or through a `JSC_gcMaxHeapSize` environment variable (`Options.cpp:1059` reads the `JSC_` prefix). One process cannot give the widget runtime and the app runtime different budgets. Redesign, not port. |
 | `JS_SetHostPromiseRejectionTracker(rt, cb, nil)` | **not in the C API** | The hook is `GlobalObjectMethodTable::promiseRejectionTracker` — a C++ vtable entry on a custom `JSGlobalObject` subclass. Same *shape* as ours (push, with an operation enum covering "rejected" and "handled after the fact", so `pendingRejections` retraction still works) — but reaching it means a C++ global object class, which means the `CQuickJS`-shaped pure-C target becomes a C++ target. |
 | `JS_UpdateStackTop(runtime)` — 3 sites, the ARCH-08 mechanism | **automatic** | `JSLock.cpp:137` calls `VM::setStackPointerAtVMEntry` on every lock acquisition, which calls `VM::updateStackLimits()`, which re-reads `Thread::currentSingleton().stack()`. Cross-thread entries from the WidgetKit pool re-anchor themselves. **This one is a straight win**, and the opposite of PrimJS, which had no equivalent at all. |
@@ -195,7 +195,7 @@ answer):
    pointers shrink data structures and AArch64 code density differs from x86_64,
    so the true figure could plausibly be 20–30% either side of 14 MB. It will
    not be 1 MB.
-2. Whether the 16.2 MB resident floor survives a 4-byte-pointer build. Some of
+2. Whether the 16.1 MB resident floor survives a 4-byte-pointer build. Some of
    it is the mapped binary and some is bmalloc's reservations; splitting them
    needs Instruments, and the widget's 16 MB cap makes the answer decisive
    rather than academic.
@@ -214,8 +214,8 @@ pointer width, and ICU resolved dynamically rather than counted.
 | linked host, stripped | 1,092,464 B | 16,706,016 B | **15.3×** |
 | linked host, stripped, `--gc-sections` | 1,092,464 B | 14,346,720 B | **13.1×** |
 | `.text` | 1,057,682 B | 13,981,531 B | 13.2× |
-| **RSS, empty script** | **3,020 KB** | **16,164 KB** | **5.4×** |
-| RSS, after booting the bundle | 5,716 KB | 25,384 KB | 4.4× |
+| **RSS, empty script** | **3,012 KB** | **16,064 KB** | **5.3×** |
+| RSS, after booting the bundle | 5,716 KB | 25,324 KB | 4.4× |
 
 Read the **linked, `--gc-sections`, stripped** row: WebKit compiles with
 `-ffunction-sections -fdata-sections`, so a linker told to garbage-collect
@@ -227,7 +227,7 @@ closest analogue of an app link. quickjs-ng is compiled without those flags
 
 The RSS rows are the ones that decide the row, not the size rows.
 `tools/embed-smoke/run.sh` records that the widget runs the engine **under a
-16 MB cap**; JSC's *empty-context* floor is 16.2 MB. A WidgetKit extension
+16 MB cap**; JSC's *empty-context* floor is 16.1 MB. A WidgetKit extension
 would be over budget before evaluating a single line of the app.
 
 ## 6. ICU — the dependency that is in none of the numbers

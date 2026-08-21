@@ -15,7 +15,7 @@ quickjs-ng's ~1 MB". That was an estimate. This is the measurement.
 
 **Answer: it runs the real production bundle correctly and it is the best
 JavaScript engine here on language conformance — and it costs 13× the binary,
-5× the resident floor, and 6.6× the cold start against the path this app
+5× the resident floor, and 6× the cold start against the path this app
 actually ships.** Recommendation at the bottom: **drop**, with one trigger.
 
 Built from **webkitgtk 2.52.6** (sha256
@@ -32,11 +32,11 @@ same [`smoke-epilogue.js`](./smoke-epilogue.js), both hosts `clang -O2`.
 
 | engine / input | parse ms | total ms | heap MB | peak RSS KB |
 | --- | --- | --- | --- | --- |
-| quickjs-ng   empty script | 0.0 | 0.0 | 0.1 | 3,020 |
-| quickjs-ng   bundle source | 24.2 | 27.8 | 1.2 | 5,716 |
-| **quickjs-ng   bundle `.qbc` — what ships** | 1.5 | **5.5** | 0.9 | **4,444** |
-| jsc jitless  empty script | – | 0.2 | 0.0 | **16,164** |
-| jsc jitless  bundle source | 6.7 | **36.1** | 1.5 | **25,384** |
+| quickjs-ng   empty script | 0.0 | 0.0 | 0.1 | 3,012 |
+| quickjs-ng   bundle source | 23.4 | 26.8 | 1.2 | 5,716 |
+| **quickjs-ng   bundle `.qbc` — what ships** | 1.5 | **5.3** | 0.9 | **4,408** |
+| jsc jitless  empty script | – | 0.1 | 0.0 | **16,064** |
+| jsc jitless  bundle source | 6.5 | **32.1** | 1.4 | **25,324** |
 
 | size | quickjs-ng | jsc jitless | ratio |
 | --- | --- | --- | --- |
@@ -176,7 +176,7 @@ the epilogue that host compiles in — and fed to **both** hosts through
 
 | # | Gap | Severity | Detail |
 | --- | --- | --- | --- |
-| 1 | **No bytecode serialization at any C level** | **loses the shipping path** | `JSScriptRefPrivate.h` has `JSScriptCreateFromString` / `JSScriptEvaluate` and no writer. `JSC::serializeBytecode` / `CachedBytecode` are C++ `JS_EXPORT_PRIVATE`. The only public-ish caching is the **Objective-C** `JSScript` `…andBytecodeCache:` (`JSC_CLASS_AVAILABLE(macos(10.15), ios(13.0))` — no watchOS, no tvOS, and no page for it on developer.apple.com at all), keyed by `computeJSCBytecodeCacheVersion()` so it invalidates on any engine change. There is no `.qbc` equivalent. See the 5.5 ms → 36.1 ms row. |
+| 1 | **No bytecode serialization at any C level** | **loses the shipping path** | `JSScriptRefPrivate.h` has `JSScriptCreateFromString` / `JSScriptEvaluate` and no writer. `JSC::serializeBytecode` / `CachedBytecode` are C++ `JS_EXPORT_PRIVATE`. The only public-ish caching is the **Objective-C** `JSScript` `…andBytecodeCache:` (`JSC_CLASS_AVAILABLE(macos(10.15), ios(13.0))` — no watchOS, no tvOS, and no page for it on developer.apple.com at all), keyed by `computeJSCBytecodeCacheVersion()` so it invalidates on any engine change. There is no `.qbc` equivalent. See the 5.3 ms → 32.1 ms row. |
 | 2 | **No compile-without-run** | measurement + design | The closest is `JSCheckScriptSyntax`, which parses and discards. So the parse/eval split `embed-host.c` gets from `JS_EVAL_FLAG_COMPILE_ONLY` cannot be reproduced, and `JSRuntime.evaluate`'s two-phase shape has no counterpart. |
 | 3 | **Heap accounting is SPI** | **loses a gate** | `JSGetMemoryUsageStatistics` lives in `JSBasePrivate.h`, not in `JavaScript.h`. `tools/embed-smoke/run.sh`'s 6 MB budget gate reads quickjs-ng's **public** `JS_ComputeMemoryUsage`. Porting the gate means depending on a private header — fine for our own build, not fine against a system framework. |
 | 4 | **No per-runtime memory limit** | redesign | `JS_SetMemoryLimit(rt, …)` (used for the widget's cap) has no C API twin. `JSC::Options::gcMaxHeapSize` is a **process-global** option set in C++ or via a `JSC_gcMaxHeapSize` environment variable — it cannot give the widget runtime and the app runtime different budgets in one process. |
@@ -196,27 +196,34 @@ quickjs-ng does up front happens inside JSC's `total` instead. JSC's parser
 really is fast; the number is just not the same quantity. **Compare `total`.**
 
 **2. `total` against the path that ships is the number that matters.** The
-watch boots `.qbc`, not source. **5.5 ms → 36.1 ms is 6.6×**, and it is not a
+watch boots `.qbc`, not source. **5.3 ms → 32.1 ms is 6×**, and it is not a
 tuning gap — JSC has nowhere to put a precompiled artifact (gap 1). Even
-source-to-source, JSC is 30% slower on this workload: a CLoop interpreter
+source-to-source, JSC is 20% slower on this workload: a CLoop interpreter
 against a purpose-built one, with no JIT to make up the difference. That is the
 expected result and it is now measured rather than assumed.
 
 **3. The resident floor, not the bundle, is what would kill this.** An **empty
-script** in JSC costs **16.2 MB RSS** against quickjs-ng's 3.0 MB — before a
-byte of app code. The full boot is 25.4 MB against 4.4 MB. `tools/embed-smoke/run.sh`'s
+script** in JSC costs **16.1 MB RSS** against quickjs-ng's 3.0 MB — before a
+byte of app code. The full boot is 25.3 MB against 4.4 MB. `tools/embed-smoke/run.sh`'s
 own comment records that *"the widget runs the same engine under a 16 MB cap"*.
 **JSC's empty-context floor is that entire cap.** Nothing about a smaller bundle
 or a leaner app changes it.
 
-The GC heap itself is fine — 1.5 MB against 1.2 MB, and unchanged by a forced
+The GC heap itself is fine — 1.4 MB against 1.2 MB, and unchanged by a forced
 `JSGarbageCollect`, so it is live data and not lazy garbage. JSC's problem here
 is not its collector; it is the engine's own footprint.
 
 **First-run noise, recorded because it is real on a watch too.** The first
-`jsc-host` run of a session reports ~63 ms against a 33–36 ms median: cold
+`jsc-host` run of a session reports ~63 ms against a 32–36 ms median: cold
 page-in of a 16 MB binary. quickjs-ng's 1 MB binary has no equivalent penalty.
 Every number above is a median of 21 warm runs, which flatters JSC.
+
+And the medians themselves wander: JSC's `total` came back at **36.1 ms** on
+one session and **32.1 ms** on another, on the same machine with the same
+inputs — a ±6% band that quickjs-ng's rows do not show (26.8 / 27.8 ms across
+the same two sessions is ±2%). Same cause: how much of a 16 MB binary the page
+cache is still holding. The table records the second session; the ratio is
+"about 6×", not 6.06×, and no conclusion here turns on the third digit.
 
 ### Language level: JSC wins, by exactly one row
 
@@ -335,14 +342,14 @@ have, and it would need an answer before shipping, not after.
 **Drop.** The measurement did not narrow the gap the roadmap estimated; it
 widened it.
 
-1. **The floor is the cap.** 16.2 MB RSS for an empty JSC context, against a
+1. **The floor is the cap.** 16.1 MB RSS for an empty JSC context, against a
    documented 16 MB budget for the widget runtime. There is no bundle small
    enough to fix that, and the widget is not an optional target.
 2. **14 MB of binary, before ICU.** The roadmap guessed "megabytes vs ~1 MB";
    the linked, stripped, dead-stripped number is **13.1×**, and the ICU that
    makes JSC's one language win possible is not in it.
 3. **The shipping path disappears.** JSC cannot serialize bytecode from C at
-   all, so `.qbc` — 5.5 ms of boot against 36.1 ms — has no counterpart, and
+   all, so `.qbc` — 5.3 ms of boot against 32.1 ms — has no counterpart, and
    `tools/qjs-compile`, the OTA compile path and the bytecode symbolication
    gate all lose their subject.
 4. **No system framework to fall back to**, confirmed from Apple's docs, so
