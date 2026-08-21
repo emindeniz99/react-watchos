@@ -31,6 +31,7 @@ import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BuildOptions, Plugin } from "esbuild";
+import { DEBUG_INJECT_SPECIFIER, debugProbePlugin } from "./debug-probe.mts";
 import {
   contentHash,
   type OTAManifest,
@@ -40,6 +41,11 @@ import { reactCompilerPlugin } from "./react-compiler.mts";
 import { singleCopyPlugin } from "./single-copy.mts";
 import { writeSymbolEntry } from "./symbol-store.mts";
 
+export {
+  type DebugManifest,
+  type DebugManifestFile,
+  debugProbePlugin,
+} from "./debug-probe.mts";
 export { reactCompilerPlugin } from "./react-compiler.mts";
 export {
   findDuplicateCopies,
@@ -64,6 +70,17 @@ export const rendererRoot = join(here, "..");
 
 /** The shim entry esbuild must `inject` (captures setTimeout & co. first). */
 export const shimEntry = join(rendererRoot, "src/install-shims.ts");
+
+/**
+ * The debug probe runtime. In a `debug` build it is evaluated AHEAD of the
+ * shims, so `__dbg` exists before the first instrumented statement — including
+ * the instrumented statements inside the shim entry itself. Reached through the
+ * injected virtual module rather than an `import` in src, for the same reason
+ * the inspector is define-gated: an `import` keeps a module in the bundle
+ * however dead its call site is, and this one must be ABSENT from a shipping
+ * bundle, not merely unreachable in it.
+ */
+export const debugProbeEntry = join(rendererRoot, "src/debugProbe.ts");
 
 /**
  * The define that decides whether {@link shimEntry} installs the NETWORK shims
@@ -200,8 +217,35 @@ export interface WatchBuildOptions {
   /**
    * Run the React Compiler over app + renderer source (auto-memoization ->
    * fewer commits). Needs Babel dev deps — see esbuild/react-compiler.mts.
+   *
+   * IGNORED when {@link WatchBuildOptions.debug} is on: the compiler rewrites
+   * code before the debug transform could read its line numbers, and a
+   * debugger whose lines are off by a memoization block is worse than none.
    */
   reactCompiler?: boolean;
+  /**
+   * Instrument the bundle for the source-level debugger
+   * (docs/design-dap-debugger.md): every statement gets a `__dbg(file, line)`
+   * probe, every function body a shadow frame, and `<outfile>.dbg.json` records
+   * which line in which file each probe belongs to.
+   *
+   * Defaults to **`false`**, and forces {@link WatchBuildOptions.dev} on when
+   * set — an instrumented bundle IS a dev bundle by definition. Nothing here
+   * can leak into a shipping build: the transform is an esbuild plugin that is
+   * only registered when this is true, so a release build contains no `__dbg`
+   * identifier at all (asserted by test/dap-debugger.test.ts).
+   *
+   * Costs bytes and boot time — measured numbers are in the design doc. Turn it
+   * on for the session where you need to stop on a line, not for the dev loop
+   * in general.
+   */
+  debug?: boolean;
+  /**
+   * Instrument this package's own renderer source as well as app code. Off by
+   * default: breakpoints belong in app code, and the renderer's probes are pure
+   * cost for frames nobody asked to stop in. @see WatchBuildOptions.debug
+   */
+  debugIncludeRenderer?: boolean;
   /**
    * Extra resolution roots. This is an esbuild *fallback*, consulted only when
    * normal walk-up resolution fails — it cannot override a react the renderer
@@ -231,18 +275,41 @@ export function watchBuildOptions({
   // call site that needs the two apart.
   dev = !minify,
   reactCompiler = false,
+  debug = false,
+  debugIncludeRenderer = false,
   nodePaths,
   plugins = [],
 }: WatchBuildOptions = {}): BuildOptions {
   if (!entry) throw new Error("watchBuildOptions: `entry` is required");
   if (!outfile) throw new Error("watchBuildOptions: `outfile` is required");
-  if (reactCompiler) plugins = [reactCompilerPlugin(), ...plugins];
+  // Exactly one transform plugin may claim the `.[jt]sx?` onLoad: esbuild runs
+  // the first callback that returns a result and no others, so registering both
+  // would silently mean "only the debug one runs" — and the React Compiler
+  // would be off while the build still claimed to have it. State the exclusion
+  // here instead of discovering it as a missing memoization.
+  if (debug) {
+    plugins = [
+      debugProbePlugin({
+        outfile,
+        includeRenderer: debugIncludeRenderer,
+        rendererSrcDir: join(rendererRoot, "src"),
+        // Evaluation order, stated once: probe runtime, then the shims.
+        injectModules: [debugProbeEntry, shimEntry],
+      }),
+      ...plugins,
+    ];
+  } else if (reactCompiler) {
+    plugins = [reactCompilerPlugin(), ...plugins];
+  }
   return {
     entryPoints: [entry],
     outfile,
     bundle: true,
     format: "iife",
-    inject: [shimEntry],
+    // ONE inject in a debug build: a virtual module that imports the probe
+    // runtime and then the shims. Two inject entries do not order their
+    // evaluation (see DebugProbeOptions.injectModules for what that cost).
+    inject: debug ? [DEBUG_INJECT_SPECIFIER] : [shimEntry],
     target: "es2020",
     // This package ships its TSX as source WITHOUT a tsconfig.json in the
     // tarball, and esbuild's per-file tsconfig discovery stops at the package
@@ -269,7 +336,10 @@ export function watchBuildOptions({
       [NET_SHIM_DEFINE]: network ? '"1"' : '""',
       // Read by the app entry to fence off dev-only wiring (the inspector).
       // Always defined, both ways — an unreplaced read crashes in QuickJS.
-      [DEV_DEFINE]: dev ? '"1"' : '""',
+      // An instrumented bundle is a dev bundle by definition: the probes are
+      // already in it, so a `dev: false` here would only hide the dev-only
+      // wiring that makes them usable.
+      [DEV_DEFINE]: dev || debug ? '"1"' : '""',
     },
     plugins: [...plugins, singleCopyPlugin()],
     // Read by singleCopyPlugin to count react copies in the module graph.
@@ -357,6 +427,10 @@ export interface BuildBundlesOptions {
   dev?: boolean;
   /** @see WatchBuildOptions.reactCompiler */
   reactCompiler?: boolean;
+  /** @see WatchBuildOptions.debug */
+  debug?: boolean;
+  /** @see WatchBuildOptions.debugIncludeRenderer */
+  debugIncludeRenderer?: boolean;
   /** @see WatchBuildOptions.nodePaths */
   nodePaths?: string[];
   /**
@@ -411,6 +485,8 @@ export async function buildBundles(
     keepNames = false,
     dev,
     reactCompiler = false,
+    debug = false,
+    debugIncludeRenderer = false,
     nodePaths,
     symbols,
   }: BuildBundlesOptions = {},
@@ -461,6 +537,8 @@ export async function buildBundles(
       // who wanted a debuggable bundle.
       ...(dev === undefined ? {} : { dev }),
       reactCompiler,
+      debug,
+      debugIncludeRenderer,
       nodePaths,
       plugins,
     });

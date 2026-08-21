@@ -69,6 +69,12 @@ function buildFlags(args: string[]) {
       version: { type: "string", default: "1" },
       host: { type: "string", default: process.env.DEV_HOST ?? "127.0.0.1" },
       port: { type: "string", default: process.env.DEV_PORT ?? "8788" },
+      // Source-level debugger instrumentation (docs/design-dap-debugger.md).
+      // Declared on the SHARED flags so `build --debug` parses and can be
+      // refused with a sentence instead of ERR_PARSE_ARGS_UNKNOWN_OPTION —
+      // `build` is the shipping entry and instrumented bytes must never leave
+      // through it.
+      debug: { type: "boolean" },
     },
   });
   if (!values.entry) {
@@ -94,6 +100,13 @@ function buildFlags(args: string[]) {
 /** One-shot bundle build via the published preset (+ OTA manifest stamp). */
 async function build(args: string[]) {
   const f = buildFlags(args);
+  if (f.debug) {
+    console.error(
+      "[react-watchos] --debug instruments every statement and must never " +
+        "ship: use `react-watchos dev --debug` (docs/design-dap-debugger.md).",
+    );
+    process.exit(1);
+  }
   const { buildBundles } = await import("../esbuild/preset.mts");
   const results = await buildBundles(
     [
@@ -165,6 +178,9 @@ async function dev(args: string[]) {
       outfile: f.outfile,
       minify: false,
       sourcemap: f.sourcemap,
+      // --debug also writes <outfile>.dbg.json next to the bundle; point
+      // `react-watchos debug --manifest` at it.
+      debug: f.debug === true,
     }),
   );
   await ctx.watch();
@@ -176,8 +192,42 @@ async function dev(args: string[]) {
   const bundleName = path.basename(f.outfile);
   console.log(
     `dev server: http://${hosts[0] ?? f.host}:${port}/${bundleName} (live reload)\n` +
-      "DEBUG watch builds poll this URL and hot-restart on change.",
+      "DEBUG watch builds poll this URL and hot-restart on change." +
+      (f.debug
+        ? `\ndebug: instrumented (${bundleName}.dbg.json) — run ` +
+          "`react-watchos debug` in another terminal."
+        : ""),
   );
+}
+
+/** DAP adapter + the watch's poll endpoint (docs/design-dap-debugger.md). */
+async function debug(args: string[]) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      port: { type: "string", default: process.env.DEBUG_PORT ?? "8790" },
+      "dap-port": { type: "string", default: process.env.DAP_PORT ?? "8791" },
+      host: { type: "string", default: process.env.DEV_HOST ?? "127.0.0.1" },
+      manifest: {
+        type: "string",
+        default: path.join("dist", "bundle.js.dbg.json"),
+      },
+    },
+  });
+  if (!fs.existsSync(values.manifest)) {
+    console.error(
+      `[react-watchos] no debug manifest at ${values.manifest}. Build an ` +
+        "instrumented bundle first: react-watchos dev --entry <file> --debug",
+    );
+    process.exit(1);
+  }
+  const { startDebugServer } = await import("./debug-server.mts");
+  await startDebugServer({
+    port: Number(values.port),
+    dapPort: Number(values["dap-port"]),
+    host: values.host,
+    manifestPath: path.resolve(values.manifest),
+  });
 }
 
 /** Remote inspector UI (tree + logs + errors posted by a DEBUG watch build). */
@@ -280,6 +330,9 @@ switch (command) {
   case "inspector":
     inspector(rest).catch(fail);
     break;
+  case "debug":
+    debug(rest).catch(fail);
+    break;
   default:
     console.error(
       "react-watchos\n\n" +
@@ -314,7 +367,16 @@ switch (command) {
         "      ReactWatchDevServerURL Info.plist key).\n\n" +
         "  react-watchos inspector [--port 8099]\n" +
         "      Remote inspector UI — a DEBUG watch build (startInspector) posts\n" +
-        "      the live tree + logs + errors here.\n",
+        "      the live tree + logs + errors here.\n\n" +
+        "  react-watchos debug [--port 8790] [--dap-port 8791]\n" +
+        "                      [--manifest dist/bundle.js.dbg.json]\n" +
+        "      Source-level debugger (DEBUG only). Build the bundle with\n" +
+        "      `dev --debug` first: that instruments every statement and\n" +
+        "      writes the .dbg.json this reads. The watch POSTs its state to\n" +
+        "      /debug/poll and blocks there while paused; an editor attaches\n" +
+        "      to the DAP port ({\"debugServer\": 8791} in launch.json).\n" +
+        "      Breakpoints, stepping and the top frame's ARGUMENTS — not a\n" +
+        "      scope walker; see docs/design-dap-debugger.md for the limits.\n",
     );
     process.exit(command ? 1 : 0);
 }

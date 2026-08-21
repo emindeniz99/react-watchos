@@ -1,17 +1,18 @@
 # Debugging a React app running on a watch
 
 The honest version of "what happens when it breaks, and how do I read it."
-There is no React DevTools here and no breakpoint debugger — see
-[What this is NOT](#what-this-is-not) for why. What there *is* is five
-surfaces, each of which tells you a different thing, a local repro loop that
-runs the real engine on your laptop, and a source map that turns a minified
-`at t` back into your component
+There is no React DevTools here — see [What this is NOT](#what-this-is-not) for
+why. What there *is* is six surfaces, each of which tells you a different
+thing, a local repro loop that runs the real engine on your laptop, and a
+source map that turns a minified `at t` back into your component
 ([Symbolicating a minified stack](#symbolicating-a-minified-stack)).
 
 Every mechanism below is in the shipped code; the file references are the
-proof.
+proof. The one exception is flagged as such: the source-level debugger is a
+landed spike whose watchOS wiring has not run on hardware yet
+([Breakpoints and stepping](#breakpoints-and-stepping-debug-builds)).
 
-## The five surfaces, and when each one is the right one
+## The six surfaces, and when each one is the right one
 
 | Surface | Where you see it | Available in | Use it for |
 |---|---|---|---|
@@ -20,6 +21,7 @@ proof.
 | **Diagnostics ring** | `onDiagnostic(...)` in JS; the native ring holds the last 50 | always, release builds too | structured, machine-readable failures with a session/release id |
 | **Console.app / Xcode console** | Mac, streamed from the watch | always | `console.log`, cold-start timings, widget-extension logs |
 | **Remote inspector** | A browser page on your Mac | DEBUG (opt-in call) | the live committed tree + log/error history |
+| **Source-level debugger** | VS Code on your Mac | DEBUG (opt-in *build*) | stopping on a line and stepping through it |
 
 ## What a crash on-wrist actually looks like
 
@@ -199,6 +201,61 @@ Host diagnostics are buffered into the snapshot too (last 50) and are served
 in the JSON at `/snapshot`; the built-in viewer page renders tree, logs and
 errors only — read the raw JSON for the diagnostics ring, or forward it with
 `onDiagnostic`.
+
+## Breakpoints and stepping (DEBUG builds)
+
+You can stop on a line. Not through the engine — quickjs-ng has no debug API,
+and forking it is refused (the vendored sources are re-vendored from upstream
+file-by-file) — but through a DEBUG-only build transform that puts a
+`__dbg(file, line)` probe at every statement boundary. Full rationale, prior
+art and limits: [design-dap-debugger.md](./design-dap-debugger.md).
+
+```sh
+npx react-watchos dev --entry watch-ui/entry.tsx --debug   # instrumented bundle
+npx react-watchos debug                                    # DAP + poll endpoint
+```
+
+Then attach VS Code with a `launch.json` entry — no extension needed, because
+`debugServer` speaks DAP straight to the port:
+
+```jsonc
+{ "type": "node", "request": "attach", "name": "watch js", "debugServer": 8791 }
+```
+
+The watch POSTs its state to `http://127.0.0.1:8790/debug/poll` and **blocks
+there while paused** (override the URL with the `ReactWatchDebugPollURL`
+Info.plist key for a physical watch, exactly like `ReactWatchDevServerURL`).
+Blocking the JS thread freezes the UI — that is what a breakpoint is, and it is
+why none of this exists in a release build.
+
+What you get: breakpoints, `continue`/`next`/`stepIn`/`stepOut`, a call stack
+in **original** `.ts` coordinates (no source map involved — the probe was placed
+by something that could still see your file), and `evaluate`.
+
+What you do NOT get, stated up front so you do not read a wrong value:
+
+- **The variables pane shows the top frame's ARGUMENTS only** — the scope is
+  named `Arguments`, not `Locals`, on purpose. A `const` inside the body or a
+  closure variable is not there; `evaluate` falls back to global scope for
+  anything else.
+- **Statement granularity.** A breakpoint on a line with no statement (a
+  declaration, a blank line, a closing brace) moves down to the next real one,
+  and the editor redraws it there. Stepping out lands on the caller's next
+  statement, not mid-line.
+- **`async`/generator frames drift**: a frame suspended at an `await` stays on
+  the shadow stack while other code runs. Synchronous code — all of React's
+  render path — is correct.
+- **No conditional breakpoints, logpoints, `setVariable`, or exception
+  breakpoints**, and widgets are not debuggable at all.
+- **Not yet run on hardware.** The JS/adapter halves are gated end-to-end in the
+  vendored quickjs-ng and the transport is gated by `swift test`; the twelve
+  lines of watchOS wiring in `ReactWatchHost.swift` need an `xcodebuild` run on
+  a Mac before you should trust them.
+
+Cost, measured on the demo app bundle: **+5.2 % bytes, +4.5 % boot, +1.1 % per
+interaction** with the default (app code only). Instrumenting the renderer too
+(`debugIncludeRenderer`) costs +34.6 % per interaction, which is why it is off.
+Re-measure with `node --experimental-strip-types js/scripts/debug-overhead.ts`.
 
 ## The local repro loop (no watch required)
 
@@ -443,9 +500,14 @@ Stated plainly, because the gap is real:
   WebKit). The inspector above is the deliberate substitute: `fetch`-based
   polling, which is the transport we *do* have. No component inspector, no
   props editing, no profiler flamegraph.
-- **No breakpoints or stepping.** There is no debugger protocol wired to the
-  embedded engine. Debugging is `console.log`, the diagnostics ring, and the
-  tree snapshot.
+- **No ENGINE-level breakpoints.** quickjs-ng exposes exactly one hook near
+  this problem — `JS_SetInterruptHandler`, a watchdog with no source position
+  and no frame — and the only real QuickJS debugger that exists is an engine
+  fork with a second opcode dispatch table, which the vendoring model refuses.
+  So breakpoints here come from instrumenting your source instead
+  ([Breakpoints and stepping](#breakpoints-and-stepping-debug-builds)), with the
+  limits that implies: statement granularity, arguments instead of locals, and
+  drift across `await`.
 - **No Safari Web Inspector.** That attaches to JavaScriptCore/WebKit, neither
   of which exists on watchOS.
 - **The shipped bundle is minified, so a raw frame reads `at t`.** Since
