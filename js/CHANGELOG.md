@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.6.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.5.0...react-watchos-v0.6.0) (2026-08-21)
+
+
+### Features
+
+* **build:** emit a source map by default, make names buyable ([e4de98e](https://github.com/emindeniz99/react-watchos/commit/e4de98ec17467393e9483ba237f1746631378432))
+* **build:** instrument statements for a DEBUG source-level debugger ([f63e278](https://github.com/emindeniz99/react-watchos/commit/f63e278fc6c2c8d108f4ad523ff712103195e7c8))
+* **build:** keep a symbol store keyed by releaseId ([70d4292](https://github.com/emindeniz99/react-watchos/commit/70d429254c15e68746596ae7c4083f9d09446f41))
+* **js:** add the runtime probe that parks the JS thread on a breakpoint ([d3105ce](https://github.com/emindeniz99/react-watchos/commit/d3105cef3dfd512ced94e8b5bb03676b035bfaae))
+* **js:** render widget timelines without the reconciler ([9206f1a](https://github.com/emindeniz99/react-watchos/commit/9206f1a2a09ccac14c69491a843e65d4da357c66))
+* **js:** resolve field stacks through the symbol store ([2c91919](https://github.com/emindeniz99/react-watchos/commit/2c91919837c56af15d83e9d13a02fa3b7e56301d))
+* **plugin:** serve DAP from the dev server via `react-watchos debug` ([04105ab](https://github.com/emindeniz99/react-watchos/commit/04105abad51564e4990c946e15603e8f47db198e))
+* **swift:** install a blocking __debugPoll host hook in DEBUG ([24a8e4a](https://github.com/emindeniz99/react-watchos/commit/24a8e4a0cb72abf6abfac0441a14fec42cdab5ba))
+
+
+### Bug Fixes
+
+* **build:** clear the two shellcheck findings in run-watch-sim.sh ([5631ce0](https://github.com/emindeniz99/react-watchos/commit/5631ce03a3281d47c42eae10d475cc945490c2aa))
+* **build:** keep debug tables in the shipped .qbc ([450e871](https://github.com/emindeniz99/react-watchos/commit/450e8718ddc6342a8ee928fbb2d4b36f706b3073))
+* **build:** lint the Node tooling Biome silently stopped seeing ([a6bb48d](https://github.com/emindeniz99/react-watchos/commit/a6bb48d67471666b9ff3e3663c79fe239f88e4c4))
+* **js:** hoist the duplicated raw-text error string ([f770c82](https://github.com/emindeniz99/react-watchos/commit/f770c82020e317a2e79cfcb34b3f51fb8acd5612))
+* **js:** resolve call-site names across the one-column boundary gap ([b6e432a](https://github.com/emindeniz99/react-watchos/commit/b6e432ab4ad3b58f4a998906f7cc66299324c8e6))
+* **js:** stamp the dbg.json fallback with the manifest version ([91a420f](https://github.com/emindeniz99/react-watchos/commit/91a420fa72f62ede9c1c64d4adcd2415ebfdb488))
+* **swift:** strip source text from on-device OTA bytecode cache ([c898a94](https://github.com/emindeniz99/react-watchos/commit/c898a9485964118231f57b8c0ceacf0e2747a931))
+
 ## [0.5.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.4.0...react-watchos-v0.5.0) (2026-08-20)
 
 
