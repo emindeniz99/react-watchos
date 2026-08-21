@@ -8,6 +8,6 @@
 
 > **FitnessCondition** = `"activityRingsIncomplete"` \| `"workoutActive"`
 
-Defined in: [js/src/widgets.ts:74](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L74)
+Defined in: [js/src/widgets.ts:85](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L85)
 
 RelevanceKit `FitnessCondition` (watchOS 10.0).

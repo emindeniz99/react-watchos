@@ -6,7 +6,7 @@
 
 # Class: WatchRoot
 
-Defined in: [js/src/renderer.ts:312](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L312)
+Defined in: [js/src/renderer.ts:308](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L308)
 
 ## Constructors
 
@@ -14,7 +14,7 @@ Defined in: [js/src/renderer.ts:312](https://github.com/emindeniz99/react-watcho
 
 > **new WatchRoot**(`host`, `onDispose?`): `WatchRoot`
 
-Defined in: [js/src/renderer.ts:329](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L329)
+Defined in: [js/src/renderer.ts:325](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L325)
 
 #### Parameters
 
@@ -36,7 +36,7 @@ Defined in: [js/src/renderer.ts:329](https://github.com/emindeniz99/react-watcho
 
 > **dispatchEvent**(`event`): [`DispatchResult`](../interfaces/DispatchResult.md)
 
-Defined in: [js/src/renderer.ts:490](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L490)
+Defined in: [js/src/renderer.ts:486](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L486)
 
 Entry point for native interaction events. `handled` is false for
 unknown/stale nodes or events with no handler — but the seq is ALWAYS
@@ -68,7 +68,7 @@ back. Other events: `accepted` mirrors `handled`.
 
 > **dispose**(): `void`
 
-Defined in: [js/src/renderer.ts:446](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L446)
+Defined in: [js/src/renderer.ts:442](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L442)
 
 ARCH-08: the deterministic teardown for a root and everything installed
 FOR it. In order:
@@ -103,7 +103,7 @@ Idempotent: a second call is a no-op.
 
 > **inspect**(): `object`
 
-Defined in: [js/src/renderer.ts:462](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L462)
+Defined in: [js/src/renderer.ts:458](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L458)
 
 Debug inspector: the current serialized tree + commit count.
 
@@ -125,7 +125,7 @@ Debug inspector: the current serialized tree + commit count.
 
 > **render**(`element`): `void`
 
-Defined in: [js/src/renderer.ts:411](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L411)
+Defined in: [js/src/renderer.ts:407](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L407)
 
 #### Parameters
 
@@ -143,7 +143,7 @@ Defined in: [js/src/renderer.ts:411](https://github.com/emindeniz99/react-watcho
 
 > **runSync**\<`T`\>(`fn`): `T`
 
-Defined in: [js/src/renderer.ts:534](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L534)
+Defined in: [js/src/renderer.ts:530](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L530)
 
 Runs `fn` at urgent (discrete) priority and flushes synchronously, so
 any state it changes commits before returning — the same path a tap
@@ -173,7 +173,7 @@ scheduler's next default-priority turn.
 
 > **unmount**(): `void`
 
-Defined in: [js/src/renderer.ts:417](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L417)
+Defined in: [js/src/renderer.ts:413](https://github.com/emindeniz99/react-watchos/blob/main/js/src/renderer.ts#L413)
 
 #### Returns
 

@@ -8,7 +8,7 @@
 
 > **WidgetFamily** = `"accessoryCircular"` \| `"accessoryRectangular"` \| `"accessoryInline"` \| `"accessoryCorner"`
 
-Defined in: [js/src/widgets.ts:28](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L28)
+Defined in: [js/src/widgets.ts:31](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L31)
 
 React-rendered WidgetKit timelines (watch complications and Smart Stack
 widgets). Widget extensions are not long-running processes, so the
