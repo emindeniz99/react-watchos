@@ -40,6 +40,31 @@ export interface PickOptions {
   skip?: readonly string[];
 }
 
+/**
+ * Why one upstream release is or is not the thing we vendor. Every release the
+ * API returned gets one of these — including the ones that were never in the
+ * running — because "skipped" with no reason is the report that makes you go
+ * read the source to find out what the job did.
+ */
+export type VerdictKind =
+  | "candidate"
+  | "soaking"
+  | "rolled-up"
+  | "vendored"
+  | "older"
+  | "skipped"
+  | "prerelease"
+  | "draft";
+
+export interface ReleaseVerdict {
+  tag: string;
+  publishedAt: string | null;
+  ageDays: number | null;
+  kind: VerdictKind;
+  /** One sentence, written to be read in a job log by someone in a hurry. */
+  reason: string;
+}
+
 export interface Pick {
   /** `propose` means "open or update the vendor PR for `candidate`". */
   action: "none" | "propose";
@@ -52,6 +77,8 @@ export interface Pick {
   soaking: UpstreamRelease[];
   /** Releases dropped by the skip list, so the PR can say they were dropped. */
   skipped: UpstreamRelease[];
+  /** Every release the API returned, newest first, each with its verdict. */
+  considered: ReleaseVerdict[];
 }
 
 const DAY_MS = 86_400_000;
@@ -65,6 +92,103 @@ export function ageInDays(
   const published = Date.parse(release.published_at);
   if (Number.isNaN(published)) return null;
   return (now.getTime() - published) / DAY_MS;
+}
+
+/** "21h" reads as fresh; "0d" reads as a bug. Below two days, use hours. */
+export function formatAge(days: number | null): string {
+  if (days == null) return "unknown";
+  if (days < 2) return `${Math.round(days * 24)}h`;
+  return `${Math.floor(days)}d`;
+}
+
+/**
+ * Give EVERY release a verdict, in the order upstream published them.
+ *
+ * Order matters here: a release can be several things at once (a prerelease
+ * that is also too fresh, a skipped tag that is also older than ours), and the
+ * first rule that matches is the one worth telling someone about.
+ */
+export function classifyReleases(
+  releases: readonly UpstreamRelease[],
+  opts: {
+    vendoredTag: string;
+    now: Date;
+    soakDays: number;
+    skip: ReadonlySet<string>;
+    candidate?: UpstreamRelease | undefined;
+    vendored?: UpstreamRelease | undefined;
+  },
+): ReleaseVerdict[] {
+  const { vendoredTag, now, soakDays, skip, candidate, vendored } = opts;
+  const vendoredAt = vendored?.published_at
+    ? Date.parse(vendored.published_at)
+    : Number.NEGATIVE_INFINITY;
+  const candidateAt = candidate?.published_at
+    ? Date.parse(candidate.published_at)
+    : null;
+
+  return releases.map((r) => {
+    const ageDays = ageInDays(r, now);
+    const base = {
+      tag: r.tag_name,
+      publishedAt: r.published_at,
+      ageDays,
+    };
+    if (r.draft) {
+      return { ...base, kind: "draft" as const, reason: "never proposable" };
+    }
+    if (r.prerelease) {
+      return {
+        ...base,
+        kind: "prerelease" as const,
+        reason: "the watch does not ship one",
+      };
+    }
+    if (skip.has(r.tag_name)) {
+      return {
+        ...base,
+        kind: "skipped" as const,
+        reason: "on the SKIP_TAGS list; a human marked this one known-bad",
+      };
+    }
+    if (r.tag_name === vendoredTag) {
+      return {
+        ...base,
+        kind: "vendored" as const,
+        reason: "this is what the repo vendors today",
+      };
+    }
+    if (ageDays != null && ageDays < soakDays) {
+      const left = (soakDays - ageDays).toFixed(1);
+      return {
+        ...base,
+        kind: "soaking" as const,
+        reason:
+          `${left}d left of the ${soakDays}d soak; a release this new is the ` +
+          "one most likely to be replaced by a hotfix",
+      };
+    }
+    if (candidate && r.tag_name === candidate.tag_name) {
+      return {
+        ...base,
+        kind: "candidate" as const,
+        reason: "the newest release that has soaked; this is the bump",
+      };
+    }
+    const at = r.published_at ? Date.parse(r.published_at) : Number.NaN;
+    if (candidateAt != null && at > vendoredAt && at < candidateAt) {
+      return {
+        ...base,
+        kind: "rolled-up" as const,
+        reason: "superseded by the candidate; its changes come with this bump",
+      };
+    }
+    return {
+      ...base,
+      kind: "older" as const,
+      reason: "predates the vendored engine; nothing to do",
+    };
+  });
 }
 
 /**
@@ -93,6 +217,25 @@ export function pickRelease(
   const skipped = sorted.filter((r) => skipSet.has(r.tag_name));
   const usable = sorted.filter((r) => !skipSet.has(r.tag_name));
 
+  // The report covers EVERY release the API returned, not just the usable ones
+  // — a reader asking "what about v0.18.0-rc1?" deserves the answer in the same
+  // table. Drafts carry no publish time, so they sort last rather than vanish.
+  const all = [...releases].sort(
+    (a, b) =>
+      (b.published_at ? Date.parse(b.published_at) : 0) -
+      (a.published_at ? Date.parse(a.published_at) : 0),
+  );
+  const vendoredRelease = all.find((r) => r.tag_name === vendoredTag);
+  const report = (chosen?: UpstreamRelease): ReleaseVerdict[] =>
+    classifyReleases(all, {
+      vendoredTag,
+      now,
+      soakDays,
+      skip: skipSet,
+      candidate: chosen,
+      vendored: vendoredRelease,
+    });
+
   const candidateIndex = usable.findIndex(
     (r) => (ageInDays(r, now) ?? -1) >= soakDays,
   );
@@ -106,6 +249,7 @@ export function pickRelease(
       behind: [],
       soaking: usable,
       skipped,
+      considered: report(),
     };
   }
   const candidate = usable[candidateIndex] as UpstreamRelease;
@@ -114,11 +258,21 @@ export function pickRelease(
   if (candidate.tag_name === vendoredTag) {
     return {
       action: "none",
-      reason: `already on ${vendoredTag}`,
+      reason:
+        soaking.length > 0
+          ? `already on ${vendoredTag}; waiting on ${soaking
+              .map((r) => {
+                const age = ageInDays(r, now);
+                const left = age == null ? "?" : (soakDays - age).toFixed(1);
+                return `${r.tag_name} (${left}d of soak left)`;
+              })
+              .join(", ")}`
+          : `already on ${vendoredTag}; upstream has published nothing newer`,
       candidate,
       behind: [],
       soaking,
       skipped,
+      considered: report(candidate),
     };
   }
 
@@ -138,6 +292,7 @@ export function pickRelease(
       behind: [],
       soaking,
       skipped,
+      considered: report(candidate),
     };
   }
 
@@ -160,6 +315,7 @@ export function pickRelease(
     behind,
     soaking,
     skipped,
+    considered: report(candidate),
   };
 }
 
@@ -174,6 +330,58 @@ export function vendoredTagFromHeader(header: string): string {
   };
   const suffix = /#define\s+QJS_VERSION_SUFFIX\s+"([^"]*)"/.exec(header);
   return `v${read("MAJOR")}.${read("MINOR")}.${read("PATCH")}${suffix?.[1] ?? ""}`;
+}
+
+const ICON: Record<VerdictKind, string> = {
+  candidate: "✅",
+  soaking: "⏳",
+  "rolled-up": "↪️",
+  vendored: "📌",
+  older: "·",
+  skipped: "🚫",
+  prerelease: "🧪",
+  draft: "📝",
+};
+
+/**
+ * The full decision table: every release upstream returned, what the bot
+ * decided about it, and why.
+ *
+ * This exists because the first real run was twelve green seconds with every
+ * later step marked "skipped" — technically correct, and useless. A scheduled
+ * job that decides to do nothing has to SHOW its work, or the next person to
+ * look at it has to read the source to find out whether it was thinking or
+ * broken. Markdown, because the same text goes to the step summary, the PR
+ * body, and the log — a table is still readable as plain text.
+ */
+export function renderReport(
+  pick: Pick,
+  opts: { vendoredTag: string; soakDays: number; now: Date },
+): string {
+  const lines = [
+    `**Decision: ${pick.action.toUpperCase()}** — ${pick.reason}`,
+    "",
+    `Vendored \`${opts.vendoredTag}\` · soak window ${opts.soakDays}d · ` +
+      `${pick.considered.length} release(s) fetched · ` +
+      `checked ${opts.now.toISOString().replace("T", " ").slice(0, 16)} UTC`,
+    "",
+    "| | release | published | age | verdict |",
+    "|---|---|---|---|---|",
+  ];
+  for (const v of pick.considered) {
+    lines.push(
+      `| ${ICON[v.kind]} | \`${v.tag}\` | ${v.publishedAt?.slice(0, 10) ?? "—"}` +
+        ` | ${formatAge(v.ageDays)} | **${v.kind}** — ${v.reason} |`,
+    );
+  }
+  if (pick.action === "propose" && pick.soaking.length > 0) {
+    lines.push(
+      "",
+      `⚠️ ${pick.soaking.length} release(s) newer than the candidate are still` +
+        " soaking — see the warning at the top of the PR before merging.",
+    );
+  }
+  return lines.join("\n");
 }
 
 /**
@@ -231,6 +439,14 @@ export function renderProposal(
     );
   }
   lines.push(
+    "",
+    "### Every release considered",
+    "",
+    renderReport(pick, {
+      vendoredTag: opts.vendoredTag,
+      soakDays: opts.soakDays,
+      now: opts.now,
+    }),
     "",
     "### Trust (M9)",
     "",
@@ -307,7 +523,14 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
   const releases = (await response.json()) as UpstreamRelease[];
   const now = new Date();
   const pick = pickRelease(releases, { vendoredTag, now, soakDays, skip });
-  console.log(
+
+  // Two outputs, on purpose. The machine-readable one goes to a FILE (the
+  // workflow reads `.action`/`.tag` from it with jq), and stdout carries the
+  // human decision table — so the log of a run that decides to do nothing still
+  // states what it saw and why, instead of a row of "skipped" steps.
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(
+    process.env.PICK_OUT ?? "pick.json",
     JSON.stringify(
       {
         action: pick.action,
@@ -325,4 +548,5 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
       2,
     ),
   );
+  console.log(renderReport(pick, { vendoredTag, soakDays, now }));
 }

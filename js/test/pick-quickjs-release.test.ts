@@ -3,8 +3,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
+  formatAge,
   pickRelease,
   renderProposal,
+  renderReport,
   type UpstreamRelease,
   vendoredTagFromHeader,
 } from "../scripts/pick-quickjs-release.ts";
@@ -176,5 +178,97 @@ describe("vendoredTagFromHeader", () => {
         '#define QJS_VERSION_MAJOR 1\n#define QJS_VERSION_MINOR 0\n#define QJS_VERSION_PATCH 0\n#define QJS_VERSION_SUFFIX "-rc1"\n',
       ),
     ).toBe("v1.0.0-rc1");
+  });
+});
+
+// A scheduled job that decides to do nothing has to show its work — the first
+// real run was twelve green seconds of "skipped" steps that said nothing about
+// what upstream had published or why it was refused. Every release the API
+// returns must appear with a verdict, including the ones that were never
+// candidates.
+describe("the decision report", () => {
+  const REAL_WORLD = [
+    // The actual situation on 2026-08-21: upstream published v0.16.2 the day
+    // before, and the repo vendors v0.16.1.
+    release("v0.16.2", 0.9),
+    release("v0.16.1", 93),
+    release("v0.16.0", 140),
+    release("v0.18.0-rc1", 5, { prerelease: true }),
+  ];
+
+  it("gives every fetched release a verdict and a reason", () => {
+    const pick = pickRelease(REAL_WORLD, {
+      vendoredTag: "v0.16.1",
+      now: NOW,
+    });
+    expect(pick.action).toBe("none");
+    expect(pick.considered).toHaveLength(REAL_WORLD.length);
+    for (const v of pick.considered)
+      expect(v.reason.length).toBeGreaterThan(10);
+
+    const byTag = Object.fromEntries(pick.considered.map((v) => [v.tag, v]));
+    expect(byTag["v0.16.2"]?.kind).toBe("soaking");
+    expect(byTag["v0.16.2"]?.reason).toContain("6.1d left");
+    expect(byTag["v0.16.1"]?.kind).toBe("vendored");
+    expect(byTag["v0.16.0"]?.kind).toBe("older");
+    expect(byTag["v0.18.0-rc1"]?.kind).toBe("prerelease");
+  });
+
+  it("renders the table with the decision on the first line", () => {
+    const pick = pickRelease(REAL_WORLD, { vendoredTag: "v0.16.1", now: NOW });
+    const report = renderReport(pick, {
+      vendoredTag: "v0.16.1",
+      soakDays: 7,
+      now: NOW,
+    });
+    expect(report.split("\n")[0]).toContain("Decision: NONE");
+    // Every release named, so the reader never has to ask "and what about…?"
+    for (const r of REAL_WORLD) expect(report).toContain(r.tag_name);
+    expect(report).toContain("soaking");
+    expect(report).toContain("prerelease");
+  });
+
+  it("marks the proposed release and the ones it rolls up", () => {
+    const pick = pickRelease(
+      [
+        release("v0.19.0", 1),
+        release("v0.18.0", 9),
+        release("v0.17.0", 40),
+        release("v0.16.1", 90),
+      ],
+      { vendoredTag: "v0.16.1", now: NOW },
+    );
+    const byTag = Object.fromEntries(pick.considered.map((v) => [v.tag, v]));
+    expect(byTag["v0.18.0"]?.kind).toBe("candidate");
+    expect(byTag["v0.19.0"]?.kind).toBe("soaking");
+    expect(byTag["v0.17.0"]?.kind).toBe("rolled-up");
+    expect(byTag["v0.16.1"]?.kind).toBe("vendored");
+    // …and the PR body carries the same table, so the reviewer sees the same
+    // facts the log did.
+    const body = renderProposal(pick, {
+      vendoredTag: "v0.16.1",
+      soakDays: 7,
+      sha256: "abc",
+      now: NOW,
+    });
+    expect(body).toContain("Every release considered");
+    expect(body).toContain("v0.17.0");
+  });
+
+  it("names a skipped tag as skipped rather than dropping it", () => {
+    const pick = pickRelease(
+      [release("v0.17.1", 8), release("v0.17.0", 20), release("v0.16.1", 60)],
+      { vendoredTag: "v0.16.1", now: NOW, skip: ["v0.17.1"] },
+    );
+    const byTag = Object.fromEntries(pick.considered.map((v) => [v.tag, v]));
+    expect(byTag["v0.17.1"]?.kind).toBe("skipped");
+    expect(byTag["v0.17.1"]?.reason).toContain("SKIP_TAGS");
+  });
+
+  // "0d old" for something published this morning reads as a bug report.
+  it("reports a fresh release in hours, not zero days", () => {
+    expect(formatAge(0.875)).toBe("21h");
+    expect(formatAge(3.4)).toBe("3d");
+    expect(formatAge(null)).toBe("unknown");
   });
 });
