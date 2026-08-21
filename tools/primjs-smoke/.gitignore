@@ -1,0 +1,5 @@
+# Build output for the PrimJS experiment: two engines' worth of host binaries,
+# their objects, and the bytecode blobs measure.sh writes. All reproducible from
+# build-hosts.sh, none of it source. The ENGINE itself is not here at all —
+# fetch-and-build.sh keeps it in ~/.cache/react-watchos/primjs/, out of the repo.
+out/
