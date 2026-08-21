@@ -1,0 +1,186 @@
+name: quality
+
+# The code-quality battery: packaging (publint + attw), dead code (knip),
+# module boundaries (dependency-cruiser), shell (shellcheck), spelling (typos)
+# and internal links (lychee). All free, all offline, no account and no server.
+#
+# ci.yml stays the correctness gate (types, tests, codegen drift, bundle size);
+# this one answers a different question — is the thing we are about to publish
+# well-formed, and is anything in here dead, mis-wired or unreachable.
+#
+# Every check here entered at a ZERO-findings baseline, so a red run means the
+# PR introduced something, never that the tool was switched on mid-flight.
+#
+# Flags live in js/scripts/quality.sh, which this workflow CALLS rather than
+# restates: one definition, no copy to rot, and `pnpm --filter react-watchos
+# quality` reproduces CI exactly. What CI adds is only REQUIRE_ALL_TOOLS=1,
+# which turns "tool not installed, skipping" into a failure.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "js/**"
+      - "docs/**"
+      - "tools/**"
+      - "*.md"
+      - "_typos.toml"
+      - "lychee.toml"
+      - ".github/workflows/quality.yml"
+  pull_request:
+    paths:
+      - "js/**"
+      - "docs/**"
+      - "tools/**"
+      - "*.md"
+      - "_typos.toml"
+      - "lychee.toml"
+      - ".github/workflows/quality.yml"
+  schedule:
+    # Weekly, for the two checks that must NOT gate a PR: the external link
+    # sweep (a third-party URL can die without anyone here touching anything)
+    # and cppcheck (a distro package whose version the runner image chooses).
+    - cron: "41 5 * * 1"
+
+# Least privilege: nothing here writes to the repo or to the security tab.
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  battery:
+    # The scheduled run exists for the two jobs below; this one is the PR gate.
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # No `version` input: pnpm/action-setup reads the exact pinned version
+      # from the root package.json "packageManager" field.
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          # 24, matching ci.yml and .mise.toml: the tooling knip and
+          # dependency-cruiser read is real .ts run by native type stripping.
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install (pnpm workspace)
+        run: pnpm install --frozen-lockfile
+      # The three standalone binaries, pinned to an exact release rather than
+      # taken from the runner image (which ships its own shellcheck and bumps
+      # it without telling us — a linter that changes rules under you turns a
+      # green gate red on an unrelated PR). Downloaded straight from the
+      # release page, the same way security.yml fetches zizmor: no third-party
+      # action in the supply chain for a one-line curl.
+      - name: Install shellcheck, typos and lychee
+        env:
+          SHELLCHECK_VERSION: "0.11.0"
+          TYPOS_VERSION: "1.45.0"
+          LYCHEE_VERSION: "0.23.0"
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VERSION}/shellcheck-v${SHELLCHECK_VERSION}.linux.x86_64.tar.xz" \
+            | tar -xJ -C /tmp
+          mv "/tmp/shellcheck-v${SHELLCHECK_VERSION}/shellcheck" "$HOME/.local/bin/"
+          curl -fsSL "https://github.com/crate-ci/typos/releases/download/v${TYPOS_VERSION}/typos-v${TYPOS_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar -xz -C "$HOME/.local/bin" ./typos
+          curl -fsSL "https://github.com/lycheeverse/lychee/releases/download/lychee-v${LYCHEE_VERSION}/lychee-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C "$HOME/.local/bin" lychee
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Quality battery (publint, attw, knip, depcruise, shellcheck, typos, lychee)
+        env:
+          # Turns every "tool not installed, skipping" into a hard failure, so
+          # a check cannot quietly stop running here the way it may locally.
+          REQUIRE_ALL_TOOLS: "1"
+        run: pnpm --filter react-watchos quality
+
+  coverage:
+    # REPORT-ONLY. No thresholds anywhere — vitest.config.ts has no
+    # `thresholds` key, so this job prints a number and cannot fail a build. It
+    # exists so a coverage drop is visible in the log of the PR that caused it,
+    # not so a percentage can block a merge.
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install (pnpm workspace)
+        run: pnpm install --frozen-lockfile
+      # No REQUIRE_QJS here: the engine-compat tests are ci.yml's job and
+      # building quickjs-ng just to print a coverage summary would double this
+      # job's runtime. The few qjs tests skip; everything else still runs.
+      - name: Coverage summary (no gate)
+        run: pnpm --filter react-watchos coverage
+
+  external-links:
+    # The half of lychee that needs the network. Weekly, and NEVER on a PR: a
+    # third-party URL can 404 on a Tuesday with nothing in this repo having
+    # changed, and that must not be somebody's red build.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install lychee
+        env:
+          LYCHEE_VERSION: "0.23.0"
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL "https://github.com/lycheeverse/lychee/releases/download/lychee-v${LYCHEE_VERSION}/lychee-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C "$HOME/.local/bin" lychee
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      # Same lychee.toml (so the historical-path exclusions still apply), minus
+      # --offline, plus retries and a cache so a slow host is not a "failure".
+      - name: External links
+        run: |
+          lychee --no-progress --cache --max-cache-age 1d \
+            --max-retries 3 --timeout 20 \
+            '*.md' 'docs/**/*.md' 'notes/*.md' '.github/**/*.md' 'js/*.md' \
+            'js/swift/*.md' 'examples/*/*.md'
+
+  cppcheck:
+    # The four C files we actually own: the QuickJS embedding smoke host, the
+    # vendored-engine CLI and the bytecode compiler. NOT the engine itself —
+    # js/swift/Sources/CQuickJS is upstream's source, re-synced by
+    # tools/vendor-quickjs/run.sh, and its findings are upstream's to fix.
+    #
+    # Weekly rather than per-PR, and non-blocking, for one reason: cppcheck
+    # comes from the runner image's apt repo, so its VERSION is chosen by
+    # GitHub, not by us. Everything else in this battery is pinned to an exact
+    # release; a tool that can change rules under us does not get to fail a
+    # pull request. It found nothing at adoption (cppcheck 2.13.0,
+    # --enable=warning,portability).
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Install cppcheck
+        run: sudo apt-get update && sudo apt-get install -y cppcheck
+      - name: cppcheck (our C only)
+        run: |
+          cppcheck --enable=warning,portability --inline-suppr \
+            --error-exitcode=2 \
+            tools/embed-smoke/embed-host.c \
+            tools/vendored-qjs/main.c \
+            tools/qjs-compile/qjs-compile.c \
+            tools/qjs-compile/qbc-stack.c

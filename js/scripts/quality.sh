@@ -56,7 +56,16 @@ pack_dir=$(mktemp -d)
 trap 'rm -rf "$pack_dir"' EXIT
 
 step "pack (the artifact publint + attw lint)"
-tarball=$pack_dir/$(cd "$js" && pnpm pack --pack-destination "$pack_dir" --silent | tail -1 | xargs basename)
+(cd "$js" && pnpm pack --pack-destination "$pack_dir" >/dev/null)
+# Read the name back off disk rather than parsing pnpm's stdout: `prepare` runs
+# during the pack and prints its own lines, so the tarball path is not reliably
+# the last one. $pack_dir is a fresh mktemp, so there is exactly one .tgz in it.
+tarball=""
+for t in "$pack_dir"/*.tgz; do tarball=$t; done
+if [ ! -f "$tarball" ]; then
+  echo "ERROR: pnpm pack produced no tarball in $pack_dir" >&2
+  exit 1
+fi
 ls -l "$tarball"
 
 step "publint (packaging correctness)"
