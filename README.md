@@ -229,12 +229,15 @@ look like, and how do I read it?* — has a full answer in
 - `npx react-watchos inspector` + `startInspector({ url })` streams the live
   committed tree, logs and errors to a browser page on your Mac.
 - Most failures reproduce on your laptop: the vitest suite runs the real
-  bundle in a real `qjs`, and `tools/embed-smoke/run.sh` runs it through the
-  exact embedding sequence Swift uses.
+  bundle in the vendored quickjs-ng — built from the same sources the watch
+  compiles — and `tools/embed-smoke/run.sh` runs it through the exact
+  embedding sequence Swift uses.
 
 **No React DevTools** — the backend needs a WebSocket transport QuickJS
 doesn't have and watchOS can't lend it (no public JavaScriptCore, no WebKit).
-No breakpoints, no source maps yet. That gap is real and
+No breakpoints — though the build does emit a source map beside every bundle,
+so a minified stack from the field symbolicates back to your `.tsx`. That gap
+is real and
 [stated in full](./docs/debugging.md#what-this-is-not).
 
 ## Battery & power defaults
