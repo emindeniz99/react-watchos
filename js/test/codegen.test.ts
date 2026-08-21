@@ -266,6 +266,19 @@ describe("health vocabularies match the Swift enums", () => {
     ).toEqual(schemaUnion("SleepSample", "stage"));
   });
 
+  it("ActivityMoveMode covers exactly the schema's moveMode union", () => {
+    // The union that decides which RING gets drawn. A member added on one side
+    // only would not fail to compile anywhere: the bridge maps
+    // `HKActivityMoveMode` by case and JS branches on a string, so the two
+    // halves drift into a day rendered as the wrong ring rather than an error.
+    expect(
+      swiftEnumCases(
+        support,
+        "public enum ActivityMoveMode: String, CaseIterable, Sendable {",
+      ),
+    ).toEqual(schemaUnion("ActivitySummary", "moveMode"));
+  });
+
   it("the workout state + end-reason unions match their Swift enums", () => {
     const workout = readFileSync(
       join(swiftRoot, "Sources/ReactWatchSupport/WorkoutPlan.swift"),

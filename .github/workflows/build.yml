@@ -15,14 +15,27 @@ on:
         description: "Xcode version (e.g. 16.2, 26.0, latest-stable)"
         default: "latest-stable"
         required: false
-  # Post-merge, path-filtered: the watchOS half of the health bridge, the
-  # SwiftUI host and the widget infra compile to an EMPTY module off-watchOS,
-  # so `swift test` on Linux proves nothing about them (NF-30) — a change can
-  # sit broken on main until the nightly. Running here means every push that
-  # TOUCHES that surface is compiled and unit-tested on a watchOS simulator
-  # within the hour. This is deliberately post-merge and not a `pull_request`
-  # trigger, so CX-013's "native compilation is not a required PR gate" still
-  # stands: it reports, it does not block.
+  # CX-013 REVERSED, 2026-08-20 (maintainer's call). That decision — "native
+  # compilation is not a required PR gate" — was made when the plugin was
+  # simpler and the only native surface was a SwiftUI shell. It is now the
+  # watchOS half of the health bridge, the SwiftUI host and the widget infra,
+  # all of which compile to an EMPTY module off-watchOS, so `swift test` on
+  # Linux proves nothing about them (NF-30). Under the old rule the feedback
+  # was a nightly: long enough that whoever broke it had moved on, and the
+  # 2026-08-07..08-10 run of red nightlies is what that costs in practice.
+  #
+  # So this now runs on pull_request too, and the maintainer marks the three
+  # jobs as required checks in branch protection. The path filter is what
+  # keeps it affordable — a docs or renderer PR spins up no macOS runner —
+  # and `concurrency` above cancels superseded runs on the same PR.
+  pull_request:
+    paths:
+      - "js/swift/**"
+      - "js/plugin/**"
+      - "app/**"
+      - ".github/workflows/build.yml"
+  # Post-merge as well as pre-merge: a PR that merges clean can still break
+  # main when another PR lands between its last run and the merge.
   push:
     branches: [main]
     paths:

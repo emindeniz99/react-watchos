@@ -1,36 +1,166 @@
 name: release
 
-# Publish the js/ package to npm via TRUSTED PUBLISHING (OIDC):
-# - The FILENAME release.yml is load-bearing — npm's trusted publisher
-#   config matches on the workflow filename. NEVER rename this file.
-# - No npm token anywhere: the `id-token: write` permission below lets npm
-#   authenticate this workflow run directly. Requires npm >= 11.5.1 on the
-#   runner (Node 24 bundles a new enough npm).
+# ONE run, TWO jobs: release-please cuts the release, then the npm publish
+# happens in the SAME run, gated on release-please's own output.
 #
-# ⚠️ The `release: published` trigger below NEVER FIRES for our releases
-# (observed on both 0.2.0 and 0.2.1): release-please creates the Release
-# with the default GITHUB_TOKEN, and GitHub's recursion guard drops events
-# produced by that token. Publishing is therefore a two-step dance:
-#   1. merge the release PR (release-please tags + creates the Release);
-#   2. confirm origin/main == the release tag, then `gh workflow run
-#      release.yml` — the manual dispatch below IS the publish path.
-# The trigger stays for the day the Release is created by a PAT/App token.
+# - The FILENAME release.yml is load-bearing — npm's trusted publisher config
+#   matches on organization/user + repository + WORKFLOW FILENAME (basename,
+#   case-sensitive), and a package may have only ONE trusted publisher at a
+#   time. NEVER rename this file: renaming it revokes this workflow's ability
+#   to publish until a maintainer re-points npm's config by hand.
+# - No npm token anywhere: `id-token: write` on the publish job lets npm
+#   authenticate the run directly, and provenance is attached automatically
+#   (no `--provenance` flag). Adding `registry-url` or `NODE_AUTH_TOKEN` to
+#   setup-node would BREAK OIDC, so neither appears below.
+#
+# Why the publish is not its own workflow, and why `release: published` is
+# gone: release-please creates the GitHub Release with the built-in
+# GITHUB_TOKEN, and GitHub does not start workflow runs from events raised by
+# that token (only workflow_dispatch and repository_dispatch are exempt). That
+# trigger therefore never fired once — 0.2.0, 0.2.1, 0.3.0, 0.4.0 and 0.5.0 all
+# had to be published by a hand dispatch.
+#
+# RUNBOOK
+# - Normal release: merge the release-please PR. Nothing manual. That push runs
+#   job 1 (tags + creates the Release) and then job 2 (publishes THAT TAG).
+# - A publish that failed: re-run the failed job, push anything to main, or
+#   dispatch this workflow. All three converge on the same gate, which
+#   publishes only what is missing from the registry — re-runs are green no-ops.
+# - Refreshing a stale release PR (e.g. after a dropped push event — the
+#   2026-08-06 Actions outage left the PR stale with no way to refresh it but
+#   another push): dispatch this workflow. Job 1 refreshes the PR; job 2 sees
+#   the manifest version already on npm and skips green.
+# - HAZARD: npm refuses to republish a version that was ever `npm unpublish`ed.
+#   The self-heal branch below would then fail red on every push to main until
+#   the next release bumps the manifest past that version.
 
 on:
+  push:
+    branches: [main]
+  # Deliberately NO inputs: the gate below resolves what to publish from the
+  # manifest and the tag, so a dispatch can never publish a ref someone typed
+  # by hand — which is the wrong-bytes failure this design exists to close.
   workflow_dispatch:
-  release:
-    types: [published]
 
-permissions:
-  id-token: write # OIDC token for npm trusted publishing
-  contents: read
+# `permissions` is replace-not-merge and nothing is inherited from an empty
+# top level, so each job below lists everything it needs. Keeping this empty is
+# what stops the OIDC publish job from also holding `contents: write`.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # NEVER cancel: aborting mid-publish can leave a tag and a GitHub Release
+  # with no matching version on the registry — precisely the stuck state this
+  # workflow exists to end. Queue the second run instead.
+  cancel-in-progress: false
 
 jobs:
-  publish:
+  release_please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      publish: ${{ steps.gate.outputs.publish }}
+      tag: ${{ steps.gate.outputs.tag }}
+      version: ${{ steps.gate.outputs.version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          persist-credentials: false
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        id: rp
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - name: Decide whether to publish
+        id: gate
+        env:
+          # release-please-config.json declares a `js` package with no root
+          # component, so the action PATH-PREFIXES its per-release outputs: the
+          # un-prefixed `release_created` from the action README's example is
+          # never set here. Index syntax, not `.js--release_created`, so the
+          # hyphens cannot be mis-lexed.
+          #
+          # Note the footgun in the un-prefixed sibling: `releases_created` is
+          # ALWAYS set — to the literal string 'false' when nothing released —
+          # and a non-empty string is truthy in a GitHub expression. The
+          # prefixed output used here is set only on a real release, but it is
+          # still compared to 'true' rather than tested for truthiness.
+          RELEASED: ${{ steps.rp.outputs['js--release_created'] }}
+          RELEASED_TAG: ${{ steps.rp.outputs['js--tag_name'] }}
+          RELEASED_VERSION: ${{ steps.rp.outputs['js--version'] }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ "${RELEASED:-}" = "true" ]; then
+            VERSION="$RELEASED_VERSION"
+            TAG="$RELEASED_TAG"
+            echo "release-please cut ${TAG} in this run."
+          else
+            # Nothing released this run. Fall back to the manifest, which names
+            # the version that SHOULD be on the registry — this is the branch
+            # that finishes a release whose publish never happened.
+            VERSION="$(jq -r '.js' .release-please-manifest.json)"
+            TAG="react-watchos-v${VERSION}"
+            echo "No release this run; checking whether ${VERSION} (${TAG}) reached npm."
+          fi
+
+          echo "version=${VERSION}" >>"$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >>"$GITHUB_OUTPUT"
+
+          # The tag must exist before anything is packed: publishing a version
+          # nothing tagged would ship bytes no Release points at. Ask the
+          # REMOTE — actions/checkout fetches depth 1 and no tags, so local git
+          # knows about none of them.
+          if ! git ls-remote --exit-code --tags "$REPO_URL" "refs/tags/${TAG}" >/dev/null; then
+            echo "publish=false" >>"$GITHUB_OUTPUT"
+            echo "::notice::${TAG} does not exist — nothing to publish."
+            exit 0
+          fi
+
+          # `npm view <pkg>@<version>` exits 1 with E404 when the version is
+          # absent — and that is the PUBLISH path, so a bare call under `set -e`
+          # would kill the step exactly where it has to continue. Tolerate the
+          # exit code, then separate a real E404 from a registry/network
+          # failure: an npm outage must not read as "not published yet".
+          set +e
+          FOUND="$(npm view "react-watchos@${VERSION}" version 2>/tmp/npm-view.err)"
+          CODE=$?
+          set -e
+
+          if [ "$CODE" -eq 0 ] && [ -n "$FOUND" ]; then
+            echo "publish=false" >>"$GITHUB_OUTPUT"
+            echo "::notice::react-watchos@${VERSION} is already on npm — nothing to do."
+            exit 0
+          fi
+
+          if ! grep -q 'E404' /tmp/npm-view.err; then
+            cat /tmp/npm-view.err >&2
+            echo "::error::Could not determine whether react-watchos@${VERSION} is published."
+            exit 1
+          fi
+
+          echo "publish=true" >>"$GITHUB_OUTPUT"
+          echo "::notice::react-watchos@${VERSION} is not on npm — publishing ${TAG}."
+
+  publish:
+    needs: release_please
+    if: needs.release_please.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC token for npm trusted publishing
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Check out the TAG, never the branch. Without this a dispatch — or a
+          # run queued behind another merge — packs whatever main HEAD drifted
+          # to, and because trusted publishing attaches provenance
+          # automatically, the attestation would faithfully attest the WRONG
+          # commit. A missing tag fails the checkout, before the registry.
+          ref: ${{ needs.release_please.outputs.tag }}
           persist-credentials: false
       # No `version` input: pnpm/action-setup reads the exact pinned version
       # from the root package.json "packageManager" field.
@@ -42,8 +172,39 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7 # zizmor: ignore[cache-poisoning]
         with:
           node-version: "24"
+      # Trusted publishing requires npm >= 11.5.1. Whichever npm the Node 24
+      # image happens to bundle is an assumption, not a control: an image
+      # refresh that ships an older npm would break OIDC auth at publish time,
+      # after the tag and the Release already exist. Pin it.
+      - name: Pin npm (trusted publishing needs >= 11.5.1)
+        run: npm install -g npm@^11.5.1
       - name: Install (pnpm workspace)
         run: pnpm install --frozen-lockfile
+      # The quality gates run HERE, against the tagged tree, before the registry
+      # is contacted. js/package.json's prepublishOnly runs the same
+      # build/typecheck/lint/size chain, but only once `npm publish` is already
+      # underway — i.e. after the tag and the GitHub Release exist. It stays
+      # there as belt and braces; a red gate should fail on a named step, not
+      # strand a version that is already tagged and Released.
+      - name: Build (node target)
+        working-directory: js
+        run: pnpm run build:node
+      - name: Typecheck (strict; src + tests)
+        working-directory: js
+        run: pnpm run typecheck
+      - name: Lint + format (Biome)
+        working-directory: js
+        run: pnpm run lint
+      - name: Bundle size budget (minified)
+        working-directory: js
+        run: pnpm run check:size
+      # prepublishOnly never ran the suite at all, so a release could be cut
+      # over red tests. No qjs install and no REQUIRE_QJS here: the real-engine
+      # smoke is CI's gate on every push, and this job holds `id-token: write`,
+      # so it earns no extra apt/network surface.
+      - name: Test (vitest)
+        working-directory: js
+        run: pnpm run test
       # Scan the EXACT artifact that ships: pack the tarball, extract it and
       # run gitleaks over the contents. The repo-history scan lives in
       # security.yml; this one guards the last mile.

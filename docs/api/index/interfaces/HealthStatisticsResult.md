@@ -6,7 +6,7 @@
 
 # Interface: HealthStatisticsResult
 
-Defined in: [js/src/health.ts:105](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L105)
+Defined in: [js/src/health.ts:188](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L188)
 
 One aggregate over a window.
 
@@ -16,7 +16,7 @@ One aggregate over a window.
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:115](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L115)
+Defined in: [js/src/health.ts:208](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L208)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:115](https://github.com/emindeniz99/react-watchos/
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:114](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L114)
+Defined in: [js/src/health.ts:207](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L207)
 
 ***
 
@@ -32,12 +32,21 @@ Defined in: [js/src/health.ts:114](https://github.com/emindeniz99/react-watchos/
 
 > **unit**: `string`
 
-Defined in: [js/src/health.ts:113](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L113)
+Defined in: [js/src/health.ts:206](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L206)
 
-The unit `value` is in, fixed natively per type: `"count"` (steps),
- `"kcal"`, `"m"`, `"count/min"` (bpm — heart rate and resting heart rate),
- `"ms"` (HRV SDNN, **milliseconds**: 45, not 0.045), `"fraction"` (SpO2,
- **0…1**, not 0…100). Reported so a chart can label its axis.
+The unit `value` is in, fixed natively per type — never chosen by the
+ caller — and reported so a chart can label its axis:
+
+ - `"count"` — `stepCount`, `flightsClimbed`
+ - `"count/min"` — every rate: `heartRate`, `restingHeartRate`,
+   `walkingHeartRateAverage`, `respiratoryRate`
+ - `"m"` — `distanceWalkingRunning`
+ - `"kcal"` — `activeEnergyBurned`, `basalEnergyBurned`
+ - `"min"` — `appleExerciseTime`, `appleStandTime`
+ - `"ms"` — `heartRateVariabilitySDNN`, **milliseconds**: 45, not 0.045
+ - `"fraction"` — `oxygenSaturation`, **0…1**, not 0…100
+ - `"ml/kg/min"` — `vo2Max`. Apple states the watch estimates the 14-60
+   range, so a value near 0.04 is a slipped unit prefix, not a reading
 
 ***
 
@@ -45,7 +54,7 @@ The unit `value` is in, fixed natively per type: `"count"` (steps),
 
 > **value**: `number` \| `null`
 
-Defined in: [js/src/health.ts:108](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L108)
+Defined in: [js/src/health.ts:191](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L191)
 
 `null` when HealthKit returned no statistic for the window. Not
  distinguishable from a denied read — see the module doc.

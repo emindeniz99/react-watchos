@@ -175,7 +175,8 @@ export const components: Component[] = [
  * reasoning as commit `2fd7739` (`fix!: narrow SensorKind to the four bound
  * kinds`): an open string type-checks, returns a plausible promise, and
  * resolves `null` forever. Every one is `HKQuantityTypeIdentifier` at watchOS
- * 2.0-4.0, far below the v10 floor, so none needs an `@available` gate.
+ * 2.0-6.0 (`appleStandTime` is the ceiling; nothing here is beta or
+ * deprecated), far below the v10 floor, so none needs an `@available` gate.
  *
  * The unit each is reported in is fixed NATIVELY (never chosen by JS — a unit
  * string on the wire is a drift surface with no gate); `HealthQuantityKind` in
@@ -190,6 +191,13 @@ export const healthQuantityTypes: string[] = [
   "oxygenSaturation",
   "heartRateVariabilitySDNN",
   "restingHeartRate",
+  "appleExerciseTime",
+  "basalEnergyBurned",
+  "respiratoryRate",
+  "flightsClimbed",
+  "vo2Max",
+  "walkingHeartRateAverage",
+  "appleStandTime",
 ];
 
 /**
@@ -635,6 +643,30 @@ export const invokeShapes: StructDef[] = [
         optional: true,
         doc: "also ask for sleepAnalysis — a CATEGORY type, not a quantity",
       },
+      {
+        // Named for the READ, not for the `workouts` feature next door: this
+        // flag widens the sheet by the saved-workout row, and asking for it has
+        // nothing to do with the grant that RECORDS one.
+        name: "workoutHistory",
+        swift: "Bool?",
+        ts: "boolean",
+        optional: true,
+        doc: "also ask for HKObjectType.workoutType() — saved workouts, not a quantity either",
+      },
+      {
+        // The third read that is not a quantity type. `HKActivitySummary` is
+        // its own object type — one object carrying all three rings and their
+        // goals — so like sleep and saved workouts it can only reach the sheet
+        // through a flag of its own. It asks for NOTHING else: unlike
+        // `workoutHistory`, whose totals are computed from the samples recorded
+        // during the workout, a summary is a single object HealthKit hands over
+        // whole, so the ask is exactly one row.
+        name: "activitySummaries",
+        swift: "Bool?",
+        ts: "boolean",
+        optional: true,
+        doc: "also ask for HKObjectType.activitySummaryType() — the Activity rings, not a quantity either",
+      },
     ],
   },
   {
@@ -678,6 +710,87 @@ export const invokeShapes: StructDef[] = [
       { name: "endMs", swift: "Double", ts: "number" },
       { name: "limit", swift: "Int?", ts: "number", optional: true },
     ],
+  },
+  {
+    // A window plus a cap — and deliberately NOT `SleepSamplesRequest`, whose
+    // three fields are identical today: that struct's NAME is a promise about
+    // sleep, and the two grow along different axes (a stage filter there, an
+    // activity filter here), so sharing it would buy one struct and cost a fork
+    // the first time either moves. The reuse this family DOES take
+    // (`queryHealthDailyStatistics` on `HealthStatisticsRequest`) is the other
+    // case: two queries asking the same question over the same window.
+    swift: "WorkoutHistoryRequest",
+    ts: "WorkoutHistoryRequest",
+    doc: "js/src/health.ts queryWorkoutHistory -> WorkoutHistoryPlan.",
+    fields: [
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      { name: "limit", swift: "Int?", ts: "number", optional: true },
+    ],
+  },
+  {
+    // The one health read that does NOT take a `{startMs, endMs}` window, and
+    // the deviation is the whole design. HealthKit matches an activity summary
+    // by `DateComponents` identifying "the day as perceived by the user", which
+    // Apple's own parameter doc notes "may be longer or shorter than 24 hours
+    // (for example, if the user traveled across time zones)". An INSTANT is not
+    // that day: somebody has to convert one into the other, and that conversion
+    // is where the off-by-one lives — a caller who sends `Date.UTC(y, m, d)` for
+    // "today" asks for yesterday's rings west of Greenwich, and gets a plausible
+    // wrong answer rather than an error. So the wire carries the day itself,
+    // `"YYYY-MM-DD"`, and nothing on either side converts anything.
+    //
+    // No `limit` either: the window IS the cap (one row per day, refused past
+    // the ceiling), so a second knob could only mean "drop some days", which is
+    // a chart with holes in it.
+    swift: "ActivitySummariesRequest",
+    ts: "ActivitySummariesRequest",
+    doc: "js/src/health.ts queryActivitySummaries -> ActivitySummariesPlan.",
+    fields: [
+      { name: "startDate", swift: "String", ts: "string" },
+      { name: "endDate", swift: "String", ts: "string" },
+    ],
+  },
+  {
+    // The one request in this family that starts a LONG-RUNNING thing rather
+    // than asking a question, and the only one whose answer arrives on the
+    // event channel. It rides `invoke` anyway — deliberately, and unlike the
+    // `sensor` direct method next door, which is fire-and-forget with no reply
+    // path at all: starting a HealthKit stream can FAIL (no HealthKit on this
+    // watch, a malformed type, the authorization sheet never resolving), and a
+    // start whose failure has nowhere to go is a screen that renders "—"
+    // forever with no error anywhere. `invoke` is the channel that settles.
+    swift: "HealthUpdatesRequest",
+    ts: "HealthUpdatesRequest",
+    doc: "js/src/health.ts startHealthUpdates -> HealthUpdatesPlan (an HKAnchoredObjectQueryDescriptor).",
+    fields: [
+      // The SAME closed vocabulary the one-shot reads use, so a live sample and
+      // a `queryHealthSamples` row for the same type arrive in the same unit —
+      // a screen that reads the total once and then streams must not have its
+      // numbers change meaning halfway.
+      { name: "type", swift: "String", ts: "HealthQuantityType" },
+      {
+        // The coalescing floor, ms. Not a sampling rate: HealthKit decides when
+        // a sample lands, and this only bounds how often a batch may CROSS the
+        // bridge — every sample still arrives, in the next batch. Optional
+        // because the native default (1000 ms) is the right answer for the
+        // screens this exists for.
+        name: "minIntervalMs",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+    ],
+  },
+  {
+    // A type and nothing else. Deliberately its own struct rather than a reuse
+    // of `HealthUpdatesRequest` with the interval ignored: a stop that carried
+    // a knob would invite the reading that it re-tunes the stream, and the two
+    // grow apart the moment either takes a second field.
+    swift: "HealthUpdatesStopRequest",
+    ts: "HealthUpdatesStopRequest",
+    doc: "js/src/health.ts stops the live stream for one type -> HealthUpdatesStopPlan.",
+    fields: [{ name: "type", swift: "String", ts: "HealthQuantityType" }],
   },
   {
     swift: "StartWorkoutRequest",
@@ -1236,6 +1349,142 @@ export const invokeShapes: StructDef[] = [
         name: "stage",
         swift: "String",
         ts: '"inBed" | "awake" | "asleepCore" | "asleepDeep" | "asleepREM" | "asleepUnspecified"',
+      },
+    ],
+  },
+  {
+    // The ONLY shape in this family that carries GOALS, which is why it exists:
+    // no quantity type exposes one (`appleExerciseTime` reports the minutes and
+    // nothing else), and a ring is a value MEASURED AGAINST a goal — without the
+    // second number there is no arc to draw, so a rings complication was simply
+    // not expressible before this read.
+    swift: "ActivitySummary",
+    ts: "ActivitySummary",
+    doc: "One DAY's Activity rings — three value/goal pairs plus the day they belong to.",
+    fields: [
+      {
+        // The day this row IS, `"YYYY-MM-DD"` — never an instant, for the
+        // reason `ActivitySummariesRequest` gives at length. Every row carries
+        // it because HealthKit returns NO row for a day it has no summary for
+        // (a watch left on the charger), so a week's answer can be five rows
+        // long and position in the array cannot be read as a date. The rows are
+        // sorted OLDEST FIRST natively — the descriptor takes no sort
+        // descriptors and Apple promises `result(for:)` no order at all, so a
+        // chart drawn straight off the array would be correct only by luck.
+        name: "date",
+        swift: "String",
+        ts: "string",
+      },
+      {
+        // HKActivityMoveMode (watchOS 7.0): which quantity the MOVE ring
+        // measures. Under-18 accounts — and anyone who picked Move Time in
+        // Settings — close a MINUTES ring rather than a calorie one, so a
+        // renderer that always drew energy would draw them a ring that never
+        // fills while their watch says it closed. Keep in sync with
+        // ActivityMoveMode in ReactWatchSupport (codegen.test.ts pins the two).
+        name: "moveMode",
+        swift: "String",
+        ts: '"activeEnergy" | "appleMoveTime"',
+      },
+      // The move ring, both spellings. Whichever `moveMode` names is the one to
+      // draw; the other pair is still reported because it costs two numbers and
+      // saves the caller a second query on the day a user switches modes.
+      { name: "activeEnergyKcal", swift: "Double", ts: "number" },
+      {
+        // `HKActivitySummary.activeEnergyBurnedGoal` — non-optional at every
+        // watchOS this package supports, so it is a plain `number`. Present
+        // whatever the `moveMode` is, which is exactly why it is not always the
+        // goal the user was SCORED against: on an `appleMoveTime` day that is
+        // `moveTimeGoalMinutes`.
+        name: "activeEnergyGoalKcal",
+        swift: "Double",
+        ts: "number",
+      },
+      { name: "moveTimeMinutes", swift: "Double", ts: "number" },
+      { name: "moveTimeGoalMinutes", swift: "Double", ts: "number" },
+      // The exercise ring. Minutes, not `...Ms`: this is a counter the watch
+      // increments and a goal the user sets in whole minutes (Apple's own
+      // `appleExerciseTime` read reports "min" too), not a stopwatch duration
+      // like `WorkoutSummary.durationMs`.
+      { name: "exerciseMinutes", swift: "Double", ts: "number" },
+      {
+        // `exerciseTimeGoal` is OPTIONAL (watchOS 9.0) and stays optional here:
+        // `null` means HealthKit has no goal for that day, which is a real
+        // state — an old summary written before goals were per-day. Substituting
+        // Apple's default 30 would draw a ring the user never had.
+        name: "exerciseGoalMinutes",
+        swift: "Double?",
+        ts: "number | null",
+      },
+      // The stand ring. HealthKit measures stand hours as a COUNT (the ring is
+      // "10 of 12 hours"), so these are counts of hours, not durations.
+      { name: "standHours", swift: "Double", ts: "number" },
+      {
+        // `standHoursGoal`, same watchOS 9.0 optionality and the same rule as
+        // `exerciseGoalMinutes`: a missing goal rides as `null` rather than as
+        // an invented 12.
+        name: "standHoursGoal",
+        swift: "Double?",
+        ts: "number | null",
+      },
+    ],
+  },
+  {
+    swift: "WorkoutSummary",
+    ts: "WorkoutSummary",
+    doc: "One SAVED HKWorkout — the row a \"recent workouts\" list renders.",
+    fields: [
+      {
+        // HKObject.uuid. A list needs a stable key, and a detail screen needs
+        // to name the row it opened. It is also the id `WorkoutState`'s
+        // `endedWorkoutId` reports, so the workout this app just finished can
+        // be found again in this list rather than guessed at by timestamp.
+        name: "id",
+        swift: "String",
+        ts: "string",
+      },
+      { name: "startMs", swift: "Double", ts: "number" },
+      { name: "endMs", swift: "Double", ts: "number" },
+      {
+        // HKWorkout.duration, in ms like every other duration on this wire
+        // (Apple reports it in seconds). NOT endMs - startMs: `duration`
+        // EXCLUDES paused time, so the two disagree for any workout the user
+        // paused, and a row that says "45:12" means this one.
+        name: "durationMs",
+        swift: "Double",
+        ts: "number",
+      },
+      {
+        // Omitted rather than guessed when this binary's vocabulary has no name
+        // for the stored case — the WorkoutState / ScheduledWorkoutSummary rule
+        // verbatim, and here it is not hypothetical: this list contains
+        // workouts OTHER apps saved, including the three deprecated activity
+        // spellings this package excludes.
+        name: "activityType",
+        swift: "String?",
+        ts: "WorkoutActivityType",
+        optional: true,
+      },
+      {
+        // `null`, never 0 and never omitted. Read through `statistics(for:)`
+        // (the un-deprecated path), where nil means NO SAMPLES — a manually
+        // logged session, or one another app saved as a bare total, burned an
+        // unknown amount rather than zero. Same encoding, same reason, as
+        // `HealthStatisticsResult.value`.
+        name: "activeEnergyKcal",
+        swift: "Double?",
+        ts: "number | null",
+      },
+      {
+        // Same nil-is-not-zero rule, and the field the argument was always
+        // about: an indoor yoga session records no distance at all, which is a
+        // different fact from "covered zero metres". Read from the type the
+        // ACTIVITY records under (`WorkoutDistance` on the native side) — a
+        // ride's metres are `distanceCycling`, so a fixed walking/running read
+        // would report null for every ride and call it "measured nothing".
+        name: "distanceMeters",
+        swift: "Double?",
+        ts: "number | null",
       },
     ],
   },
@@ -1928,6 +2177,79 @@ export const hostMethods: HostMethod[] = [
     via: "invoke",
     request: "SleepSamplesRequest",
     response: "SleepSample[]",
+  },
+  {
+    // Feature "health", NOT "workouts", and the split is the point: `workouts`
+    // authorizes RECORDING one (a permanent write, background execution, the
+    // one session slot watchOS allows), while this READS the user's saved
+    // workout HISTORY — potentially years of it, including workouts other apps
+    // wrote. Disclosing that under the grant someone gave to record a run is
+    // exactly the mismatch ARCH-07 split the two features to prevent, and
+    // SupportTests pins that the two stay separately deniable.
+    name: "queryWorkoutHistory",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "Saved HKWorkouts in the window, newest first (HKSampleQueryDescriptor + HKSamplePredicate.workout) — what a \"your last five runs\" screen lists.",
+    request: "WorkoutHistoryRequest",
+    response: "WorkoutSummary[]",
+  },
+  {
+    // The rings, with their GOALS — the one thing the quantity vocabulary
+    // structurally cannot report. `appleExerciseTime` and `appleStandTime` are
+    // already readable as quantities, but no `HKQuantityType` exposes the goal
+    // they are scored against, and half a ring is not a ring: this is the read
+    // that makes a rings complication possible at all.
+    //
+    // Feature "health" like its siblings, and it is a HISTORY disclosure in the
+    // fullest sense — the rings say when the user moved, every day, for as far
+    // back as they are asked for.
+    name: "queryActivitySummaries",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "The Activity rings — move, exercise and stand, each with its goal — one row per DAY, oldest first (HKActivitySummaryQueryDescriptor). Days with no summary are absent, so every row names its own date.",
+    request: "ActivitySummariesRequest",
+    response: "ActivitySummary[]",
+  },
+  {
+    // The one health method that is not a READ but a SUBSCRIPTION: it arms an
+    // `HKAnchoredObjectQueryDescriptor` and every sample HealthKit saves from
+    // then on is pushed as `health.samples.<type>` until the matching stop.
+    // Same `health` feature as the reads — it discloses exactly the same
+    // samples, just as they land instead of on demand.
+    //
+    // Two channels, on purpose. The DELIVERY is the name-routed event channel,
+    // because a stream has no single answer to resolve with. The START is an
+    // invoke, because it is FALLIBLE — no HealthKit on this watch, an
+    // authorization round trip, a type this binary cannot read — and the
+    // `sensor` direct method, the only other start in this package, has no
+    // reply path at all: the repo's own review calls that the one bridge left
+    // behind, and a health start that failed silently would be a screen stuck
+    // on "—" with nothing logged anywhere.
+    //
+    // No `response` shape: resolving IS the answer ("the query is armed").
+    name: "startHealthUpdates",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "Arms a live HKAnchoredObjectQueryDescriptor for one quantity type; new samples arrive on the `health.samples.<type>` event until stopHealthUpdates. Foreground-only — no background-delivery entitlement is involved.",
+    request: "HealthUpdatesRequest",
+  },
+  {
+    // Idempotent by design, and it never refuses: it is called from an effect
+    // CLEANUP, where a rejection has no caller left to handle it — stopping a
+    // stream that is already stopped is the outcome the caller wanted.
+    name: "stopHealthUpdates",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "Stops the live stream for one quantity type (cancels its query task). A stop for a type that is not streaming resolves — there is nothing to refuse.",
+    request: "HealthUpdatesStopRequest",
   },
   // --- Workout control (feature "workouts"), SEPARATE from "health" on the
   //     ARCH-07 authorization-unit rule the `push` split established: this

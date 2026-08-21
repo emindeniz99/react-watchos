@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { healthQuantityTypes, hostMethods } from "../codegen/schema";
+import {
+  healthQuantityTypes,
+  hostMethods,
+  invokeShapes,
+} from "../codegen/schema";
 import { HOST_FEATURES } from "../src/generated/wire";
+import { HEALTH_UPDATE_EVENT_PREFIX } from "../src/health";
 import type { SensorKind } from "../src/sensors";
 
 /**
@@ -17,6 +22,10 @@ import type { SensorKind } from "../src/sensors";
 
 const swiftRoot = join(__dirname, "../swift/Sources");
 const read = (rel: string) => readFileSync(join(swiftRoot, rel), "utf8");
+/** The JS half, read as SOURCE — the few rules below that pin a JS string
+ *  against a Swift one have to see both as text or they pin nothing. */
+const healthTs = () =>
+  readFileSync(join(__dirname, "../src/health.ts"), "utf8");
 
 describe("the sensor union and the Swift switch cannot half-widen", () => {
   // A Record keyed by the union, not a list: adding a member to `SensorKind`
@@ -548,13 +557,639 @@ describe("the read vocabulary cannot half-widen into the host bridge", () => {
         "HKUnit.count().unitDivided(by: .minute())",
         "count/min",
       ],
+      appleExerciseTime: ["HKUnit.minute()", "min"],
+      basalEnergyBurned: ["HKUnit.kilocalorie()", "kcal"],
+      respiratoryRate: [
+        "HKUnit.count().unitDivided(by: .minute())",
+        "count/min",
+      ],
+      flightsClimbed: ["HKUnit.count()", "count"],
+      // The one compound unit with three components to get wrong. Apple says
+      // the watch estimates the 14-60 range, so a slipped prefix (litres, or
+      // grams) reports 0.045-style nonsense under a label that still says
+      // ml/kg/min.
+      vo2Max: [
+        "HKUnit.literUnit(with: .milli).unitDivided(by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: HKUnit.minute()))",
+        "ml/kg/min",
+      ],
+      walkingHeartRateAverage: [
+        "HKUnit.count().unitDivided(by: .minute())",
+        "count/min",
+      ],
+      appleStandTime: ["HKUnit.minute()", "min"],
     };
     expect(Object.keys(UNITS).sort()).toEqual([...healthQuantityTypes].sort());
     const support = read("ReactWatchSupport/HealthQueryPlan.swift");
+    // Each arm is extracted WHOLE and compared exactly, rather than searched
+    // for as a substring. Two reasons, both of which a `toContain` gets wrong:
+    // `vo2Max`'s expression is past swift-format's 100 columns, so the arm is
+    // WRAPPED in the source and only a whitespace-insensitive match sees it;
+    // and a substring match is satisfied by a PREFIX, so an arm silently
+    // extended to `HKUnit.count().unitDivided(by: .minute())` would still pass
+    // under a wire label that still said "count". Line comments go first —
+    // flattening newlines away would weld a comment onto the arm below it, and
+    // a needle satisfied from inside a comment pins nothing.
+    const flat = (text: string) => text.replace(/\s+/g, "");
+    const arms = (text: string, from: string, to: string) => {
+      const body = text
+        .slice(text.indexOf(from), text.indexOf(to))
+        .replace(/\/\/[^\n]*/g, "");
+      const marks = [...body.matchAll(/case \.(\w+):/g)];
+      return Object.fromEntries(
+        marks.map((m, i) => [
+          m[1],
+          // The last arm's slice runs into the switch's closing braces.
+          flat(
+            body.slice(
+              m.index + m[0].length,
+              i + 1 < marks.length ? marks[i + 1].index : body.length,
+            ),
+          ).replace(/\}+$/, ""),
+        ]),
+      );
+    };
+    const measured = arms(
+      src,
+      "static func unit(for kind:",
+      "/// The sleep-analysis",
+    );
+    const named = arms(
+      support,
+      "public var unit: String {",
+      "/// The statistic a",
+    );
     for (const [kind, [hk, wire]] of Object.entries(UNITS)) {
-      expect(src).toContain(`case .${kind}: ${hk}`);
-      expect(support).toContain(`case .${kind}: "${wire}"`);
+      expect(measured[kind]).toBe(flat(hk));
+      expect(named[kind]).toBe(flat(`"${wire}"`));
     }
+  });
+});
+
+describe("the saved-workout read is a HISTORY read", () => {
+  it("is gated by `health`, never by `workouts`", () => {
+    // The authorization-unit rule, stated where it can fail: `workouts`
+    // authorizes RECORDING one workout — a write, background execution and the
+    // single session slot — while this discloses every workout the user has,
+    // including ones other apps saved. Filing it under `workouts` would let an
+    // app that asked to record a run read years of history instead, which is
+    // the exact mismatch ARCH-07 split the two features to prevent.
+    const history = hostMethods.find((m) => m.name === "queryWorkoutHistory");
+    expect(history?.feature).toBe("health");
+    expect(history?.targets).toEqual(["watch"]);
+  });
+
+  it("reads energy and distance the un-deprecated way, and never guesses zero", () => {
+    // `HKWorkout.totalEnergyBurned` / `.totalDistance` are DEPRECATED (watchOS
+    // 11.0 / 27.0) and they also answer the wrong question: they cannot
+    // distinguish "no samples" from zero. `statistics(for:)` returns nil for a
+    // workout that measured nothing, which is what rides the wire as `null`.
+    // Neither half compiles on Linux, so this is the only gate before a device.
+    const src = read("ReactWatchHost/HealthQueryBridge.swift");
+    const body = src.slice(
+      src.indexOf("func workoutHistory(_ plan: WorkoutHistoryPlan)"),
+      src.indexOf("private static func total("),
+    );
+    expect(body).toContain("Self.total(");
+    expect(body).toContain("NSNull()");
+    expect(src).toContain("workout.statistics(for: type)?.sumQuantity()");
+    // The VALIDATED plan is what the query runs on. Nothing here compiles on
+    // Linux, so a bridge that decoded the window and then queried a hardcoded
+    // range — or dropped the cap and pulled a year of workouts into a watch's
+    // memory — would pass every other gate in this file.
+    expect(body).toContain(
+      "withStart: plan.window.start, end: plan.window.end",
+    );
+    expect(body).toContain("plan.window.limit ?? HealthWindow.maxLimit");
+    // Comments stripped first: both deprecated names are NAMED in the doc
+    // comment that explains why they are not used, so scanning the raw file
+    // would match the prose that documents the rule instead of a violation.
+    const code = src.replace(/^\s*\/\/.*$/gm, "");
+    expect(code).not.toContain("totalEnergyBurned");
+    expect(code).not.toContain("totalDistance");
+    // The activity name comes from the GENERATED table, read backwards — a
+    // second hand-written mapping is a second thing to drift, and this one
+    // would mislabel a stranger's workout rather than fail.
+    expect(body).toContain("WorkoutActivityName.name(");
+  });
+
+  it("reads distance under the type the ACTIVITY records it in", () => {
+    // HealthKit has no single "distance": a ride's metres are
+    // `distanceCycling`, a swim's are `distanceSwimming`. A fixed
+    // `distanceWalkingRunning` read therefore reports null for every ride in
+    // the list — indistinguishable, on the wire, from the yoga session the
+    // field's own JSDoc says null means. The live workout already knew this
+    // rule, which is the point of the assertions below: ONE table, so the same
+    // ride cannot report 12 km while it runs and "—" once it is saved.
+    const history = read("ReactWatchHost/HealthQueryBridge.swift");
+    const body = history.slice(
+      history.indexOf("func workoutHistory(_ plan: WorkoutHistoryPlan)"),
+      history.indexOf("private static func total("),
+    );
+    expect(body).toContain("WorkoutDistance.identifier(");
+    // Comments stripped first, like the sibling check above: every rule here
+    // is NAMED in the prose that explains it.
+    const code = (rel: string) => read(rel).replace(/^\s*\/\/.*$/gm, "");
+    // The table lives in exactly one file: neither bridge may spell a distance
+    // identifier of its own.
+    for (const rel of [
+      "ReactWatchHost/HealthQueryBridge.swift",
+      "ReactWatchHost/WorkoutBridge.swift",
+    ]) {
+      expect(code(rel)).not.toContain(".distanceCycling");
+      expect(code(rel)).not.toContain(".distanceSwimming");
+    }
+    const table = code("ReactWatchHost/WorkoutDistanceType.swift");
+    for (const arm of [
+      "case .cycling, .handCycling: .distanceCycling",
+      "case .swimming: .distanceSwimming",
+      "case .wheelchairWalkPace, .wheelchairRunPace: .distanceWheelchair",
+      "default: .distanceWalkingRunning",
+    ]) {
+      expect(table).toContain(arm);
+    }
+    // watchOS 11.0 types, above this package's v10 floor: in the table they
+    // would need an `@available` gate the package does not have anywhere.
+    for (const above of [
+      "distanceRowing",
+      "distancePaddleSports",
+      "distanceCrossCountrySkiing",
+      "distanceSkatingSports",
+    ]) {
+      expect(table).not.toContain(`.${above}`);
+    }
+  });
+
+  it("puts the workout type through the same authorization door as sleep", () => {
+    // `HKObjectType.workoutType()` is neither a quantity nor a category type,
+    // so it can only reach the sheet through its own flag — and the query must
+    // request it itself, or a caller who never called
+    // requestHealthAuthorization gets a silently empty list instead of a
+    // prompt (the rule every other read in this file follows).
+    const src = read("ReactWatchHost/HealthQueryBridge.swift");
+    expect(src).toContain(
+      "if plan.workoutHistory { types.formUnion(Self.workoutHistoryTypes) }",
+    );
+    expect(src).toContain("await ensureRequested(Self.workoutHistoryTypes)");
+    // And the set is the workout type PLUS what the summary actually reads.
+    // `HKWorkout.statistics(for:)` is computed from the quantity samples
+    // associated with the workout, each authorized on its own, so a request
+    // for the workout type alone risks every row reporting null energy and
+    // null distance under a grant the user was never asked for.
+    const types = src.slice(
+      src.indexOf("static var workoutHistoryTypes"),
+      src.indexOf("static func stage(forCategoryValue"),
+    );
+    expect(types).toContain(
+      "[workoutType, HKQuantityType(.activeEnergyBurned)]",
+    );
+    expect(types).toContain("WorkoutDistance.allIdentifiers");
+  });
+});
+
+describe("the rings read is keyed by DAY, and the goals are the point", () => {
+  const bridge = () => read("ReactWatchHost/HealthQueryBridge.swift");
+  /** The query's body: decl -> the next member. */
+  const body = () => {
+    const src = bridge();
+    return src.slice(
+      src.indexOf(
+        "func activitySummaries(_ plan: ActivitySummariesPlan) async -> Outcome {",
+      ),
+      src.indexOf("static func moveMode(for mode:"),
+    );
+  };
+  /** Comments stripped: every rule below is NAMED in the prose that explains
+   *  it, so scanning the raw file would match the documentation of a rule
+   *  instead of a violation of it. */
+  const code = () => bridge().replace(/^\s*\/\/.*$/gm, "");
+
+  it("is gated by `health`, watch-only, like its sibling reads", () => {
+    const rings = hostMethods.find((m) => m.name === "queryActivitySummaries");
+    expect(rings?.feature).toBe("health");
+    expect(rings?.targets).toEqual(["watch"]);
+  });
+
+  it("builds the day predicate from the VALIDATED plan, never its own", () => {
+    // THE silent-failure hazard of this whole method. Activity summaries match
+    // by `DateComponents` identifying a day as the user perceives it, and Apple
+    // requires those components to carry a `calendar` — a set without one
+    // matches NOTHING, with no throw and no error: the caller just sees `[]`
+    // and reads it as "you have no rings". So the components are built ONCE, in
+    // ReactWatchSupport where `swift test` proves the calendar is attached
+    // (`ActivityDay.components`), and this file pins that the watchOS bridge —
+    // which no Linux job can compile — assembles none of its own.
+    expect(body()).toContain(
+      "forActivitySummariesBetweenStart: plan.start.components",
+    );
+    expect(body()).toContain("end: plan.end.components");
+    // Scoped to this read's own code: `queryHealthDailyStatistics` builds a
+    // `DateComponents(day: 1)` a few lines up as a bucket INTERVAL, which is a
+    // different thing entirely (a length, not a day).
+    expect(body()).not.toContain("DateComponents(");
+    expect(body()).not.toContain(".calendar =");
+    // Nor its own calendar: `ActivityDay.calendar` is gregorian-by-identifier
+    // for both directions, so the day the query ASKS for and the day read back
+    // off the answer cannot be resolved by two different calendars. A
+    // `Calendar.current` here would also follow a Buddhist or Japanese-era
+    // locale and report year 2569 into a date string nothing can plot.
+    expect(code()).not.toContain("Calendar(");
+    expect(code()).not.toContain("Calendar.current");
+    // Bound ONCE for the whole answer: `ActivityDay.calendar` is computed (it
+    // re-reads the system zone rather than freezing it at first use), so a
+    // thousand-row answer is dated by one zone rather than by whatever the
+    // wrist was in per row.
+    expect(body()).toContain("let calendar = ActivityDay.calendar");
+    expect(body()).toContain("summary.dateComponents(for: calendar)");
+  });
+
+  it("reads the LIVE goal spellings and carries a missing one as null", () => {
+    // The goals ARE the feature: no quantity type exposes one, so a ring could
+    // not be drawn before this read. Both live spellings are watchOS 9.0
+    // OPTIONALS — `exerciseTimeGoal` and `standHoursGoal` — and a nil one is a
+    // real state that must cross as `null`; substituting Apple's default would
+    // draw a ring the user was never scored against.
+    expect(body()).toContain("summary.exerciseTimeGoal");
+    expect(body()).toContain("summary.standHoursGoal");
+    expect(body()).toContain("summary.activeEnergyBurnedGoal");
+    expect(body()).toContain("summary.appleMoveTimeGoal");
+    expect(code()).toContain("?? NSNull()");
+    // The DEPRECATED spellings (both deprecated at watchOS 27.0) report the
+    // same two rings and must never be the ones read.
+    expect(code()).not.toContain("appleExerciseTimeGoal");
+    expect(code()).not.toContain("appleStandHoursGoal");
+    // watchOS 11.0, above this package's v10 floor: reading it would need the
+    // first `@available` gate in a package that has none.
+    expect(code()).not.toContain("isPaused");
+    // The descriptor family, not the legacy callback class — whose docs JSON
+    // carries no availability at all.
+    expect(code()).toContain("HKActivitySummaryQueryDescriptor(");
+    expect(code()).not.toContain("HKActivitySummaryQuery(");
+  });
+
+  it("asks for the summary type ALONE, through its own flag", () => {
+    // `HKObjectType.activitySummaryType()` is neither a quantity nor a category
+    // type, so like sleep it can only reach the sheet through a flag of its
+    // own — and the query requests it itself, or a caller who never ran the
+    // sheet gets a silently empty week instead of a prompt.
+    const src = bridge();
+    expect(src).toContain(
+      "if plan.activitySummaries { types.insert(Self.activitySummaryType) }",
+    );
+    expect(src).toContain("await ensureRequested([Self.activitySummaryType])");
+    // And ONE row, deliberately unlike `workoutHistoryTypes` next door: a
+    // summary is a single object HealthKit hands over whole, goals included —
+    // there are no per-sample grants behind it to widen the ask for.
+    expect(body()).not.toContain("HKQuantityType(");
+    expect(body()).not.toContain("workoutHistoryTypes");
+  });
+
+  it("drops a row it cannot date or cannot name the move ring of", () => {
+    // Both unknowns are unrenderable rather than approximable: a summary with
+    // no readable day is a bar with nowhere to go, and a move mode this binary
+    // cannot name would be drawn as the WRONG ring. The sleep read already
+    // established the posture (an unrecognized category value is dropped, never
+    // mapped to a neighbour) — a missing day reads as missing, a mislabelled
+    // one reads as a lie.
+    expect(body()).toContain(
+      "summary -> (day: ActivityDay, row: [String: Any])? in",
+    );
+    expect(body()).toContain("else { return nil }");
+    // Mapped by CASE, like every other Apple enum this bridge maps: the raw
+    // integers are undocumented, and `@unknown default` must refuse rather than
+    // fall back to energy.
+    const modes = code().slice(
+      code().indexOf("static func moveMode(for mode:"),
+    );
+    expect(modes).toContain("case .activeEnergy: .activeEnergy");
+    expect(modes).toContain("case .appleMoveTime: .appleMoveTime");
+    expect(modes).toContain("@unknown default: nil");
+  });
+
+  it("returns the days in a deterministic OLDEST-FIRST order", () => {
+    // `HKActivitySummaryQueryDescriptor.init(predicate:)` takes no sort
+    // descriptors, and Apple documents `result(for:)` only as "a snapshot of
+    // the current matching results" — no ordering promise at all. Every sibling
+    // read passes `SortDescriptor(\.startDate, order: .reverse)` and says
+    // "newest first" in its JSDoc; this one has no descriptor to pass, so the
+    // order has to be imposed after the fact or the seven-bar chart every
+    // caller draws is correct only by luck. Ascending here, unlike the sample
+    // reads, because a ring history is read left to right.
+    expect(body()).toContain("rows.sorted { $0.day.serial < $1.day.serial }");
+    // By `serial`, the calendar-free arithmetic the day ceiling is counted
+    // with — not by a `Date`, which would need a zone to compare two days.
+    expect(body()).not.toContain("$0.day.iso");
+  });
+});
+
+describe("the live sample stream is named once and lives only in the foreground", () => {
+  const bridge = () => read("ReactWatchHost/HealthQueryBridge.swift");
+  const host = () => read("ReactWatchHost/ReactWatchHost.swift");
+  const support = () => read("ReactWatchSupport/HealthQueryPlan.swift");
+  /** The query builder's body: decl -> the next member. */
+  const query = () => {
+    const src = bridge();
+    return src.slice(
+      src.indexOf("private func startQuery(_ plan: HealthUpdatesPlan) {"),
+      src.indexOf("func stopUpdates(_ plan: HealthUpdatesStopPlan) {"),
+    );
+  };
+  /** Comments stripped — every rule below is NAMED in the prose explaining
+   *  it, so a raw scan would match the documentation of a rule instead of a
+   *  violation of it. */
+  const code = () => bridge().replace(/^\s*\/\/.*$/gm, "");
+
+  it("spells the event name in exactly one place, and JS agrees with it", () => {
+    // THE typo gate. The event name is an unchecked STRING on both sides — a
+    // Swift literal and a JS constant — and nothing compares them: a typo in
+    // either yields a subscription that never fires, with no error anywhere to
+    // say why. So there is one definition per side and this pins them equal.
+    expect(support()).toContain(
+      `public static let eventPrefix = "${HEALTH_UPDATE_EVENT_PREFIX}"`,
+    );
+    // ... and only one per side. The bridge asks the PLAN for the name
+    // (`plan.eventName`) and the host forwards whatever it is handed, so a
+    // second hand-written literal — the way the two halves would drift — fails
+    // here rather than on a watch.
+    const spelled = (src: string) =>
+      src.split(`"${HEALTH_UPDATE_EVENT_PREFIX}`).length - 1;
+    expect(spelled(support())).toBe(1);
+    expect(spelled(code())).toBe(0);
+    expect(spelled(host().replace(/^\s*\/\/.*$/gm, ""))).toBe(0);
+    expect(query()).toContain("let event = plan.eventName");
+    // Derived from the kind's raw value, so a fifteenth read type gets its
+    // event name for free instead of needing a second table to forget.
+    expect(support()).toContain("eventPrefix + kind.rawValue");
+  });
+
+  it("is a subscription on the INVOKE channel, not the reply-less sensor op", () => {
+    // The start is FALLIBLE — no HealthKit, an unreadable type, an
+    // authorization round trip — so it settles. `sensor` is the counter-example
+    // and the reason: a fire-and-forget direct method with no reply path, where
+    // a stream that never starts is a screen showing "—" and nothing in the log.
+    for (const name of ["startHealthUpdates", "stopHealthUpdates"]) {
+      const method = hostMethods.find((m) => m.name === name);
+      expect(method?.via).toBe("invoke");
+      expect(method?.feature).toBe("health");
+      expect(method?.targets).toEqual(["watch"]);
+      // No `response`: resolving IS the answer, and the samples arrive on the
+      // event channel rather than as a return value.
+      expect(method?.response).toBeUndefined();
+    }
+    // The STOP is the one health method not gated on `healthAvailable`: it runs
+    // in an effect cleanup, where a rejection has no caller left and would
+    // surface as an unhandled rejection on a routine unmount.
+    const stop = host().slice(
+      host().indexOf(
+        "private func handleStopHealthUpdates(id: Int, payload: String) {",
+      ),
+      host().indexOf("private func settleHealth("),
+    );
+    expect(stop).not.toContain("healthAvailable");
+    expect(stop).toContain("health.stopUpdates(plan)");
+    // The START is gated, like every other health method.
+    expect(
+      host().slice(
+        host().indexOf(
+          "private func handleStartHealthUpdates(id: Int, payload: String) {",
+        ),
+        host().indexOf(
+          "private func handleStopHealthUpdates(id: Int, payload: String) {",
+        ),
+      ),
+    ).toContain("guard healthAvailable(id: id) else { return }");
+  });
+
+  it("delivers NEW samples only, with no cap that could end the stream", () => {
+    // `anchor: nil` means "everything matching, then updates", so the PREDICATE
+    // is what keeps the backlog out: samples still running or saved for an
+    // interval reaching into now match, ones already over do not. A subscriber
+    // that wants history has `queryHealthSamples`; replaying it here would hand
+    // a screen a thousand-row first push on a device with a few MB of headroom.
+    expect(query()).toContain("anchor: nil");
+    expect(query()).toContain("withStart: Date(), end: nil");
+    // No `limit`: Apple documents it as the maximum number of samples the QUERY
+    // returns — a total, not a page — so a limit on a long-running stream would
+    // end it silently after N samples, the one failure a live screen cannot see.
+    expect(query()).toContain("limit: nil");
+    // Sorted, because `addedSamples` carries no order promise and
+    // `samples.at(-1)` is the newest value a heart-rate screen renders.
+    expect(query()).toContain(".sorted { $0.startDate < $1.startDate }");
+    // An update with nothing added is not pushed: an empty batch would wake
+    // every subscriber and commit a render to say nothing happened.
+    expect(query()).toContain("guard !rows.isEmpty else { continue }");
+    // The descriptor family, not the callback class — whose cancellation and
+    // off-main `updateHandler` this file would have to hand-roll around.
+    expect(code()).toContain("HKAnchoredObjectQueryDescriptor(");
+    expect(code()).not.toContain("HKAnchoredObjectQuery(");
+  });
+
+  it("emits a sample row with the SAME keys queryHealthSamples returns", () => {
+    // The gap the ARCH-11 producer scan structurally cannot cover: that scan
+    // reads invoke RESPONSES, and this payload rides the event channel, where
+    // nothing decodes it strictly. A renamed key here degrades to `undefined`
+    // on a watch with every other gate still green — so the row is pinned
+    // against the schema's own `HealthSample` fields, in both directions.
+    const declared = invokeShapes.find((shape) => shape.ts === "HealthSample");
+    expect(declared).toBeDefined();
+    const emitted = new Set(
+      [...query().matchAll(/^\s*"(\w+)":/gm)].map((m) => m[1] as string),
+    );
+    expect([...emitted].sort()).toEqual(
+      (declared?.fields ?? []).map((f) => f.name).sort(),
+    );
+    // And the unit is the READ table's, not a second spelling: a screen that
+    // reads a total once and then streams must not have its numbers change
+    // meaning halfway.
+    expect(query()).toContain("let unit = Self.unit(for: kind)");
+    expect(query()).toContain("let unitName = kind.unit");
+    // The row keys are only half of it: the payload WRAPPER key is the same
+    // unchecked string pair as the event name — a Swift literal here, a
+    // `payload?.samples` read in health.ts — and renaming the Swift half would
+    // leave every gate green while `Array.isArray(samples)` fails on every push
+    // and the handler silently never fires.
+    const wrapperKey = "samples";
+    expect(host()).toContain(
+      `pushNativeEvent(event, payload: ["${wrapperKey}": samples])`,
+    );
+    expect(healthTs()).toContain(`const samples = payload?.${wrapperKey};`);
+  });
+
+  it("coalesces by MERGING held batches, so none is dropped and none paces", () => {
+    // Every push is a bridge crossing plus a synchronous React commit, so an
+    // uncoalesced stream re-renders at sample rate — the cost `workout.metrics`
+    // already coalesces against. Two differences, and the buffer serves both:
+    // metrics are level state, so `emitMetricsIfDue` drops a too-early one and
+    // loses nothing, while a sample stream is edge-triggered and a dropped batch
+    // is data the caller can never get back; and N held batches merge into ONE
+    // push, where sleeping between iterations would make them N pushes a floor
+    // apart — the same render cost the knob was raised to avoid.
+    expect(query()).toContain("let buffer = UpdateBuffer()");
+    expect(query()).toContain("buffer.rows.append(contentsOf: rows)");
+    expect(query()).toContain("buffer.take()");
+    // The sleep is in the FLUSH, never in the `for try await` body: leaving a
+    // batch unconsumed inside Apple's sequence would make the never-drop promise
+    // HealthKit's to keep, and its buffering policy is documented nowhere.
+    const loop = query().slice(
+      query().indexOf("for try await update in descriptor.results(for: store)"),
+      query().indexOf("buffer.flush = Task {"),
+    );
+    expect(loop).not.toContain("Task.sleep(");
+    // A cancelled task still stops draining the sequence when the floor is 0
+    // (legal, and it means "every batch, as it lands"), where nothing else in
+    // the loop body suspends.
+    expect(loop).toContain("try Task.checkCancellation()");
+    // The emit guard is this task's OWN identity. `wantedUpdates` cannot answer
+    // it: a background pause deliberately keeps that entry, so an in-flight
+    // batch would push into an app nobody can see, and a stop-then-restart would
+    // make it push alongside the new stream. The epoch moves on every stop,
+    // pause, teardown and supersession, so it covers all of them without relying
+    // on Apple observing cancellation promptly.
+    expect(query()).not.toContain("self.wantedUpdates[kind] != nil");
+    expect(
+      query().split("guard let self, self.updateEpochs[kind] == epoch else")
+        .length - 1,
+    ).toBe(3);
+    // Which is only true if the pause moves the epoch too — the one supersession
+    // path that leaves `wantedUpdates` intact by design.
+    const pause = code().slice(
+      code().indexOf("func pauseUpdatesForBackground() {"),
+      code().indexOf("func resumeUpdatesFromForeground() {"),
+    );
+    expect(pause).toContain(
+      "updateEpochs[kind] = (updateEpochs[kind] ?? 0) + 1",
+    );
+  });
+
+  it("stops every stream on teardown, before the runtime is freed", () => {
+    // The push path is name-routed with NO generation guard, so a query that
+    // outlived `tearDownGeneration()` would deliver `health.samples.*` into the
+    // runtime `boot()` is about to install — one that never subscribed.
+    // `sensors.stopAll()`'s reason, for the one stream that is not a sensor.
+    const teardown = host().slice(
+      host().indexOf("private func tearDownGeneration() {"),
+      host().indexOf(
+        "private func installFreshRuntime() throws -> JSRuntime {",
+      ),
+    );
+    expect(teardown).toContain("health.stopAllUpdates()");
+    expect(teardown.indexOf("health.stopAllUpdates()")).toBeLessThan(
+      teardown.indexOf("runtime?.shutdown()"),
+    );
+  });
+
+  it("is foreground-only: paused on background, re-armed on active", () => {
+    // A backgrounded app is not unmounted, so JS effect cleanups never fire and
+    // native owns the policy (the P0-3 rule the heart-rate pump lives by). And
+    // this package ships no background-delivery entitlement, so an armed query
+    // would deliver nothing while the app is away and wake it for nothing when
+    // it returned.
+    const scene = host().slice(
+      host().indexOf("func handleScenePhase(background: Bool) {"),
+    );
+    const active = scene.indexOf("} else {");
+    expect(scene.indexOf("health.pauseUpdatesForBackground()")).toBeLessThan(
+      active,
+    );
+    expect(
+      scene.indexOf("health.resumeUpdatesFromForeground()"),
+    ).toBeGreaterThan(active);
+    // The DESIRED state survives the pause — that is what makes the resume a
+    // restart rather than a guess — while the task handles do not.
+    const pause = code().slice(
+      code().indexOf("func pauseUpdatesForBackground() {"),
+      code().indexOf("func resumeUpdatesFromForeground() {"),
+    );
+    expect(pause).toContain("updateTasks.removeAll()");
+    expect(pause).not.toContain("wantedUpdates.removeAll()");
+    // No background delivery is requested anywhere: Apple gates that behind an
+    // entitlement this package does not ship, and asking for it without one is
+    // how the feature would fail at runtime instead of at review.
+    expect(code()).not.toContain("enableBackgroundDelivery");
+    expect(host()).not.toContain("enableBackgroundDelivery");
+  });
+
+  it("cannot arm an orphan query out of the authorization window", () => {
+    // The window is real: the sheet is a suspension, and a stop — or React
+    // StrictMode's stop-then-restart — lands inside it. Without the epoch the
+    // superseded start would resume, see the SECOND start's `wantedUpdates`
+    // entry, and arm a second query whose handle is immediately overwritten: an
+    // orphan pushing duplicate samples with nothing left to cancel it.
+    const begin = code().slice(
+      code().indexOf("func beginUpdates(_ plan: HealthUpdatesPlan) -> Int? {"),
+      code().indexOf(
+        "func finishUpdates(_ plan: HealthUpdatesPlan, epoch: Int) async",
+      ),
+    );
+    const start = code().slice(
+      code().indexOf(
+        "func finishUpdates(_ plan: HealthUpdatesPlan, epoch: Int) async",
+      ),
+      code().indexOf("private func startQuery(_ plan: HealthUpdatesPlan) {"),
+    );
+    expect(start).toContain("guard updateEpochs[kind] == epoch else");
+    expect(start).toContain("guard !isBackgrounded else");
+    // The epoch and the desired state are CLAIMED synchronously, and the claim
+    // is a true no-op for a type already streaming. Both halves matter: bumping
+    // the epoch past a running task's would break the self-heal below (its tail
+    // would never clear a finished handle, and nothing could re-arm), and
+    // re-latching `wantedUpdates` would silently re-arm the next foreground at
+    // the SECOND subscriber's interval — contradicting the first-subscriber-wins
+    // rule `HealthUpdateOptions` documents.
+    expect(begin.indexOf("guard updateTasks[kind] == nil else")).toBeLessThan(
+      begin.indexOf("updateEpochs[kind] = epoch"),
+    );
+    expect(begin.indexOf("updateEpochs[kind] = epoch")).toBeLessThan(
+      begin.indexOf("wantedUpdates[kind] = plan"),
+    );
+    // ... and the async half claims NOTHING, or a stop that ran while the
+    // authorization sheet was up would have nothing to supersede.
+    expect(start).not.toContain("wantedUpdates[kind] = plan");
+    // The host claims BEFORE it hops. `invoke` is a synchronous QuickJS
+    // callback and the matching stop is synchronous, so a start whose state
+    // landed only inside its `Task` would be invisible to a stop — or to
+    // `tearDownGeneration()` — issued in the same JS turn, and would then arm a
+    // query with no subscriber left and nothing able to cancel it.
+    const handler = host().slice(
+      host().indexOf(
+        "private func handleStartHealthUpdates(id: Int, payload: String) {",
+      ),
+      host().indexOf(
+        "private func handleStopHealthUpdates(id: Int, payload: String) {",
+      ),
+    );
+    expect(handler).toContain("guard let epoch = health.beginUpdates(plan)");
+    expect(handler.indexOf("health.beginUpdates(plan)")).toBeLessThan(
+      handler.indexOf("Task {"),
+    );
+    expect(handler).toContain("bridge.finishUpdates(plan, epoch: epoch)");
+    // The epoch moves on a STOP too, or a start still inside the window would
+    // resume and arm the stream the stop just took down.
+    expect(code()).toContain(
+      "updateEpochs[kind] = (updateEpochs[kind] ?? 0) + 1",
+    );
+    // One task per type, always, and the resume bumps the epoch too — so a
+    // start still inside its window is superseded by a foreground resume
+    // rather than racing it.
+    expect(query()).toContain("guard updateTasks[kind] == nil else { return }");
+    expect(query()).toContain("let epoch = (updateEpochs[kind] ?? 0) + 1");
+    // A stream HealthKit ends on its own clears its handle, so `wanted` with no
+    // task is what the next foreground re-arms — the `sensor.heartRate`
+    // recovery rule. Epoch-guarded, or a task cancelled to make room for a
+    // newer one would clear the newer one's handle on the way out.
+    expect(query()).toContain(
+      "guard let self, self.updateEpochs[kind] == epoch else { return }",
+    );
+  });
+
+  it("touches its main-confined state only from the main actor", () => {
+    // HealthKit produces these elements on its own queue. The whole bridge is
+    // `@MainActor`, so the query's `Task` inherits that isolation and every
+    // `await` resumes on main — which is why this file needs none of
+    // WorkoutBridge's `nonisolated(unsafe)` hops, and why the AsyncSequence was
+    // chosen over `HKAnchoredObjectQuery`'s off-main `updateHandler`.
+    expect(bridge()).toContain("@MainActor final class HealthQueryBridge {");
+    expect(code()).not.toContain("nonisolated(unsafe)");
+    expect(code()).not.toContain("DispatchQueue.main.async");
   });
 });
 

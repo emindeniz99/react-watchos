@@ -422,6 +422,34 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(both.infoPlist.NSHealthShareUsageDescription).toContain(
       "blood oxygen",
     );
+    // The 2026-08-20 widening repeated the shape a third time: seven more
+    // quantity types, four of them categories no word in the sheet implied.
+    // Every one that isn't covered by a neighbouring phrase is pinned, because
+    // the failure is always the same silent under-promise. The words are plain
+    // English, and Apple's own label where that is already plain — so
+    // `respiratoryRate` is "respiratory rate" (what the sheet's own row says),
+    // while `vo2Max` becomes "cardio fitness" and `basalEnergyBurned` is named
+    // rather than left to a bare "energy".
+    // `queryWorkoutHistory` (same day) reads SAVED WORKOUTS —
+    // `HKObjectType.workoutType()`, not a quantity type, and its own row in the
+    // sheet. Recording a workout is what the UPDATE string covers; nothing in
+    // the read sentence implied being shown the user's whole workout history.
+    for (const category of [
+      "respiratory rate",
+      "cardio fitness",
+      "flights climbed",
+      "active and resting energy",
+      "exercise and stand time",
+      "your saved workouts",
+      // `queryActivitySummaries` (same day) reads the ACTIVITY RINGS —
+      // `HKObjectType.activitySummaryType()`, a third kind of read type and its
+      // own row again. Named separately from "exercise and stand time" because
+      // it is a different row disclosing a different thing: the GOALS the user
+      // is scored against, every day, which no quantity read exposes.
+      "your activity rings and their goals",
+    ]) {
+      expect(both.infoPlist.NSHealthShareUsageDescription).toContain(category);
+    }
     // Workouts alone genuinely IS heart-rate-only — don't over-promise there.
     expect(
       watchTargetConfig({ ...demoOpts, healthKit: false, workouts: true })

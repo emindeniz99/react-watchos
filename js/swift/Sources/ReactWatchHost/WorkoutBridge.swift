@@ -757,19 +757,13 @@ final class WorkoutSessionOwner: NSObject {
     }
 
     /// HealthKit records distance under a type that depends on the activity, so
-    /// asking for `distanceWalkingRunning` during a ride reports nothing.
+    /// asking for `distanceWalkingRunning` during a ride reports nothing. The
+    /// table itself lives in `WorkoutDistance`, shared with the saved-workout
+    /// read — one ride, one answer, whether it is live or in the history list.
     private func distanceMeters(from builder: HKLiveWorkoutBuilder) -> Double? {
-        quantity(Self.distanceIdentifier(for: activePlan), from: builder, unit: .meter())
-    }
-
-    private static func distanceIdentifier(
-        for plan: WorkoutStartPlan?
-    ) -> HKQuantityTypeIdentifier {
-        switch plan?.activityType {
-        case "cycling", "handCycling": .distanceCycling
-        case "swimming": .distanceSwimming
-        default: .distanceWalkingRunning
-        }
+        quantity(
+            WorkoutDistance.identifier(forName: activePlan?.activityType), from: builder,
+            unit: .meter())
     }
 
     /// onState calls into the @MainActor model; hop to main, matching the

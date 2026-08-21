@@ -32,6 +32,7 @@ import {
 import type { DeviceInfo } from "../src/device";
 import { getDeviceInfo } from "../src/device";
 import type {
+  ActivitySummary as WireActivitySummary,
   CalendarEvent as WireCalendarEvent,
   ConnectivityState as WireConnectivityState,
   Coordinate as WireCoordinate,
@@ -51,19 +52,26 @@ import type {
   SleepSample as WireSleepSample,
   UpdateState as WireUpdateState,
   WorkoutState as WireWorkoutState,
+  WorkoutSummary as WireWorkoutSummary,
 } from "../src/generated/wire";
 import { INVOKE_SHAPES } from "../src/generated/wire";
 import type {
+  ActivitySummary,
   HealthSample,
   HealthStatisticsResult,
   SleepSample,
+  WorkoutSummary,
 } from "../src/health";
 import {
+  __resetHealthUpdatesForTest,
+  queryActivitySummaries,
   queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,
+  queryWorkoutHistory,
   requestHealthAuthorization,
+  startHealthUpdates,
 } from "../src/health";
 import type { IAPProduct, PurchaseResult } from "../src/iap";
 import { getProducts, purchase } from "../src/iap";
@@ -272,6 +280,63 @@ const sleepSamples: SleepSample[] = [
     stage: "asleepDeep",
   },
 ];
+// Two saved workouts, and the second is the one that matters: a workout ANOTHER
+// app saved, whose activity this binary's vocabulary has no name for (so
+// `activityType` is absent rather than guessed) and which recorded neither
+// energy nor distance samples — so the fixture makes the `null`s ride the wire
+// as values rather than as omissions, while the first row exercises the full
+// set.
+const workoutSummaries: WorkoutSummary[] = [
+  {
+    id: "6C7F1B0E-6C3E-4B0A-9F1D-2A9E4F1B7C10",
+    startMs: 1_768_460_400_000,
+    endMs: 1_768_462_245_000,
+    durationMs: 1_800_000,
+    activityType: "running",
+    activeEnergyKcal: 312.5,
+    distanceMeters: 5_412.75,
+  },
+  {
+    id: "9B1DEB4D-3B7D-4BAD-9BDD-2B0D7B3DCB6D",
+    startMs: 1_768_390_000_000,
+    endMs: 1_768_392_700_000,
+    durationMs: 2_700_000,
+    activeEnergyKcal: null,
+    distanceMeters: null,
+  },
+];
+// Two ring days out of a SEVEN-day ask, and the gap is deliberate: HealthKit
+// returns no row for a day it has no summary for, so the fixture is 2026-01-14
+// and 2026-01-16 with the 15th simply missing — which is what makes `date` on
+// every row load-bearing rather than decorative. The second row is a MOVE TIME
+// user (the under-18 / Settings case) with both watchOS 9.0 goals absent, so the
+// `moveMode` branch and the two `null`s ride the wire as values.
+const activitySummaries: ActivitySummary[] = [
+  {
+    date: "2026-01-14",
+    moveMode: "activeEnergy",
+    activeEnergyKcal: 412.5,
+    activeEnergyGoalKcal: 500,
+    moveTimeMinutes: 0,
+    moveTimeGoalMinutes: 30,
+    exerciseMinutes: 23,
+    exerciseGoalMinutes: 30,
+    standHours: 10,
+    standHoursGoal: 12,
+  },
+  {
+    date: "2026-01-16",
+    moveMode: "appleMoveTime",
+    activeEnergyKcal: 180,
+    activeEnergyGoalKcal: 350,
+    moveTimeMinutes: 47,
+    moveTimeGoalMinutes: 60,
+    exerciseMinutes: 12,
+    exerciseGoalMinutes: null,
+    standHours: 7,
+    standHoursGoal: null,
+  },
+];
 // WorkoutKit plans. The id is a real UUID on purpose: native REJECTS a
 // non-UUID rather than minting a replacement, so a fixture carrying a
 // made-up string would encode the opposite of the contract.
@@ -423,6 +488,8 @@ const RESULTS: Record<string, unknown> = {
   queryHealthDailyStatistics: healthDailyStatistics,
   queryHealthSamples: healthSamples,
   querySleepSamples: sleepSamples,
+  queryWorkoutHistory: workoutSummaries,
+  queryActivitySummaries: activitySummaries,
   endWorkout: workoutState,
   getWorkoutState: workoutState,
   queryPedometer: pedometerData,
@@ -473,6 +540,9 @@ afterEach(() => {
   delete g.__host;
   delete g.__resolveInvoke;
   delete g.__rejectInvoke;
+  // The one wrapper in this file with module-level state: a live-updates
+  // subscription refcount that outlives the host it was started against.
+  __resetHealthUpdatesForTest();
 });
 
 describe("invoke contract fixtures (ARCH-11)", () => {
@@ -523,7 +593,12 @@ describe("invoke contract fixtures (ARCH-11)", () => {
     // Health reads: `sleep` and `limit` are optional but still declared, and
     // the field-coverage assertion below requires every declared field to ride
     // some fixture — so each call opts into all of them.
-    await requestHealthAuthorization({ read: ["stepCount"], sleep: true });
+    await requestHealthAuthorization({
+      read: ["stepCount"],
+      sleep: true,
+      workoutHistory: true,
+      activitySummaries: true,
+    });
     await queryHealthStatistics({
       type: "stepCount",
       statistic: "sum",
@@ -550,6 +625,28 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       endMs: 1_768_483_200_000,
       limit: 50,
     });
+    await queryWorkoutHistory({
+      startMs: 1_768_396_800_000,
+      endMs: 1_768_483_200_000,
+      limit: 20,
+    });
+    // A WEEK of rings — the only request in this file whose window is a pair of
+    // calendar DAYS rather than milliseconds (see queryActivitySummaries).
+    await queryActivitySummaries({
+      startDate: "2026-01-14",
+      endDate: "2026-01-20",
+    });
+    // The one SUBSCRIPTION in the family, both halves of it. `minIntervalMs`
+    // rides explicitly because the field-coverage assertion below wants every
+    // declared field in some fixture, and it is the knob a caller omits. The
+    // stop is driven through the real `stop()` so the fixture is the payload a
+    // React effect cleanup actually sends — the refcount is what decides it is
+    // sent at all.
+    const liveSteps = startHealthUpdates("stepCount", () => {}, {
+      minIntervalMs: 2000,
+    });
+    await liveSteps.started;
+    liveSteps.stop();
     await startWorkout("running", {
       location: "outdoor",
       metricsIntervalMs: 2000,
@@ -800,6 +897,26 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       ),
     );
     writeFixture(
+      "queryWorkoutHistory",
+      "response",
+      JSON.stringify(
+        await queryWorkoutHistory({
+          startMs: 1_768_396_800_000,
+          endMs: 1_768_483_200_000,
+        }),
+      ),
+    );
+    writeFixture(
+      "queryActivitySummaries",
+      "response",
+      JSON.stringify(
+        await queryActivitySummaries({
+          startDate: "2026-01-14",
+          endDate: "2026-01-20",
+        }),
+      ),
+    );
+    writeFixture(
       "scheduleWorkoutPlan",
       "response",
       JSON.stringify(
@@ -921,6 +1038,9 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
     const healthSampleExact: Exact<HealthSample, WireHealthSample> = true;
     const sleepSampleExact: Exact<SleepSample, WireSleepSample> = true;
     const workoutStateExact: Exact<WorkoutState, WireWorkoutState> = true;
+    const workoutSummaryExact: Exact<WorkoutSummary, WireWorkoutSummary> = true;
+    const activitySummaryExact: Exact<ActivitySummary, WireActivitySummary> =
+      true;
     const fileTransferHandleExact: Exact<
       FileTransferHandle,
       WireFileTransferHandle
@@ -955,6 +1075,8 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       healthSampleExact,
       sleepSampleExact,
       workoutStateExact,
+      workoutSummaryExact,
+      activitySummaryExact,
       fileTransferHandleExact,
       fileTransferStatusExact,
       connectivityStateExact,
@@ -962,6 +1084,6 @@ describe("invoke result shapes are type-identical to the public interfaces", () 
       calendarEventExact,
       reminderExact,
       scheduledWorkoutExact,
-    ]).toEqual(Array(18).fill(true));
+    ]).toEqual(Array(20).fill(true));
   });
 });

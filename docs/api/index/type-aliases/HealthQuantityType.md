@@ -6,7 +6,7 @@
 
 # Type Alias: HealthQuantityType
 
-> **HealthQuantityType** = `"stepCount"` \| `"activeEnergyBurned"` \| `"distanceWalkingRunning"` \| `"heartRate"` \| `"oxygenSaturation"` \| `"heartRateVariabilitySDNN"` \| `"restingHeartRate"`
+> **HealthQuantityType** = `"stepCount"` \| `"activeEnergyBurned"` \| `"distanceWalkingRunning"` \| `"heartRate"` \| `"oxygenSaturation"` \| `"heartRateVariabilitySDNN"` \| `"restingHeartRate"` \| `"appleExerciseTime"` \| `"basalEnergyBurned"` \| `"respiratoryRate"` \| `"flightsClimbed"` \| `"vo2Max"` \| `"walkingHeartRateAverage"` \| `"appleStandTime"`
 
 Defined in: [js/src/generated/wire.ts:17](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L17)
 

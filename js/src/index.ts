@@ -194,6 +194,9 @@ export { WIRE_VERSION } from "./generated/wire";
 export type { HapticType } from "./haptics";
 export { playHaptic } from "./haptics";
 export type {
+  ActivityMoveMode,
+  ActivitySummariesQuery,
+  ActivitySummary,
   HealthAuthorizationOptions,
   HealthAuthorizationResult,
   HealthQuantityType,
@@ -202,16 +205,26 @@ export type {
   HealthStatistic,
   HealthStatisticsQuery,
   HealthStatisticsResult,
+  HealthUpdate,
+  HealthUpdateHandler,
+  HealthUpdateOptions,
+  HealthUpdatesSubscription,
   SleepSample,
   SleepSamplesQuery,
   SleepStage,
+  WorkoutHistoryQuery,
+  WorkoutSummary,
 } from "./health";
 export {
+  HEALTH_UPDATE_EVENT_PREFIX,
+  queryActivitySummaries,
   queryHealthDailyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,
+  queryWorkoutHistory,
   requestHealthAuthorization,
+  startHealthUpdates,
 } from "./health";
 export type {
   HostBridge,
