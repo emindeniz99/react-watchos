@@ -176,8 +176,10 @@ jobs:
       # image happens to bundle is an assumption, not a control: an image
       # refresh that ships an older npm would break OIDC auth at publish time,
       # after the tag and the Release already exist. Pin it.
+      # (zizmor flags any un-lockfiled global install; that IS the point here —
+      # the version we need is a control, not whatever the image ships.)
       - name: Pin npm (trusted publishing needs >= 11.5.1)
-        run: npm install -g npm@^11.5.1
+        run: npm install -g npm@^11.5.1 # zizmor: ignore[adhoc-packages]
       - name: Install (pnpm workspace)
         run: pnpm install --frozen-lockfile
       # The quality gates run HERE, against the tagged tree, before the registry
