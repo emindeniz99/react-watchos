@@ -44,14 +44,16 @@ jobs:
       # `at n (min.js:1:30)` here. So nothing is downloaded: build.sh compiles
       # js/swift/Sources/CQuickJS, the sources SwiftPM also compiles for watchOS.
       #
-      # ~30 s cold, free warm. The key is the stamp build.sh computes over the
-      # engine sources, the C hosts, the script and the compiler identity, so a
-      # vendor bump rebuilds exactly once and every other run restores. Keyed per
-      # runner OS + arch, so a macOS job can never restore a Linux binary.
+      # ~30 s cold, free warm. The cached path is the per-user cache directory
+      # build.sh writes to (it keeps build output out of the checkout and lets a
+      # second clone reuse the build); QJS_BUILD_DIR would override it. Keyed per
+      # runner OS + arch, so a macOS job can never restore a Linux binary — and
+      # build.sh's own stamp hashes `uname -sm` too, so a restored-but-wrong
+      # artifact rebuilds instead of failing to exec.
       - name: Cache the vendored quickjs-ng build
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: tools/vendored-qjs/out
+          path: ~/.cache/react-watchos/vendored-qjs
           key: qjs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('js/swift/Sources/CQuickJS/**', 'tools/vendored-qjs/main.c', 'tools/vendored-qjs/build.sh') }}
       - name: Build the vendored quickjs-ng
         run: echo "QJS_BIN=$(tools/vendored-qjs/build.sh)" >> "$GITHUB_ENV"
