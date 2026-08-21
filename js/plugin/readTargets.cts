@@ -10,6 +10,10 @@ export interface GeneratedTarget {
   dir: string;
   name: string;
   type: string;
+  // This is the consumer's own expo-target.config.js, `require`d back at
+  // runtime — an arbitrary user-authored object. Only `type`/`name`/`infoPlist`
+  // are ever read and each read narrows, so `unknown` would only move the cast.
+  // biome-ignore lint/suspicious/noExplicitAny: user-authored config object — see above
   config: Record<string, any>;
 }
 

@@ -201,7 +201,9 @@ export function signManifest({
   }
   const privateKey = privateKeyFromSeed(privateKeySeedBase64);
   const manifestPath = join(distDir, manifestFileName);
-  const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as OTAManifest;
+  const manifest = JSON.parse(
+    readFileSync(manifestPath, "utf8"),
+  ) as OTAManifest;
   const bundle = readFileSync(join(distDir, manifest.bundle), "utf8");
   // The expiry the signature commits to: an explicit option wins, else the
   // manifest's own value, else "never". Integer-coerced so the signed string

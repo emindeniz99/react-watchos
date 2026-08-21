@@ -32,6 +32,10 @@ const WIDGET_PRODUCTS = ["ReactWatchWidget", "ReactWatchCore"];
  * exposes it as raw parsed plist objects.
  */
 export interface XcodeProjectLike {
+  // The pbxproj object graph node-xcode hands back IS untyped — raw parsed
+  // plist values of every shape (see the doc block above). Narrowing it would
+  // be inventing a contract the library does not offer.
+  // biome-ignore lint/suspicious/noExplicitAny: untyped pbxproj graph — see above
   hash: { project: { objects: Record<string, Record<string, any>> } };
   generateUuid: () => string;
   getFirstProject: () => {
@@ -47,11 +51,14 @@ export interface XcodeProjectLike {
  * Ensures an ISA section exists in the pbxproj object graph.
  */
 function section(
+  // biome-ignore lint/suspicious/noExplicitAny: same untyped pbxproj graph as XcodeProjectLike.hash
   objects: Record<string, Record<string, any>>,
   isa: string,
+  // biome-ignore lint/suspicious/noExplicitAny: returns a slice of that graph.
 ): Record<string, any> {
   const existing = objects[isa];
   if (existing) return existing;
+  // biome-ignore lint/suspicious/noExplicitAny: ditto — a fresh ISA section.
   const created: Record<string, any> = {};
   objects[isa] = created;
   return created;

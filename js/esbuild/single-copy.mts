@@ -99,7 +99,9 @@ export function singleCopyPlugin(
         }
         const duplicates = findDuplicateCopies(result.metafile, names);
         if (duplicates.length === 0) return null;
-        return { errors: duplicates.map((d) => ({ text: duplicateCopyMessage(d) })) };
+        return {
+          errors: duplicates.map((d) => ({ text: duplicateCopyMessage(d) })),
+        };
       });
     },
   };

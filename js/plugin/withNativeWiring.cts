@@ -1,3 +1,9 @@
+// The directive below is NOT redundant, whatever the lint rule says: its
+// premise ("modules are automatically strict") holds for ESM, and every plugin
+// file here is .cts, loaded as CommonJS both in-repo (Node type-stripping) and
+// shipped (Expo requires the compiled dist-node/plugin.cjs). CommonJS is sloppy
+// mode without it.
+// biome-ignore lint/suspicious/noRedundantUseStrict: .cts is CommonJS — see above
 "use strict";
 
 const fs = require("node:fs");
