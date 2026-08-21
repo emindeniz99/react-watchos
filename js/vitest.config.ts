@@ -25,5 +25,23 @@ if (!stripping) {
 export default defineConfig({
   test: {
     include: ["test/**/*.test.{ts,tsx}"],
+    // Only read by `pnpm coverage` / `vitest run --coverage`; a plain
+    // `pnpm test` never instruments. REPORT-ONLY BY DESIGN: no `thresholds`
+    // key, so coverage can never fail a build. A number nobody chose is not a
+    // quality bar, and a bar set to today's number just makes people write
+    // tests for the easy files. It is here to be LOOKED at — CI prints the
+    // summary on every run so a drop is visible in the log of the PR that
+    // caused it.
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary"],
+      // The renderer + runtime — the code that ships to the watch. The Node
+      // tooling (esbuild/, plugin/, scripts/, codegen/) is covered by its own
+      // integration tests, which build and prebuild real projects rather than
+      // call functions, so line coverage there measures the wrong thing.
+      include: ["src/**"],
+      // Generated from codegen/schema.ts; `codegen --check` is its gate.
+      exclude: ["src/generated/**"],
+    },
   },
 });

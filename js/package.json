@@ -88,6 +88,8 @@
     "codegen": "node --experimental-strip-types codegen/generate.ts",
     "docs:api": "typedoc && node --experimental-strip-types scripts/gen-capability-table.ts",
     "test": "vitest run",
+    "coverage": "vitest run --coverage --testTimeout=30000",
+    "quality": "bash scripts/quality.sh",
     "test:swift": "cd swift && swift test",
     "test:swift:watch": "bash scripts/test-watch.sh",
     "run:watch": "bash scripts/run-watch-sim.sh",
