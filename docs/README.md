@@ -110,6 +110,17 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   two Always-On initial-value mechanisms that both have to exist. Also records
   the standing gaps: file transfer is 🔴 **unverifiable on a simulator** (Apple
   says so twice) and wrist-down is device-only.
+- [design-focus-management.md](./design-focus-management.md) — Crown focus
+  management (the last open Track-1 row), shipped 2026-08-21: a declarative
+  `focused` claim + `onFocusChange` observation on `<CrownRotation>`, chosen
+  over an imperative `focus()` and over a FocusScope/id coordinator after the
+  SwiftUI / react-native-tvos / RNW survey. Records the availability sweep
+  (`@FocusState` & friends — watchOS 8.0, so `@available`-free at the v10
+  floor), why the claim is edge-triggered rather than CX-010-controlled
+  (focus is OS-owned hardware routing), how it composes with ARCH-09 lazy
+  navigation (claims re-apply on mount — autofocus-on-push for free), and the
+  honest ③ boundary: the Linux suite pins the wire + JS semantics; actual
+  Crown routing needs a Mac/device.
 - [design-cx-025-release-freshness.md](./design-cx-025-release-freshness.md) —
   CX-025 OTA `releaseId` (so non-breaking fixes can ship). Core primitive proven
   (JS FNV-1a == Swift `ContentHash`); spec ready for a focused load-flow pass.
