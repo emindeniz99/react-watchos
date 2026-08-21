@@ -79,6 +79,16 @@ feature-set model supersedes the earlier scalar capability gate).
   and stayed red from ARCH-09 (2026-07-16) until 2026-07-28, because every
   local loop ran the renderer's gates from `js/` while only CI ran the
   examples.
+- **`swift test` wants a built JS bundle.** `BundleSmokeTests` boots the real
+  `js/dist/bundle.js` (and `bundle.qbc`) through `JSRuntime`; both are build
+  products, so it SKIPS with instructions when they're absent. Run
+  `pnpm --filter react-watchos build` (and `build:bytecode` for the bytecode
+  half — the path production actually boots) first, or set `REQUIRE_BUNDLE=1`
+  to turn that skip into a failure, which is what CI does. Order matters and
+  bites: a plain `build` DELETES a stale `.qbc` (so shipped bytecode can never
+  drift from its source), and `pnpm test` runs that build itself — so a vitest
+  run leaves the bytecode half of the smoke skipping until you re-run
+  `build:bytecode`.
 - **The Darwin bridges (`BluetoothBridge` et al.) — macOS, on the watch sim:**
   `pnpm test:swift:watch` runs the Swift suite via `xcodebuild test` on a
   watchOS simulator, where the `#if os(watchOS)` code actually compiles, so the
