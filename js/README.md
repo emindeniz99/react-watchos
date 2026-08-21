@@ -232,7 +232,18 @@ npx react-watchos inspector                             # live tree/log/error UI
 npx react-watchos build --entry watch-ui/entry.tsx \
   --asset targets/watch/assets/bundle.js                # one-shot build + copy
 npx react-watchos build --entry watch-ui/entry.tsx --no-minify   # readable
+
+npx react-watchos dev --entry watch-ui/entry.tsx --debug  # + breakpoint probes
+npx react-watchos debug                                   # DAP for VS Code
 ```
+
+`dev --debug` instruments every statement so you can stop on a line, and
+`debug` is the adapter an editor attaches to (`{"debugServer": 8791}` in
+`launch.json`). It is DEBUG-only by construction — `build --debug` is refused,
+because `build` is the shipping entry. Read
+[docs/design-dap-debugger.md](../docs/design-dap-debugger.md) for the measured
+cost (+5.2% bytes, +1.1% per interaction) and the limits (arguments, not
+locals; statement granularity).
 
 `build` ships, so it **minifies** (≈-68% bytes, a third less QuickJS heap);
 `--no-minify` opts out when you need your components' names in a stack trace.
