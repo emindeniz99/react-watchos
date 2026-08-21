@@ -5,6 +5,84 @@ Pre-1.0, **breaking changes ship as minor versions** (`0.x` semver:
 changed; this file says what a consumer *does* about it. Entries are newest
 first, and only versions with consumer-facing action items appear.
 
+<!-- Placement: repo root, next to README/CONTRIBUTING, and shipped nowhere —
+     mirroring js/CHANGELOG.md, which is likewise absent from js/package.json
+     `files` and (verified against a real `pnpm pack` tarball) from the npm
+     package. Release reading happens on the repo; the tarball carries code. -->
+
+## 0.5.x → 0.6.0
+
+**Widget timeline views now render without the React reconciler.** The
+element tree a `registerWidget` `render()` returns (each entry's `view`) —
+and any direct `renderToTree` call — is walked ONCE by a plain static
+renderer (`js/src/staticRender.ts`) instead of being mounted on a fiber.
+What one-shot rendering always implied is now enforced: a widget component
+is a **pure function of its props and the stores it reads**.
+
+- **Effects never run.** `useEffect`/`useLayoutEffect`/`useInsertionEffect`
+  are no-ops, and a class component contributes `render()` only — no
+  `componentDidMount`, and no error-boundary catch (a throwing widget was
+  already isolated per kind by the publish loop, and still is).
+- **State never updates.** `useState`/`useReducer` hand back their initial
+  value, and calling a setter *during* the render **throws**. Under the
+  fiber a render-phase update re-rendered before commit; here there is no
+  second render to produce, so it fails loud instead of serializing a tree
+  the update never reached.
+- **`Suspense`, `lazy()` and portals throw**, naming the offending type,
+  rather than quietly rendering something a fiber render would not have.
+
+Everything a static tree *can* honour still works, asserted node-for-node
+against the fiber path (`js/test/staticRender.test.tsx`): function and class
+components, `memo`, `forwardRef`, `Fragment`, arrays and keys, context
+(`ThemeProvider`/`TranslationProvider` included), `useMemo`, `useCallback`,
+`useRef`, `useSyncExternalStore`, `useId`, and the React Compiler's memo
+cache. The wire shape is unchanged, and the same walker runs in the app's
+`publishWidgets()` — so a violation surfaces at publish time in your own
+runs (the kind is dropped from the payload with a logged
+`render failed for "<kind>"`), not as a silently different tree on the
+watch face. (Why: react-reconciler + scheduler were 83.8% of the widget
+bundle — 153,362 B → 27,870 B minified once cut — and that much of the
+extension's 16 MB JS heap on every timeline request.)
+
+Action: read state during render; keep interaction an AppIntent
+(`registerIntent` — function props still serialize to the literal `true` and
+are never invoked widget-side); import widget components statically instead
+of `lazy()`.
+
+```tsx
+// 0.5.x — legal under the fiber (a render-phase update re-renders):
+// 0.6.0 — the setter throws.
+function HydrationRing(_: WidgetRenderContext) {
+  const [count, setCount] = useState<number>();
+  if (count === undefined) setCount(hydrationStore.glasses);
+  return <Gauge value={count ?? 0} min={0} max={8} label="Water" />;
+}
+
+// 0.6.0 — the render is the only pass, so the read belongs in it:
+function HydrationRing(_: WidgetRenderContext) {
+  return <Gauge value={hydrationStore.glasses} min={0} max={8} label="Water" />;
+}
+```
+
+The effect-flavoured spelling of the same mistake —
+`useEffect(() => setCount(hydrationStore.glasses), [])` — does **not** throw: the
+effect never runs, so the widget renders the initial value. It rendered the
+initial value on 0.5.x too (the tree was serialized straight after the first
+commit, before any passive effect fired) — the walker turns that timing
+accident into stated semantics.
+
+The rest of 0.6.0 needs no action, all of it additive: every build now
+writes a source map beside the bundle (`sourcemap: "external"` — no
+`sourceMappingURL` comment is appended, so the shipped bytes and the OTA
+`releaseId` hashed from exactly those bytes are unchanged; opt out with
+`--no-sourcemap` / `{ sourcemap: false }`). Keep the `.map` OUT of your
+target's assets — it is a build artifact for symbolicating a stack after the
+fact; the watch never reads it. `keepNames`, the releaseId-keyed `symbols` store, and
+the source-level debugger (`react-watchos dev --debug` +
+`react-watchos debug`) are opt-in; `process.env.REACT_WATCH_DEV` is now
+defined in every preset build (`"1"` dev / `""` shipping), so an entry can
+fence dev-only wiring the way the demo fences the inspector.
+
 ## 0.4.x → 0.5.0
 
 **The shipping build now minifies by default.** `buildBundles([…])` defaults
@@ -35,6 +113,17 @@ To opt out deliberately, pass `--no-minify` to the CLI or `{ minify: false }` to
 given. If you assert on your bundle's TEXT in a test (e.g. that a string
 appears in the output), that assertion now reads a minified bundle — build
 that fixture with the opt-out.
+
+The HealthKit widening that shipped alongside needs no code change:
+`requestHealthAuthorization({ read: [...] })` names what you request, so the
+authorization sheet grows only when you ask for the new types. One default
+did move: the config plugin's fallback `NSHealthShareUsageDescription` was
+reworded to name what `health.ts` can now read — the old string never
+mentioned blood oxygen while the sheet showed that row for any app reading
+`oxygenSaturation`. The plugin only fills the key when you set none, so the
+next `expo prebuild` picks the new string up; if you supply your own, make
+sure it names every category you actually read — a sheet requesting a type
+its purpose string never mentions is what App Review reads as a lie.
 
 ## 0.3.x → 0.4.0
 
@@ -105,13 +194,37 @@ monorepo workspace before the first npm release. The worked example is the
    `onBleState` as the state authority (it should), `void ...().catch(() => {})`
    on the call promises is legitimate; tests mock the wire with
    `installInvokeHost()` instead of a hand-rolled `__host`.
-3. **Navigation is route-based and confirmed** (ARCH-09): `NavigationLink`
-   takes `to` + `label`/`children` as ROW content; destinations live in
-   `NavigationRoute`s; wrap the app in `NavigationProvider` (+ `scheme`) and
-   control the stack with `useNavigation`'s `path`/`setPath`. A link press is
-   confirmed by the native stack — in tests, navigate with
-   `pushDeepLink("scheme://route")`.
-4. **One root at a time** (ARCH-08): `runApp` throws if a root is mounted.
+3. **Navigation is route-based, confirmed — and lazy** (ARCH-09):
+   `NavigationLink` takes `to` + `label`/`children` as ROW content;
+   destinations live in `NavigationRoute`s; wrap the app in
+   `NavigationProvider` (+ `scheme`) and control the stack with
+   `useNavigation`'s `path`/`setPath`. A link press is confirmed by the
+   native stack — in tests, navigate with `pushDeepLink("scheme://route")`.
+   Lazy is the part that bites code that used to eager-mount: only the root
+   and the screens on the active path are mounted, so a bare
+   `useEffect(..., [])` in a screen runs at first open (not at launch), and
+   **screen-local state drops when the screen is popped** — lift state that
+   must survive a pop into a store or a context above the stack. Covered
+   screens stay mounted while a deeper screen is on top, so focus-scoped
+   side effects (BLE, sensors, polling) belong in `useFocusEffect`, which
+   cleans up on blur where a plain effect keeps running.
+4. **Phone-pushed state arrives on its own channels** (ARCH-12):
+   WatchConnectivity inbound is split by delivery semantics, and
+   phone-pushed application context / user info **no longer arrive on
+   `onPhoneMessage`**.
+
+   ```ts
+   // workspace era: one merged inbound stream
+   onPhoneMessage((payload) => applySettings(payload));
+   // 0.1.x: subscribe the channel matching how the phone sent it
+   onApplicationContext(applySettings); // updateApplicationContext: latest-wins state
+   onUserInfo(recordEvent);             // transferUserInfo: FIFO, survives suspension
+   onPhoneMessage(handleMessage);       // sendMessage: interactive, phone reachable now
+   ```
+
+   The outbound mirrors (`updateApplicationContext`, `transferUserInfo`)
+   arrived in the same split, additively.
+5. **One root at a time** (ARCH-08): `runApp` throws if a root is mounted.
    Tests use `mountApp` + `afterEach(resetApp)` from `react-watchos/testing`.
-5. **Testing imports**: `findByType`/`findByText` moved to
+6. **Testing imports**: `findByType`/`findByText` moved to
    `react-watchos/testing` long ago; the new harness lives there too.
