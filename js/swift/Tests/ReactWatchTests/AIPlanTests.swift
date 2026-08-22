@@ -155,6 +155,119 @@ final class AIPlanTests: XCTestCase {
             node.rootProblem(), "schema.pets[].kind: enum must not be empty")
     }
 
+    // MARK: - Tool specs (tool calling)
+
+    func testDecodesToolSpecsInOrder() throws {
+        let plan = try XCTUnwrap(
+            GeneratePlan(
+                json: #"""
+                    {"prompt":"p","tools":[
+                      {"name":"getHydration","description":"Read intake.",
+                       "schema":{"type":"object","properties":[
+                         {"name":"unit","schema":
+                           {"type":"string","enum":["glasses","ml"]}}]}},
+                      {"name":"getGoal",
+                       "schema":{"type":"object","properties":[]}}
+                    ]}
+                    """#))
+        let tools = try XCTUnwrap(plan.tools)
+        // Order is the point of the array wire — it is the order the tool
+        // definitions reach the model-visible prompt.
+        XCTAssertEqual(tools.map(\.name), ["getHydration", "getGoal"])
+        XCTAssertEqual(tools[0].description, "Read intake.")
+        XCTAssertNil(tools[1].description)
+        XCTAssertEqual(
+            tools[0].schema.properties?.first?.schema.choices,
+            ["glasses", "ml"])
+        XCTAssertNil(plan.toolsProblem())
+    }
+
+    func testNoToolsIsNoProblem() throws {
+        let plan = try XCTUnwrap(GeneratePlan(json: #"{"prompt":"hi"}"#))
+        XCTAssertNil(plan.tools)
+        XCTAssertNil(plan.toolsProblem())
+    }
+
+    func testToolsProblemRejectsEachBreach() throws {
+        // Every rule the tool walk enforces, one breach each — the JS-side
+        // toolProblem mirror rejects the same shapes at the call site.
+        let cases: [(tools: String, fragment: String)] = [
+            (
+                #"[{"name":"","schema":{"type":"object","properties":[]}}]"#,
+                "tool name must not be empty"
+            ),
+            (
+                #"[{"name":"t","schema":{"type":"object","properties":[]}},"#
+                    + #"{"name":"t","schema":{"type":"object","properties":[]}}]"#,
+                "duplicate tool \"t\""
+            ),
+            (
+                #"[{"name":"bad","schema":{"type":"string"}}]"#,
+                "tools.bad: parameters root must be type \"object\""
+            ),
+            (
+                #"[{"name":"nested","schema":{"type":"object","properties":"#
+                    + #"[{"name":"when","schema":{"type":"date"}}]}}]"#,
+                "tools.nested.when: unsupported type \"date\""
+            ),
+        ]
+        for (tools, fragment) in cases {
+            let plan = try XCTUnwrap(
+                GeneratePlan(json: #"{"prompt":"p","tools":\#(tools)}"#))
+            let problem = plan.toolsProblem()
+            XCTAssertNotNil(problem, "expected a problem for \(tools)")
+            XCTAssertTrue(
+                problem?.contains(fragment) == true,
+                "expected \"\(fragment)\" in \"\(problem ?? "nil")\"")
+        }
+    }
+
+    func testToolsRefusedWithAResponseSchema() throws {
+        // Guided generation with tool calls is a recorded follow-up; the wire
+        // refuses the combination rather than half-shipping a meaning for it.
+        let plan = try XCTUnwrap(
+            GeneratePlan(
+                json: #"""
+                    {"prompt":"p",
+                     "schema":{"type":"object","properties":[]},
+                     "tools":[{"name":"t",
+                       "schema":{"type":"object","properties":[]}}]}
+                    """#))
+        XCTAssertEqual(
+            plan.toolsProblem(),
+            "tools: not supported with a response schema (generateObject)")
+    }
+
+    // MARK: - Tool replies (the toolResult wire)
+
+    func testToolReplyParsesResults() throws {
+        XCTAssertEqual(
+            AIToolReply(json: #"{"result":{"glasses":5,"goal":8}}"#),
+            .result(json: #"{"glasses":5,"goal":8}"#))
+        // Fragments are legal results — a tool may return a bare scalar.
+        XCTAssertEqual(
+            AIToolReply(json: #"{"result":"ok"}"#), .result(json: #""ok""#))
+        XCTAssertEqual(AIToolReply(json: #"{"result":8}"#), .result(json: "8"))
+        // JS normalizes an undefined handler return to null.
+        XCTAssertEqual(
+            AIToolReply(json: #"{"result":null}"#), .result(json: "null"))
+    }
+
+    func testToolReplyParsesErrors() {
+        XCTAssertEqual(
+            AIToolReply(json: #"{"error":"store unreachable"}"#),
+            .error(message: "store unreachable"))
+    }
+
+    func testMalformedToolReplyIsNil() {
+        // nil = the SDK-gated caller throws AIToolFailure — a failed call,
+        // never a silent hang or a garbage result handed to the model.
+        XCTAssertNil(AIToolReply(json: "not json"))
+        XCTAssertNil(AIToolReply(json: "[]"))
+        XCTAssertNil(AIToolReply(json: "{}"))
+        XCTAssertNil(AIToolReply(json: #"{"error":42}"#))
+    }
+
     // MARK: - Error vocabulary
 
     func testGenerationErrorCaseMapping() {
@@ -180,6 +293,14 @@ final class AIPlanTests: XCTestCase {
                 AIErrorCode.forGenerationError(caseName: name), code,
                 "case \(name)")
         }
+    }
+
+    func testToolFailedSpellingMatchesTheWire() {
+        // TOOL_FAILED is minted by the ToolCallError catch arm, not by the
+        // GenerationError name table (it is a distinct wrapper type, not a
+        // case) — so its spelling has no row above and is pinned here against
+        // the TS union's.
+        XCTAssertEqual(AIErrorCode(rawValue: "TOOL_FAILED"), .toolFailed)
     }
 
     func testErrorJSONEscapesHostileMessages() throws {
@@ -226,5 +347,20 @@ final class AIPlanTests: XCTestCase {
         // enum string, integer, boolean, optional) so a decode regression on
         // any of them fails HERE, not on a watch.
         XCTAssertFalse(root.properties?.isEmpty ?? true)
+    }
+
+    func testRealGenerateToolsRequestDecodes() throws {
+        let plan = try XCTUnwrap(
+            GeneratePlan(json: try fixture("generate-tools-request")),
+            "the JS wrapper's real tool-declaring request no longer decodes")
+        XCTAssertNil(plan.toolsProblem())
+        let tools = try XCTUnwrap(plan.tools)
+        // The JS fixture declares a described tool with an enum argument AND
+        // a bare no-argument tool, in declaration order.
+        XCTAssertEqual(tools.count, 2)
+        XCTAssertNotNil(tools.first?.description)
+        XCTAssertEqual(tools.first?.schema.type, "object")
+        XCTAssertFalse(tools.first?.schema.properties?.isEmpty ?? true)
+        XCTAssertEqual(tools.last?.schema.properties?.isEmpty, true)
     }
 }

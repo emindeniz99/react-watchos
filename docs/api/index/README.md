@@ -27,6 +27,8 @@ roots at the repo for stable source links (see js/typedoc.json).
 - [ActivitySummary](interfaces/ActivitySummary.md)
 - [AIError](interfaces/AIError.md)
 - [AIObjectSchema](interfaces/AIObjectSchema.md)
+- [AITool](interfaces/AITool.md)
+- [AIToolCallContext](interfaces/AIToolCallContext.md)
 - [AlertActionProps](interfaces/AlertActionProps.md)
 - [AlertProps](interfaces/AlertProps.md)
 - [BleConnectOptions](interfaces/BleConnectOptions.md)
@@ -204,6 +206,7 @@ roots at the repo for stable source links (see js/typedoc.json).
 ## Variables
 
 - [AI\_PARTIAL\_EVENT](variables/AI_PARTIAL_EVENT.md)
+- [AI\_TOOL\_CALL\_EVENT](variables/AI_TOOL_CALL_EVENT.md)
 - [Alert](variables/Alert.md)
 - [AlertAction](variables/AlertAction.md)
 - [APPLICATION\_CONTEXT\_EVENT](variables/APPLICATION_CONTEXT_EVENT.md)

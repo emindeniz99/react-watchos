@@ -17,7 +17,10 @@ import { registerNativeListener } from "./nativeEvents";
  * A streaming request additionally receives cumulative `ai.partial` pushes on
  * the native-event channel between call and settle, and
  * `__host.cancelGenerate(id)` stops the model mid-decode (the `abortFetch`
- * idiom — see {@link GenerateOptions.signal}).
+ * idiom — see {@link GenerateOptions.signal}). A request declaring
+ * {@link GenerateOptions.tools} also receives `ai.toolCall` pushes while the
+ * model waits on a tool; the handler's outcome goes back over
+ * `__host.toolResult(id, callId, replyJson)` and generation resumes natively.
  *
  * Requires watchOS 27+ (Foundation Models reached the watch at 27.0, in
  * beta); below it — or when the model isn't available right now — the native
@@ -30,7 +33,9 @@ import { registerNativeListener } from "./nativeEvents";
  * `AIErrorCode` in ReactWatchSupport (AIPlan.swift), same discipline as
  * `InvokeErrorCode`. `ABORTED` and `TIMEOUT` are minted on this side (the
  * abort signal, the inactivity watchdog); everything else arrives from
- * native, mapped from FoundationModels' `GenerationError` cases.
+ * native, mapped from FoundationModels' `GenerationError` cases —
+ * `TOOL_FAILED` from `LanguageModelSession.ToolCallError`, the wrapper the
+ * framework rethrows when a tool's own call (a JS handler here) fails.
  */
 export type AIErrorCode =
   | "UNAVAILABLE"
@@ -42,6 +47,7 @@ export type AIErrorCode =
   | "CONCURRENT_REQUESTS"
   | "REFUSAL"
   | "INVALID_SCHEMA"
+  | "TOOL_FAILED"
   | "ABORTED"
   | "TIMEOUT"
   | "INTERNAL";
@@ -67,6 +73,7 @@ const AI_ERROR_CODES: Record<AIErrorCode, true> = {
   CONCURRENT_REQUESTS: true,
   REFUSAL: true,
   INVALID_SCHEMA: true,
+  TOOL_FAILED: true,
   ABORTED: true,
   TIMEOUT: true,
   INTERNAL: true,
@@ -99,6 +106,91 @@ export interface AbortSignalLike {
   readonly reason?: unknown;
   addEventListener(type: "abort", listener: () => void): void;
   removeEventListener(type: "abort", listener: () => void): void;
+}
+
+/**
+ * The context handed to an {@link AITool} handler alongside its arguments.
+ */
+export interface AIToolCallContext {
+  /** Native id of this specific call — a generation may invoke tools several
+   *  times (Apple's framework "executes back-to-back tool calls" and may run
+   *  tools concurrently), and each invocation gets its own id. */
+  toolCallId: number;
+  /**
+   * Aborted when the generation this call belongs to settles — the caller's
+   * abort, the inactivity watchdog, or a native failure. A handler doing its
+   * own async work (a fetch, a long computation) should observe it so a
+   * cancelled generation cancels its pending tool work too, the same contract
+   * the generation itself has with {@link GenerateOptions.signal}.
+   */
+  signal: AbortSignalLike;
+}
+
+/**
+ * One tool the on-device model may invoke mid-generation
+ * ({@link GenerateOptions.tools}). The tool's NAME is its key in the `tools`
+ * record (the Vercel AI SDK shape — a record can't declare duplicate names,
+ * where an array could).
+ */
+export interface AITool {
+  /** What the tool does and when to use it — the model reads this (Apple puts
+   *  name + description + parameters into the prompt). */
+  description?: string;
+  /**
+   * Argument schema, the SAME closed subset {@link generateObject} takes
+   * (object-rooted {@link AISchema}) — natively a `GenerationSchema`, exactly
+   * like a structured output's, so the model's arguments always decode as this
+   * shape. `parameters` is the word Apple's `Tool` protocol, OpenAI function
+   * calling and Vercel (v4) all use.
+   */
+  parameters: AIObjectSchema;
+  /**
+   * Runs the tool. May be async; may throw/reject (the generation then rejects
+   * `TOOL_FAILED` with the message). Return any JSON-serializable value — the
+   * model reads it and continues generating. `args` matches `parameters` by
+   * constrained decoding, the `invoke<T>` compact: the schema is the runtime
+   * contract, so cast to your own type in agreement with it.
+   */
+  execute: (
+    args: Record<string, unknown>,
+    context: AIToolCallContext,
+  ) => unknown;
+}
+
+/**
+ * The minimal AbortSignal handed to tool handlers as
+ * {@link AIToolCallContext.signal}. Hand-rolled rather than `AbortController`
+ * on purpose: the runtime's controller class is the lazily-installed fetch
+ * shim, which this module must not import (see {@link AbortSignalLike}), and
+ * a platform controller may not exist before the shims run. Listener throws
+ * are isolated like native-event dispatch: an observer must not break the
+ * settle that aborted it.
+ */
+class ToolCallAbortSignal implements AbortSignalLike {
+  aborted = false;
+  reason: unknown;
+  private listeners = new Set<() => void>();
+
+  addEventListener(_type: "abort", listener: () => void): void {
+    this.listeners.add(listener);
+  }
+
+  removeEventListener(_type: "abort", listener: () => void): void {
+    this.listeners.delete(listener);
+  }
+
+  abort(reason: unknown): void {
+    if (this.aborted) return;
+    this.aborted = true;
+    this.reason = reason;
+    for (const listener of [...this.listeners]) {
+      try {
+        listener();
+      } catch (error) {
+        console.error("tool-call abort listener threw:", error);
+      }
+    }
+  }
 }
 
 /** Options for {@link generateText}. */
@@ -142,14 +234,40 @@ export interface GenerateOptions {
    * ```
    */
   signal?: AbortSignalLike;
+  /**
+   * Tools the model may invoke while it generates — the round trip is
+   * model → native pause → JS handler → native resume, so a tool can read
+   * app state, call host APIs, even fetch:
+   *
+   * ```ts
+   * const text = await generateText("How is my hydration going?", {
+   *   tools: {
+   *     getHydration: {
+   *       description: "Read today's water intake and the daily goal.",
+   *       parameters: { type: "object", properties: {} },
+   *       execute: () => ({ glasses: store.glasses, goal: store.goal }),
+   *     },
+   *   },
+   * });
+   * ```
+   *
+   * Composes with {@link onPartial} (snapshots pause while a tool runs) and
+   * {@link signal} (aborting also aborts pending tool calls via
+   * {@link AIToolCallContext.signal}). Tool definitions spend context window —
+   * Apple puts every declared tool's name/description/schema in the prompt —
+   * so declare only what the prompt needs.
+   */
+  tools?: Record<string, AITool>;
 }
 
 /** Options for {@link generateObject}: everything text generation takes minus
  *  the partial-stream knobs — a structured generation settles once (structured
- *  streaming is a recorded follow-up in the design note, not half-shipped). */
+ *  streaming is a recorded follow-up in the design note, not half-shipped) —
+ *  and minus `tools` (guided generation with tool calls is likewise a
+ *  recorded follow-up; the native plan rejects the combination). */
 export type GenerateObjectOptions = Omit<
   GenerateOptions,
-  "onPartial" | "partialIntervalMs"
+  "onPartial" | "partialIntervalMs" | "tools"
 >;
 
 /**
@@ -318,6 +436,18 @@ function schemaProblem(schema: AISchema, path: string): string | null {
   return null;
 }
 
+/** First problem in one declared tool, or null — the tool-calling face of
+ *  {@link schemaProblem}, mirrored by `GeneratePlan.toolsProblem()` natively
+ *  (this copy rejects at the call site; that one is the wire's backstop). */
+function toolProblem(name: string, tool: AITool): string | null {
+  if (name.length === 0) return "tools: tool name must not be empty";
+  const root = tool.parameters as { type?: unknown };
+  if (root?.type !== "object") {
+    return `tools.${name}: parameters root must be type "object", got ${JSON.stringify(root?.type)}`;
+  }
+  return schemaProblem(tool.parameters, `tools.${name}`);
+}
+
 /** JSON Schema node → wire node (ordered properties, folded `required`). */
 function toWireSchema(schema: AISchema): WireSchemaNode {
   const wire: WireSchemaNode = { type: schema.type };
@@ -347,6 +477,11 @@ function toWireSchema(schema: AISchema): WireSchemaNode {
  *  name, payload `{id, text}` — edge-triggered, so never replayed. */
 export const AI_PARTIAL_EVENT = "ai.partial";
 
+/** Tool-call requests ride the native-event channel under this name, payload
+ *  `{id, callId, tool, argumentsJson}` — edge-triggered, so never replayed
+ *  (replaying one would run a tool the model never asked for). */
+export const AI_TOOL_CALL_EVENT = "ai.toolCall";
+
 interface PendingGenerate {
   resolve: (text: string) => void;
   reject: (error: unknown) => void;
@@ -356,6 +491,11 @@ interface PendingGenerate {
   resetTimer: () => void;
   /** Removes this request's `ai.partial` listener (streaming only). */
   offPartial?: () => void;
+  /** Removes this request's `ai.toolCall` listener (tool calling only). */
+  offToolCall?: () => void;
+  /** Aborts the per-request tool signal — a settled generation must cancel
+   *  the tool work still running for it (the sensor-stream epoch rule). */
+  abortToolCalls?: () => void;
   signal?: AbortSignalLike;
   onAbort?: () => void;
 }
@@ -381,6 +521,10 @@ function takePending(id: number): PendingGenerate | undefined {
   pending.delete(id);
   clearTimeout(entry.timer);
   entry.offPartial?.();
+  entry.offToolCall?.();
+  // After the delete, so an abort listener re-entering this channel can't see
+  // the settled entry; listener throws are isolated inside the signal.
+  entry.abortToolCalls?.();
   if (entry.signal && entry.onAbort) {
     entry.signal.removeEventListener("abort", entry.onAbort);
   }
@@ -443,6 +587,7 @@ function startGenerate(
   options: {
     signal?: AbortSignalLike | undefined;
     onPartial?: ((text: string) => void) | undefined;
+    tools?: Map<string, AITool> | undefined;
   },
 ): Promise<string> {
   return new Promise<string>((resolve, reject) => {
@@ -451,7 +596,7 @@ function startGenerate(
       reject(aiError("UNAVAILABLE", "on-device AI unavailable"));
       return;
     }
-    const { signal, onPartial } = options;
+    const { signal, onPartial, tools } = options;
     // An already-aborted signal never starts the model: reject before the
     // request crosses the bridge (the fetch contract).
     if (signal?.aborted) {
@@ -492,6 +637,81 @@ function startGenerate(
         const text = payload.text;
         if (typeof text === "string") onPartial(text);
       });
+    }
+    if (tools) {
+      // The per-request tool-signal + listener pair, torn down on settle like
+      // the partial listener. The reply crosses back over a DIRECT host method
+      // (`toolResult`) rather than a new async channel: JS never awaits it, so
+      // the fire-and-forget shape of cancelGenerate/abortFetch is the whole
+      // contract — the "response" is the generation resuming natively.
+      const toolSignal = new ToolCallAbortSignal();
+      entry.abortToolCalls = () =>
+        toolSignal.abort(aiError("ABORTED", "generation settled"));
+      entry.offToolCall = registerNativeListener(
+        AI_TOOL_CALL_EVENT,
+        (payload) => {
+          if (!payload || payload.id !== id) return;
+          if (!pending.has(id)) return;
+          // A tool call is decode-side activity — the model is provably
+          // alive, waiting on us — so it re-arms the watchdog like a partial.
+          // The 60s inactivity contract applies to the HANDLER too: a tool
+          // silent longer than the watchdog is treated as stuck.
+          entry.resetTimer();
+          const callId = payload.callId;
+          if (typeof callId !== "number") return;
+          const reply = (replyJson: string) => {
+            // The generation may have settled while the tool ran (abort,
+            // timeout, teardown): native already failed the parked call, so a
+            // late reply must go nowhere.
+            if (!pending.has(id)) return;
+            entry.resetTimer();
+            host.toolResult?.(id, callId, replyJson);
+          };
+          const fail = (message: string) =>
+            reply(JSON.stringify({ error: message }));
+          const name = typeof payload.tool === "string" ? payload.tool : "";
+          const tool = tools.get(name);
+          if (!tool) {
+            // The model can only call declared tools, so this is a bridge bug
+            // — fail THE CALL typed so the generation rejects TOOL_FAILED
+            // instead of leaving the native continuation parked forever.
+            fail(`unknown tool "${name}"`);
+            return;
+          }
+          let args: Record<string, unknown>;
+          try {
+            args = JSON.parse(String(payload.argumentsJson)) as Record<
+              string,
+              unknown
+            >;
+          } catch {
+            fail(`tool "${name}": malformed arguments JSON`);
+            return;
+          }
+          // Promise.resolve().then(...) so a synchronously-throwing handler
+          // takes the same rejection path as an async one.
+          Promise.resolve()
+            .then(() =>
+              tool.execute(args, { toolCallId: callId, signal: toolSignal }),
+            )
+            .then(
+              (value) => {
+                try {
+                  reply(
+                    JSON.stringify({
+                      result: value === undefined ? null : value,
+                    }),
+                  );
+                } catch {
+                  fail(`tool "${name}": result is not JSON-serializable`);
+                }
+              },
+              (error) => {
+                fail(error instanceof Error ? error.message : String(error));
+              },
+            );
+        },
+      );
     }
     if (signal) {
       entry.signal = signal;
@@ -547,6 +767,26 @@ export function generateText(
   options?: GenerateOptions,
 ): Promise<string> {
   const request = baseRequest(prompt, options);
+  let tools: Map<string, AITool> | undefined;
+  const toolEntries = options?.tools ? Object.entries(options.tools) : [];
+  if (toolEntries.length > 0) {
+    for (const [name, tool] of toolEntries) {
+      const problem = toolProblem(name, tool);
+      if (problem) return Promise.reject(aiError("INVALID_SCHEMA", problem));
+    }
+    // The record becomes an ORDERED array on the wire — the properties-wire
+    // idiom: declaration order is the order the tool definitions reach the
+    // prompt, and a Swift dictionary decode would shuffle it. `execute` is a
+    // runtime function and must not be serialized (the signal/onPartial rule).
+    request.tools = toolEntries.map(([name, tool]) => ({
+      name,
+      ...(tool.description !== undefined
+        ? { description: tool.description }
+        : {}),
+      schema: toWireSchema(tool.parameters),
+    }));
+    tools = new Map(toolEntries);
+  }
   if (options?.onPartial) {
     request.stream = true;
     if (options.partialIntervalMs !== undefined) {
@@ -556,6 +796,7 @@ export function generateText(
   return startGenerate(request, {
     signal: options?.signal,
     onPartial: options?.onPartial,
+    tools,
   });
 }
 

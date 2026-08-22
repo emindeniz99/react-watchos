@@ -6,7 +6,7 @@
 
 # Interface: AIObjectSchema
 
-Defined in: [js/src/ai.ts:192](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L192)
+Defined in: [js/src/ai.ts:310](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L310)
 
 The object node of [AISchema](../type-aliases/AISchema.md) — and the required ROOT of a
  [generateObject](../functions/generateObject.md) call (every surveyed consumer pattern is
@@ -18,7 +18,7 @@ The object node of [AISchema](../type-aliases/AISchema.md) — and the required 
 
 > `optional` **description?**: `string`
 
-Defined in: [js/src/ai.ts:194](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L194)
+Defined in: [js/src/ai.ts:312](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L312)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [js/src/ai.ts:194](https://github.com/emindeniz99/react-watchos/blob
 
 > **properties**: `Record`\<`string`, [`AISchema`](../type-aliases/AISchema.md)\>
 
-Defined in: [js/src/ai.ts:197](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L197)
+Defined in: [js/src/ai.ts:315](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L315)
 
 Property order steers guided generation, and is preserved on the wire
  (insertion order of this object).
@@ -37,7 +37,7 @@ Property order steers guided generation, and is preserved on the wire
 
 > `optional` **required?**: readonly `string`[]
 
-Defined in: [js/src/ai.ts:199](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L199)
+Defined in: [js/src/ai.ts:317](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L317)
 
 JSON Schema polarity: a property is OPTIONAL unless listed here.
 
@@ -47,4 +47,4 @@ JSON Schema polarity: a property is OPTIONAL unless listed here.
 
 > **type**: `"object"`
 
-Defined in: [js/src/ai.ts:193](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L193)
+Defined in: [js/src/ai.ts:311](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L311)

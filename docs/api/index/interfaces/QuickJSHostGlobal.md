@@ -396,3 +396,29 @@ Monotonic App-Group state revision (ARCH-06): sampled at widget render start and
 #### Returns
 
 `number`
+
+***
+
+### toolResult()?
+
+> `optional` **toolResult**(`id`, `callId`, `replyJson`): `void`
+
+Defined in: [js/src/generated/wire.ts:694](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L694)
+
+#### Parameters
+
+##### id
+
+`number`
+
+##### callId
+
+`number`
+
+##### replyJson
+
+`string`
+
+#### Returns
+
+`void`

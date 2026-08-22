@@ -870,7 +870,9 @@ function CrownScreen() {
  * button is double-tap-enabled (primaryAction), so it fires on a pinch.
  * Streaming: `onPartial` repaints the result as the model decodes (cumulative
  * snapshots), so the screen reads like typing instead of stalling on
- * "thinking…" until the final resolve.
+ * "thinking…" until the final resolve. Tool calling: the model may read the
+ * live hydration store mid-generation — the default prompt invites exactly
+ * that, so the answer is grounded in today's real count, not a guess.
  */
 function AIScreen() {
   const [prompt, setPrompt] = useState("");
@@ -879,8 +881,20 @@ function AIScreen() {
     setResult("thinking…");
     try {
       setResult(
-        await generateText(prompt || "Say hi in three words", {
+        await generateText(prompt || "How is my hydration going today?", {
           onPartial: setResult,
+          tools: {
+            getHydration: {
+              description:
+                "Read the wearer's hydration today: glasses drunk so far " +
+                "and the daily goal.",
+              parameters: { type: "object", properties: {} },
+              execute: () => ({
+                glasses: hydrationStore.glasses,
+                goal: hydrationStore.goal,
+              }),
+            },
+          },
         }),
       );
     } catch (e) {
