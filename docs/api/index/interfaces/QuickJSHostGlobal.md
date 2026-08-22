@@ -53,6 +53,24 @@ Fire-and-forget BLE op channel — now only `disconnect`; connect/write/subscrib
 
 ***
 
+### cancelGenerate()?
+
+> `optional` **cancelGenerate**(`id`): `void`
+
+Defined in: [js/src/generated/wire.ts:692](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L692)
+
+#### Parameters
+
+##### id
+
+`number`
+
+#### Returns
+
+`void`
+
+***
+
 ### cancelNotification()?
 
 > `optional` **cancelNotification**(`id`): `void`

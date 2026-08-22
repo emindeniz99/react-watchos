@@ -22,8 +22,11 @@ roots at the repo for stable source links (see js/typedoc.json).
 
 ## Interfaces
 
+- [AbortSignalLike](interfaces/AbortSignalLike.md)
 - [ActivitySummariesQuery](interfaces/ActivitySummariesQuery.md)
 - [ActivitySummary](interfaces/ActivitySummary.md)
+- [AIError](interfaces/AIError.md)
+- [AIObjectSchema](interfaces/AIObjectSchema.md)
 - [AlertActionProps](interfaces/AlertActionProps.md)
 - [AlertProps](interfaces/AlertProps.md)
 - [BleConnectOptions](interfaces/BleConnectOptions.md)
@@ -147,6 +150,8 @@ roots at the repo for stable source links (see js/typedoc.json).
 ## Type Aliases
 
 - [ActivityMoveMode](type-aliases/ActivityMoveMode.md)
+- [AIErrorCode](type-aliases/AIErrorCode.md)
+- [AISchema](type-aliases/AISchema.md)
 - [BleState](type-aliases/BleState.md)
 - [CalendarAccessResult](type-aliases/CalendarAccessResult.md)
 - [CalendarEntity](type-aliases/CalendarEntity.md)
@@ -154,6 +159,7 @@ roots at the repo for stable source links (see js/typedoc.json).
 - [DiagnosticSeverity](type-aliases/DiagnosticSeverity.md)
 - [DiagnosticSubsystem](type-aliases/DiagnosticSubsystem.md)
 - [FitnessCondition](type-aliases/FitnessCondition.md)
+- [GenerateObjectOptions](type-aliases/GenerateObjectOptions.md)
 - [HapticType](type-aliases/HapticType.md)
 - [HeadphonesCondition](type-aliases/HeadphonesCondition.md)
 - [HealthAuthorizationResult](type-aliases/HealthAuthorizationResult.md)
@@ -195,6 +201,7 @@ roots at the repo for stable source links (see js/typedoc.json).
 
 ## Variables
 
+- [AI\_PARTIAL\_EVENT](variables/AI_PARTIAL_EVENT.md)
 - [Alert](variables/Alert.md)
 - [AlertAction](variables/AlertAction.md)
 - [APPLICATION\_CONTEXT\_EVENT](variables/APPLICATION_CONTEXT_EVENT.md)
@@ -288,6 +295,7 @@ roots at the repo for stable source links (see js/typedoc.json).
 - [enableWaterLock](functions/enableWaterLock.md)
 - [endWorkout](functions/endWorkout.md)
 - [fetchAndApplyUpdate](functions/fetchAndApplyUpdate.md)
+- [generateObject](functions/generateObject.md)
 - [generateText](functions/generateText.md)
 - [getCalendarEvents](functions/getCalendarEvents.md)
 - [getConnectivityState](functions/getConnectivityState.md)
