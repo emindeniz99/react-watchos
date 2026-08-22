@@ -1,0 +1,86 @@
+{
+  "prompt": "Suggest one 10-minute mobility exercise",
+  "temperature": 0.2,
+  "maxTokens": 512,
+  "schema": {
+    "type": "object",
+    "description": "one mobility exercise",
+    "properties": [
+      {
+        "name": "title",
+        "schema": {
+          "type": "string"
+        }
+      },
+      {
+        "name": "minutes",
+        "schema": {
+          "type": "integer",
+          "description": "duration"
+        }
+      },
+      {
+        "name": "intensity",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "easy",
+            "moderate",
+            "hard"
+          ]
+        }
+      },
+      {
+        "name": "perceivedEffort",
+        "optional": true,
+        "schema": {
+          "type": "number"
+        }
+      },
+      {
+        "name": "equipment",
+        "optional": true,
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 0,
+          "maxItems": 3
+        }
+      },
+      {
+        "name": "steps",
+        "schema": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": [
+              {
+                "name": "instruction",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              {
+                "name": "holdSeconds",
+                "optional": true,
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            ]
+          },
+          "minItems": 1
+        }
+      },
+      {
+        "name": "outdoors",
+        "optional": true,
+        "schema": {
+          "type": "boolean"
+        }
+      }
+    ]
+  }
+}
