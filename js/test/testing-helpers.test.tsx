@@ -32,12 +32,14 @@ describe("mountApp/resetApp", () => {
 });
 
 describe("installInvokeHost", () => {
-  it("records methods + parsed payloads and resolves null by default", async () => {
+  it("records methods + parsed payloads and resolves void by default", async () => {
     const { calls } = installInvokeHost();
     const { invoke } = await import("../src/invoke");
+    // The void wire, not a helper-invented null: native resolves a Void op
+    // with an empty result string and invoke() surfaces that as undefined.
     await expect(
       invoke("bleWrite", { characteristic: "c", value: "x" }),
-    ).resolves.toBeNull();
+    ).resolves.toBeUndefined();
     expect(calls).toEqual([
       { method: "bleWrite", payload: { characteristic: "c", value: "x" } },
     ]);
@@ -53,6 +55,66 @@ describe("installInvokeHost", () => {
     await expect(requestNotificationPermission()).resolves.toBe("granted");
     const { invoke } = await import("../src/invoke");
     await expect(invoke("failing")).rejects.toMatchObject({
+      code: "UNAVAILABLE",
+    });
+  });
+
+  it("routes methods without an entry to the '*' wildcard, with the name", async () => {
+    installInvokeHost({
+      listed: "value",
+      "*": (payload: unknown, method: string) => {
+        throw { code: "UNKNOWN_METHOD", message: `${method}:${payload}` };
+      },
+    });
+    const { invoke } = await import("../src/invoke");
+    await expect(invoke("listed")).resolves.toBe("value");
+    await expect(invoke("unlisted", "p")).rejects.toMatchObject({
+      code: "UNKNOWN_METHOD",
+      message: "unlisted:p",
+    });
+  });
+
+  it("treats a method LISTED as undefined as void, not as wildcard bait", async () => {
+    installInvokeHost({
+      bleConnect: undefined,
+      "*": () => {
+        throw { code: "UNKNOWN_METHOD", message: "should not fire" };
+      },
+    });
+    const { invoke } = await import("../src/invoke");
+    await expect(invoke("bleConnect", { id: "d" })).resolves.toBeUndefined();
+  });
+
+  it("rejects a thrown Error as INTERNAL but keeps its message", async () => {
+    installInvokeHost({
+      failing: () => {
+        throw new Error("handler blew up");
+      },
+    });
+    const { invoke } = await import("../src/invoke");
+    await expect(invoke("failing")).rejects.toMatchObject({
+      code: "INTERNAL",
+      message: "handler blew up",
+    });
+  });
+
+  it("exposes the host so a fuller __host mock can graft the channel on", async () => {
+    const { host, calls, uninstall } = installInvokeHost({ ping: "pong" });
+    const full = { commit: () => {}, invoke: host.invoke };
+    (globalThis as Record<string, unknown>).__host = full;
+    const { invoke } = await import("../src/invoke");
+    await expect(invoke("ping")).resolves.toBe("pong");
+    expect(calls).toEqual([{ method: "ping", payload: undefined }]);
+    // uninstall only removes the host IT installed — the graft stays.
+    uninstall();
+    expect((globalThis as { __host?: unknown }).__host).toBe(full);
+  });
+
+  it("uninstall removes its own __host so invoke rejects UNAVAILABLE again", async () => {
+    const { uninstall } = installInvokeHost();
+    uninstall();
+    const { invoke } = await import("../src/invoke");
+    await expect(invoke("anything")).rejects.toMatchObject({
       code: "UNAVAILABLE",
     });
   });

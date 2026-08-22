@@ -8,6 +8,7 @@
 
 ## Interfaces
 
+- [InvokeHost](interfaces/InvokeHost.md)
 - [RecordedInvoke](interfaces/RecordedInvoke.md)
 
 ## Type Aliases
