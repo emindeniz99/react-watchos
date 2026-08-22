@@ -30,6 +30,11 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
    since; see the backlog's build-progress log. Pick up from its unticked
    rows.)*
 3. Then work Phases 0–5.
+   *(Before booking time on a Mac or a watch, read
+   [mac-session-checklist.md](./mac-session-checklist.md): CI now does the whole
+   of ② automatically, so most of what older notes call "Mac-owed" needs no
+   laptop at all — only the FoundationModels blocks (Xcode 27) and the ③ list
+   genuinely do.)*
 4. **When two reviews disagree, the later one wins** and the merged backlog says
    so (e.g. Codex's feature-set supersedes the scalar gate; the design notes
    carry "superseded" banners where relevant).
