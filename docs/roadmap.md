@@ -49,9 +49,13 @@ unblocks real apps, **P1** = strong value, **P2** = polish.
 Also shipped: **DatePicker**, **onDrag** scrub (T1), **five sensor streams**
 (T3-P1 — heart rate / motion / gyroscope / location / pedometer) plus
 **HealthKit reads and real workout control** (2026-07-29),
-**Map** primitive, **Smart Stack relevance ranking** (per-entry score;
-the *predictive* `relevantContexts` surfacing is decoded-not-applied — CX-017,
-[status.md](./status.md)), **Liquid Glass** (`glass`), **OTA update channel**
+**Map** primitive, **Smart Stack relevance** (per-entry ranking AND the
+predictive `relevantContexts` clue union — the CX-017 "decoded-not-applied"
+label went stale: the apply shipped with the 2026-07-28 wire reshape +
+2026-08-06 watch-sim compile, verified 2026-08-22 down to WidgetKit really
+calling `TimelineProvider.relevance()`, watchOS 11.0; the JS↔Swift clue
+vocabularies are now guard-tested so a typo'd name can't silently never
+surface a widget), **Liquid Glass** (`glass`), **OTA update channel**
 (`applyUpdate`), **React Compiler** in the esbuild pipeline (auto-memoization),
 **double-tap** (`primaryAction` → `handGestureShortcut(.primaryAction)`,
 watchOS 11+), and the **QuickJS bridging-header config plugin** (toward the
@@ -415,8 +419,13 @@ target every Apple timeline surface. Full inventory:
   `reactTimeline`/`reactSnapshotEntry`, currentIndex/reload-policy handling),
   the widget's own QuickJS runtime (`WidgetIntentRuntime`), per-`WidgetFamily`
   rendering (`familyKey`), and **interactive widget buttons** via AppIntent
-  (`ReactWidgetButtonIntent`, watchOS 11+). Smart Stack *relevance ranking* is
-  in; predictive `relevantContexts` surfacing is decoded-not-applied (CX-017).
+  (`ReactWidgetButtonIntent`, watchOS 11+). Smart Stack relevance is fully
+  in — ranking AND predictive `relevantContexts` (the stale CX-017 note was
+  corrected 2026-08-22; see status.md row 53). Known vocabulary gap recorded
+  the same day: `appleMoveTime` is absent from the health read set, so the
+  `activityRingsIncomplete` fitness clue's documented requirement cannot be
+  fully honoured — adding it touches schema + unit table + bridge arms +
+  the plugin's sheet string.
 
 **Missing — reachable by the same model, not yet targeted:**
 
