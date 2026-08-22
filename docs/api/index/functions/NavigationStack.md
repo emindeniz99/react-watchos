@@ -8,7 +8,7 @@
 
 > **NavigationStack**(`props`): `Element`
 
-Defined in: [js/src/navigation.tsx:387](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L387)
+Defined in: [js/src/navigation.tsx:404](https://github.com/emindeniz99/react-watchos/blob/main/js/src/navigation.tsx#L404)
 
 Native push stack. Publishes the active route (top of the stack) so the
 matching <NavigationRoute> can expose its params via useParams(), and the
