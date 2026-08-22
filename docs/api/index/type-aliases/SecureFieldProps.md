@@ -8,7 +8,7 @@
 
 > **SecureFieldProps** = [`TextFieldProps`](../interfaces/TextFieldProps.md)
 
-Defined in: [js/src/components.ts:346](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L346)
+Defined in: [js/src/components.ts:348](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L348)
 
 Masked text entry (passwords, PINs). Identical surface to [TextFieldProps](../interfaces/TextFieldProps.md)
 — `value`/`placeholder`/`onChange`/`autoFocus` behave the same — but the

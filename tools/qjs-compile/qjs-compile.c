@@ -13,8 +13,11 @@
  *
  * The optional third argument writes bundle.js's content hash (FNV-1a 64-bit,
  * lowercase hex, no leading zeros) — byte-for-byte the same algorithm as
- * Swift's ReactWatchSupport.ContentHash and manifest.mts's contentHash(), see
- * both for the cross-language parity this pins. ReactWatchHost.loadShipped
+ * Swift's ReactWatchSupport.ContentHash and manifest.mts's contentHash(). All
+ * three assert the shared vector file
+ * js/swift/Tests/ReactWatchTests/Fixtures/content-hash-vectors.json (this
+ * side via js/test/content-hash-parity.test.ts, which drives THIS tool's
+ * [out.hash] path). ReactWatchHost.loadShipped
  * refuses to trust `bundle.qbc` unless this stamp matches ContentHash.of the
  * `bundle.js` sitting next to it (OP-1): the two are compiled in separate
  * build steps, so a hand-swapped source must not silently boot the OLD

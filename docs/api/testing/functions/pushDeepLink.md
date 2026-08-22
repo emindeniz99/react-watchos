@@ -8,7 +8,7 @@
 
 > **pushDeepLink**(`url`): `boolean`
 
-Defined in: [js/src/testing.ts:196](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L196)
+Defined in: [js/src/testing.ts:252](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L252)
 
 Drives navigation the way the platform does. A `NavigationLink` press is
 confirmed by the NATIVE stack (ARCH-09's propose→confirm transaction), so

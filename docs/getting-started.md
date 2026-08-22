@@ -77,7 +77,8 @@ The renderer is a real package: `exports` (main, `/build`, `/testing`),
 
 ```ts
 import { runApp, VStack, Text, Button, getHost } from "react-watchos";
-import { findByType } from "react-watchos/testing";   // tree queries
+import { mountApp, resetApp, installInvokeHost, pushDeepLink, findByType }
+  from "react-watchos/testing";                       // test harness
 import { watchBuildOptions } from "react-watchos/build"; // esbuild preset
 ```
 

@@ -94,7 +94,21 @@ until the macOS build runs green** — that's the gate.
 ## DX follow-ups from the first real consumer migration (2026-08-06)
 
 Migrating ctrl-a-remote onto the published package surfaced three concrete
-testing-DX gaps — each one forced the consumer to hand-roll internals:
+testing-DX gaps — each one forced the consumer to hand-roll internals.
+**All three shipped** (`feat(js): public test harness` 050867f —
+`js/src/testing.ts` exports `mountApp`/`resetApp`, `installInvokeHost` with
+recorded `{method, payload}` calls and per-method result/reject handlers,
+and `pushDeepLink`; this section predates that commit and is kept as the
+record of why the harness exists). The one genuinely remaining debt — the
+suite's own `installMockHost` still hand-rolling a SECOND invoke settle
+wire — closed 2026-08-22: the mock now routes through the published
+`installInvokeHost`, which grew the semantics the mock had invented
+privately (a `"*"` wildcard handler, `undefined` resolving the void wire,
+thrown `Error` → `INTERNAL` with the message kept), so consumers get what
+our own tests exercise. Repo gotcha found on the way: `docs:api` run from a
+LINKED git worktree silently drops every "Defined in" source link (typedoc
+needs `.git` to be a directory) — regenerate from a normal checkout.
+The original asks:
 
 - **Ship an invoke-recording test host.** Consumers mock the invoke wire by
   hand (`__host.invoke(id, method, payloadJson)` + `__resolveInvoke` +
@@ -112,10 +126,16 @@ testing-DX gaps — each one forced the consumer to hand-roll internals:
   `mountApp()` test helper that tracks and disposes the root (our own suite
   already has one — publish it).
 
-Also owed from the same pass: a MIGRATIONS.md (pre-1.0 breaking changes ship
-as minors; the changelog says WHAT changed, a migration note should say what
-consumers DO — the ctrl-a-remote commit 63e331e3 in the old monorepo is the
-worked example for 0.1.0-era code).
+Also owed from the same pass, ✅ **done 2026-08-21**: MIGRATIONS.md (repo
+root, deliberately not in the npm tarball — mirrors how CHANGELOG.md ships
+nowhere; release reading happens on the repo). Every entry was verified
+against the current source before landing, which killed three false claims
+the changelog alone would have produced — a violating widget does NOT throw
+out of `publishWidgets()` (it is caught per kind and logged), the external
+source map changes no shipped byte, and the knip de-exports were
+unreachable through the exports map, so none of them are breaks. Covers
+0.2.0 → 0.6.0 plus the workspace-era → 0.1.x section (ARCH-09 lazy-mount
+consequences, ARCH-12 channel split) for consumers on pre-npm code.
 
 ## Graduation-review follow-ups (2026-08-06, adversarially verified)
 
@@ -206,7 +226,7 @@ Owns `components.ts`, `NodeView.swift` (append-only), demo screens.
 | **Digital Crown** | P0 | M | A focusable `<CrownRotation value range step onChange>` over SwiftUI `digitalCrownRotation` (+ optional crown haptic). Implement as a **component/prop, not a `useCrownRotation` hook** — it must bind to a specific SwiftUI view's crown. Today the Crown only works implicitly via `Picker`. Demo: Crown scrubs a number. |
 | Gestures | P1 | M | `onLongPress` (new event kind, trivial), `DragGesture` (continuous — **coalesce/throttle**, it's the high-frequency case the cost model warns about), swipe-to-dismiss. |
 | Slider / Stepper / DatePicker | P1 | M | Each = prop type + `NodeView` case + render test + fixture. Slider is largely Crown+drag; Stepper is easy; DatePicker is a real primitive. |
-| Focus management | P2 | M | Only one Crown-focusable element at a time on watchOS; needs an addressable focus model. Gates multi-Crown screens. |
+| Focus management | P2 → **shipped 2026-08-22** | M | Multi-Crown screens unblocked: `focused?: boolean` (declarative, EDGE-TRIGGERED claim — applies on committed change and on appearance, `false` resigns) + `onFocusChange` on `CrownRotation`, bound to SwiftUI `@FocusState`/`.focused(_:)` — the screen's React state IS the coordinator, because SwiftUI's single-owner invariant already arbitrates the hardware. Prior-art surveyed before design (react-native-tvos's boolean claim borrowed; its `nextFocus*` spatial traversal rejected — watchOS has no D-pad; imperative `ref.focus()` rejected — no command channel, and the edge-triggered prop IS the command with replay-on-remount under ARCH-09 lazy nav). Every symbol verified against Apple docs JSON (all ≤ watchOS 10 floor → no `@available` gates). Wire stays v1 (additive props). Design record: [design-focus-management.md](./design-focus-management.md), §5 lists what only a device can prove (actual Crown hardware handoff, tap-to-steal event pair, resign-with-no-successor) — the standing macOS-build gate. Incidental fix en route: `docs:api` from a linked git worktree silently dropped every source link; typedoc now pins `disableGit`/`basePath`, output byte-stable across checkouts. |
 
 ## Track 2 — Runtime, rendering & performance
 
@@ -448,32 +468,40 @@ Nothing here is broken today; each is a gap we named while doing something
 else and chose not to chase in the same pass. Roughly in the order they
 earn their keep.
 
-- **IPv6 loopback is not a usable OTA dev host, and never was.** `http://[::1]:8080`
-  is refused: `updateURLViolation`'s host regex is `[^/:?#]*`, which stops at
-  the first colon, so the host it hands `isPrivateHost` is the bare string
-  `"["`. (The old `host === "[::1]"` branch could therefore never fire —
-  removing it in the dotted-quad fix changed no behavior. Verified by running
-  the regex against `http://[::1]:8080/m.json`.) Adding real support means:
-  parse a bracketed host in the URL regex, accept `::1` (and only loopback —
-  ULA `fc00::/7` and link-local `fe80::/10` are a separate decision), mirror
-  it in Swift's `UpdateURLPolicy`, and pin both sides, since the two
-  implementations are contract-paired.
-- **`pendingRejections` keys on a raw `JSValue` pointer with no owning
-  reference** (from the unhandled-rejection defer fix). If a promise with no
-  live references is freed, quickjs-ng can hand the same address to a new
-  promise, and a deferred report would attach to the wrong one. Fix: retain
-  the promise for as long as it sits in the map, or key on a value the engine
-  guarantees unique for the lifetime of the entry.
-- **The `watchConnectivity.file` park/replay path has no test.** `isReady`
-  tracking `jsReady`, `deliver`'s park branch, `replayParkedFileEvents()`
-  running before other boot listeners, and the widened `transferLock` are all
-  reasoned-through but unpinned — they need a fake WCSession seam (the real
-  one cannot be driven in a test).
-- **The `.qbc` content hash has no three-way parity test.** The C tool, the
-  Swift verifier and the Node builder each implement FNV-1a; only the Swift
-  side is unit-tested. A single shared vector file asserted from all three
-  would stop a silent drift that presents as "every boot falls back to
-  parsing the source".
+- ✅ **DONE — IPv6 loopback is a real OTA dev host** (2026-08-22). The host
+  regex matched `[^/:?#]*`, stopped at the first colon and handed
+  `isPrivateHost` the bare string `"["` — so the old `host === "[::1]"`
+  branch could never fire. Now: the URL regex takes a bracketed host as a
+  unit, a real hextet parser accepts exactly `::1` (ULA `fc00::/7` and
+  link-local `fe80::/10` refused by explicit guards ahead of the loopback
+  compare), Swift's `UpdateURLPolicy` mirrors it byte-for-byte, and both
+  sides are pinned with the same matrix including the bare-`[` regression.
+- ✅ **DONE — `pendingRejections` holds an owning retain** (2026-08-22). Each
+  parked entry now `JS_DupValue`s its promise for exactly its map lifetime,
+  freed on every exit path (retraction, drain report, displacement,
+  shutdown). No shim change needed — `JS_DupValue` is exported. The bug was
+  real: an address-reuse test ate a genuine report on the unfixed code
+  (verified red before fixing), and the suite's engine-leak assertions hold
+  the refcount balance.
+- **The `watchConnectivity.file` park/replay path has no test** — 
+  ✅ **verdict recorded 2026-08-22: not testable off-watchOS, no code bent.**
+  The whole path is `#if os(watchOS)` (the target isn't even in the Linux
+  package graph), and even a Mac-side seam is blocked by WatchConnectivity
+  itself: `WCSessionFile`/`WCSessionFileTransfer` have no public
+  initializers, so the park and transferLock delegate entries cannot be
+  driven without refactoring them into internal methods over constructible
+  types plus a `WCSessionProviding` seam. What IS extractable was already
+  pinned pre-verdict (`ParkedQueue` in ReactWatchSupport: arrival-order
+  drain, release-only-on-drain). Revisit only alongside that Mac refactor.
+- ✅ **DONE — `.qbc` content hash has a three-way parity test** (2026-08-22).
+  One hand-authored vector file
+  (`js/swift/Tests/ReactWatchTests/Fixtures/content-hash-vectors.json`; 5
+  vectors including a brute-forced leading-zero-nibble hash that makes the
+  "no leading zeros" format rule load-bearing) asserted from Node, from the
+  REAL `qjs-compile [out.hash]` production path (object-cache pattern shared
+  with qbc-symbolication via `js/test/qjs-tools.ts`), and from Swift's
+  ContentHash — silent drift now fails three suites instead of presenting
+  as "every boot falls back to parsing source".
 - ✅ **DONE — publishing no longer needs a manual dispatch** (2026-08-20).
   release-please creates the GitHub Release with the default `GITHUB_TOKEN`,
   and GitHub does not start workflow runs from events raised by that token, so
@@ -485,16 +513,22 @@ earn their keep.
   was the other way to close the loop; one run needs neither. Note this
   prevents the NEXT stranded release — it did not recover 0.5.0, which was
   already dispatched by hand and is npm's `latest`.
-- **Two upstream bugs are carried as local patches, with no issue filed.**
-  `react-native-worklets`' babel plugin calls `numericLiteral(-27)`, which
-  `@babel/types` >= 7.28 rejects (present in every release through the latest
-  nightly; a FlareLog-side pnpm patch works around it). `@bacons/apple-targets`
-  supports one target per product type — its lookup falls back to the first
-  same-type target and corrupts it (`with-xcode-changes.js`, unchanged through
-  5.0.0). Both deserve upstream issues with the repro we already have.
-- **Cooldown-held bumps to revisit.** `expo` 57.0.11 (clears 2026-08-13) and
-  57.0.12 (2026-08-17); FlareLog's `expo-*` family clears 2026-08-18. Nothing
-  to do but re-run the wave after those dates.
+- **Two upstream bugs carried as local patches** — ✅ **drafts written
+  2026-08-22, filing owed to the maintainer** (`docs/upstream-issues/`). The
+  measurement pass corrected this row's own claim: `numericLiteral(-27)` is
+  ACCEPTED by every @babel/types 7.x publish (7.27.1/7.28.0/7.29.7 measured —
+  the validator is compiled out) and throws only on **8.0.0**, so the worklets
+  draft is framed "crashes on any Babel 8 toolchain" with a verified e2e repro
+  and a one-line `valueToNode(-27)` fix; file it on the reanimated monorepo
+  (the worklets repo redirects). The apple-targets `find(byName) ?? targets[0]`
+  fallback is confirmed byte-identical in published 4.0.7 and 5.0.0.
+- ✅ **DONE — cooldown-cleared bumps taken** (2026-08-22): expo 57.0.13,
+  @expo/config-plugins 57.0.8, esbuild 0.28.2, biome 2.5.8, each after its
+  7-day `minimumReleaseAge` soak; @bacons/apple-targets 4.0.7 → 5.0.0 rode
+  along via `pnpm dedupe`. Held on purpose: expo 57.0.14/.15 and biome
+  2.5.9/.10 (soak clears 08-24 → 08-28), react 19.2.8 and RN 0.87 (outside
+  SDK 57's own template pairing — not housekeeping), TS 7 / @types/node 26
+  (majors). FlareLog's family is that repo's own wave, not ours.
 - **Downstream consumers are a minor behind.** `ctrl-a-remote` and `flarelog`
   pin `react-watchos ^0.3.0`, and 0.x treats a breaking change as a minor, so
   neither picks up 0.4.0 on its own. Bump both and re-run their suites.

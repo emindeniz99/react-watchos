@@ -130,6 +130,52 @@ describe("OTA transport policy (https enforcement)", () => {
     }
   });
 
+  it("allows the IPv6 loopback dev host over plain http", async () => {
+    // REGRESSION PIN: the host regex used to stop at the first colon, so
+    // `http://[::1]:8080` handed isPrivateHost the bare string "[" and IPv6
+    // loopback was never a usable dev host. The PORTED form is the case that
+    // triggered the truncation — if it is accepted, the bare-"[" parse bug
+    // cannot have returned.
+    installMockHost();
+    for (const base of [
+      "http://[::1]:8080",
+      "http://[::1]",
+      "http://[0:0:0:0:0:0:0:1]:8788", // uncompressed spelling, same address
+    ]) {
+      g.fetch = vi.fn(async () => ({
+        json: async () => ({ version: BUNDLE_VERSION, bundle: "bundle.js" }),
+      }));
+      await expect(
+        checkForUpdate(`${base}/manifest.json`),
+      ).resolves.toMatchObject({ updateAvailable: false });
+    }
+  });
+
+  it("refuses every non-loopback IPv6 literal (recorded decision: loopback ONLY)", async () => {
+    installMockHost();
+    for (const base of [
+      "http://[::2]:8080", // one past loopback
+      "http://[2001:db8::1]", // public
+      "http://[fe80::1]", // link-local fe80::/10 — explicitly out of scope
+      "http://[febf::1]", // top of the link-local /10
+      "http://[fc00::1]", // ULA fc00::/7 — explicitly out of scope
+      "http://[fd12:3456::1]", // ULA, fd half of the /7
+      "http://[::ffff:7f00:1]", // IPv4-mapped 127.0.0.1 is not ::1
+      "http://[::1%25eth0]", // a zone id never names plain loopback
+      "http://[::]", // the unspecified address
+      "http://[0:0:0:0:0:0:0:0:1]", // 9 groups — not an IPv6 literal at all
+    ]) {
+      g.fetch = vi.fn();
+      // The https message, not "must be absolute": the bracketed host PARSED
+      // and the policy refused it — the old bug's failure mode was the parse
+      // itself going wrong.
+      await expect(checkForUpdate(`${base}/manifest.json`)).rejects.toThrow(
+        /must be https/,
+      );
+      expect(g.fetch).not.toHaveBeenCalled();
+    }
+  });
+
   it("refuses a public host merely crafted to start with a private-looking prefix", async () => {
     // `isPrivateHost` used to classify by REGEX PREFIX (`/^10\./`), so a
     // fully-public DNS name that starts "10." — or "192.168." or "172.20." —

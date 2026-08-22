@@ -6,7 +6,7 @@
 
 # Interface: TextProps
 
-Defined in: [js/src/components.ts:157](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L157)
+Defined in: [js/src/components.ts:159](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L159)
 
 ## Extends
 
@@ -81,7 +81,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **bold?**: `boolean`
 
-Defined in: [js/src/components.ts:165](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L165)
+Defined in: [js/src/components.ts:167](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L167)
 
 ***
 
@@ -89,7 +89,7 @@ Defined in: [js/src/components.ts:165](https://github.com/emindeniz99/react-watc
 
 > `optional` **children?**: `string` \| `number` \| `bigint` \| `boolean` \| (`string` \| `number`)[] \| `ReactElement`\<`unknown`, `string` \| `JSXElementConstructor`\<`any`\>\> \| `Iterable`\<`ReactNode`, `any`, `any`\> \| `ReactPortal` \| `Promise`\<`AwaitedReactNode`\> \| `null`
 
-Defined in: [js/src/components.ts:164](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L164)
+Defined in: [js/src/components.ts:166](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L166)
 
 Strings/numbers fold into one label; nested <Text> elements make RICH
 text — segments concatenate into a single native Text, each styled
@@ -102,7 +102,7 @@ meaningful; other elements are ignored by the interpreter.
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:181](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L181)
+Defined in: [js/src/components.ts:183](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L183)
 
 SwiftUI system color name ("green", "secondary") or "#RRGGBB"/"#RRGGBBAA".
 
@@ -172,7 +172,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **monospacedDigit?**: `boolean`
 
-Defined in: [js/src/components.ts:183](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L183)
+Defined in: [js/src/components.ts:185](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L185)
 
 Use fixed-width digits for counters/timers to avoid layout jitter.
 
@@ -210,7 +210,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **size?**: `number`
 
-Defined in: [js/src/components.ts:167](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L167)
+Defined in: [js/src/components.ts:169](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L169)
 
 Fixed point size. Prefer `textStyle` so text scales with Dynamic Type.
 
@@ -220,7 +220,7 @@ Fixed point size. Prefer `textStyle` so text scales with Dynamic Type.
 
 > `optional` **textStyle?**: `"largeTitle"` \| `"title"` \| `"title2"` \| `"title3"` \| `"headline"` \| `"body"` \| `"callout"` \| `"subheadline"` \| `"footnote"` \| `"caption"`
 
-Defined in: [js/src/components.ts:169](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L169)
+Defined in: [js/src/components.ts:171](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L171)
 
 Semantic font that scales with the user's Dynamic Type setting.
 
