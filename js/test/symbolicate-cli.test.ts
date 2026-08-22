@@ -1,5 +1,10 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -195,7 +200,11 @@ describe("symbolicate --diagnostics", () => {
   let widgetRelease = "";
 
   beforeAll(async () => {
-    dir = mkdtempSync(join(tmpdir(), "rnw-symdiag-"));
+    // realpath, because on macOS tmpdir() is the /var -> /private/var symlink:
+    // esbuild resolves the entry to the real path but writes the map beside the
+    // unresolved outfile, so the map's `sources` come out as a seven-level
+    // ../../.. climb instead of the sibling "../app.ts" this suite asserts.
+    dir = realpathSync(mkdtempSync(join(tmpdir(), "rnw-symdiag-")));
     symbols = join(dir, "symbols");
     const appEntry = join(dir, "app.ts");
     const widgetEntry = join(dir, "widget.ts");
