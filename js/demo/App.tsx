@@ -865,9 +865,12 @@ function CrownScreen() {
 }
 
 /**
- * On-device AI via Apple's Foundation Models (~3B LLM, watchOS 26+). The
+ * On-device AI via Apple's Foundation Models (~3B LLM, watchOS 27+). The
  * prompt runs entirely on the watch — no network, no phone. The Generate
  * button is double-tap-enabled (primaryAction), so it fires on a pinch.
+ * Streaming: `onPartial` repaints the result as the model decodes (cumulative
+ * snapshots), so the screen reads like typing instead of stalling on
+ * "thinking…" until the final resolve.
  */
 function AIScreen() {
   const [prompt, setPrompt] = useState("");
@@ -875,7 +878,11 @@ function AIScreen() {
   const go = async () => {
     setResult("thinking…");
     try {
-      setResult(await generateText(prompt || "Say hi in three words"));
+      setResult(
+        await generateText(prompt || "Say hi in three words", {
+          onPartial: setResult,
+        }),
+      );
     } catch (e) {
       setResult(`error: ${(e as Error).message}`);
     }
