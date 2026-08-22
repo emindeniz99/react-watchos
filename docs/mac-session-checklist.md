@@ -123,6 +123,69 @@ returned real data:
 - On-device numbers for the announcement draft's `[E4]` bracket — every perf
   figure there is x86, and the draft says so; a device number retires the caveat
 
+### Getting the build onto the watch — what the 2026-08-22 attempt learned
+
+The build half is solved and reproducible; the connection half is the part that
+costs a session.
+
+**Build (works, ~3 min):**
+
+```sh
+cd app/ios
+xcodebuild build -workspace ReactWatchDemo.xcworkspace -scheme "React Watch" \
+  -configuration Debug -destination 'generic/platform=watchOS' \
+  -allowProvisioningUpdates
+```
+
+`generic/platform=watchOS` compiles and signs for arm64 **without the watch
+present**, so a connection problem never blocks finding out whether the tree
+builds. Verify the product carries what the simulator strips:
+
+```sh
+codesign -d --entitlements - --xml "…/Debug-watchos/React Watch.app"
+# expect: com.apple.developer.healthkit, com.apple.security.application-groups
+#         (group.com.emindeniz99.reactwatch), get-task-allow
+```
+
+That signature is the whole reason Tier 2 exists — every ③ above is unreachable
+without it, and [running-on-sim.md](./running-on-sim.md) explains why the sim
+build cannot have it.
+
+**Two traps hit on the way:**
+
+1. **`app/ios/` is gitignored and goes stale against pnpm.** Podfile.lock pins
+   *hashed* store paths (`expo-constants@57.0.9_expo@57.0.10_…`), so any
+   dependency wave leaves the Pods project pointing at directories that no
+   longer exist. Symptom is a missing file with an innocent name —
+   `PrivacyInfo.xcprivacy couldn't be opened` — from a Pods target, not from
+   ours. Fix: re-run `pod install`. **It needs a UTF-8 locale**; a bare agent
+   shell has none and CocoaPods 1.17 dies in `unicode_normalize` with
+   `Encoding::CompatibilityError` before it reads the Podfile:
+
+   ```sh
+   LANG=en_US.UTF-8 pod install
+   ```
+
+2. **A watch that is next to the Mac is usually not ON the Mac's network.**
+   watchOS keeps its Bluetooth link to the iPhone and does not join Wi-Fi while
+   the phone is nearby, and Xcode reaches a watch only over `localNetwork`. The
+   error is misleading — `RemotePairingError 1007`, "the device rejected the
+   connection request … Ensure the device is paired with this machine" — and
+   `devicectl manage pair` "succeeds" without fixing it, because pairing is a
+   record and the missing thing is a route. Diagnose it in one command instead
+   of guessing:
+
+   ```sh
+   dns-sd -B _remotepairing._tcp        # every device offering itself to Xcode
+   dns-sd -L <instance> _remotepairing._tcp local   # which device that is
+   ```
+
+   If the only advertiser resolves to the iPhone, the watch is off-network:
+   open **Settings → Wi-Fi** on the watch, join the Mac's network explicitly,
+   and keep that screen lit while installing. `xcrun devicectl device info
+   details --device <uuid> | grep tunnelState` is the yes/no check —
+   `connected` means install will work, `disconnected` means nothing else will.
+
 ## Tier 3 — do it here (Linux), not on a Mac
 
 Everything else, including all four of the still-open roadmap items: the
