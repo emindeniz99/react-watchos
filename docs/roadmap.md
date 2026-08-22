@@ -411,8 +411,17 @@ only the Xcode-27 device verify remains). Extensions, all behind the same
   Honest boundary: the `canImport(FoundationModels)` block has NEVER
   compiled (needs Xcode 27) — Linux pins the wire, plan, schema subset and
   JS semantics; the design note lists the exact spellings at risk.
-- **Tool calling** — let the model invoke our host methods (haptics, widgets,
-  fetch) as tools.
+- **Tool calling** — ✅ **shipped 2026-08-22**: `generateText`'s `tools`
+  record (name-keyed, argument schemas reuse the AISchema subset — one
+  vocabulary) round-trips JS-IMPLEMENTED tools: FM's own async `Tool.call`
+  makes the resume implicit, the parked `CheckedContinuation` releases its
+  thread and the push channel carries `ai.toolCall` out / `toolResult`
+  back, so nothing ever blocks the main actor (the DAP deadlock class is
+  structurally absent — analysed in the design record). Cancellation fails
+  parked calls BEFORE cancelling the task, so FM is never left suspended;
+  `TOOL_FAILED` joins the closed error union; `generateObject` deliberately
+  takes no tools. Same honest boundary as the rest of §6: the
+  `canImport(FoundationModels)` block is Xcode-27-owed.
 - **App Shortcuts / Siri** — surface app actions to Siri so a phrase can drive
   the React app; pairs with the **double-tap** primary action already shipped.
 
