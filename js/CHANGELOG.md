@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.7.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.6.0...react-watchos-v0.7.0) (2026-08-22)
+
+
+### Features
+
+* **demo:** ground the ai screen in a hydration tool ([12d3a93](https://github.com/emindeniz99/react-watchos/commit/12d3a93a3711ad720808efb3b5d5c100359863c3))
+* **demo:** stream the ai screen's result as it decodes ([acc670b](https://github.com/emindeniz99/react-watchos/commit/acc670b891ff107a11624dfd1e597d27a4ac70a4))
+* **js:** accept the ipv6 loopback [::1] as an ota dev host ([290fa0a](https://github.com/emindeniz99/react-watchos/commit/290fa0a5c6913297831d88a77da281c51de31cb1))
+* **js:** collapse the suite's mock invoke wire onto installInvokeHost ([046f81f](https://github.com/emindeniz99/react-watchos/commit/046f81f4163e4816e251d8a1138a9cde817a87ae))
+* **js:** crown focus claim + observation on CrownRotation ([c952597](https://github.com/emindeniz99/react-watchos/commit/c952597707e4a267063799c9b871f4dc49f45755))
+* **js:** let generateText declare tools the model can call ([9903556](https://github.com/emindeniz99/react-watchos/commit/9903556e5853db72ec96cb541ada285cae29670f))
+* **js:** read appleMoveTime, the third ring's quantity ([5d76412](https://github.com/emindeniz99/react-watchos/commit/5d76412a4ffd9efa864fbe325c68bd06052f9658))
+* **js:** stream, cancel and structure on-device generation ([44f6910](https://github.com/emindeniz99/react-watchos/commit/44f6910169d627600d72a23a540757fc84b0b615))
+* **swift:** add hourly health buckets and live-stream deletions ([1897731](https://github.com/emindeniz99/react-watchos/commit/1897731caa247d4e99a08aa0ccb8ccba0c4980df))
+* **swift:** bind the CrownRotation focus claim to @FocusState ([b4e5921](https://github.com/emindeniz99/react-watchos/commit/b4e592116a8f38877fa85fe44f72ef9c16ae27e0))
+* **swift:** host generate — stream, cancel, guided generation ([e03cbc1](https://github.com/emindeniz99/react-watchos/commit/e03cbc1b340ef6f7d2fbd5621c0a8c1a81103478))
+* **swift:** host tool round trip — park, push, resume ([0b765a4](https://github.com/emindeniz99/react-watchos/commit/0b765a46e07f15a559676a81234ae85c58e5eccf))
+* **swift:** linux-tested ai wire — plan, schema subset, error codes ([4f45a27](https://github.com/emindeniz99/react-watchos/commit/4f45a27437bae5934a92b5984b6fa643fc70b1a7))
+* **swift:** linux-tested tool wire — specs, replies, TOOL_FAILED ([4f02a5e](https://github.com/emindeniz99/react-watchos/commit/4f02a5e6222ac3a924ecf5b26284444def189633))
+
+
+### Bug Fixes
+
+* **js:** give covered routes the params of the entry they won ([cbd206b](https://github.com/emindeniz99/react-watchos/commit/cbd206bcc763b1ef7d39fd4bfe5aff82210f74d9))
+* **js:** give the compiler-active test the build-family timeout ([8236443](https://github.com/emindeniz99/react-watchos/commit/82364436f89483ee2362f2b353bc645d0da27368))
+* **swift:** retain the promise behind each parked rejection report ([1fd10d4](https://github.com/emindeniz99/react-watchos/commit/1fd10d41d90a77fd09e77956240760e6aee6310a))
+
+
+### Performance Improvements
+
+* **swift:** decode commits without codable's per-scalar try? cascade ([3fa1ba8](https://github.com/emindeniz99/react-watchos/commit/3fa1ba8fb62002ab2c7a688b2bf1b5d2c77d6c55))
+
 ## [0.6.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.5.0...react-watchos-v0.6.0) (2026-08-21)
 
 
