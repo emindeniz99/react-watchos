@@ -60,11 +60,15 @@ final class HostBridgeTests: XCTestCase {
         let r = try JSRuntime()
         var cleared: Int?
         var aborted: Int?
+        var cancelled: Int?
         r.bridge.clearTimer = { cleared = $0 }
         r.bridge.abortFetch = { aborted = $0 }
-        try r.evaluate("__host.clearTimer(11); __host.abortFetch(22)")
+        r.bridge.cancelGenerate = { cancelled = $0 }
+        try r.evaluate(
+            "__host.clearTimer(11); __host.abortFetch(22); __host.cancelGenerate(33)")
         XCTAssertEqual(cleared, 11)
         XCTAssertEqual(aborted, 22)
+        XCTAssertEqual(cancelled, 33)
     }
 
     func testSetTimerReceivesIntAndDouble() throws {
@@ -181,7 +185,7 @@ final class HostBridgeTests: XCTestCase {
             "commit", "log", "setTimer", "clearTimer", "invoke", "publishWidgets",
             "getItem", "setItem", "counterGet", "counterAdd", "stateRevision",
             "playHaptic", "cancelNotification", "fetch", "abortFetch", "ble",
-            "sensor", "generate",
+            "sensor", "generate", "cancelGenerate",
         ] {
             XCTAssertTrue(
                 r.evaluateBool("typeof __host.\(name) === 'function'"),
@@ -210,7 +214,7 @@ final class HostBridgeTests: XCTestCase {
         }
         for name in [
             "playHaptic", "cancelNotification", "fetch", "abortFetch", "ble",
-            "sensor", "generate",
+            "sensor", "generate", "cancelGenerate",
         ] {
             XCTAssertTrue(
                 widget.evaluateBool("typeof __host.\(name) === 'undefined'"),
@@ -231,7 +235,10 @@ final class HostBridgeTests: XCTestCase {
                 r.evaluateBool("typeof __host.\(name) === 'function'"),
                 "allowed __host.\(name) should be installed")
         }
-        for name in ["fetch", "abortFetch", "ble", "sensor", "generate", "publishWidgets"] {
+        for name in [
+            "fetch", "abortFetch", "ble", "sensor", "generate", "cancelGenerate",
+            "publishWidgets",
+        ] {
             XCTAssertTrue(
                 r.evaluateBool("typeof __host.\(name) === 'undefined'"),
                 "policy-blocked __host.\(name) must NOT be installed")

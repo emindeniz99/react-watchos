@@ -1066,7 +1066,12 @@ extension JSRuntime {
         bridgeCall("__resolveGenerate", [.int(id), .string(text)], filename: "ai.js")
     }
 
-    public func rejectGenerate(id: Int, message: String) {
-        bridgeCall("__rejectGenerate", [.int(id), .string(message)], filename: "ai.js")
+    /// `errorJson` is the `{code, message}` payload of the closed AIErrorCode
+    /// vocabulary (AIErrorJSON in ReactWatchSupport) — a bare message string
+    /// left js/src/ai.ts nothing to switch on, so every native failure looked
+    /// the same to a caller deciding between "hide the feature" (UNAVAILABLE)
+    /// and "show the refusal" (REFUSAL).
+    public func rejectGenerate(id: Int, errorJson: String) {
+        bridgeCall("__rejectGenerate", [.int(id), .string(errorJson)], filename: "ai.js")
     }
 }
