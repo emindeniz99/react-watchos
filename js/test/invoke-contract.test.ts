@@ -66,6 +66,7 @@ import {
   __resetHealthUpdatesForTest,
   queryActivitySummaries,
   queryHealthDailyStatistics,
+  queryHealthHourlyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,
@@ -243,10 +244,28 @@ const healthDailyStatistics: HealthStatisticsResult[] = [
 ];
 const healthSamples: HealthSample[] = [
   {
+    id: "1B7A6E52-5E1B-4A3E-9C1D-8F2A4B6C0D9E",
     startMs: 1_768_480_000_000,
     endMs: 1_768_480_060_000,
     value: 118,
     unit: "count/min",
+  },
+];
+// Two hourly buckets, the second EMPTY — the same contract as the daily
+// query at a different stride, and the same reason the null has to ride a
+// fixture: an empty hour is a `value: null` bucket, never a gap.
+const healthHourlyStatistics: HealthStatisticsResult[] = [
+  {
+    value: 612,
+    unit: "count",
+    startMs: 1_768_396_800_000,
+    endMs: 1_768_400_400_000,
+  },
+  {
+    value: null,
+    unit: "count",
+    startMs: 1_768_400_400_000,
+    endMs: 1_768_404_000_000,
   },
 ];
 const pedometerData: WirePedometerData = {
@@ -486,6 +505,7 @@ const RESULTS: Record<string, unknown> = {
   getCurrentLocation: coordinate,
   queryHealthStatistics: healthStatistics,
   queryHealthDailyStatistics: healthDailyStatistics,
+  queryHealthHourlyStatistics: healthHourlyStatistics,
   queryHealthSamples: healthSamples,
   querySleepSamples: sleepSamples,
   queryWorkoutHistory: workoutSummaries,
@@ -613,6 +633,14 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       statistic: "sum",
       startMs: 1_768_396_800_000,
       endMs: 1_769_001_600_000,
+    });
+    // The hourly sibling sends the identical payload too — the method name is
+    // the granularity, so the request must not grow a bucket-size knob.
+    await queryHealthHourlyStatistics({
+      type: "stepCount",
+      statistic: "sum",
+      startMs: 1_768_396_800_000,
+      endMs: 1_768_483_200_000,
     });
     await queryHealthSamples({
       type: "heartRate",
@@ -835,6 +863,18 @@ describe("invoke contract fixtures (ARCH-11)", () => {
           statistic: "sum",
           startMs: 1_768_396_800_000,
           endMs: 1_768_569_600_000,
+        }),
+      ),
+    );
+    writeFixture(
+      "queryHealthHourlyStatistics",
+      "response",
+      JSON.stringify(
+        await queryHealthHourlyStatistics({
+          type: "stepCount",
+          statistic: "sum",
+          startMs: 1_768_396_800_000,
+          endMs: 1_768_483_200_000,
         }),
       ),
     );

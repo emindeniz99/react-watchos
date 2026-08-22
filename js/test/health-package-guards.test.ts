@@ -472,7 +472,7 @@ describe("refusals that produce no delegate callback are synchronous", () => {
   });
 });
 
-describe("the daily statistics collection is contiguous, not sparse", () => {
+describe("the bucketed statistics collections are contiguous, not sparse", () => {
   it("enumerates every interval instead of only the ones with samples", () => {
     // `HKStatisticsCollection.statistics()` skips intervals with no samples
     // ("there may be arbitrarily large gaps"), so a week the user rested twice
@@ -480,23 +480,49 @@ describe("the daily statistics collection is contiguous, not sparse", () => {
     // days were missing. `enumerateStatistics(from:to:)` calls the block once
     // per interval with a nil-valued quantity, which is exactly the
     // `value: null` the scalar query already means. That is the difference
-    // between "results.length is the number of days you asked for" and not.
+    // between "results.length is the number of buckets you asked for" and not.
     const src = read("ReactWatchHost/HealthQueryBridge.swift");
-    const body = src.slice(
-      src.indexOf(
-        "func dailyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {",
-      ),
-    );
+    const body = src.slice(src.indexOf("private func bucketedStatistics("));
     expect(body).toContain("collection.enumerateStatistics(");
     expect(body).not.toContain("collection.statistics()");
-    // Day granularity, anchored on the caller's own window start — that is
-    // what keeps the time zone in JS, where the calendar actually is.
+    // Anchored on the caller's own window start — that is what keeps the time
+    // zone in JS, where the calendar actually is — with the stride as the ONE
+    // parameter, so the two granularities cannot drift on anything else.
     expect(body).toContain("anchorDate: plan.window.start");
-    expect(body).toContain("intervalComponents: DateComponents(day: 1)");
+    expect(body).toContain("intervalComponents: stride");
     // The off-by-one Apple's contract introduces (the final interval is the
     // one CONTAINING the end date) is dropped by the Linux-tested rule, not
     // re-derived here.
     expect(body).toContain("window.containsBucketStart(startMs)");
+  });
+
+  it("the two public wrappers differ ONLY in the stride they pass", () => {
+    // The method name is the granularity, so each wrapper is one line handing
+    // the shared implementation its stride — a second hand-written descriptor
+    // is exactly the drift surface the shared body exists to remove.
+    const src = read("ReactWatchHost/HealthQueryBridge.swift");
+    expect(src).toContain(
+      "await bucketedStatistics(plan, stride: DateComponents(day: 1))",
+    );
+    expect(src).toContain(
+      "await bucketedStatistics(plan, stride: DateComponents(hour: 1))",
+    );
+    // ... and the HOURLY handler decodes through the hourly ceiling. The
+    // shared bridge body cannot check this (it never sees the raw JSON), so
+    // the host routing is where a laxer second door would open.
+    const host = read("ReactWatchHost/ReactWatchHost.swift");
+    const hourly = host.slice(
+      host.indexOf(
+        "private func handleQueryHealthHourlyStatistics(id: Int, payload: String) {",
+      ),
+      host.indexOf(
+        "private func handleQueryHealthSamples(id: Int, payload: String) {",
+      ),
+    );
+    expect(hourly).toContain(
+      "HealthStatisticsPlan.decodeHourly(json: payload)",
+    );
+    expect(hourly).toContain("bridge.hourlyStatistics(plan)");
   });
 
   it("shares one statistic->quantity table with the scalar query", () => {
@@ -974,9 +1000,12 @@ describe("the live sample stream is named once and lives only in the foreground"
     // Sorted, because `addedSamples` carries no order promise and
     // `samples.at(-1)` is the newest value a heart-rate screen renders.
     expect(query()).toContain(".sorted { $0.startDate < $1.startDate }");
-    // An update with nothing added is not pushed: an empty batch would wake
-    // every subscriber and commit a render to say nothing happened.
-    expect(query()).toContain("guard !rows.isEmpty else { continue }");
+    // An update carrying neither new samples nor deletions is not pushed: an
+    // empty batch would wake every subscriber and commit a render to say
+    // nothing happened.
+    expect(query()).toContain(
+      "guard !rows.isEmpty || !deleted.isEmpty else { continue }",
+    );
     // The descriptor family, not the callback class — whose cancellation and
     // off-main `updateHandler` this file would have to hand-roll around.
     expect(code()).toContain("HKAnchoredObjectQueryDescriptor(");
@@ -1002,16 +1031,49 @@ describe("the live sample stream is named once and lives only in the foreground"
     // meaning halfway.
     expect(query()).toContain("let unit = Self.unit(for: kind)");
     expect(query()).toContain("let unitName = kind.unit");
-    // The row keys are only half of it: the payload WRAPPER key is the same
-    // unchecked string pair as the event name — a Swift literal here, a
-    // `payload?.samples` read in health.ts — and renaming the Swift half would
-    // leave every gate green while `Array.isArray(samples)` fails on every push
-    // and the handler silently never fires.
-    const wrapperKey = "samples";
+    // The row keys are only half of it: the payload WRAPPER keys are the same
+    // unchecked string pairs as the event name — Swift literals here,
+    // `payload?.samples` / `payload?.deletedIds` reads in health.ts — and
+    // renaming either Swift half would leave every gate green while the JS
+    // narrowing fails on every push and the handler silently never fires.
     expect(host()).toContain(
-      `pushNativeEvent(event, payload: ["${wrapperKey}": samples])`,
+      `payload: ["samples": samples, "deletedIds": deletedIds]`,
     );
-    expect(healthTs()).toContain(`const samples = payload?.${wrapperKey};`);
+    expect(healthTs()).toContain("const samples = payload?.samples;");
+    expect(healthTs()).toContain("const deleted = payload?.deletedIds;");
+  });
+
+  it("reports deletions by the SAME identity both row producers emit", () => {
+    // healthUpdateDeletions: a deletion is an id and nothing else, so it is
+    // only actionable if the id names a row the subscriber has — which means
+    // all three sites must read the same accessor. `HKObject.uuid` (watchOS
+    // 2.0) on both row producers, `HKDeletedObject.uuid` (2.0) on the
+    // retraction; a second spelling at any one of them is a deletion that
+    // retracts nothing, silently.
+    expect(query()).toContain(
+      "let deleted = update.deletedObjects.map(\\.uuid.uuidString)",
+    );
+    expect(query()).toContain('"id": sample.uuid.uuidString');
+    const samplesBody = code().slice(
+      code().indexOf(
+        "func samples(_ plan: HealthSamplesPlan) async -> Outcome {",
+      ),
+      code().indexOf("func sleepSamples("),
+    );
+    expect(samplesBody).toContain('"id": sample.uuid.uuidString');
+    // Deletions ride the SAME buffer as additions — same floor, same merge —
+    // so order survives coalescing: an add and its own deletion held into one
+    // push net out to gone, where an immediate-deletions bypass could retract
+    // a row whose add was still being held.
+    expect(query()).toContain("buffer.deletedIds.append(contentsOf: deleted)");
+    // ... and JS applies them in that order: samples to the handler first,
+    // deletions to the per-subscriber callback second.
+    const wrapper = healthTs().slice(
+      healthTs().indexOf("const off = registerNativeListener("),
+    );
+    expect(wrapper.indexOf("const samples = payload?.samples;")).toBeLessThan(
+      wrapper.indexOf("const deleted = payload?.deletedIds;"),
+    );
   });
 
   it("coalesces by MERGING held batches, so none is dropped and none paces", () => {

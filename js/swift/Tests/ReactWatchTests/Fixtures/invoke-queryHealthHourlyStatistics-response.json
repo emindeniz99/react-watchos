@@ -1,0 +1,14 @@
+[
+  {
+    "value": 612,
+    "unit": "count",
+    "startMs": 1768396800000,
+    "endMs": 1768400400000
+  },
+  {
+    "value": null,
+    "unit": "count",
+    "startMs": 1768400400000,
+    "endMs": 1768404000000
+  }
+]

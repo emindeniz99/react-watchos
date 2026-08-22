@@ -6,7 +6,7 @@
 
 # Interface: SleepSample
 
-Defined in: [js/src/health.ts:222](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L222)
+Defined in: [js/src/health.ts:229](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L229)
 
 One staged sleep interval. Sleep is not a numeric series, so it has its own
  shape rather than a `value: 3` plus a magic mapping every caller owns.
@@ -17,7 +17,7 @@ One staged sleep interval. Sleep is not a numeric series, so it has its own
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:224](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L224)
+Defined in: [js/src/health.ts:231](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L231)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [js/src/health.ts:224](https://github.com/emindeniz99/react-watchos/
 
 > **stage**: `"inBed"` \| `"awake"` \| `"asleepCore"` \| `"asleepDeep"` \| `"asleepREM"` \| `"asleepUnspecified"`
 
-Defined in: [js/src/health.ts:225](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L225)
+Defined in: [js/src/health.ts:232](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L232)
 
 ***
 
@@ -33,4 +33,4 @@ Defined in: [js/src/health.ts:225](https://github.com/emindeniz99/react-watchos/
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:223](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L223)
+Defined in: [js/src/health.ts:230](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L230)

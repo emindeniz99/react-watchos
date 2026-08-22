@@ -409,6 +409,51 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
                 + "the stream did: " + live.predicateFormat)
     }
 
+    /// The bucketed statistics descriptor, at BOTH strides the bridge passes.
+    ///
+    /// What a watch can check that Linux cannot is that HealthKit's own
+    /// descriptor accepts and carries the two decisions the bucketed queries
+    /// are made of — the anchor is the caller's own window start (the time
+    /// zone stays in JS) and the stride is exactly the `DateComponents` the
+    /// wrapper named, day for `queryHealthDailyStatistics` and hour for
+    /// `queryHealthHourlyStatistics`. The hour arm is the healthHourlyBuckets
+    /// follow-up: a mangled stride here would not fail, it would bucket a
+    /// steps-per-hour chart by some other interval under a green build.
+    @MainActor
+    func testTheBucketedDescriptorCarriesTheAnchorAndBothStrides() {
+        let anchor = Date(timeIntervalSince1970: 1_768_396_800)
+        for stride in [DateComponents(day: 1), DateComponents(hour: 1)] {
+            let descriptor = HKStatisticsCollectionQueryDescriptor(
+                predicate: .quantitySample(
+                    type: HKQuantityType(.stepCount),
+                    predicate: HKQuery.predicateForSamples(
+                        withStart: anchor,
+                        end: Date(timeIntervalSince1970: 1_768_483_200))),
+                options: .cumulativeSum,
+                anchorDate: anchor,
+                intervalComponents: stride)
+            XCTAssertEqual(descriptor.anchorDate, anchor, "\(stride)")
+            XCTAssertEqual(descriptor.intervalComponents, stride)
+        }
+    }
+
+    /// The identity the live stream retracts by. `HKObject.uuid` (watchOS 2.0)
+    /// is assigned at CONSTRUCTION, not at save — which is what lets the
+    /// bridge put an `id` on every row it emits, saved or streamed, without a
+    /// store in the loop. What no simulator can prove is the other half — that
+    /// a real deletion's `HKDeletedObject.uuid` names the uuid the add carried
+    /// — because HKDeletedObject has no public initializer and an unsigned sim
+    /// has no store to delete from: that join is device-owed.
+    @MainActor
+    func testASampleCarriesItsIdentityBeforeItIsEverSaved() {
+        let sample = HKQuantitySample(
+            type: HKQuantityType(.stepCount),
+            quantity: HKQuantity(unit: .count(), doubleValue: 12),
+            start: Date(timeIntervalSince1970: 1_768_396_800),
+            end: Date(timeIntervalSince1970: 1_768_396_860))
+        XCTAssertNotNil(UUID(uuidString: sample.uuid.uuidString))
+    }
+
     /// The move ring, by CASE and in both directions. `HKActivityMoveMode` is an
     /// ObjC enum that exists only on watchOS, so this table cannot be checked
     /// anywhere else — and getting it wrong does not fail, it tells a move-time

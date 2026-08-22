@@ -1417,6 +1417,20 @@ export const invokeShapes: StructDef[] = [
     swift: "HealthSample",
     ts: "HealthSample",
     fields: [
+      {
+        // HKObject.uuid (watchOS 2.0) — the sample's IDENTITY, and the field
+        // that closed the healthUpdateDeletions deferral: the live stream
+        // reports a retracted sample by uuid, and an id that appeared on no
+        // row would retract nothing. On the shared row shape rather than a
+        // live-only variant, deliberately: a live row and a queryHealthSamples
+        // row MEAN the same thing (same unit table, same keys — the guards
+        // test pins them equal), so a subscriber can seed from history and
+        // then apply deletions against it. Also the WorkoutSummary.id
+        // precedent — a stable list key a chart row was missing anyway.
+        name: "id",
+        swift: "String",
+        ts: "string",
+      },
       { name: "startMs", swift: "Double", ts: "number" },
       { name: "endMs", swift: "Double", ts: "number" },
       { name: "value", swift: "Double", ts: "number" },
@@ -2266,6 +2280,28 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     via: "invoke",
     doc: "One aggregate per DAY over the window (HKStatisticsCollectionQueryDescriptor), instead of one invoke per day. Buckets are contiguous and anchored on startMs — an empty day is a bucket with value: null, not a gap.",
+    request: "HealthStatisticsRequest",
+    response: "HealthStatisticsResult[]",
+  },
+  {
+    // The hourly sibling — healthHourlyBuckets, taken 2026-08-22. A METHOD,
+    // not a bucket-size field on the shared request: `queryHealthStatistics`
+    // decodes the same `HealthStatisticsRequest`, so a `bucket` field there
+    // would be a knob the scalar query has to ignore, and the daily method's
+    // recorded rule ("the method name IS the granularity") holds better with
+    // two methods than with a union bolted onto three. The deferral's two
+    // contract questions are answered in the plan, where Linux tests them:
+    // the ceiling is the same ONE number (1000 BUCKETS, so ~41 days of hours
+    // — `decodeHourly` refuses wider), and the anchor stays the caller's
+    // startMs — an "hour" begins where JS says it does, and hour steps are
+    // uniform 3600s, so unlike a day bucket a DST transition never stretches
+    // one.
+    name: "queryHealthHourlyStatistics",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "One aggregate per HOUR over the window (the same HKStatisticsCollectionQueryDescriptor, hour stride) — a steps-per-hour chart in one invoke. Contiguous and anchored on startMs like the daily buckets; the 1000-bucket ceiling makes the widest legal window about 41 days.",
     request: "HealthStatisticsRequest",
     response: "HealthStatisticsResult[]",
   },

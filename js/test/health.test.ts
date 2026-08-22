@@ -4,6 +4,7 @@ import {
   HEALTH_UPDATE_EVENT_PREFIX,
   queryActivitySummaries,
   queryHealthDailyStatistics,
+  queryHealthHourlyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,
@@ -107,6 +108,51 @@ describe("health reads", () => {
         },
       },
     ]);
+  });
+
+  it("asks for a day of hourly buckets with ONE invoke, and the same payload", () => {
+    // The hourly sibling of the daily query: same request shape, same result
+    // rows, a different stride named by the METHOD — so the payload must stay
+    // the scalar query's payload, with no bucket-size knob smuggled in.
+    const hour = 3_600_000;
+    const calls = installHost([]);
+    queryHealthHourlyStatistics({
+      type: "stepCount",
+      statistic: "sum",
+      startMs: 0,
+      endMs: 24 * hour,
+    });
+    expect(calls).toEqual([
+      {
+        method: "queryHealthHourlyStatistics",
+        payload: {
+          type: "stepCount",
+          statistic: "sum",
+          startMs: 0,
+          endMs: 24 * hour,
+        },
+      },
+    ]);
+  });
+
+  it("keeps an empty hour as a null bucket rather than a gap", async () => {
+    // Contiguity is the same contract as the daily buckets: index n is hour n
+    // and `.length` is the number of hours asked for — which is what lets a
+    // steps-per-hour chart label bars off `startMs` without re-deriving gaps.
+    const hour = 3_600_000;
+    installHost([
+      { value: 612, unit: "count", startMs: 0, endMs: hour },
+      { value: null, unit: "count", startMs: hour, endMs: 2 * hour },
+    ]);
+    const buckets = await queryHealthHourlyStatistics({
+      type: "stepCount",
+      statistic: "sum",
+      startMs: 0,
+      endMs: 2 * hour,
+    });
+    expect(buckets).toHaveLength(2);
+    expect(buckets[1]?.value).toBeNull();
+    expect(buckets[1]?.startMs).toBe(hour);
   });
 
   it("keeps an empty day as a null bucket rather than a gap", async () => {
@@ -388,8 +434,10 @@ describe("health reads", () => {
 });
 
 describe("live health updates", () => {
-  /** One sample row, the shape `queryHealthSamples` returns verbatim. */
+  /** One sample row, the shape `queryHealthSamples` returns verbatim — id
+   *  included, since the row's identity is what a deletion retracts by. */
   const sample = (value: number, startMs: number) => ({
+    id: `id-${startMs}`,
     startMs,
     endMs: startMs + 1000,
     value,
@@ -615,6 +663,75 @@ describe("live health updates", () => {
     });
     expect(seen).toHaveLength(1);
     live.stop();
+  });
+
+  it("routes a deletions-only push to onDeleted and NOT to the sample handler", () => {
+    // The case the feature exists for: the user deletes a sample in the Health
+    // app while a live screen is open. Nothing was added, so the sample
+    // handler must not run — its contract (samples non-empty, `latest`
+    // guaranteed) is exactly what folding deletions in would have cost.
+    installHost(null);
+    const updates: unknown[] = [];
+    const deletions: unknown[] = [];
+    const live = startHealthUpdates("stepCount", (u) => updates.push(u), {
+      onDeleted: (d) => deletions.push(d),
+    });
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}stepCount`, {
+      samples: [],
+      deletedIds: ["id-1", "id-2"],
+    });
+    expect(updates).toEqual([]);
+    // Narrowed like the sample path: the handler gets a typed HealthDeletion
+    // naming its own type, so one function can serve two subscriptions.
+    expect(deletions).toEqual([{ type: "stepCount", ids: ["id-1", "id-2"] }]);
+    // Nothing deleted -> onDeleted is not called with an empty list.
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}stepCount`, {
+      samples: [sample(12, 5)],
+      deletedIds: [],
+    });
+    expect(deletions).toHaveLength(1);
+    expect(updates).toHaveLength(1);
+    live.stop();
+  });
+
+  it("applies adds before retractions when one push carries both", () => {
+    // Deletions ride the same native batch as additions (same floor, same
+    // merge), so a subscriber's buffer must see the add first — an add and its
+    // own deletion merged into one push have to net out to GONE, not to a
+    // deletion that misses followed by a row that sticks.
+    installHost(null);
+    const order: string[] = [];
+    const live = startHealthUpdates(
+      "heartRate",
+      (u) => order.push(`samples:${u.samples.map((s) => s.id).join(",")}`),
+      { onDeleted: (d) => order.push(`deleted:${d.ids.join(",")}`) },
+    );
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}heartRate`, {
+      samples: [sample(61, 1), sample(64, 2)],
+      deletedIds: ["id-1"],
+    });
+    expect(order).toEqual(["samples:id-1,id-2", "deleted:id-1"]);
+    live.stop();
+  });
+
+  it("delivers deletions per SUBSCRIBER, not first-options-wins", () => {
+    // `minIntervalMs` is a native knob on the one shared query, so the first
+    // subscriber's value wins; `onDeleted` is JS routing, so each subscriber's
+    // own choice holds — a screen that never opted in must not start receiving
+    // retractions because a later subscriber did.
+    installHost(null);
+    const seen: string[][] = [];
+    const plain = startHealthUpdates("stepCount", () => {});
+    const buffered = startHealthUpdates("stepCount", () => {}, {
+      onDeleted: (d) => seen.push(d.ids),
+    });
+    dispatchNativeEvent(`${HEALTH_UPDATE_EVENT_PREFIX}stepCount`, {
+      samples: [],
+      deletedIds: ["id-9"],
+    });
+    expect(seen).toEqual([["id-9"]]);
+    plain.stop();
+    buffered.stop();
   });
 
   it("subscribes per TYPE, so one type's samples reach only its own screen", () => {

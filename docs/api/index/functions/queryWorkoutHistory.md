@@ -8,7 +8,7 @@
 
 > **queryWorkoutHistory**(`request`): `Promise`\<[`WorkoutSummary`](../interfaces/WorkoutSummary.md)[]\>
 
-Defined in: [js/src/health.ts:465](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L465)
+Defined in: [js/src/health.ts:505](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L505)
 
 The workouts already **saved** in `[startMs, endMs)`, newest first — a
 "your last five runs" screen, as opposed to [getWorkoutState](getWorkoutState.md) (the

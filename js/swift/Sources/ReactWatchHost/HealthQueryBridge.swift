@@ -36,11 +36,14 @@ import ReactWatchSupport
     /// round trip is not free and every query below would otherwise pay it.
     private var requested: Set<String> = []
 
-    /// One batch of new samples for a live stream, already JSON-safe, plus the
-    /// event NAME it belongs on. Wired in `ReactWatchHost` to
-    /// `pushNativeEvent`, the same way `sensors.onReading` is — this bridge
-    /// does not know the runtime exists.
-    var onSamples: ((_ event: String, _ samples: [[String: Any]]) -> Void)?
+    /// One batch for a live stream — the new samples (already JSON-safe) and
+    /// the uuids of samples DELETED from HealthKit, plus the event NAME it
+    /// belongs on. Wired in `ReactWatchHost` to `pushNativeEvent`, the same way
+    /// `sensors.onReading` is — this bridge does not know the runtime exists.
+    /// Either array can be empty, never both: an update carrying neither is not
+    /// pushed at all.
+    var onSamples:
+        ((_ event: String, _ samples: [[String: Any]], _ deletedIds: [String]) -> Void)?
 
     /// The live query per type. A `Task`, because an
     /// `HKAnchoredObjectQueryDescriptor` has no `stop(_:)` — the descriptor
@@ -328,26 +331,49 @@ import ReactWatchSupport
         }
     }
 
-    /// The same aggregate, once per DAY — `HKStatisticsCollectionQueryDescriptor`
-    /// (watchOS 8.5), which is one HealthKit round trip for a week chart that
-    /// used to cost seven `queryHealthStatistics` invokes. That is the whole
-    /// reason this exists: seven queries' worth of HealthKit work on a watch is
-    /// a battery cost, not a style preference.
+    /// The same aggregate, once per DAY — see `bucketedStatistics`, which is
+    /// the whole implementation: the two bucketed queries differ only in the
+    /// stride, and two hand-written descriptors would drift on the decisions
+    /// that ARE this feature (the anchor, the contiguous enumeration, the
+    /// boundary rule).
+    func dailyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {
+        await bucketedStatistics(plan, stride: DateComponents(day: 1))
+    }
+
+    /// ... and once per HOUR (`healthHourlyBuckets`, taken 2026-08-22). The
+    /// stride is the only difference; the hourly-only rule — a ceiling counted
+    /// in hours — was already applied by `HealthStatisticsPlan.decodeHourly`
+    /// before this bridge was touched.
+    func hourlyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {
+        await bucketedStatistics(plan, stride: DateComponents(hour: 1))
+    }
+
+    /// One aggregate per `stride` across the window —
+    /// `HKStatisticsCollectionQueryDescriptor` (watchOS 8.5), which is one
+    /// HealthKit round trip for a chart that used to cost one
+    /// `queryHealthStatistics` invoke per bar. That is the whole reason this
+    /// exists: a query per bar on a watch is a battery cost, not a style
+    /// preference.
     ///
     /// Two choices worth naming:
     ///
     /// - `anchorDate` is the window's OWN start, so the caller decides where a
-    ///   "day" begins by choosing `startMs`. That keeps the time zone in JS,
+    ///   bucket begins by choosing `startMs`. That keeps the time zone in JS,
     ///   where the calendar actually is — a `Calendar.current`-derived midnight
-    ///   here would silently disagree with the labels the caller renders.
+    ///   here would silently disagree with the labels the caller renders. For
+    ///   the HOUR stride the anchor is the whole timezone story: hour steps are
+    ///   uniform 3600 s (DST moves labels, never hour lengths), so bucket *n*
+    ///   is `startMs + n·3600000` on every watch.
     /// - `enumerateStatistics(from:to:)`, not `statistics()`. Apple documents
     ///   the latter as skipping intervals with no samples ("there may be
     ///   arbitrarily large gaps"), which would return five buckets for a week
     ///   the user rested twice and leave every caller re-deriving which days
     ///   are missing. The former "calls the block once for each time interval"
-    ///   with a `nil`-valued quantity when a day is empty, which is exactly the
-    ///   `value: null` the scalar query already means.
-    func dailyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {
+    ///   with a `nil`-valued quantity when a bucket is empty, which is exactly
+    ///   the `value: null` the scalar query already means.
+    private func bucketedStatistics(
+        _ plan: HealthStatisticsPlan, stride: DateComponents
+    ) async -> Outcome {
         let type = Self.quantityType(for: plan.kind)
         await ensureRequested([type])
         let descriptor = HKStatisticsCollectionQueryDescriptor(
@@ -357,7 +383,7 @@ import ReactWatchSupport
                     withStart: plan.window.start, end: plan.window.end)),
             options: Self.options(for: plan.statistic),
             anchorDate: plan.window.start,
-            intervalComponents: DateComponents(day: 1))
+            intervalComponents: stride)
         let unit = Self.unit(for: plan.kind)
         let unitName = plan.kind.unit
         let statistic = plan.statistic
@@ -409,6 +435,12 @@ import ReactWatchSupport
                 Self.json(
                     samples.map { sample in
                         [
+                            // HKObject.uuid (watchOS 2.0): the identity a
+                            // live-stream deletion retracts by, and a stable
+                            // list key. On the query row too — same shape as a
+                            // live row, by contract — so a subscriber can seed
+                            // from history and then apply deletions against it.
+                            "id": sample.uuid.uuidString,
                             "startMs": sample.startDate.timeIntervalSince1970 * 1000,
                             "endMs": sample.endDate.timeIntervalSince1970 * 1000,
                             "value": sample.quantity.doubleValue(for: unit),
@@ -844,6 +876,11 @@ import ReactWatchSupport
                         .sorted { $0.startDate < $1.startDate }
                         .map { sample in
                             [
+                                // The identity a deletion below retracts by —
+                                // HKObject.uuid, the same accessor the
+                                // queryHealthSamples row reads, because the
+                                // two rows are the same shape by contract.
+                                "id": sample.uuid.uuidString,
                                 "startMs": sample.startDate.timeIntervalSince1970 * 1000,
                                 "endMs": sample.endDate.timeIntervalSince1970 * 1000,
                                 "value": sample.quantity.doubleValue(for: unit),
@@ -854,10 +891,16 @@ import ReactWatchSupport
                                 "unit": unitName,
                             ] as [String: Any]
                         }
-                    // A deletions-only update carries no sample. Pushing an
-                    // empty batch would wake every subscriber and commit a
-                    // render to say nothing happened.
-                    guard !rows.isEmpty else { continue }
+                    // DELETIONS ride too (`healthUpdateDeletions`, taken
+                    // 2026-08-22): a user deleting a sample in the Health app
+                    // while a live screen is open is a retraction that screen's
+                    // buffer needs, and dropping it was only honest while the
+                    // row carried no identity to act on.
+                    let deleted = update.deletedObjects.map(\.uuid.uuidString)
+                    // An update carrying NEITHER new samples nor deletions is
+                    // not pushed: an empty batch would wake every subscriber
+                    // and commit a render to say nothing happened.
+                    guard !rows.isEmpty || !deleted.isEmpty else { continue }
                     // THIS task's identity, checked before anything is emitted
                     // or buffered. `wantedUpdates` cannot answer it: a
                     // background pause deliberately LEAVES that entry set, so a
@@ -868,13 +911,21 @@ import ReactWatchSupport
                     // covers all of them — and it does not depend on Apple
                     // observing cancellation promptly.
                     guard let self, self.updateEpochs[kind] == epoch else { return }
+                    // Deletions share the buffer, and therefore the floor and
+                    // the merge, so ORDER survives coalescing: an add and its
+                    // own deletion held into one push net out to gone on the
+                    // subscriber's side (JS applies samples first, then
+                    // deletions), where an immediate deletions bypass could
+                    // retract a row whose add was still being held.
                     buffer.rows.append(contentsOf: rows)
+                    buffer.deletedIds.append(contentsOf: deleted)
                     let sinceLastPush = Date().timeIntervalSince(
                         buffer.lastEmitAt)
                     let wait = minGapSeconds - sinceLastPush
                     guard wait > 0 else {
                         buffer.lastEmitAt = Date()
-                        self.onSamples?(event, buffer.take())
+                        let batch = buffer.take()
+                        self.onSamples?(event, batch.rows, batch.deletedIds)
                         continue
                     }
                     // Inside the floor: a flush is already scheduled, or one is
@@ -892,9 +943,10 @@ import ReactWatchSupport
                         // move for a push that did not happen, or the next real
                         // batch waits an extra floor for nothing.
                         let merged = buffer.take()
-                        guard !merged.isEmpty else { return }
+                        guard !merged.rows.isEmpty || !merged.deletedIds.isEmpty
+                        else { return }
                         buffer.lastEmitAt = Date()
-                        self.onSamples?(event, merged)
+                        self.onSamples?(event, merged.rows, merged.deletedIds)
                     }
                 }
             } catch {
@@ -996,8 +1048,9 @@ import ReactWatchSupport
     }
 }
 
-/// One live query's coalescing state: the rows waiting for the next push, when
-/// the last one went out, and the flush that will send them.
+/// One live query's coalescing state: the rows and deletion ids waiting for
+/// the next push, when the last one went out, and the flush that will send
+/// them.
 ///
 /// A reference type so the query's loop and its scheduled flush share ONE
 /// buffer — captured `var`s cannot be, and a per-kind map on the bridge would
@@ -1009,14 +1062,20 @@ import ReactWatchSupport
 /// bridge's isolation, and both writers are main-confined.
 @MainActor private final class UpdateBuffer {
     var rows: [[String: Any]] = []
+    var deletedIds: [String] = []
     var lastEmitAt = Date.distantPast
     var flush: Task<Void, Never>?
 
-    /// The held rows, and the buffer is empty again — one call, so a push can
-    /// never send rows it also leaves behind.
-    func take() -> [[String: Any]] {
-        defer { rows = [] }
-        return rows
+    /// The held batch, and the buffer is empty again — one call, so a push can
+    /// never send rows it also leaves behind. Both halves together, or a flush
+    /// racing the fast path could split an add from the deletion that retracts
+    /// it and deliver them out of order.
+    func take() -> (rows: [[String: Any]], deletedIds: [String]) {
+        defer {
+            rows = []
+            deletedIds = []
+        }
+        return (rows, deletedIds)
     }
 }
 #endif
