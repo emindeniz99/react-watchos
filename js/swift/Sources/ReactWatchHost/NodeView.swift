@@ -1118,9 +1118,20 @@ private struct A11yModifier: ViewModifier {
 /// Binds the Digital Crown to a numeric value over its children. The
 /// optimistic value (model-keyed) holds the displayed number until React
 /// acks the change, like the other input controls.
+///
+/// Focus management (docs/design-focus-management.md): the Crown reaches only
+/// the FOCUSED view, so the `focused` prop is a declarative claim bound to a
+/// per-node `@FocusState` — SwiftUI's single-owner invariant is the screen
+/// coordinator. The claim is EDGE-triggered (applied when the committed value
+/// changes, and once on appearance so a pushed screen's marked view grabs the
+/// Crown — ARCH-09 mounts only active routes, so pop-return re-runs it); after
+/// that the system keeps arbitration, and `focusChange` reports every move so
+/// JS can fold reality back into the state the claim derives from. An absent
+/// prop leaves today's system-arbitrated behavior untouched.
 private struct CrownRotationView: View {
     let node: RNNode
     @Environment(ReactWatchModel.self) private var model
+    @FocusState private var focused: Bool
 
     var body: some View {
         // Normalize bounds so a reversed min/max can't trap the crown range.
@@ -1128,6 +1139,7 @@ private struct CrownRotationView: View {
         let hi = node.double("max") ?? 100
         return VStack { ForEach(node.children) { NodeView(node: $0) } }
             .focusable()
+            .focused($focused)
             .digitalCrownRotation(
                 binding,
                 from: Swift.min(lo, hi),
@@ -1137,6 +1149,30 @@ private struct CrownRotationView: View {
                 isContinuous: false,
                 isHapticFeedbackEnabled: node.bool("haptic") ?? true
             )
+            // prop -> system: a CHANGED claim applies (true claims, false
+            // resigns; resigning a view that isn't focused is a no-op, so a
+            // one-commit handoff converges to the claimer in either order).
+            .onChange(of: node.bool("focused")) { _, wants in
+                guard let wants else { return }
+                focused = wants
+            }
+            // ...and once on appearance, deferred a tick like autoFocus in
+            // OptimisticTextField (focusing in onAppear is too early).
+            .task {
+                guard node.bool("focused") == true else { return }
+                try? await Task.sleep(for: .milliseconds(50))
+                focused = true
+            }
+            // system -> JS: report every focus move (claim landing, tap on
+            // another Crown view, resignation) — only when the node declared
+            // interest, so an unobserved Crown view costs no bridge traffic.
+            .onChange(of: focused) { _, isFocused in
+                guard node.bool("onFocusChange") == true else { return }
+                model.dispatch(
+                    nodeId: node.id, event: "focusChange",
+                    payload: ["focused": isFocused]
+                )
+            }
     }
 
     private var binding: Binding<Double> {
