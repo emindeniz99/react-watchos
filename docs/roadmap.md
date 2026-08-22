@@ -226,7 +226,7 @@ Owns `components.ts`, `NodeView.swift` (append-only), demo screens.
 | **Digital Crown** | P0 | M | A focusable `<CrownRotation value range step onChange>` over SwiftUI `digitalCrownRotation` (+ optional crown haptic). Implement as a **component/prop, not a `useCrownRotation` hook** — it must bind to a specific SwiftUI view's crown. Today the Crown only works implicitly via `Picker`. Demo: Crown scrubs a number. |
 | Gestures | P1 | M | `onLongPress` (new event kind, trivial), `DragGesture` (continuous — **coalesce/throttle**, it's the high-frequency case the cost model warns about), swipe-to-dismiss. |
 | Slider / Stepper / DatePicker | P1 | M | Each = prop type + `NodeView` case + render test + fixture. Slider is largely Crown+drag; Stepper is easy; DatePicker is a real primitive. |
-| Focus management | P2 | M | Only one Crown-focusable element at a time on watchOS; needs an addressable focus model. Gates multi-Crown screens. |
+| Focus management | P2 → **shipped 2026-08-22** | M | Multi-Crown screens unblocked: `focused?: boolean` (declarative, EDGE-TRIGGERED claim — applies on committed change and on appearance, `false` resigns) + `onFocusChange` on `CrownRotation`, bound to SwiftUI `@FocusState`/`.focused(_:)` — the screen's React state IS the coordinator, because SwiftUI's single-owner invariant already arbitrates the hardware. Prior-art surveyed before design (react-native-tvos's boolean claim borrowed; its `nextFocus*` spatial traversal rejected — watchOS has no D-pad; imperative `ref.focus()` rejected — no command channel, and the edge-triggered prop IS the command with replay-on-remount under ARCH-09 lazy nav). Every symbol verified against Apple docs JSON (all ≤ watchOS 10 floor → no `@available` gates). Wire stays v1 (additive props). Design record: [design-focus-management.md](./design-focus-management.md), §5 lists what only a device can prove (actual Crown hardware handoff, tap-to-steal event pair, resign-with-no-successor) — the standing macOS-build gate. Incidental fix en route: `docs:api` from a linked git worktree silently dropped every source link; typedoc now pins `disableGit`/`basePath`, output byte-stable across checkouts. |
 
 ## Track 2 — Runtime, rendering & performance
 
@@ -513,16 +513,22 @@ earn their keep.
   was the other way to close the loop; one run needs neither. Note this
   prevents the NEXT stranded release — it did not recover 0.5.0, which was
   already dispatched by hand and is npm's `latest`.
-- **Two upstream bugs are carried as local patches, with no issue filed.**
-  `react-native-worklets`' babel plugin calls `numericLiteral(-27)`, which
-  `@babel/types` >= 7.28 rejects (present in every release through the latest
-  nightly; a FlareLog-side pnpm patch works around it). `@bacons/apple-targets`
-  supports one target per product type — its lookup falls back to the first
-  same-type target and corrupts it (`with-xcode-changes.js`, unchanged through
-  5.0.0). Both deserve upstream issues with the repro we already have.
-- **Cooldown-held bumps to revisit.** `expo` 57.0.11 (clears 2026-08-13) and
-  57.0.12 (2026-08-17); FlareLog's `expo-*` family clears 2026-08-18. Nothing
-  to do but re-run the wave after those dates.
+- **Two upstream bugs carried as local patches** — ✅ **drafts written
+  2026-08-22, filing owed to the maintainer** (`docs/upstream-issues/`). The
+  measurement pass corrected this row's own claim: `numericLiteral(-27)` is
+  ACCEPTED by every @babel/types 7.x publish (7.27.1/7.28.0/7.29.7 measured —
+  the validator is compiled out) and throws only on **8.0.0**, so the worklets
+  draft is framed "crashes on any Babel 8 toolchain" with a verified e2e repro
+  and a one-line `valueToNode(-27)` fix; file it on the reanimated monorepo
+  (the worklets repo redirects). The apple-targets `find(byName) ?? targets[0]`
+  fallback is confirmed byte-identical in published 4.0.7 and 5.0.0.
+- ✅ **DONE — cooldown-cleared bumps taken** (2026-08-22): expo 57.0.13,
+  @expo/config-plugins 57.0.8, esbuild 0.28.2, biome 2.5.8, each after its
+  7-day `minimumReleaseAge` soak; @bacons/apple-targets 4.0.7 → 5.0.0 rode
+  along via `pnpm dedupe`. Held on purpose: expo 57.0.14/.15 and biome
+  2.5.9/.10 (soak clears 08-24 → 08-28), react 19.2.8 and RN 0.87 (outside
+  SDK 57's own template pairing — not housekeeping), TS 7 / @types/node 26
+  (majors). FlareLog's family is that repo's own wave, not ours.
 - **Downstream consumers are a minor behind.** `ctrl-a-remote` and `flarelog`
   pin `react-watchos ^0.3.0`, and 0.x treats a breaking change as a minor, so
   neither picks up 0.4.0 on its own. Bump both and re-run their suites.
