@@ -27,7 +27,27 @@ automatically, in minutes, for free. status.md's ② row still describes this as
 `pnpm test:swift:watch` run by hand; that is how it *started*, not how it works
 now. **Check the run before opening Xcode.**
 
-## Tier 1 — needs YOUR MacBook, because CI's Xcode is too old
+## Tier 1 — DEFERRED to the watchOS 27 public release (owner call, 2026-08-22)
+
+**Do not spend a session on this before mid-September 2026.** The tier needs an
+Xcode carrying the watchOS 27 SDK, and on 2026-08-22 the owner's MacBook cannot
+host one:
+
+| Checked on 2026-08-22 | Value |
+|---|---|
+| Installed Xcode | 26.6 (build 17F113) — same generation as CI |
+| watchOS SDK | 26.5 only; `FoundationModels.framework` **absent** from it |
+| macOS SDK | 26.5 — has `FoundationModels.framework`, but the code sits inside `#if os(watchOS)`, so it is unreachable from a macOS build |
+| Free space on `/` | 27 GB — an Xcode 27 beta plus a watchOS 27 runtime does not fit |
+
+So the only route is a beta install that needs disk reclaimed first, to compile
+against an SDK that changes again at release. Waiting until watchOS 27 and its
+Xcode ship publicly (Apple's usual mid-September window) buys the stable
+spelling and skips the beta churn. **Revisit trigger: the watchOS 27 SDK is in a
+release Xcode.** Until then this tier's status is *blocked*, not *pending* — a
+Mac session should spend itself on Tier 2 instead.
+
+### What it is, once it is unblocked
 
 Exactly one thing, and it is the biggest un-compiled surface in the tree:
 **everything behind `#if canImport(FoundationModels)`**. FoundationModels ships
@@ -60,6 +80,11 @@ of the roadmap moves from "shipped, never compiled" to ②.
 ## Tier 2 — needs a real Apple Watch (③). A simulator cannot answer these.
 
 Grouped by why the simulator is structurally insufficient, not by feature:
+
+`xcrun devicectl list devices` on 2026-08-22 lists **Apple Watch Ultra 3
+(Watch7,12), available (paired)** alongside the iPhone 14 Pro — so every ③ below
+is reachable with the hardware already on hand, and needs no Xcode this tree
+does not have. With Tier 1 deferred, this is what a Mac session is for.
 
 **The sim build is signed WITHOUT the `healthkit` entitlement, on purpose**
 (see [running-on-sim.md](./running-on-sim.md)) — so nothing below has ever

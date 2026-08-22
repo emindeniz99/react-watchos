@@ -410,7 +410,11 @@ only the Xcode-27 device verify remains). Extensions, all behind the same
   record: [design-ai-streaming-structured-output.md](./design-ai-streaming-structured-output.md).
   Honest boundary: the `canImport(FoundationModels)` block has NEVER
   compiled (needs Xcode 27) — Linux pins the wire, plan, schema subset and
-  JS semantics; the design note lists the exact spellings at risk.
+  JS semantics; the design note lists the exact spellings at risk. Compiling
+  it is **deferred to the public watchOS 27 release** (owner call 2026-08-22;
+  the machine has Xcode 26.6 and no room for a beta) —
+  [mac-session-checklist.md](./mac-session-checklist.md) carries the numbers
+  and the revisit trigger.
 - **Tool calling** — ✅ **shipped 2026-08-22**: `generateText`'s `tools`
   record (name-keyed, argument schemas reuse the AISchema subset — one
   vocabulary) round-trips JS-IMPLEMENTED tools: FM's own async `Tool.call`
