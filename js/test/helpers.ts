@@ -111,6 +111,7 @@ export function installMockHost() {
     ble: vi.fn(),
     sensor: vi.fn(),
     generate: vi.fn(),
+    cancelGenerate: vi.fn(),
   };
   // Replaces the invoke-only `__host` installInvokeHost just installed with the
   // full mock — the graft the InvokeHost.host doc describes. The channel keeps

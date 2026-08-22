@@ -1,0 +1,8 @@
+{
+  "prompt": "Tell me a story",
+  "instructions": "One sentence at a time.",
+  "temperature": 0.5,
+  "maxTokens": 256,
+  "stream": true,
+  "partialIntervalMs": 100
+}

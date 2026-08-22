@@ -121,6 +121,18 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   navigation (claims re-apply on mount — autofocus-on-push for free), and the
   honest ③ boundary: the Linux suite pins the wire + JS semantics; actual
   Crown routing needs a Mac/device.
+- [design-ai-streaming-structured-output.md](./design-ai-streaming-structured-output.md) —
+  on-device AI streaming + structured output (roadmap §6, shipped 2026-08-22):
+  cumulative `ai.partial` snapshots through `__pushNativeEvent` composed into
+  the existing `generateText` (`onPartial`, no forked entry point), abort that
+  actually stops the model (`cancelGenerate`, the `abortFetch` idiom), and
+  `generateObject(prompt, schema)` over a closed JSON-Schema subset mapped to
+  `DynamicGenerationSchema`, with a closed `AIErrorCode` reject vocabulary.
+  Records the full watchOS-27.0-beta availability sweep (incl. the per-page
+  metadata gaps), the Vercel-AI-SDK/Apple/OpenAI prior-art verdicts, and the
+  honest boundary: Linux tests pin the wire/validation/JS semantics; the
+  FoundationModels block has still never compiled (Xcode 27 owed — CX-002's
+  standing condition).
 - [design-cx-025-release-freshness.md](./design-cx-025-release-freshness.md) —
   CX-025 OTA `releaseId` (so non-breaking fixes can ship). Core primitive proven
   (JS FNV-1a == Swift `ContentHash`); spec ready for a focused load-flow pass.
