@@ -243,6 +243,21 @@ already exist.
 - **`JSONValue`'s Codable decoder pays a try?-cascade per scalar** — §4:
   ~2× recoverable with a `JSONSerialization`-based builder, no wire change.
   The measurement and its correctness pin live in `TreeDiffBenchTests`.
+  *Addendum (same day): shipped.* `RNTree(wireJSON:)` (WireDecode.swift) now
+  decodes the host's per-commit path — 10.3 → 5.5 ms on this fixture in the
+  release bench, 0.65 → 0.31 on the 50-node commit — with the semantics
+  pinned decoder-vs-decoder in `WireDecodeTests` (Codable decode stays for
+  the cold paths: widget payloads, test fixtures). Integrating it surfaced
+  two traps the prototype dodged by luck: its Linux branch classified
+  scalars with `as? Bool`, which corelibs bridges from NSNumber(0/1) — a
+  numeric 0/1 prop would have decoded `.bool`, unobservable in the treediff
+  fixtures because they contain no bare 0/1 props (tree/kitchen-sink do; the
+  shipped decoder discriminates by the number's type); and executing an
+  `is NSNull` class check against the root container before building flips
+  corelibs' parsed values into their NSObject representation, after which
+  every string cast pays an eager bridge copy — 10.9 vs 4.5 ms standalone,
+  the whole win silently erased. The shipped decoder orders the root checks
+  so the null check runs only on null-root commits.
 - The `[mem]` line any embed-smoke epilogue prints includes whatever the
   epilogue retains — `bench-treediff.js` truncates the harness's commit
   history before exit so the heap line means the app, not the bench.
