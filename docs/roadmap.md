@@ -99,7 +99,16 @@ testing-DX gaps — each one forced the consumer to hand-roll internals.
 `js/src/testing.ts` exports `mountApp`/`resetApp`, `installInvokeHost` with
 recorded `{method, payload}` calls and per-method result/reject handlers,
 and `pushDeepLink`; this section predates that commit and is kept as the
-record of why the harness exists):
+record of why the harness exists). The one genuinely remaining debt — the
+suite's own `installMockHost` still hand-rolling a SECOND invoke settle
+wire — closed 2026-08-22: the mock now routes through the published
+`installInvokeHost`, which grew the semantics the mock had invented
+privately (a `"*"` wildcard handler, `undefined` resolving the void wire,
+thrown `Error` → `INTERNAL` with the message kept), so consumers get what
+our own tests exercise. Repo gotcha found on the way: `docs:api` run from a
+LINKED git worktree silently drops every "Defined in" source link (typedoc
+needs `.git` to be a directory) — regenerate from a normal checkout.
+The original asks:
 
 - **Ship an invoke-recording test host.** Consumers mock the invoke wire by
   hand (`__host.invoke(id, method, payloadJson)` + `__resolveInvoke` +
@@ -459,32 +468,40 @@ Nothing here is broken today; each is a gap we named while doing something
 else and chose not to chase in the same pass. Roughly in the order they
 earn their keep.
 
-- **IPv6 loopback is not a usable OTA dev host, and never was.** `http://[::1]:8080`
-  is refused: `updateURLViolation`'s host regex is `[^/:?#]*`, which stops at
-  the first colon, so the host it hands `isPrivateHost` is the bare string
-  `"["`. (The old `host === "[::1]"` branch could therefore never fire —
-  removing it in the dotted-quad fix changed no behavior. Verified by running
-  the regex against `http://[::1]:8080/m.json`.) Adding real support means:
-  parse a bracketed host in the URL regex, accept `::1` (and only loopback —
-  ULA `fc00::/7` and link-local `fe80::/10` are a separate decision), mirror
-  it in Swift's `UpdateURLPolicy`, and pin both sides, since the two
-  implementations are contract-paired.
-- **`pendingRejections` keys on a raw `JSValue` pointer with no owning
-  reference** (from the unhandled-rejection defer fix). If a promise with no
-  live references is freed, quickjs-ng can hand the same address to a new
-  promise, and a deferred report would attach to the wrong one. Fix: retain
-  the promise for as long as it sits in the map, or key on a value the engine
-  guarantees unique for the lifetime of the entry.
-- **The `watchConnectivity.file` park/replay path has no test.** `isReady`
-  tracking `jsReady`, `deliver`'s park branch, `replayParkedFileEvents()`
-  running before other boot listeners, and the widened `transferLock` are all
-  reasoned-through but unpinned — they need a fake WCSession seam (the real
-  one cannot be driven in a test).
-- **The `.qbc` content hash has no three-way parity test.** The C tool, the
-  Swift verifier and the Node builder each implement FNV-1a; only the Swift
-  side is unit-tested. A single shared vector file asserted from all three
-  would stop a silent drift that presents as "every boot falls back to
-  parsing the source".
+- ✅ **DONE — IPv6 loopback is a real OTA dev host** (2026-08-22). The host
+  regex matched `[^/:?#]*`, stopped at the first colon and handed
+  `isPrivateHost` the bare string `"["` — so the old `host === "[::1]"`
+  branch could never fire. Now: the URL regex takes a bracketed host as a
+  unit, a real hextet parser accepts exactly `::1` (ULA `fc00::/7` and
+  link-local `fe80::/10` refused by explicit guards ahead of the loopback
+  compare), Swift's `UpdateURLPolicy` mirrors it byte-for-byte, and both
+  sides are pinned with the same matrix including the bare-`[` regression.
+- ✅ **DONE — `pendingRejections` holds an owning retain** (2026-08-22). Each
+  parked entry now `JS_DupValue`s its promise for exactly its map lifetime,
+  freed on every exit path (retraction, drain report, displacement,
+  shutdown). No shim change needed — `JS_DupValue` is exported. The bug was
+  real: an address-reuse test ate a genuine report on the unfixed code
+  (verified red before fixing), and the suite's engine-leak assertions hold
+  the refcount balance.
+- **The `watchConnectivity.file` park/replay path has no test** — 
+  ✅ **verdict recorded 2026-08-22: not testable off-watchOS, no code bent.**
+  The whole path is `#if os(watchOS)` (the target isn't even in the Linux
+  package graph), and even a Mac-side seam is blocked by WatchConnectivity
+  itself: `WCSessionFile`/`WCSessionFileTransfer` have no public
+  initializers, so the park and transferLock delegate entries cannot be
+  driven without refactoring them into internal methods over constructible
+  types plus a `WCSessionProviding` seam. What IS extractable was already
+  pinned pre-verdict (`ParkedQueue` in ReactWatchSupport: arrival-order
+  drain, release-only-on-drain). Revisit only alongside that Mac refactor.
+- ✅ **DONE — `.qbc` content hash has a three-way parity test** (2026-08-22).
+  One hand-authored vector file
+  (`js/swift/Tests/ReactWatchTests/Fixtures/content-hash-vectors.json`; 5
+  vectors including a brute-forced leading-zero-nibble hash that makes the
+  "no leading zeros" format rule load-bearing) asserted from Node, from the
+  REAL `qjs-compile [out.hash]` production path (object-cache pattern shared
+  with qbc-symbolication via `js/test/qjs-tools.ts`), and from Swift's
+  ContentHash — silent drift now fails three suites instead of presenting
+  as "every boot falls back to parsing source".
 - ✅ **DONE — publishing no longer needs a manual dispatch** (2026-08-20).
   release-please creates the GitHub Release with the default `GITHUB_TOKEN`,
   and GitHub does not start workflow runs from events raised by that token, so
