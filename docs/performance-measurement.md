@@ -54,6 +54,15 @@ claim:
   interpreter-representative. Still x86, not Apple silicon (§3 caveat), but the
   *engine* is right.
 
+There is a third, occasional harness in the same family:
+`tools/embed-smoke/bench-treediff.sh` drives realistic *workloads* (large
+lists, navigation swaps, sensor-rate streams, widget publishes) through the
+same embedding, plus a tree-diff patch prototype, and
+`TreeDiffBenchTests.swift` times the native decode/equality/apply half on
+Linux. It exists to settle the tree-diff/patch-protocol question — verdict and
+numbers in [perf-tree-diff.md](./perf-tree-diff.md) — and is run manually when
+that decision needs re-checking, not in CI.
+
 If someone quotes a per-commit millisecond figure, ask which harness produced
 it. If the answer is vitest, it's marketing fiction.
 

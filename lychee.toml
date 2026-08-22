@@ -1,0 +1,49 @@
+# lychee — link checker for README.md + docs/**.md.
+#
+# Two invocations, both in .github/workflows/quality.yml:
+#   * PR/push gate: `--offline` — repo-relative file links and in-document
+#     `#anchors` only. No network, so it is deterministic and cannot flake.
+#   * weekly schedule: the same run WITHOUT `--offline`, non-blocking, so a
+#     dead external URL is reported without failing anyone's PR.
+
+# Resolve in-document `#fragment` targets against the file's own headings.
+# This is what catches a heading rename that silently orphans a "see § …" link
+# (the 2026-08 find: `#widget-memory-the-30-mb-story` had one hyphen where the
+# em-dash heading slugs to two).
+include_fragments = true
+
+# `mailto:` has nothing to resolve offline and nothing useful to check online
+# (lychee skips mail by default; pinned so a default flip stays visible).
+include_mail = false
+
+# ---------------------------------------------------------------------------
+# Excluded link TARGETS.
+#
+# Every entry below is a path that WAS correct when a dated decision-log doc
+# was written and has since been renamed or deleted. CONTRIBUTING.md makes the
+# dated `docs/*review*.md` / `docs/design-*.md` files an append-only log —
+# "they are not rewritten as thinking evolves" — so repointing these at the
+# code's current home would misstate what the finding was raised against. The
+# exclusions are per-PATH rather than per-DOCUMENT on purpose: every other link
+# in those same docs stays checked, so NEW breakage is still caught.
+# ---------------------------------------------------------------------------
+exclude = [
+  # The demo app's private widget interpreter + intent runtime. CX-018/CX-004
+  # were findings ABOUT these duplicated copies; the fix consolidated them into
+  # js/swift/Sources/ReactWatchWidget/, i.e. the files are gone BECAUSE the
+  # linked findings were addressed. Pointing at the survivor would erase that.
+  "app/targets/widget/IntentRuntime\\.swift",
+  "app/targets/widget/WidgetNodeView\\.swift",
+  # Pre-TypeScript tooling filenames. The Node-side tooling moved from plain
+  # .js/.mjs to type-stripped .cts/.mts (js/plugin/index.cts,
+  # js/esbuild/preset.mts, js/codegen/schema.ts, js/scripts/config.ts) after
+  # these reviews were written.
+  "js/plugin/index\\.js",
+  "js/esbuild/preset\\.mjs",
+  "js/codegen/schema\\.mjs",
+  "js/scripts/config\\.mjs",
+  # The macOS native build workflow, back when the repo was a monorepo and the
+  # file carried the package name. It is .github/workflows/build.yml now, and
+  # the link's `../../../` also predates docs/ living at the repo root.
+  "react-native-watchos-build\\.yml",
+]

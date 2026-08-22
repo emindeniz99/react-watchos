@@ -15,6 +15,18 @@
   "tsconfig": "tsconfig.json",
   "gitRevision": "main",
   "sourceLinkTemplate": "https://github.com/emindeniz99/react-watchos/blob/main/{path}#L{line}",
+  // disableGit + basePath make the emitted source links DETERMINISTIC: with
+  // git detection on, typedoc stats `<dir>/.git` and requires a DIRECTORY, so
+  // a `git worktree` checkout (where .git is a file) silently emits no links
+  // at all — 383 files of committed docs churn from an environment detail.
+  // The template already pins the `main` revision, so git adds nothing here.
+  // `basePath` roots the DISPLAYED "Defined in" paths; `displayBasePath`
+  // (despite the name) roots the {path} substituted into sourceLinkTemplate.
+  // Both at the repo root reproduce the layout git detection used to infer;
+  // `@module` tags in src/index.ts / src/testing.ts pin the module names.
+  "disableGit": true,
+  "basePath": "..",
+  "displayBasePath": "..",
   "skipErrorChecking": false,
   "treatWarningsAsErrors": false
 }

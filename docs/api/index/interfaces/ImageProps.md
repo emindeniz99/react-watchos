@@ -6,7 +6,7 @@
 
 # Interface: ImageProps
 
-Defined in: [js/src/components.ts:228](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L228)
+Defined in: [js/src/components.ts:230](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L230)
 
 ## Extends
 
@@ -81,7 +81,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:235](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L235)
+Defined in: [js/src/components.ts:237](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L237)
 
 ***
 
@@ -103,7 +103,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **data?**: `string`
 
-Defined in: [js/src/components.ts:234](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L234)
+Defined in: [js/src/components.ts:236](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L236)
 
 Base64 PNG/JPEG for small inline bitmaps (bloats the tree — avoid for large).
 
@@ -187,7 +187,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **size?**: `number`
 
-Defined in: [js/src/components.ts:236](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L236)
+Defined in: [js/src/components.ts:238](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L238)
 
 ***
 
@@ -195,7 +195,7 @@ Defined in: [js/src/components.ts:236](https://github.com/emindeniz99/react-watc
 
 > `optional` **source?**: `string`
 
-Defined in: [js/src/components.ts:232](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L232)
+Defined in: [js/src/components.ts:234](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L234)
 
 Remote image URL — native loads & caches (best for photos/posters).
 
@@ -205,7 +205,7 @@ Remote image URL — native loads & caches (best for photos/posters).
 
 > `optional` **systemName?**: `string`
 
-Defined in: [js/src/components.ts:230](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L230)
+Defined in: [js/src/components.ts:232](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L232)
 
 SF Symbol name — vector icons (tiny, themeable).
 

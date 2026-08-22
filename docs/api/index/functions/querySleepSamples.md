@@ -8,7 +8,7 @@
 
 > **querySleepSamples**(`request`): `Promise`\<[`SleepSample`](../interfaces/SleepSample.md)[]\>
 
-Defined in: [js/src/health.ts:428](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L428)
+Defined in: [js/src/health.ts:468](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L468)
 
 Sleep intervals in `[startMs, endMs)`, newest first. Needs
 `requestHealthAuthorization({ read: [], sleep: true })` first — sleep is a

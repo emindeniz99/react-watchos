@@ -16,7 +16,22 @@ One raw quantity sample.
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:214](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L214)
+Defined in: [js/src/health.ts:221](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L221)
+
+***
+
+### id
+
+> **id**: `string`
+
+Defined in: [js/src/health.ts:219](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L219)
+
+The sample's HealthKit UUID — a stable list key, and the identity a
+ live-stream deletion names: when the user deletes a sample in the Health
+ app while [startHealthUpdates](../functions/startHealthUpdates.md) is streaming, `onDeleted` reports
+ this id, so a screen keeping its own buffer can retract exactly the row
+ it added. Present on query rows and live rows alike — a deletion can
+ name a sample that arrived either way.
 
 ***
 
@@ -24,7 +39,7 @@ Defined in: [js/src/health.ts:214](https://github.com/emindeniz99/react-watchos/
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:213](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L213)
+Defined in: [js/src/health.ts:220](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L220)
 
 ***
 
@@ -32,7 +47,7 @@ Defined in: [js/src/health.ts:213](https://github.com/emindeniz99/react-watchos/
 
 > **unit**: `string`
 
-Defined in: [js/src/health.ts:217](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L217)
+Defined in: [js/src/health.ts:224](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L224)
 
 Same per-type unit as [HealthStatisticsResult.unit](HealthStatisticsResult.md#unit).
 
@@ -42,4 +57,4 @@ Same per-type unit as [HealthStatisticsResult.unit](HealthStatisticsResult.md#un
 
 > **value**: `number`
 
-Defined in: [js/src/health.ts:215](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L215)
+Defined in: [js/src/health.ts:222](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L222)

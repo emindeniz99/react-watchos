@@ -48,7 +48,7 @@ export type ColorValue = SystemColorName | `#${string}`;
  * .accessibilityLabel/.accessibilityHint in NodeView). Watch users rely
  * on VoiceOver, so author labels for icon-only or composite controls.
  */
-export interface A11yProps {
+interface A11yProps {
   accessibilityLabel?: string;
   accessibilityHint?: string;
 }
@@ -59,7 +59,7 @@ export interface A11yProps {
  * order: padding → background+cornerRadius → frame → opacity → tint. Colors
  * take the same values as `color` (system name or #RRGGBB[AA] hex).
  */
-export interface ModifierProps {
+interface ModifierProps {
   /** Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`. */
   padding?: number | { horizontal?: number; vertical?: number };
   /** Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom. */
@@ -100,12 +100,14 @@ export interface ModifierProps {
  * gets a direction. Avoid onSwipe on scroll containers — it competes with
  * scrolling and the system swipe-back.
  */
-export interface GestureProps {
+interface GestureProps {
   onLongPress?: () => void;
   onSwipe?: (direction: "left" | "right" | "up" | "down") => void;
   /** Streamed drag translation (quantized to throttle the bridge) — for scrubbing. */
   onDrag?: (translation: { x: number; y: number }) => void;
-  /** Make this view Crown/focus-addressable (watchOS focus traversal). */
+  /** Make this view Crown/focus-addressable (watchOS focus traversal).
+   *  To programmatically CLAIM the Crown, use `<CrownRotation focused>` —
+   *  see docs/design-focus-management.md. */
   focusable?: boolean;
   /**
    * Apply the watchOS 26 Liquid Glass effect (no-op on older OSes).
@@ -478,7 +480,9 @@ export interface DatePickerProps extends A11yProps, ModifierProps {
  * `digitalCrownRotation`). The wrapped view becomes crown-focusable;
  * rotating the Crown fires `onChange` with the new value. Use for volume,
  * zoom, scrubbing — anything the Crown should drive directly (vs. the
- * Crown's implicit role inside Picker/ScrollView).
+ * Crown's implicit role inside Picker/ScrollView). On a screen with more
+ * than one Crown client, say which one owns the Crown with the `focused`
+ * claim + `onFocusChange` observation pair.
  */
 export interface CrownRotationProps extends A11yProps {
   value: number;
@@ -491,6 +495,35 @@ export interface CrownRotationProps extends A11yProps {
   /** Crown haptic detents (default true). */
   haptic?: boolean;
   onChange?: (value: number) => void;
+  /**
+   * Declarative Crown-focus claim. watchOS routes the Digital Crown to
+   * exactly ONE focused view, so a screen with two `<CrownRotation>`s must
+   * say which one owns it: derive the claim from state
+   * (`focused={owner === "zoom"}`) and flip the state to hand the Crown
+   * over. The claim applies when the committed value CHANGES and once when
+   * the node APPEARS (so a pushed screen's marked Crown view grabs the
+   * Crown automatically); `false` resigns focus.
+   *
+   * Edge-triggered, not enforced: after it applies, the system keeps
+   * arbitration — the user tapping the other Crown view legitimately moves
+   * focus. Observe that with {@link onFocusChange} and fold it into the
+   * state this claim derives from, or your state can go stale and a
+   * re-claim has no edge to fire on. At most one node per screen should
+   * claim `focused` (with several, exactly one wins but WHICH is
+   * unspecified). Omit the prop entirely on single-Crown screens to keep
+   * the system's own arbitration. Meaningless in widgets: CrownRotation is
+   * degraded there (renders children only), so the prop is inert data.
+   * Full model: docs/design-focus-management.md.
+   */
+  focused?: boolean;
+  /**
+   * Fired when Crown focus moves to (`true`) or away from (`false`) this
+   * view — both when a {@link focused} claim lands and when the system
+   * moves focus on its own (a tap on another Crown view). Fold it into the
+   * state that derives `focused` to keep JS's picture of the Crown owner
+   * truthful.
+   */
+  onFocusChange?: (focused: boolean) => void;
   children?: ReactNode;
 }
 

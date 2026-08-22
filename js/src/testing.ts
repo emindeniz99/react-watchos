@@ -1,10 +1,16 @@
-// Query helpers for asserting on committed trees, exported as
-// `react-watchos/testing`. Pair with `runApp(element, new MemoryHost())`
-// (or `renderToTree`) — every consumer was otherwise re-writing `findByType`.
-//
-// Serialization quirks these helpers account for (see docs/updates.md):
-//   - <Text> content folds into `props.text`, not `children`.
-//   - function props (onPress, onChange, …) serialize to the literal `true`.
+/**
+ * Query helpers for asserting on committed trees, exported as
+ * `react-watchos/testing`. Pair with `runApp(element, new MemoryHost())`
+ * (or `renderToTree`) — every consumer was otherwise re-writing `findByType`.
+ *
+ * Serialization quirks these helpers account for (see docs/updates.md):
+ *   - `<Text>` content folds into `props.text`, not `children`.
+ *   - function props (onPress, onChange, …) serialize to the literal `true`.
+ *
+ * (`@module` pins the typedoc module name — see the note in src/index.ts.)
+ *
+ * @module testing
+ */
 
 import type { SerializedNode } from "./generated/wire";
 
@@ -110,31 +116,62 @@ export interface RecordedInvoke {
 
 /**
  * Per-method outcomes for {@link installInvokeHost}: a value resolves the
- * invoke with it; a function is called with the parsed payload and its return
- * value resolves — and a THROWN `{ code, message }` rejects the invoke with
- * that error instead. Methods not listed resolve `null`.
+ * invoke with it; a function is called with the parsed payload (and the
+ * method name) and its return value resolves — a THROWN `{ code, message }`
+ * rejects the invoke with that error instead (a thrown `Error` rejects as
+ * `INTERNAL` with its message). `undefined` — a method listed as `undefined`,
+ * a handler returning `undefined`, or a method with no entry at all —
+ * resolves the void wire (an empty result string, what native sends for a
+ * `Void` op), so awaiters of side-effect methods see `undefined` exactly as
+ * on-device. A `"*"` entry, when present, handles every method WITHOUT its
+ * own entry: throw `{ code: "UNKNOWN_METHOD", … }` from it to mirror native's
+ * reply for unrouted methods instead of the lenient void default.
  */
 export type InvokeHandlers = Record<
   string,
-  unknown | ((payload: unknown) => unknown)
+  unknown | ((payload: unknown, method: string) => unknown)
 >;
 
+/** Handle returned by {@link installInvokeHost}. */
+export interface InvokeHost {
+  /**
+   * The invoke-only `__host` object the call installed. A suite that keeps
+   * its own full `__host` mock grafts the channel on instead of being
+   * replaced by it — `__host = { ...myHost, invoke: host.invoke }` (this
+   * package's own `installMockHost` test helper does exactly that).
+   */
+  host: { invoke(id: number, method: string, payloadJson: string): void };
+  /** Every invoke in call order, with the payload already parsed. */
+  calls: RecordedInvoke[];
+  /**
+   * Removes the installed `__host` — a no-op if something else was installed
+   * over it since (`resetApp` removes whatever `__host` is current).
+   */
+  uninstall: () => void;
+}
+
 /**
- * Installs a `__host` whose invoke channel records every call and settles it
- * on a microtask — the wire every fallible API (BLE, health, connectivity,
- * notifications, …) rides. Returns the recorded calls plus `uninstall`
- * (`resetApp` also removes it).
+ * Creates and installs a `__host` whose invoke channel records every call and
+ * settles it on a microtask — the wire every fallible API (BLE, health,
+ * connectivity, notifications, …) rides. Without it, testing any of those
+ * APIs means hand-rolling `__host.invoke` + `__resolveInvoke` +
+ * `queueMicrotask`. Returns the recorded calls plus `uninstall` (`resetApp`
+ * also removes it).
  *
  * ```ts
- * const { calls } = installInvokeHost({ requestNotificationPermission: "granted" });
+ * const { calls } = installInvokeHost({
+ *   requestNotificationPermission: "granted",
+ *   // reject a method by throwing the {code, message} native would send
+ *   bleConnect: () => {
+ *     throw { code: "UNAVAILABLE", message: "bluetooth is off" };
+ *   },
+ * });
  * await requestNotificationPermission();
  * expect(calls[0]).toEqual({ method: "requestNotificationPermission", payload: undefined });
+ * await expect(bleConnect({ id: "d" })).rejects.toMatchObject({ code: "UNAVAILABLE" });
  * ```
  */
-export function installInvokeHost(handlers: InvokeHandlers = {}): {
-  calls: RecordedInvoke[];
-  uninstall: () => void;
-} {
+export function installInvokeHost(handlers: InvokeHandlers = {}): InvokeHost {
   const calls: RecordedInvoke[] = [];
   const g = globalThis as {
     __host?: unknown;
@@ -148,20 +185,38 @@ export function installInvokeHost(handlers: InvokeHandlers = {}): {
       // Settle asynchronously, as native does — the promise must not resolve
       // before the caller has a chance to observe pending state.
       queueMicrotask(() => {
-        const handler = handlers[method];
+        // Own-key check, not truthiness: a method LISTED as `undefined` means
+        // "resolve as void" — only methods with no entry at all fall through
+        // to the `"*"` wildcard. `keys().includes` rather than `in`/`hasOwn`:
+        // an inherited key ("toString") must not answer true (invoke.ts's
+        // trap), and the es2020 lib this package targets predates
+        // `Object.hasOwn`.
+        const handler = Object.keys(handlers).includes(method)
+          ? handlers[method]
+          : handlers["*"];
         try {
           const result =
             typeof handler === "function"
-              ? (handler as (p: unknown) => unknown)(payload)
-              : (handler ?? null);
-          g.__resolveInvoke?.(id, JSON.stringify(result ?? null));
+              ? (handler as (p: unknown, m: string) => unknown)(payload, method)
+              : handler;
+          // `undefined` resolves the void wire (empty result string) — what
+          // native sends for a `Void` op — so awaiters see `undefined`, not a
+          // helper-invented `null`.
+          g.__resolveInvoke?.(
+            id,
+            result === undefined ? "" : JSON.stringify(result),
+          );
         } catch (error) {
           g.__rejectInvoke?.(
             id,
             JSON.stringify(
-              typeof error === "object" && error !== null
-                ? error
-                : { code: "INTERNAL", message: String(error) },
+              error instanceof Error
+                ? // An Error would stringify to `{}` and reach the caller as a
+                  // generic "native error" — keep at least its message.
+                  { code: "INTERNAL", message: error.message }
+                : typeof error === "object" && error !== null
+                  ? error
+                  : { code: "INTERNAL", message: String(error) },
             ),
           );
         }
@@ -170,6 +225,7 @@ export function installInvokeHost(handlers: InvokeHandlers = {}): {
   };
   g.__host = host;
   return {
+    host,
     calls,
     uninstall: () => {
       if (g.__host === host) delete g.__host;

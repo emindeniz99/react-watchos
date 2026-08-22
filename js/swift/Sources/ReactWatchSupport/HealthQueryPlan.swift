@@ -193,6 +193,13 @@ public struct HealthWindow: Equatable, Sendable {
     /// asked for, where a rejection names the window that was too wide.
     public static var maxDailyBuckets: Int { maxLimit }
 
+    /// The hourly query's ceiling — the SAME number again, deliberately, which
+    /// is the answer to the deferral's "an hourly ceiling is not the daily one"
+    /// question: the ceiling was never on days, it is on BUCKETS, and a bucket
+    /// costs the wire the same whatever it spans. One rule, and the method name
+    /// says what a bucket is; in hours it works out to about 41 days.
+    public static var maxHourlyBuckets: Int { maxLimit }
+
     /// Whole days this window spans, rounded UP. Deliberately arithmetic rather
     /// than calendar: this feeds a CEILING check, and a 23- or 25-hour DST day
     /// cannot move a 1000-day window under the bar — while a `Calendar` here
@@ -207,6 +214,16 @@ public struct HealthWindow: Equatable, Sendable {
         // below refuse the window like every other rule in this file does.
         guard days < Double(Int.max) else { return .max }
         return Int(days)
+    }
+
+    /// Whole hours this window spans, rounded UP, saturating — `dayCount`'s
+    /// arithmetic at the hourly stride. Here the arithmetic is not even a
+    /// trade-off: an hour is 3 600 000 ms everywhere (DST moves labels, not
+    /// hour lengths), so a calendar could only have agreed.
+    public var hourCount: Int {
+        let hours = ((endMs - startMs) / 3_600_000).rounded(.up)
+        guard hours < Double(Int.max) else { return .max }
+        return Int(hours)
     }
 
     /// Whether a bucket that STARTS at `bucketStartMs` belongs to this window.
@@ -303,6 +320,26 @@ public struct HealthStatisticsPlan: Equatable, Sendable {
                     "queryHealthDailyStatistics spans \(plan.window.dayCount) days, "
                         + "over the \(HealthWindow.maxDailyBuckets)-bucket ceiling — "
                         + "ask for a narrower window rather than a truncated series")
+            }
+            return .success(plan)
+        }
+    }
+
+    /// The hourly sibling. Same rules, same shape, its own ceiling arithmetic
+    /// (the one 1000-BUCKET rule counted in hours), and the message points a
+    /// too-wide chart at the daily query rather than just refusing — the widest
+    /// legal hourly window is about 41 days, and a caller who hit the ceiling
+    /// almost certainly wanted days.
+    public static func decodeHourly(
+        json: String
+    ) -> Result<HealthStatisticsPlan, HealthRequestError> {
+        decode(json: json).flatMap { plan in
+            guard plan.window.hourCount <= HealthWindow.maxHourlyBuckets else {
+                return invalid(
+                    "queryHealthHourlyStatistics spans \(plan.window.hourCount) hours, "
+                        + "over the \(HealthWindow.maxHourlyBuckets)-bucket ceiling — "
+                        + "narrow the window, or use queryHealthDailyStatistics "
+                        + "for a chart this wide")
             }
             return .success(plan)
         }

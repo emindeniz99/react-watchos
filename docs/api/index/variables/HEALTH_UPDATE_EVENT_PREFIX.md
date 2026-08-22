@@ -8,7 +8,7 @@
 
 > `const` **HEALTH\_UPDATE\_EVENT\_PREFIX**: `"health.samples."` = `"health.samples."`
 
-Defined in: [js/src/health.ts:541](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L541)
+Defined in: [js/src/health.ts:581](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L581)
 
 The native-event name prefix a live stream's samples arrive on:
  `health.samples.<type>`, e.g. `health.samples.heartRate`.

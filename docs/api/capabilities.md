@@ -72,7 +72,7 @@ so this list cannot drift from what the interpreters actually read.
 | *(any)* | `glass` | Liquid Glass is applied in NodeView's shared modifier chain; the widget's applyLayout mirrors LayoutModifier only, so it is a no-op in complications. |
 | `Button` | `buttonStyle` | The widget's interactive Button hard-codes .buttonStyle(.plain); glass/glassProminent/plain are all no-ops in complications. |
 
-## Host methods (79) by capability feature
+## Host methods (81) by capability feature
 
 An OTA bundle's `requiredFeatures` must be a subset of the binary's
 feature set (ARCH-01); `since` is the bridge-protocol version the method
@@ -117,6 +117,7 @@ appeared in. "invoke" methods route through the generic invoke channel
 | `health` | `requestHealthAuthorization` | watch | invoke | 1 |
 |  | `queryHealthStatistics` | watch | invoke | 1 |
 |  | `queryHealthDailyStatistics` | watch | invoke | 1 |
+|  | `queryHealthHourlyStatistics` | watch | invoke | 1 |
 |  | `queryHealthSamples` | watch | invoke | 1 |
 |  | `querySleepSamples` | watch | invoke | 1 |
 |  | `queryWorkoutHistory` | watch | invoke | 1 |
@@ -141,6 +142,7 @@ appeared in. "invoke" methods route through the generic invoke channel
 |  | `getUpdateState` | watch | invoke | 1 |
 |  | `markUpdateHealthy` | watch | invoke | 1 |
 | `ai` | `generate` | watch | direct | 1 |
+|  | `cancelGenerate` | watch | direct | 1 |
 |  | `aiAvailability` | watch | invoke | 1 |
 | `device` | `getDeviceInfo` | watch | invoke | 1 |
 |  | `enableWaterLock` | watch | invoke | 1 |

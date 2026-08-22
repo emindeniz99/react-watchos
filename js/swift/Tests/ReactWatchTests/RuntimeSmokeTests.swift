@@ -110,6 +110,56 @@ final class RuntimeSmokeTests: XCTestCase {
             "a rejection with a same-turn .catch must not report as unhandled")
     }
 
+    // The parked report is keyed by the promise's address, and quickjs-ng's
+    // refcounting frees a reference-less promise MID-TURN — so without an
+    // owning retain, a later promise in the same turn can land on the freed
+    // address and its `.catch` retraction (same key) silently deletes the
+    // FIRST promise's genuine report. That is exactly this shape: the IIFE's
+    // rejected promise is dropped at statement end, and the very next
+    // allocation is another promise, which quickjs's allocator hands the
+    // recycled address. Reverting the JS_DupValue retain in
+    // `notePossiblyUnhandledRejection` makes this fail with NO report at all
+    // (verified) — the handled-one-line-later promise ate the genuine one.
+    func testFreedPromiseAddressReuseCannotRetractAnotherPromisesReport() throws {
+        let runtime = try JSRuntime()
+        var messages: [String] = []
+        runtime.onError = { _, message in messages.append(message) }
+
+        try runtime.evaluate(
+            #"""
+            (() => { Promise.reject(new Error("genuine unhandled")); })();
+            Promise.reject(new Error("handled same turn")).catch(() => {});
+            """#)
+
+        XCTAssertEqual(messages.count, 1, "expected only the genuine report, got: \(messages)")
+        XCTAssertTrue(
+            messages.first?.contains("genuine unhandled") == true,
+            "got: \(messages)")
+    }
+
+    // Exit path 3 of the pendingRejections retain (the other two are the
+    // report and the retraction, covered above): a shutdown requested from
+    // INSIDE the turn skips the drain, so the parked entry is still in the
+    // map when performShutdown frees the engine. The retained promise must be
+    // released there — a leaked GC object aborts JS_FreeRuntime's leak
+    // assertion, which is what this test holds green.
+    func testShutdownWithAParkedRejectionBalancesTheRetain() throws {
+        let runtime = try JSRuntime(queue: DispatchQueue(label: "t.reject-shutdown"))
+        nonisolated(unsafe) let r = runtime
+        nonisolated(unsafe) var reported = false
+        r.onError = { _, _ in reported = true }
+        r.bridge.log = { _ in r.shutdown() }
+        try r.evaluate(
+            #"""
+            Promise.reject(new Error("parked at shutdown"));
+            __host.log("shutdown-now");
+            """#)
+        // The caller asked to stop mid-turn: the drain is skipped, so the
+        // parked report is deliberately dropped, not surfaced post-mortem.
+        XCTAssertFalse(reported, "a skipped drain must not report")
+        XCTAssertFalse(r.evaluateBool("true"), "runtime must be shut down by now")
+    }
+
     // ARCH-13: onError tags each report with its entry path so the host can
     // stamp a structured diagnostic code (js.eval/js.call/js.job/
     // js.promiseRejection) without parsing the message.
@@ -323,6 +373,75 @@ final class RuntimeSmokeTests: XCTestCase {
         let runtime = try JSRuntime()
         try runtime.evaluateBytecode(bytecode)
         XCTAssertEqual(runtime.evaluateString("globalThis.__x.toString()"), "42")
+    }
+
+    // The on-device write policy, pinned: BYTECODE | STRIP_SOURCE, debug
+    // tables KEPT — the same policy tools/qjs-compile/qjs-compile.c applies to
+    // the shipped bundle, of which this is the second half. All three
+    // assertions below hold ONE decision, and each fails on a different way of
+    // getting it wrong: shipping the source text again, breaking the blob, or
+    // "saving space" with STRIP_DEBUG.
+    func testCompileToBytecodeStripsSourceButKeepsStackPositions() throws {
+        // The marker sits in a comment INSIDE a function body, which is the
+        // only place source text can hide: quickjs-ng serializes a source span
+        // per FUNCTION (what Function.prototype.toString reads), not the whole
+        // script, so a top-level comment is absent under either flag and would
+        // make the first assertion pass vacuously.
+        let marker = "STRIP_SOURCE_MARKER_9f3a2b"
+        let source = """
+            globalThis.__stripValue = 41 + 1;
+            globalThis.__stripThrow = function stripThrow() {
+              // \(marker): a comment inside a function body, so these bytes
+              // exist only in retained SOURCE — never in opcodes or atoms.
+              throw new Error("boom from cached bytecode");
+            };
+            """
+        let lines = source.split(separator: "\n", omittingEmptySubsequences: false)
+        let throwLine = try XCTUnwrap(
+            lines.firstIndex(where: { $0.contains("throw new Error") }).map { $0 + 1 },
+            "fixture must contain the throw"
+        )
+
+        let compiler = try JSRuntime()
+        let bytecode = try XCTUnwrap(compiler.compileToBytecode(source))
+
+        // 1. No source text. On this 6-line fixture the blob is 183 B with
+        // STRIP_SOURCE and 376 B without (marker readable in the latter); on
+        // the real minified app bundle it is 252,952 vs 908,332 B, plus
+        // 618,293 vs 1,273,294 B of QuickJS heap right after JS_ReadObject.
+        // The OTA cache is written per applied bundle and kept in flash beside
+        // its record, so that was 652 KB paid twice for nothing.
+        XCTAssertNil(
+            bytecode.range(of: Data(marker.utf8)),
+            "OTA bytecode cache must not carry the bundle's source text")
+
+        // 2. It still runs, and the documented visible consequence holds:
+        // Function.prototype.toString on a cached bundle gives no source back
+        // (docs/debugging.md), exactly as on the shipped .qbc.
+        let runtime = try JSRuntime()
+        try runtime.evaluateBytecode(bytecode)
+        XCTAssertEqual(runtime.evaluateString("globalThis.__stripValue.toString()"), "42")
+        XCTAssertTrue(
+            runtime.evaluateBool(
+                "globalThis.__stripThrow.toString().includes('[native code]')"))
+
+        // 3. A throw out of that blob still reports a REAL line:column — the
+        // debug tables survived. This is the guard against "fixing" a size
+        // regression with STRIP_DEBUG, which turns every production frame into
+        // `at fn (<null>:0:1)` that no source map can recover after the fact.
+        // js/test/qbc-symbolication.test.ts holds this same line end to end for
+        // the build tool.
+        let stack = try XCTUnwrap(
+            runtime.evaluateString(
+                "(() => { try { globalThis.__stripThrow(); } catch (e) { return e.stack; } })()"
+            ))
+        XCTAssertFalse(stack.contains("<null>"), "debug tables were stripped: \(stack)")
+        let framePrefix = "bundle.js:\(throwLine):"
+        let frame = try XCTUnwrap(
+            stack.range(of: framePrefix), "expected a \(framePrefix)<col> frame in: \(stack)")
+        let column = Int(stack[frame.upperBound...].prefix(while: { $0.isNumber })) ?? 0
+        XCTAssertGreaterThan(
+            column, 1, "column must point into the throwing line, got \(column): \(stack)")
     }
 
     func testCompileToBytecodeReturnsNilOnSyntaxError() throws {

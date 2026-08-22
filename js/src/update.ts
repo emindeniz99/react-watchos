@@ -243,7 +243,7 @@ export interface UpdateManifest {
  * updates, which is also what a manifest-freeze attacker wants to look like.
  * Throwing distinguishes "endpoint is broken" from "no update".
  */
-export function parseManifest(raw: unknown): UpdateManifest {
+function parseManifest(raw: unknown): UpdateManifest {
   const fail = (what: string): never => {
     throw new Error(`malformed update manifest: ${what}`);
   };
@@ -341,7 +341,8 @@ function resolveBundleUrl(manifestUrl: string, bundle: string): string {
  * OTA transport policy (review §6.11c): update URLs must be https. Plain http
  * is allowed ONLY for the documented dev flow — loopback and private-LAN
  * hosts (the plugin's NSAllowsLocalNetworking scope: localhost, 127.x, 10.x,
- * 192.168.x, 172.16-31.x, and mDNS *.local — "your Mac on the LAN"). The
+ * 192.168.x, 172.16-31.x, mDNS *.local — "your Mac on the LAN" — plus the
+ * IPv6 loopback `[::1]`, and ONLY loopback there, see `isLoopbackIPv6`). The
  * Ed25519 signature protects bundle INTEGRITY regardless; this closes the
  * cleartext exposure that remains — manifest metadata privacy and an on-path
  * attacker shaping freeze/suppression responses. Returns the refusal reason,
@@ -349,7 +350,11 @@ function resolveBundleUrl(manifestUrl: string, bundle: string): string {
  * recovery path), pinned by tests on both sides.
  */
 function updateURLViolation(url: string): string | null {
-  const match = /^([a-z][a-z0-9+.-]*):\/\/([^/:?#]*)/i.exec(url);
+  // A bracketed IPv6 literal must be matched as a UNIT, before the generic
+  // host class: `[^/:?#]*` stops at the first colon, so it used to hand
+  // `isPrivateHost` the bare string "[" for `http://[::1]:8080` — which is
+  // why IPv6 loopback was never a usable dev host until 2026-08.
+  const match = /^([a-z][a-z0-9+.-]*):\/\/(\[[^/\]]*\]|[^/:?#]*)/i.exec(url);
   const scheme = match?.[1]?.toLowerCase();
   const host = match?.[2]?.toLowerCase();
   if (scheme === undefined || host === undefined) {
@@ -378,9 +383,62 @@ function parseIPv4Literal(
   return octets as [number, number, number, number];
 }
 
+/** The 8 hextets of an IPv6 literal (brackets already stripped), or null when
+ *  `literal` isn't entirely one. Handles `::` zero-compression; refuses zone
+ *  ids (`%…`) and dotted IPv4 tails (`::ffff:1.2.3.4`) — neither spells the
+ *  plain loopback this feeds, and refusal is the safe side of a transport
+ *  policy. Mirrors Swift UpdateURLPolicy.ipv6Hextets, so the two policies
+ *  classify the same set of hosts. */
+function parseIPv6Hextets(literal: string): number[] | null {
+  if (literal.includes("%") || literal.includes(".")) return null;
+  const halves = literal.split("::");
+  if (halves.length > 2) return null;
+  const groups = (half: string): string[] | null => {
+    if (half === "") return [];
+    const parts = half.split(":");
+    return parts.every((part) => /^[0-9a-f]{1,4}$/.test(part)) ? parts : null;
+  };
+  // split() always yields a first element; a defined second one means a `::`
+  // was present (even `"a::"`, whose tail half is the empty string).
+  const [headHalf = "", tailHalf] = halves;
+  const head = groups(headHalf);
+  const tail = tailHalf === undefined ? [] : groups(tailHalf);
+  if (head === null || tail === null) return null;
+  // Uncompressed needs all 8 groups spelled; a `::` must stand for at least
+  // one zero group (RFC 4291), so at most 7 may be spelled around it.
+  const compressed = tailHalf !== undefined;
+  if (compressed ? head.length + tail.length > 7 : head.length !== 8) {
+    return null;
+  }
+  const zeros: string[] = Array(8 - head.length - tail.length).fill("0");
+  return [...head, ...zeros, ...tail].map((part) => Number.parseInt(part, 16));
+}
+
+/** Whether an IPv6 literal is EXACTLY the loopback `::1` — the only IPv6 dev
+ *  host. Recorded decision (roadmap 2026-08-12): ULA `fc00::/7` and
+ *  link-local `fe80::/10` are deliberately NOT the IPv6 parallel of the
+ *  private-LAN IPv4 ranges — link-local needs a zone id the fetch stack can't
+ *  carry, and neither is inside the plugin's NSAllowsLocalNetworking dev
+ *  scope this policy documents. They are refused EXPLICITLY, not just by
+ *  falling through the loopback compare, so the scoping survives even if the
+ *  accept below is ever widened. */
+function isLoopbackIPv6(literal: string): boolean {
+  const hextets = parseIPv6Hextets(literal);
+  if (hextets === null) return false;
+  const [first = 0] = hextets; // always 8 long; the default is for the types
+  if ((first & 0xfe00) === 0xfc00) return false; // ULA fc00::/7
+  if ((first & 0xffc0) === 0xfe80) return false; // link-local fe80::/10
+  return hextets.every((h, i) => h === (i === 7 ? 1 : 0));
+}
+
 function isPrivateHost(host: string): boolean {
   if (host === "localhost") return true;
   if (host.endsWith(".local")) return true;
+  // A bracketed host is an IPv6 literal (nothing else may contain ":") —
+  // classified by its own loopback-only rule, never by the IPv4/DNS checks.
+  if (host.startsWith("[") && host.endsWith("]")) {
+    return isLoopbackIPv6(host.slice(1, -1));
+  }
   const octets = parseIPv4Literal(host);
   if (!octets) return false;
   const [a, b] = octets;

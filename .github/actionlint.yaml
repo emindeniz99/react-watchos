@@ -1,0 +1,10 @@
+# actionlint's runner-label list is baked into the binary, so a label GitHub
+# added after that release reads as a typo. `macos-26` is real (arm64, ships the
+# Xcode 26.x toolchain the watchOS 26.2 SDK build needs — see build.yml); it is
+# declared here so the linter stops reporting the three jobs that use it.
+#
+# This is NOT a self-hosted runner. The key is the only one actionlint offers
+# for teaching it a label, and it treats anything listed here as known.
+self-hosted-runner:
+  labels:
+    - macos-26

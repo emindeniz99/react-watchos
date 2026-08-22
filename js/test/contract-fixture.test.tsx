@@ -174,7 +174,14 @@ describe("swift contract fixtures", () => {
           placeholder="passcode"
           onChange={() => {}}
         />
-        <CrownRotation value={5} min={0} max={10} onChange={() => {}}>
+        <CrownRotation
+          value={5}
+          min={0}
+          max={10}
+          focused
+          onFocusChange={() => {}}
+          onChange={() => {}}
+        >
           <Text>5</Text>
         </CrownRotation>
         <TabView selection={1} onChange={() => {}} style="verticalPage">

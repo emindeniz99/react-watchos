@@ -210,6 +210,13 @@ export interface HealthStatisticsResult {
 
 /** One raw quantity sample. */
 export interface HealthSample {
+  /** The sample's HealthKit UUID — a stable list key, and the identity a
+   *  live-stream deletion names: when the user deletes a sample in the Health
+   *  app while {@link startHealthUpdates} is streaming, `onDeleted` reports
+   *  this id, so a screen keeping its own buffer can retract exactly the row
+   *  it added. Present on query rows and live rows alike — a deletion can
+   *  name a sample that arrived either way. */
+  id: string;
   startMs: number;
   endMs: number;
   value: number;
@@ -412,6 +419,39 @@ export function queryHealthDailyStatistics(
 }
 
 /**
+ * The same aggregate, computed **once per hour** across the window — "steps
+ * per hour today" in one call, the chart the daily buckets are too coarse
+ * for. Identical contract to {@link queryHealthDailyStatistics} (same
+ * request, same result rows, contiguous buckets with `value: null` for an
+ * empty hour) at a different granularity — the method name *is* the
+ * granularity, which is why there is no bucket-size option on either.
+ *
+ * - **Buckets are anchored at your `startMs`** and step exactly 3 600 000 ms:
+ *   unlike a calendar *day*, an hour is the same length everywhere, so bucket
+ *   *n* always spans `[startMs + n·3600000, startMs + (n+1)·3600000)`. Pass a
+ *   local hour boundary (e.g. local midnight) to get hours a user recognises.
+ * - **On a DST day, a local "day" is 23 or 25 of these buckets** — that is
+ *   the honest count, not an off-by-one. Label the chart from each bucket's
+ *   own `startMs`, never by assuming 24 per day.
+ * - Rejects `INVALID_REQUEST` for the same illegal `statistic`/`type` pairing
+ *   as its siblings, and when the window spans more than 1000 **hours** —
+ *   the family's one 1000-bucket ceiling, which here is about 41 days. A
+ *   wider chart wants {@link queryHealthDailyStatistics}; a refusal beats a
+ *   silently truncated series.
+ *
+ * `null` still means "denied, or no data, or outside the window you were
+ * granted" — see the module doc.
+ */
+export function queryHealthHourlyStatistics(
+  request: HealthStatisticsQuery,
+): Promise<HealthStatisticsResult[]> {
+  return invoke<HealthStatisticsResult[]>(
+    "queryHealthHourlyStatistics",
+    request,
+  );
+}
+
+/**
  * Raw samples (`HKSampleQueryDescriptor`) in `[startMs, endMs)`, newest first.
  */
 export function queryHealthSamples(
@@ -550,15 +590,17 @@ export interface HealthUpdate {
    * The new samples, **oldest first** (sorted natively — HealthKit promises
    * `addedSamples` no order), each identical in shape and unit to a
    * {@link queryHealthSamples} row. Never empty: an update with nothing added
-   * is not pushed at all — reach for {@link latest} rather than indexing, which
-   * under this package's strictness needs a `!` the wrapper has already earned.
+   * is not delivered to this handler — reach for {@link latest} rather than
+   * indexing, which under this package's strictness needs a `!` the wrapper
+   * has already earned.
    *
-   * **Additions only.** The anchored query also reports objects DELETED from
-   * HealthKit, and this stream drops them: a wire row is `{startMs, endMs,
-   * value, unit}` with no sample identity, so a subscriber could not tell which
-   * of its rows a deletion retracted. A value the user then deletes in the
-   * Health app is therefore not withdrawn here — re-read with
-   * {@link queryHealthSamples} or {@link queryHealthStatistics} if that matters.
+   * **Additions only, by shape.** The anchored query also reports objects
+   * DELETED from HealthKit, and those arrive on
+   * {@link HealthUpdateOptions.onDeleted} rather than here — a retraction is
+   * not a sample, and folding it in would cost this handler the `latest`
+   * guarantee for an event most screens ignore. A subscriber that keeps its
+   * own buffer passes `onDeleted` and removes rows by {@link HealthSample.id};
+   * one that renders a total re-reads it with {@link queryHealthStatistics}.
    */
   samples: HealthSample[];
   /**
@@ -576,6 +618,24 @@ export interface HealthUpdate {
 
 /** Handler for {@link startHealthUpdates}. */
 export type HealthUpdateHandler = (update: HealthUpdate) => void;
+
+/** Samples RETRACTED from HealthKit while a live stream is up, as
+ *  {@link HealthUpdateOptions.onDeleted} delivers them. */
+export interface HealthDeletion {
+  /** The type the stream is for — the same value passed to
+   *  {@link startHealthUpdates}, so one handler can serve two subscriptions. */
+  type: HealthQuantityType;
+  /** The deleted samples' {@link HealthSample.id}s. Never empty — a batch
+   *  with nothing deleted is not delivered here at all. Ids can name samples
+   *  that arrived on this stream *or* rows read earlier with
+   *  {@link queryHealthSamples}: HealthKit's identity is the same either way,
+   *  which is the whole reason the row shape carries one. An id you never saw
+   *  (another app's sample outside your windows) is safe to ignore. */
+  ids: string[];
+}
+
+/** Handler for {@link HealthUpdateOptions.onDeleted}. */
+export type HealthDeletionHandler = (deletion: HealthDeletion) => void;
 
 /** Options for {@link startHealthUpdates}. */
 export interface HealthUpdateOptions {
@@ -596,6 +656,25 @@ export interface HealthUpdateOptions {
    * shared, exactly like `startSensor`'s options.
    */
   minIntervalMs?: number;
+  /**
+   * Called when samples are **deleted** from HealthKit while the stream is up
+   * — the user removing an entry in the Health app is the case this exists
+   * for. Omit it and deletions are simply not delivered; the sample handler's
+   * contract does not change either way.
+   *
+   * Deletions ride the same native batch as additions (same floor, same
+   * merge), so ordering is preserved: for a batch carrying both, the sample
+   * handler runs first and `onDeleted` second — apply adds, then retract.
+   * Unlike `minIntervalMs` this is **per subscriber**, not first-wins: it is
+   * a JS routing choice, not a native knob on the shared query.
+   *
+   * A deletion is *not* a `value` correction — HealthKit samples are
+   * immutable, so an edit in the Health app arrives as a deletion plus a new
+   * sample. And nothing is replayed: a deletion that happened while the app
+   * was backgrounded is not delivered on return, the same rule the samples
+   * live by — re-read on foreground if the number on screen must be right.
+   */
+  onDeleted?: HealthDeletionHandler;
 }
 
 /**
@@ -710,17 +789,27 @@ export function startHealthUpdates(
       // not a caller error — and calling the handler with a non-array would
       // only move the crash into the screen's `.at(-1)`.
       const samples = payload?.samples;
-      if (!Array.isArray(samples) || samples.length === 0) return;
-      const rows = samples as HealthSample[];
-      // `latest` is computed HERE, where non-emptiness has just been proved, so
-      // the interface can promise a `HealthSample` rather than making every
-      // caller re-prove it with a `!` or an index this package's
-      // `noUncheckedIndexedAccess` would widen to `| undefined`.
-      handler({
-        type,
-        samples: rows,
-        latest: rows[rows.length - 1] as HealthSample,
-      });
+      if (Array.isArray(samples) && samples.length > 0) {
+        const rows = samples as HealthSample[];
+        // `latest` is computed HERE, where non-emptiness has just been proved,
+        // so the interface can promise a `HealthSample` rather than making
+        // every caller re-prove it with a `!` or an index this package's
+        // `noUncheckedIndexedAccess` would widen to `| undefined`.
+        handler({
+          type,
+          samples: rows,
+          latest: rows[rows.length - 1] as HealthSample,
+        });
+      }
+      // Deletions SECOND, so a batch carrying both applies its adds before its
+      // retractions — the order a subscriber's buffer needs (an add and its
+      // own deletion merged into one push must net out to gone). Routed to the
+      // per-subscriber callback rather than into HealthUpdate: a retraction is
+      // not a sample, and folding it in would cost `latest` its guarantee.
+      const deleted = payload?.deletedIds;
+      if (options?.onDeleted && Array.isArray(deleted) && deleted.length > 0) {
+        options.onDeleted({ type, ids: deleted as string[] });
+      }
     },
   );
   const token = {};

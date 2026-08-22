@@ -1,0 +1,55 @@
+# typos (crate-ci/typos) — spell-check for source, comments and docs.
+# Runs in .github/workflows/quality.yml and in `pnpm quality`.
+#
+# Everything below is either VENDORED (not ours to fix) or real project
+# vocabulary that typos' dictionary reads as a misspelling. Nothing here is a
+# blanket "ignore this word class" — each entry names why it is correct.
+
+[files]
+extend-exclude = [
+  # The vendored quickjs-ng engine, verbatim upstream C. Its typos are
+  # upstream's ("Rutime", "substract", "guaranted", the `fre` locals in the
+  # bigint code); patching them would fork the vendor drop that
+  # tools/vendor-quickjs/run.sh re-syncs and that the vendor-integrity test
+  # hashes. Report them upstream, don't rewrite them here.
+  "js/swift/Sources/CQuickJS/**",
+  # release-please writes this file; every entry embeds a short commit SHA in
+  # a URL ("ba3c1b0", "c2abd25"), which reads as a word to any spell checker.
+  "js/CHANGELOG.md",
+  # Generated API reference (typedoc + the capability-table emitter). Fix the
+  # doc comment in src/, not the output — CI regenerates this from source.
+  "docs/api/**",
+]
+
+[default]
+# Short commit SHAs quoted inline in the dated review docs
+# (`c2abd25` -> "abd", `ba3c1b0` -> "ba"). Backtick-quoted 7-40 hex chars is a
+# git object id, never prose.
+extend-ignore-re = ["`[0-9a-f]{7,40}`"]
+
+[default.extend-words]
+# Apple's Unique Device Identifier — the literal flag/JSON key `simctl` and
+# `xcodebuild -destination id=` use. Not "UUID"; simctl prints both.
+udid = "udid"
+UDID = "UDID"
+# SF Symbol name (`mappin`, `mappin.circle.fill`) — Apple's spelling, and the
+# string is matched by the interpreter, so "fixing" it breaks the icon.
+mappin = "mappin"
+# Core Audio Format (`.caf`), AND the percent-encoded "café" that the route
+# fixtures use (`caf%C3%A9`) — both are exact strings under test.
+caf = "caf"
+CAF = "CAF"
+# Hyphenated Latin prefix: "mis-decoding", "mis-ordered", "mis-parse". typos
+# splits on the hyphen and does not know the prefix.
+mis = "mis"
+# "catch-alls" (route matching) splits to "alls".
+alls = "alls"
+# "IIFEs" — the esbuild output format, split to "IIF".
+IIF = "IIF"
+# Accepted variant spelling (Merriam-Webster lists both -able and -eable);
+# it is the spelling the BLE bridge and the reviews already use.
+unparseable = "unparseable"
+# DELIBERATE misspelling: js/test/release-contract.test.ts asserts that a
+# bogus feature name is reported as unprovided — the test is literally the
+# "typo guard". Correcting it would delete the case it exists to cover.
+netwrok = "netwrok"

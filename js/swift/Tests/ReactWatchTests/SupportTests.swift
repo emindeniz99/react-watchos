@@ -1818,6 +1818,52 @@ final class ContentHashTests: XCTestCase {
     }
 }
 
+// The Swift third of the content-hash parity gate: the FNV-1a 64-bit hash is
+// implemented three times (tools/qjs-compile/qjs-compile.c's `fnv1a`, this
+// package's ContentHash, and js/esbuild/manifest.mts `contentHash`), and a
+// silent drift in any of them presents as "every boot falls back to parsing
+// source" (the .qbc stamp never matches) or "every check reports an update"
+// (releaseId never matches) — no error anywhere. All three assert the SAME
+// static vector file (Fixtures/content-hash-vectors.json); the Node and C
+// thirds live in js/test/content-hash-parity.test.ts, which also guards the
+// file's own coverage shapes. Never regenerate the file from one
+// implementation — that rewrites the expectation with the drift it catches.
+final class ContentHashParityVectorTests: XCTestCase {
+    private struct VectorFile: Decodable {
+        struct Vector: Decodable {
+            let name: String
+            let input: String
+            let hash: String
+        }
+        let vectors: [Vector]
+    }
+
+    private func loadVectors() throws -> [VectorFile.Vector] {
+        let url = try XCTUnwrap(
+            Bundle.module.url(
+                forResource: "content-hash-vectors", withExtension: "json",
+                subdirectory: "Fixtures"
+            ),
+            "missing Fixtures/content-hash-vectors.json")
+        let vectors = try JSONDecoder()
+            .decode(VectorFile.self, from: Data(contentsOf: url)).vectors
+        // A decode that quietly came back empty would green-light everything.
+        XCTAssertGreaterThanOrEqual(vectors.count, 5, "vector file hollowed out")
+        return vectors
+    }
+
+    func testSharedVectorsMatchThroughBothOverloads() throws {
+        for vector in try loadVectors() {
+            // The String overload is the loadShipped/OTA-record path; the Data
+            // overload pins the record to the bytecode blob. Same core, and
+            // both must speak the shared format.
+            XCTAssertEqual(ContentHash.of(vector.input), vector.hash, vector.name)
+            XCTAssertEqual(
+                ContentHash.of(Data(vector.input.utf8)), vector.hash, vector.name)
+        }
+    }
+}
+
 /// ARCH-04 atomic apply: the active-bundle record is one Codable unit, so source
 /// and version/signature/bytecodeHash always land together — JSON round-trips
 /// without losing the optional fields.
@@ -2443,17 +2489,41 @@ final class UpdateURLPolicyTests: XCTestCase {
         }
     }
 
-    // Foundation's URL parser correctly extracts an IPv6 literal's host
-    // WITHOUT brackets (`"::1"`), unlike js update.ts's regex-based host
-    // extraction, which can never produce that string (it stops at the first
-    // `:`) — so js/src/update.ts's `isPrivateHost` can never treat an IPv6
-    // literal as private, by construction, regardless of what it checks for.
-    // Keeping a Swift-only `host == "::1"` allowance would make the two
-    // policies disagree over IPv6 loopback, so it was dropped along with the
-    // dead JS branch: neither side special-cases IPv6 literals.
-    func testIPv6LoopbackIsRefused() {
-        XCTAssertNotNil(UpdateURLPolicy.violation(of: "http://[::1]:8788/m.json"))
-        XCTAssertNotNil(UpdateURLPolicy.violation(of: "http://[::1]/m.json"))
+    // REGRESSION PIN, mirrored in update.ota.test.ts: the JS host regex used
+    // to stop at the first colon, handing isPrivateHost the bare string "["
+    // for `http://[::1]:8080` — so IPv6 loopback was never a usable dev host
+    // on either side (this policy refused it too, to stay contract-paired).
+    // Both now parse the bracketed literal and allow loopback; the PORTED
+    // form is the case that triggered the truncation.
+    func testIPv6LoopbackIsADevHost() {
+        for url in [
+            "http://[::1]:8080/m.json",
+            "http://[::1]/m.json",
+            // Uncompressed spelling of the same address.
+            "http://[0:0:0:0:0:0:0:1]:8788/m.json",
+        ] {
+            XCTAssertNil(UpdateURLPolicy.violation(of: url), url)
+        }
+    }
+
+    // Recorded decision (roadmap 2026-08-12): IPv6 dev hosts are loopback
+    // ONLY — ULA fc00::/7 and link-local fe80::/10 are NOT the IPv6 parallel
+    // of the private-LAN IPv4 ranges. Same matrix as update.ota.test.ts.
+    func testNonLoopbackIPv6IsRefused() {
+        for url in [
+            "http://[::2]:8080/m.json",  // one past loopback
+            "http://[2001:db8::1]/m.json",  // public
+            "http://[fe80::1]/m.json",  // link-local fe80::/10
+            "http://[febf::1]/m.json",  // top of the link-local /10
+            "http://[fc00::1]/m.json",  // ULA fc00::/7
+            "http://[fd12:3456::1]/m.json",  // ULA, fd half of the /7
+            "http://[::ffff:7f00:1]/m.json",  // IPv4-mapped 127.0.0.1 is not ::1
+            "http://[fe80::1%25en0]/m.json",  // a zone id never names loopback
+            "http://[::]/m.json",  // the unspecified address
+            "http://[0:0:0:0:0:0:0:0:1]/m.json",  // 9 groups — not IPv6 at all
+        ] {
+            XCTAssertNotNil(UpdateURLPolicy.violation(of: url), url)
+        }
     }
 
     func testNonHTTPSchemesAndRelativeURLsAreRefused() {
@@ -2953,6 +3023,69 @@ final class HealthQueryPlanTests: XCTestCase {
             }
             XCTAssertTrue(error.message.contains("ceiling"))
         }
+    }
+
+    func testHourlyPlanRefusesAWindowWiderThanTheBucketCeiling() {
+        // The deferral's "an hourly ceiling is not the daily one" question,
+        // answered: the ceiling was never on days — it is on BUCKETS, the same
+        // ONE number as every size rule in this family, just counted in hours.
+        XCTAssertEqual(HealthWindow.maxHourlyBuckets, HealthWindow.maxLimit)
+        let hour = 3_600_000.0
+        let ok = try? HealthStatisticsPlan.decodeHourly(
+            json: #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":86400000}"#
+        ).get()
+        XCTAssertEqual(ok?.window.hourCount, 24)
+        // Exactly the ceiling decodes; one hour past it is refused — and the
+        // message points a too-wide chart at the DAILY query rather than only
+        // saying no, because ~41 days of hourly bars is a chart that wanted
+        // days.
+        let atCeiling = try? HealthStatisticsPlan.decodeHourly(
+            json: #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":3600000000}"#
+        ).get()
+        XCTAssertEqual(atCeiling?.window.hourCount, HealthWindow.maxHourlyBuckets)
+        let tooWide = HealthStatisticsPlan.decodeHourly(
+            json: #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":3603600000}"#
+        )
+        guard case .failure(let error) = tooWide else {
+            return XCTFail("a window past the bucket ceiling must be refused")
+        }
+        XCTAssertTrue(error.message.contains("ceiling"))
+        XCTAssertTrue(error.message.contains("queryHealthDailyStatistics"))
+        // A partial hour still counts as a bucket, so the count rounds UP —
+        // `dayCount`'s rule at the hourly stride.
+        let partial = try? HealthWindow.decode(
+            startMs: 0, endMs: hour + 1, limit: nil
+        ).get()
+        XCTAssertEqual(partial?.hourCount, 2)
+    }
+
+    func testHourlyPlanRefusesAnAbsurdWindowInsteadOfTrapping() {
+        // The same saturation rule as `dayCount`: an absurd window must come
+        // back INVALID_REQUEST, not trap converting a Double past Int.max.
+        for json in [
+            #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":1e300}"#,
+            #"{"type":"stepCount","statistic":"sum","startMs":-1.7e308,"endMs":1.7e308}"#,
+        ] {
+            guard case .failure(let error) = HealthStatisticsPlan.decodeHourly(json: json)
+            else {
+                return XCTFail("an absurd window must be refused, not accepted")
+            }
+            XCTAssertTrue(error.message.contains("ceiling"))
+        }
+    }
+
+    func testHourlyPlanKeepsEveryRuleTheScalarQueryHas() {
+        // Chopping the window into hours changes nothing about which
+        // statistics HealthKit will compute — the illegal pairing still throws
+        // natively — so the hourly decoder must not become a laxer third door.
+        XCTAssertNil(
+            try? HealthStatisticsPlan.decodeHourly(
+                json: #"{"type":"stepCount","statistic":"average","startMs":0,"endMs":1}"#
+            ).get())
+        XCTAssertNil(
+            try? HealthStatisticsPlan.decodeHourly(
+                json: #"{"type":"stepCount","statistic":"sum","startMs":2,"endMs":1}"#
+            ).get())
     }
 
     func testDailyPlanKeepsEveryRuleTheScalarQueryHas() {

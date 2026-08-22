@@ -1,0 +1,37 @@
+name: engine attest
+
+# The GREEN half of the required-check pair. engine-attest.yml only triggers
+# on PRs touching js/swift/Sources/CQuickJS/**, and GitHub holds a required
+# check that never reports at "Expected — waiting for status", which would
+# wedge every PR that does NOT touch the engine the moment `attested` is
+# marked required in branch protection. This is GitHub's own documented
+# answer: a second workflow with the complementary paths-ignore filter and a
+# job of the SAME name that always passes, so every PR reports exactly one
+# `attested` check — the real digest gate on engine changes, this no-op
+# everywhere else.
+# https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/defining-the-mergeability-of-pull-requests/troubleshooting-required-status-checks#handling-skipped-but-required-checks
+#
+# The two paths filters are complementary by construction — a PR either
+# touches the engine (the real check runs, this one does not) or it does not
+# (this one runs, the real one does not) — so keep them in lockstep with
+# engine-attest.yml. `labeled`/`unlabeled` are in the trigger list for the
+# same reason they are on the real check, plus one more: a PR opened with
+# GITHUB_TOKEN (release-please, the vendor bot) raises no pull_request events
+# at open time, so no check reports at all; a human adding any label fires
+# `labeled` with THEIR token and lets this job report the green the merge
+# button is waiting for.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    paths-ignore:
+      - "js/swift/Sources/CQuickJS/**"
+
+permissions: {}
+
+jobs:
+  attested:
+    runs-on: ubuntu-latest
+    steps:
+      - name: No engine changes — the digest gate does not apply
+        run: echo "nothing under js/swift/Sources/CQuickJS changed; no tarball digest to attest"

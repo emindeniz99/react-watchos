@@ -7,6 +7,18 @@ name: CI
 
 on:
   workflow_dispatch:
+  # Callable from another workflow, because of a GitHub rule that would
+  # otherwise leave the engine-bump bot's PR ungated: events raised with the
+  # built-in GITHUB_TOKEN do not start workflows, so a PR the bot opens gets no
+  # `pull_request` run. Rather than copy these steps into that workflow (a copy
+  # rots the day someone adds a gate here), the bot CALLS this file and the
+  # gates run inside its own run, against the branch it just pushed.
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to check out. Empty = the caller's own ref."
+        type: string
+        required: false
   push:
     branches: [main]
   pull_request:
@@ -25,6 +37,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       # No `version` input: pnpm/action-setup reads the exact pinned version
       # from the root package.json "packageManager" field.
@@ -124,6 +138,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       # On Linux the manifest excludes the SwiftUI host target, so the whole
       # package builds (quickjs-ng C module, wire models, JS embedding) and
@@ -131,6 +147,19 @@ jobs:
       # ReactWatchHost needs Xcode — the separate macOS workflow.
       - name: Build (SwiftPM)
         run: swift build
+      # NB `BundleSmokeTests` (the real production bundle booted through
+      # JSRuntime) SKIPS here, on purpose. It needs js/dist/bundle.js + .qbc,
+      # and this container is swift:6.0 with no Node — Debian's nodejs is too
+      # old for the `--experimental-strip-types` the build scripts are written
+      # against, so making it run means either downloading a Node tarball per
+      # run or making this job wait on `js` for an artifact, serializing two
+      # jobs that are parallel today. Neither buys anything: the SAME bundle is
+      # already booted in this workflow by the C-embed smoke (`js` job, the
+      # reference embedding), and the run that actually matters — the shipped
+      # artifact in the shipped Swift embedding on the watch architecture — is
+      # `watchos-tests` in build.yml, which does build the bundle first.
+      # Locally the test RUNS whenever `pnpm --filter react-watchos build` has
+      # been run, which is the normal state of a dev checkout.
       - name: Wire-contract tests
         run: swift test
       # Exits 0 as of the tail-sweep format pass; this keeps warnings from

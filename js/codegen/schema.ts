@@ -21,7 +21,7 @@ export interface Component {
 }
 
 /** One field of a generated struct. `swift` is absent for TS-only wire types. */
-export interface StructField {
+interface StructField {
   name: string;
   swift?: string;
   ts: string;
@@ -64,7 +64,7 @@ export interface HostArg {
  * it explicitly is what keeps "undescribable by design" distinguishable from
  * "nobody got around to declaring it".
  */
-export type InvokeShapeRef = string;
+type InvokeShapeRef = string;
 
 /** A `__host` bridge method (see the doc on `hostMethods`). */
 export interface HostMethod {
@@ -219,23 +219,87 @@ export const healthQuantityTypes: string[] = [
  * switch, which is what makes name-vs-case drift structurally impossible.
  */
 export const workoutActivityTypes: string[] = [
-  "americanFootball", "archery", "australianFootball", "badminton", "barre",
-  "baseball", "basketball", "bowling", "boxing", "cardioDance", "climbing",
-  "cooldown", "coreTraining", "cricket", "crossCountrySkiing",
-  "crossTraining", "curling", "cycling", "discSports", "downhillSkiing",
-  "elliptical", "equestrianSports", "fencing", "fishing", "fitnessGaming",
-  "flexibility", "functionalStrengthTraining", "golf", "gymnastics",
-  "handCycling", "handball", "highIntensityIntervalTraining", "hiking",
-  "hockey", "hunting", "jumpRope", "kickboxing", "lacrosse", "martialArts",
-  "mindAndBody", "mixedCardio", "other", "paddleSports", "pickleball",
-  "pilates", "play", "preparationAndRecovery", "racquetball", "rowing",
-  "rugby", "running", "sailing", "skatingSports", "snowSports",
-  "snowboarding", "soccer", "socialDance", "softball", "squash",
-  "stairClimbing", "stairs", "stepTraining", "surfingSports", "swimBikeRun",
-  "swimming", "tableTennis", "taiChi", "tennis", "trackAndField",
-  "traditionalStrengthTraining", "transition", "underwaterDiving",
-  "volleyball", "walking", "waterFitness", "waterPolo", "waterSports",
-  "wheelchairRunPace", "wheelchairWalkPace", "wrestling", "yoga",
+  "americanFootball",
+  "archery",
+  "australianFootball",
+  "badminton",
+  "barre",
+  "baseball",
+  "basketball",
+  "bowling",
+  "boxing",
+  "cardioDance",
+  "climbing",
+  "cooldown",
+  "coreTraining",
+  "cricket",
+  "crossCountrySkiing",
+  "crossTraining",
+  "curling",
+  "cycling",
+  "discSports",
+  "downhillSkiing",
+  "elliptical",
+  "equestrianSports",
+  "fencing",
+  "fishing",
+  "fitnessGaming",
+  "flexibility",
+  "functionalStrengthTraining",
+  "golf",
+  "gymnastics",
+  "handCycling",
+  "handball",
+  "highIntensityIntervalTraining",
+  "hiking",
+  "hockey",
+  "hunting",
+  "jumpRope",
+  "kickboxing",
+  "lacrosse",
+  "martialArts",
+  "mindAndBody",
+  "mixedCardio",
+  "other",
+  "paddleSports",
+  "pickleball",
+  "pilates",
+  "play",
+  "preparationAndRecovery",
+  "racquetball",
+  "rowing",
+  "rugby",
+  "running",
+  "sailing",
+  "skatingSports",
+  "snowSports",
+  "snowboarding",
+  "soccer",
+  "socialDance",
+  "softball",
+  "squash",
+  "stairClimbing",
+  "stairs",
+  "stepTraining",
+  "surfingSports",
+  "swimBikeRun",
+  "swimming",
+  "tableTennis",
+  "taiChi",
+  "tennis",
+  "trackAndField",
+  "traditionalStrengthTraining",
+  "transition",
+  "underwaterDiving",
+  "volleyball",
+  "walking",
+  "waterFitness",
+  "waterPolo",
+  "waterSports",
+  "wheelchairRunPace",
+  "wheelchairWalkPace",
+  "wrestling",
+  "yoga",
 ];
 
 /** One prop the app interpreter honors and the widget interpreter ignores. */
@@ -265,16 +329,16 @@ export const propDegradations: PropDegradation[] = [
     component: "*",
     prop: "glass",
     note:
-      "Liquid Glass is applied in NodeView's shared modifier chain; the "
-      + "widget's applyLayout mirrors LayoutModifier only, so it is a no-op "
-      + "in complications.",
+      "Liquid Glass is applied in NodeView's shared modifier chain; the " +
+      "widget's applyLayout mirrors LayoutModifier only, so it is a no-op " +
+      "in complications.",
   },
   {
     component: "Button",
     prop: "buttonStyle",
     note:
-      "The widget's interactive Button hard-codes .buttonStyle(.plain); "
-      + "glass/glassProminent/plain are all no-ops in complications.",
+      "The widget's interactive Button hard-codes .buttonStyle(.plain); " +
+      "glass/glassProminent/plain are all no-ops in complications.",
   },
 ];
 
@@ -521,7 +585,12 @@ export const invokeShapes: StructDef[] = [
         ts: "number",
         optional: true,
       },
-      { name: "reconnectWindowMs", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "reconnectWindowMs",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
     ],
   },
   {
@@ -553,7 +622,12 @@ export const invokeShapes: StructDef[] = [
         ts: "string[]",
         optional: true,
       },
-      { name: "minBridgeProtocol", swift: "Int?", ts: "number", optional: true },
+      {
+        name: "minBridgeProtocol",
+        swift: "Int?",
+        ts: "number",
+        optional: true,
+      },
       { name: "expiresAt", swift: "Int?", ts: "number", optional: true },
     ],
   },
@@ -875,9 +949,9 @@ export const invokeShapes: StructDef[] = [
         name: "kind",
         swift: "String",
         ts:
-          '"heartRateRange" | "heartRateZone" | "speedRange" | "speedThreshold"'
-          + ' | "cadenceRange" | "cadenceThreshold" | "powerRange"'
-          + ' | "powerThreshold" | "powerZone"',
+          '"heartRateRange" | "heartRateZone" | "speedRange" | "speedThreshold"' +
+          ' | "cadenceRange" | "cadenceThreshold" | "powerRange"' +
+          ' | "powerThreshold" | "powerZone"',
       },
       {
         // SPEED alerts only, and that asymmetry is Apple's: `speed(_:unit:
@@ -915,7 +989,12 @@ export const invokeShapes: StructDef[] = [
         ts: "number",
         optional: true,
       },
-      { name: "metersPerSecond", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "metersPerSecond",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
       {
         name: "lowerCountPerMinute",
         swift: "Double?",
@@ -928,7 +1007,12 @@ export const invokeShapes: StructDef[] = [
         ts: "number",
         optional: true,
       },
-      { name: "countPerMinute", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "countPerMinute",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
       { name: "lowerWatts", swift: "Double?", ts: "number", optional: true },
       { name: "upperWatts", swift: "Double?", ts: "number", optional: true },
       { name: "watts", swift: "Double?", ts: "number", optional: true },
@@ -1183,7 +1267,12 @@ export const invokeShapes: StructDef[] = [
     swift: "CalendarEventsRequest",
     ts: "CalendarEventsRequest",
     fields: [
-      { name: "startMs", swift: "Double", ts: "number", doc: "window start, ms since epoch" },
+      {
+        name: "startMs",
+        swift: "Double",
+        ts: "number",
+        doc: "window start, ms since epoch",
+      },
       { name: "endMs", swift: "Double", ts: "number" },
       { name: "limit", swift: "Int?", ts: "number", optional: true },
     ],
@@ -1328,6 +1417,20 @@ export const invokeShapes: StructDef[] = [
     swift: "HealthSample",
     ts: "HealthSample",
     fields: [
+      {
+        // HKObject.uuid (watchOS 2.0) — the sample's IDENTITY, and the field
+        // that closed the healthUpdateDeletions deferral: the live stream
+        // reports a retracted sample by uuid, and an id that appeared on no
+        // row would retract nothing. On the shared row shape rather than a
+        // live-only variant, deliberately: a live row and a queryHealthSamples
+        // row MEAN the same thing (same unit table, same keys — the guards
+        // test pins them equal), so a subscriber can seed from history and
+        // then apply deletions against it. Also the WorkoutSummary.id
+        // precedent — a stable list key a chart row was missing anyway.
+        name: "id",
+        swift: "String",
+        ts: "string",
+      },
       { name: "startMs", swift: "Double", ts: "number" },
       { name: "endMs", swift: "Double", ts: "number" },
       { name: "value", swift: "Double", ts: "number" },
@@ -1432,7 +1535,7 @@ export const invokeShapes: StructDef[] = [
   {
     swift: "WorkoutSummary",
     ts: "WorkoutSummary",
-    doc: "One SAVED HKWorkout — the row a \"recent workouts\" list renders.",
+    doc: 'One SAVED HKWorkout — the row a "recent workouts" list renders.',
     fields: [
       {
         // HKObject.uuid. A list needs a stable key, and a detail screen needs
@@ -1521,7 +1624,12 @@ export const invokeShapes: StructDef[] = [
         ts: '"requested" | "discarded" | "runtimeReload" | "failed"',
         optional: true,
       },
-      { name: "endedDurationMs", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "endedDurationMs",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
       {
         name: "endedWorkoutId",
         swift: "String?",
@@ -1598,8 +1706,18 @@ export const invokeShapes: StructDef[] = [
         ts: "number",
         optional: true,
       },
-      { name: "floorsAscended", swift: "Double?", ts: "number", optional: true },
-      { name: "floorsDescended", swift: "Double?", ts: "number", optional: true },
+      {
+        name: "floorsAscended",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
+      {
+        name: "floorsDescended",
+        swift: "Double?",
+        ts: "number",
+        optional: true,
+      },
       {
         // The units are IN the names deliberately: Apple's currentPace is
         // SECONDS PER METER and currentCadence is STEPS PER SECOND — both
@@ -1678,7 +1796,12 @@ export const invokeShapes: StructDef[] = [
         doc: "decoded byte count of THIS chunk — authoritative, the request's length is not",
       },
       { name: "offset", swift: "Int", ts: "number" },
-      { name: "totalBytes", swift: "Int", ts: "number", doc: "the whole file's size" },
+      {
+        name: "totalBytes",
+        swift: "Int",
+        ts: "number",
+        doc: "the whole file's size",
+      },
       {
         name: "eof",
         swift: "Bool",
@@ -2130,7 +2253,7 @@ export const hostMethods: HostMethod[] = [
     feature: "health",
     since: 1,
     via: "invoke",
-    doc: "Runs the HealthKit permission sheet for a read type set; resolves \"prompted\" | \"alreadyRequested\" | \"unavailable\" — the only honest signal Apple exposes (a granted READ is indistinguishable from a denied one).",
+    doc: 'Runs the HealthKit permission sheet for a read type set; resolves "prompted" | "alreadyRequested" | "unavailable" — the only honest signal Apple exposes (a granted READ is indistinguishable from a denied one).',
     request: "HealthAuthorizationRequest",
   },
   {
@@ -2157,6 +2280,28 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     via: "invoke",
     doc: "One aggregate per DAY over the window (HKStatisticsCollectionQueryDescriptor), instead of one invoke per day. Buckets are contiguous and anchored on startMs — an empty day is a bucket with value: null, not a gap.",
+    request: "HealthStatisticsRequest",
+    response: "HealthStatisticsResult[]",
+  },
+  {
+    // The hourly sibling — healthHourlyBuckets, taken 2026-08-22. A METHOD,
+    // not a bucket-size field on the shared request: `queryHealthStatistics`
+    // decodes the same `HealthStatisticsRequest`, so a `bucket` field there
+    // would be a knob the scalar query has to ignore, and the daily method's
+    // recorded rule ("the method name IS the granularity") holds better with
+    // two methods than with a union bolted onto three. The deferral's two
+    // contract questions are answered in the plan, where Linux tests them:
+    // the ceiling is the same ONE number (1000 BUCKETS, so ~41 days of hours
+    // — `decodeHourly` refuses wider), and the anchor stays the caller's
+    // startMs — an "hour" begins where JS says it does, and hour steps are
+    // uniform 3600s, so unlike a day bucket a DST transition never stretches
+    // one.
+    name: "queryHealthHourlyStatistics",
+    targets: ["watch"],
+    feature: "health",
+    since: 1,
+    via: "invoke",
+    doc: "One aggregate per HOUR over the window (the same HKStatisticsCollectionQueryDescriptor, hour stride) — a steps-per-hour chart in one invoke. Contiguous and anchored on startMs like the daily buckets; the 1000-bucket ceiling makes the widest legal window about 41 days.",
     request: "HealthStatisticsRequest",
     response: "HealthStatisticsResult[]",
   },
@@ -2191,7 +2336,7 @@ export const hostMethods: HostMethod[] = [
     feature: "health",
     since: 1,
     via: "invoke",
-    doc: "Saved HKWorkouts in the window, newest first (HKSampleQueryDescriptor + HKSamplePredicate.workout) — what a \"your last five runs\" screen lists.",
+    doc: 'Saved HKWorkouts in the window, newest first (HKSampleQueryDescriptor + HKSamplePredicate.workout) — what a "your last five runs" screen lists.',
     request: "WorkoutHistoryRequest",
     response: "WorkoutSummary[]",
   },
@@ -2323,7 +2468,7 @@ export const hostMethods: HostMethod[] = [
     feature: "workoutPlans",
     since: 1,
     via: "invoke",
-    doc: "Runs the WorkoutKit scheduling permission sheet; resolves \"authorized\" | \"denied\" | \"notDetermined\" | \"restricted\". Unlike HealthKit reads this is a REAL verdict — Apple's `AuthorizationState`. Reads the standing state first and prompts only when it is notDetermined, so calling it again never re-prompts.",
+    doc: 'Runs the WorkoutKit scheduling permission sheet; resolves "authorized" | "denied" | "notDetermined" | "restricted". Unlike HealthKit reads this is a REAL verdict — Apple\'s `AuthorizationState`. Reads the standing state first and prompts only when it is notDetermined, so calling it again never re-prompts.',
     // No `request`/`response`: no payload, and the result is a bare string
     // (the requestCalendarAccess / requestHealthAuthorization precedent).
   },
@@ -2387,7 +2532,7 @@ export const hostMethods: HostMethod[] = [
     feature: "calendar",
     since: 1,
     via: "invoke",
-    doc: "Runs the EventKit permission sheet for one entity; resolves \"granted\" | \"denied\" | \"restricted\" | \"notDetermined\" | \"writeOnly\" | \"unavailable\". Reading needs FULL access — Apple exposes no read-only grant.",
+    doc: 'Runs the EventKit permission sheet for one entity; resolves "granted" | "denied" | "restricted" | "notDetermined" | "writeOnly" | "unavailable". Reading needs FULL access — Apple exposes no read-only grant.',
     request: "CalendarAccessRequest",
   },
   {
@@ -2442,6 +2587,14 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     via: "invoke",
   },
+  // Direct (not via invoke) like `fetch`, and for its reason: the settle is a
+  // dedicated channel (`__resolveGenerate`/`__rejectGenerate`, the latter
+  // carrying an `{code, message}` AIErrorCode payload), and a streaming
+  // request additionally emits cumulative `ai.partial` pushes between call
+  // and settle. requestJson decodes as ReactWatchSupport's `GeneratePlan`
+  // (prompt/instructions/temperature/maxTokens/stream/partialIntervalMs/
+  // schema) — Linux-tested against fixtures the JS suite writes from real
+  // wrapper traffic.
   {
     name: "generate",
     targets: ["watch"],
@@ -2451,6 +2604,18 @@ export const hostMethods: HostMethod[] = [
       { name: "id", type: "int" },
       { name: "requestJson", type: "string" },
     ],
+  },
+  // The abortFetch of the generate channel: a screen popping mid-generation
+  // must stop the model decoding (ARCH-09 focus cleanup — the ~3B model is
+  // the most expensive thing this bridge can leave running), not merely drop
+  // the eventual resolve. JS settles its promise synchronously on abort; this
+  // just cancels the native task, so it needs no reply path.
+  {
+    name: "cancelGenerate",
+    targets: ["watch"],
+    feature: "ai",
+    since: 1,
+    args: [{ name: "id", type: "int" }],
   },
   // Runtime "can this watch run on-device AI now?" query (CX-002), distinct from
   // the build-time `ai` feature: a watch on the right OS may still be unable

@@ -1,19 +1,65 @@
 #!/bin/sh
-# Best-effort local secret scan before anything leaves the machine.
-# CI (security.yml) is the authoritative gate; this exists to catch a leak
-# BEFORE it reaches the remote, where history rewriting is still free.
+# Best-effort local checks before anything leaves the machine: a secret scan,
+# and — when workflows changed — the two workflow linters.
+# CI is the authoritative gate (security.yml runs all three); this exists to
+# catch things BEFORE they reach the remote, where a fix is still free.
 # Wired up automatically: the root package.json "prepare" script sets
 # core.hooksPath to .githooks on install.
-if ! command -v gitleaks >/dev/null 2>&1; then
+#
+# Each check is independent and skips loudly when its tool is missing — a
+# machine without gitleaks must still get the workflow linting, and vice versa.
+
+status=0
+
+if command -v gitleaks >/dev/null 2>&1; then
+  echo "pre-push: gitleaks scanning history…" >&2
+  if ! gitleaks git . --no-banner --exit-code 1; then
+    echo "" >&2
+    echo "pre-push: BLOCKED — gitleaks found something above." >&2
+    echo "pre-push: fix it (and rewrite the unpushed commit) before pushing;" >&2
+    echo "pre-push: bypass only for a confirmed false positive: git push --no-verify" >&2
+    status=1
+  fi
+else
   echo "pre-push: gitleaks not installed — skipping local secret scan." >&2
   echo "pre-push: install it (brew install gitleaks); CI still scans every push." >&2
-  exit 0
 fi
-echo "pre-push: gitleaks scanning history…" >&2
-if ! gitleaks git . --no-banner --exit-code 1; then
-  echo "" >&2
-  echo "pre-push: BLOCKED — gitleaks found something above." >&2
-  echo "pre-push: fix it (and rewrite the unpushed commit) before pushing;" >&2
-  echo "pre-push: bypass only for a confirmed false positive: git push --no-verify" >&2
-  exit 1
+
+# Workflow linting, for the same reason: a workflow defect found after the merge
+# is a red main. Learned twice in one morning — a `${{ }}` expansion inside a
+# `run:` block that zizmor failed on the next push, and a reusable-workflow call
+# whose permissions the caller could not grant, which actionlint sees. Only when
+# workflows actually changed, so an ordinary push pays nothing.
+base=$(git rev-parse --verify --quiet 'HEAD@{push}' 2>/dev/null) ||
+  base=$(git merge-base HEAD origin/main 2>/dev/null) ||
+  base=$(git rev-parse --verify --quiet 'HEAD~1' 2>/dev/null) ||
+  base=""
+if [ -n "$base" ] &&
+  git diff --name-only "$base" HEAD 2>/dev/null | grep -q '^\.github/workflows/'; then
+  if command -v actionlint >/dev/null 2>&1; then
+    echo "pre-push: actionlint…" >&2
+    # No path argument: actionlint discovers .github/workflows/** itself.
+    # Handing it the directory is an error ("is a directory"), which this hook
+    # then reported as a finding — the hook's own first catch was itself.
+    actionlint || {
+      echo "pre-push: BLOCKED — actionlint findings above." >&2
+      status=1
+    }
+  else
+    echo "pre-push: actionlint not installed — skipping (CI still runs it)." >&2
+  fi
+  if command -v zizmor >/dev/null 2>&1; then
+    echo "pre-push: zizmor…" >&2
+    # --offline matches how CI runs it, and keeps the hook working without a
+    # token: online mode hits the GitHub API and fails hard on a 401.
+    zizmor --offline .github/workflows/ || {
+      echo "pre-push: BLOCKED — zizmor findings above. Fix the shape rather" >&2
+      echo "pre-push: than suppressing it; suppress only with a written reason." >&2
+      status=1
+    }
+  else
+    echo "pre-push: zizmor not installed — skipping (CI still runs it)." >&2
+  fi
 fi
+
+exit "$status"

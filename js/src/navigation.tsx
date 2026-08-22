@@ -206,6 +206,14 @@ interface StackWinners {
   /** The single focused pattern — the winner for the TOP of the stack (the
    * screen the native host actually shows), or null when nothing matches. */
   focused: string | null;
+  /** For each winning pattern, the (normalized) stack entry it won — the
+   * route its params must be extracted FROM. Without this a covered screen
+   * has no way back to its own entry: its pattern rarely matches the top of
+   * the stack, so `/list/[id]` under a pushed detail screen used to render
+   * its no-param branch ("not found") into the tree native still holds.
+   * When one pattern wins several entries the TOPMOST wins (entries are
+   * folded in stack order), mirroring what `focused` would report. */
+  wonEntries: ReadonlyMap<string, string>;
 }
 
 /** null = no enclosing NavigationStack: render children, never focused. */
@@ -355,15 +363,24 @@ function computeWinners(patternsKey: string, pathKey: string): StackWinners {
   const patterns = patternsKey === "" ? [] : patternsKey.split("\n");
   const entries = pathKey === "" ? [] : pathKey.split("\n");
   const mounted = new Set<string>();
+  const wonEntries = new Map<string, string>();
   const rootWinner = bestOf(patterns, "/");
-  if (rootWinner !== null) mounted.add(rootWinner);
+  if (rootWinner !== null) {
+    mounted.add(rootWinner);
+    wonEntries.set(rootWinner, "/");
+  }
   let focused = rootWinner;
   for (const entry of entries) {
-    const winner = bestOf(patterns, normalizeRoute(entry));
-    if (winner !== null) mounted.add(winner);
+    const route = normalizeRoute(entry);
+    const winner = bestOf(patterns, route);
+    if (winner !== null) {
+      mounted.add(winner);
+      // Later entries overwrite: a pattern winning twice keeps the topmost.
+      wonEntries.set(winner, route);
+    }
     focused = winner;
   }
-  return { mounted, focused };
+  return { mounted, focused, wonEntries };
 }
 
 /**
@@ -441,15 +458,20 @@ export function NavigationStack(props: NavigationStackProps) {
  */
 export function NavigationRoute(props: NavigationRouteProps) {
   const { path } = props;
-  const active = useContext(ActiveRouteContext);
   const winners = useContext(WinningRoutesContext);
-  const match = useMemo(() => matchRoute(path, active), [path, active]);
-  // Focus (and expose params for) ONLY the single best-scoring route — the one
-  // the native host actually renders — not every route whose pattern matches.
-  // Otherwise an overlapping route (e.g. a catch-all beside a concrete path)
-  // would fire useFocusEffect + report useIsFocused() on a screen never shown.
+  // Match against the stack entry THIS pattern won, not the top of the stack:
+  // a covered `/list/[id]` keeps the id of the entry underneath, so the
+  // subtree native still holds renders the real screen, not its no-param
+  // branch. Only winners carry an entry, so an overlapping loser (e.g. a
+  // catch-all beside a concrete path) still gets no match, no focus and no
+  // params — a screen never shown must not fire useFocusEffect either.
+  const wonEntry = winners === null ? null : (winners.wonEntries.get(path) ?? null);
+  const match = useMemo(
+    () => (wonEntry === null ? null : matchRoute(path, wonEntry)),
+    [path, wonEntry],
+  );
   const focused = match !== null && path === (winners?.focused ?? null);
-  const params = focused ? (match?.params ?? EMPTY_PARAMS) : EMPTY_PARAMS;
+  const params = match?.params ?? EMPTY_PARAMS;
   // Outside any stack (winners === null) keep rendering children — there is
   // no path to gate on and hiding them would just lose content.
   const mounted = winners === null || winners.mounted.has(path);

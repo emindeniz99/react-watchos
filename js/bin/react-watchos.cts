@@ -1,4 +1,10 @@
 #!/usr/bin/env node
+// The directive below is NOT redundant, whatever the lint rule says: its
+// premise ("modules are automatically strict") holds for ESM, and this is a
+// .cts file — loaded as CommonJS both when Node type-strips it in-repo and as
+// the compiled dist-node/react-watchos.cjs the `bin` field points at. CommonJS
+// is sloppy mode without it.
+// biome-ignore lint/suspicious/noRedundantUseStrict: .cts is CommonJS — see above
 "use strict";
 
 // react-watchos CLI.
@@ -53,9 +59,28 @@ function buildFlags(args: string[]) {
       // map recovers the same names at rest, so pay in the bundle only when
       // whatever reads your stacks cannot symbolicate.
       "keep-names": { type: "boolean" },
+      // The fetch/Headers/AbortController shims ship by default — a bundle
+      // that calls fetch without them fails at runtime, so the safe default is
+      // to include them. `--no-network` is for the bundle whose contract has no
+      // network (a widget extension: shared storage + timelines), worth -3,798 B
+      // measured. Negative-only: there is nothing to affirm, it is the default.
+      "no-network": { type: "boolean" },
+      // Opt-in symbol store: keep this build's bundle + map under
+      // <dir>/<releaseId>/<target>/ so a stack that comes back from the field
+      // carrying only a releaseId can still find the map that reads it.
+      // Affirmative-only and absent by default — writing artifacts nobody asked
+      // for is not a default, and `releaseId` is the only key (never a second
+      // identifier). Resolve one later with `symbolicate --symbols <dir>`.
+      symbols: { type: "string" },
       version: { type: "string", default: "1" },
       host: { type: "string", default: process.env.DEV_HOST ?? "127.0.0.1" },
       port: { type: "string", default: process.env.DEV_PORT ?? "8788" },
+      // Source-level debugger instrumentation (docs/design-dap-debugger.md).
+      // Declared on the SHARED flags so `build --debug` parses and can be
+      // refused with a sentence instead of ERR_PARSE_ARGS_UNKNOWN_OPTION —
+      // `build` is the shipping entry and instrumented bytes must never leave
+      // through it.
+      debug: { type: "boolean" },
     },
   });
   if (!values.entry) {
@@ -74,12 +99,20 @@ function buildFlags(args: string[]) {
     minify: !values["no-minify"],
     sourcemap: !values["no-sourcemap"],
     keepNames: values["keep-names"] === true,
+    network: !values["no-network"],
   };
 }
 
 /** One-shot bundle build via the published preset (+ OTA manifest stamp). */
 async function build(args: string[]) {
   const f = buildFlags(args);
+  if (f.debug) {
+    console.error(
+      "[react-watchos] --debug instruments every statement and must never " +
+        "ship: use `react-watchos dev --debug` (docs/design-dap-debugger.md).",
+    );
+    process.exit(1);
+  }
   const { buildBundles } = await import("../esbuild/preset.mts");
   const results = await buildBundles(
     [
@@ -88,15 +121,25 @@ async function build(args: string[]) {
         outfile: f.outfile,
         name: "app",
         manifest: { version: Number(f.version) },
+        network: f.network,
       },
     ],
-    { minify: f.minify, sourcemap: f.sourcemap, keepNames: f.keepNames },
+    {
+      minify: f.minify,
+      sourcemap: f.sourcemap,
+      keepNames: f.keepNames,
+      // Spread rather than passed as `symbols: undefined`: absent must mean
+      // "behave exactly as before", and an explicit undefined would be one
+      // more thing the preset has to defend against.
+      ...(f.symbols ? { symbols: f.symbols } : {}),
+    },
   );
   for (const r of results) {
     console.log(
       `[build] ${r.outfile} (${r.sizeKB} KB)` +
         (f.sourcemap ? ` + ${path.basename(r.outfile)}.map` : ""),
     );
+    if (r.symbols) console.log(`[build] symbols -> ${r.symbols}`);
   }
   if (f.asset) {
     fs.mkdirSync(path.dirname(f.asset), { recursive: true });
@@ -141,6 +184,9 @@ async function dev(args: string[]) {
       outfile: f.outfile,
       minify: false,
       sourcemap: f.sourcemap,
+      // --debug also writes <outfile>.dbg.json next to the bundle; point
+      // `react-watchos debug --manifest` at it.
+      debug: f.debug === true,
     }),
   );
   await ctx.watch();
@@ -152,8 +198,42 @@ async function dev(args: string[]) {
   const bundleName = path.basename(f.outfile);
   console.log(
     `dev server: http://${hosts[0] ?? f.host}:${port}/${bundleName} (live reload)\n` +
-      "DEBUG watch builds poll this URL and hot-restart on change.",
+      "DEBUG watch builds poll this URL and hot-restart on change." +
+      (f.debug
+        ? `\ndebug: instrumented (${bundleName}.dbg.json) — run ` +
+          "`react-watchos debug` in another terminal."
+        : ""),
   );
+}
+
+/** DAP adapter + the watch's poll endpoint (docs/design-dap-debugger.md). */
+async function debug(args: string[]) {
+  const { values } = parseArgs({
+    args,
+    options: {
+      port: { type: "string", default: process.env.DEBUG_PORT ?? "8790" },
+      "dap-port": { type: "string", default: process.env.DAP_PORT ?? "8791" },
+      host: { type: "string", default: process.env.DEV_HOST ?? "127.0.0.1" },
+      manifest: {
+        type: "string",
+        default: path.join("dist", "bundle.js.dbg.json"),
+      },
+    },
+  });
+  if (!fs.existsSync(values.manifest)) {
+    console.error(
+      `[react-watchos] no debug manifest at ${values.manifest}. Build an ` +
+        "instrumented bundle first: react-watchos dev --entry <file> --debug",
+    );
+    process.exit(1);
+  }
+  const { startDebugServer } = await import("./debug-server.mts");
+  await startDebugServer({
+    port: Number(values.port),
+    dapPort: Number(values["dap-port"]),
+    host: values.host,
+    manifestPath: path.resolve(values.manifest),
+  });
 }
 
 /** Remote inspector UI (tree + logs + errors posted by a DEBUG watch build). */
@@ -256,6 +336,9 @@ switch (command) {
   case "inspector":
     inspector(rest).catch(fail);
     break;
+  case "debug":
+    debug(rest).catch(fail);
+    break;
   default:
     console.error(
       "react-watchos\n\n" +
@@ -267,7 +350,8 @@ switch (command) {
         "      plugin links the SwiftPM packages + merges the Info.plists.\n\n" +
         "  react-watchos build --entry <file> [--outfile dist/bundle.js]\n" +
         "                      [--asset <copy-to>] [--no-minify] [--version <n>]\n" +
-        "                      [--no-sourcemap] [--keep-names]\n" +
+        "                      [--no-sourcemap] [--keep-names] [--no-network]\n" +
+        "                      [--symbols <dir>]\n" +
         "      One-shot QuickJS-correct bundle build (published esbuild preset)\n" +
         "      + OTA manifest stamp next to the outfile. Minified by default\n" +
         "      (~-68% bytes, a third less QuickJS heap); --no-minify keeps the\n" +
@@ -276,7 +360,12 @@ switch (command) {
         "      nowhere, so it costs the shipped bytes nothing — resolve a stack\n" +
         "      later with `react-watchos`'s symbolicate script. --keep-names\n" +
         "      instead bakes the names into the bundle (+17 KB), for stacks\n" +
-        "      nothing will symbolicate.\n\n" +
+        "      nothing will symbolicate. --no-network leaves the fetch shims\n" +
+        "      out (-3.7 KB) for a bundle that declares no network — a widget\n" +
+        "      entry that only reads storage and publishes timelines.\n" +
+        "      --symbols keeps the bundle + map under <dir>/<releaseId>/<target>/,\n" +
+        "      so a field stack that carries only a releaseId still finds its\n" +
+        "      map weeks later (docs/debugging.md, 'Keep your symbols').\n\n" +
         "  react-watchos dev --entry <file> [--outfile dist/bundle.js]\n" +
         "                    [--host 127.0.0.1] [--port 8788]\n" +
         "      Live-reload server. DEBUG watch builds poll /bundle.js every 2s\n" +
@@ -284,7 +373,16 @@ switch (command) {
         "      ReactWatchDevServerURL Info.plist key).\n\n" +
         "  react-watchos inspector [--port 8099]\n" +
         "      Remote inspector UI — a DEBUG watch build (startInspector) posts\n" +
-        "      the live tree + logs + errors here.\n",
+        "      the live tree + logs + errors here.\n\n" +
+        "  react-watchos debug [--port 8790] [--dap-port 8791]\n" +
+        "                      [--manifest dist/bundle.js.dbg.json]\n" +
+        "      Source-level debugger (DEBUG only). Build the bundle with\n" +
+        "      `dev --debug` first: that instruments every statement and\n" +
+        "      writes the .dbg.json this reads. The watch POSTs its state to\n" +
+        "      /debug/poll and blocks there while paused; an editor attaches\n" +
+        '      to the DAP port ({"debugServer": 8791} in launch.json).\n' +
+        "      Breakpoints, stepping and the top frame's ARGUMENTS — not a\n" +
+        "      scope walker; see docs/design-dap-debugger.md for the limits.\n",
     );
     process.exit(command ? 1 : 0);
 }

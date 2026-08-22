@@ -8,7 +8,7 @@
 
 > **publishWidgets**(`now?`): [`PublishedWidgets`](../interfaces/PublishedWidgets.md)
 
-Defined in: [js/src/widgets.ts:615](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L615)
+Defined in: [js/src/widgets.ts:669](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L669)
 
 Renders all widgets and hands the payload to the native host, which
 persists it to App Group storage and calls

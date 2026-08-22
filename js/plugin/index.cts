@@ -187,7 +187,7 @@ function ensureWatchSwiftGlue(projectRoot: string, dir: string) {
   if (!hasSwift) {
     throw new Error(
       `[react-watchos] targets/${dir}/ has no Swift source, so the watch ` +
-        "target would have no @main entry (a link-time \"Undefined symbols: " +
+        'target would have no @main entry (a link-time "Undefined symbols: ' +
         '_main" error, far from this cause) — run `npx react-watchos ' +
         "scaffold` first to generate the starter WatchApp.swift, then re-run " +
         "`expo prebuild`.",
@@ -315,49 +315,49 @@ const withReactWatch = (
   // The on-disk writes and the pbxproj edit are also individually idempotent.
   const inner = createRunOncePlugin(
     ((cfg) => {
-        // 0. Declare the watch app + widget extension to EAS so cloud builds
-        //    provision/sign them before the Xcode project is generated.
-        cfg = withEasAppExtensions(cfg, opts);
+      // 0. Declare the watch app + widget extension to EAS so cloud builds
+      //    provision/sign them before the Xcode project is generated.
+      cfg = withEasAppExtensions(cfg, opts);
 
-        // 1. Generate the apple-targets config file(s) on disk BEFORE
-        //    apple-targets globs them (synchronously, at evaluation time).
-        ensureTargetConfigFile(projectRoot, WATCH_DIR, watchTargetConfig(opts));
-        if (opts.widget) {
-          ensureTargetConfigFile(
-            projectRoot,
-            WIDGET_DIR,
-            widgetTargetConfig(opts),
-          );
-        } else {
-          // Converge when the widget is turned off (CX-011): drop the generated
-          // widget target config so apple-targets stops discovering it.
-          removeGeneratedTargetConfigFile(projectRoot, WIDGET_DIR);
-        }
+      // 1. Generate the apple-targets config file(s) on disk BEFORE
+      //    apple-targets globs them (synchronously, at evaluation time).
+      ensureTargetConfigFile(projectRoot, WATCH_DIR, watchTargetConfig(opts));
+      if (opts.widget) {
+        ensureTargetConfigFile(
+          projectRoot,
+          WIDGET_DIR,
+          widgetTargetConfig(opts),
+        );
+      } else {
+        // Converge when the widget is turned off (CX-011): drop the generated
+        // widget target config so apple-targets stops discovering it.
+        removeGeneratedTargetConfigFile(projectRoot, WIDGET_DIR);
+      }
 
-        // 1b. Fail loudly, before apple-targets creates a target with no
-        //     @main entry, if `react-watchos scaffold` hasn't run yet (DX-3).
-        ensureWatchSwiftGlue(projectRoot, WATCH_DIR);
+      // 1b. Fail loudly, before apple-targets creates a target with no
+      //     @main entry, if `react-watchos scaffold` hasn't run yet (DX-3).
+      ensureWatchSwiftGlue(projectRoot, WATCH_DIR);
 
-        // 2. Let apple-targets discover + inject the targets (its proven,
-        //    Phase-1 target creation).
-        cfg = withAppleTargets(cfg, { appleTeamId: opts.appleTeamId });
+      // 2. Let apple-targets discover + inject the targets (its proven,
+      //    Phase-1 target creation).
+      cfg = withAppleTargets(cfg, { appleTeamId: opts.appleTeamId });
 
-        // 3. Link the SwiftPM products + merge the target Info.plists DURING
-        //    prebuild (CX-012), by hooking apple-targets' own xcode base mod and
-        //    running AFTER it has created the targets — so the integration is
-        //    just "add the plugin + `expo prebuild`", no postprebuild step.
-        //    `relativePath` is relative to the dir CONTAINING the .xcodeproj
-        //    (<projectRoot>/ios by Expo convention).
-        cfg = withReactWatchNativeWiring(cfg, {
-          packagePath: swiftPackageRelativePath(
-            projectRoot,
-            path.join(projectRoot, "ios"),
-          ),
-          targetProducts: targetProductsFor(opts),
-        });
+      // 3. Link the SwiftPM products + merge the target Info.plists DURING
+      //    prebuild (CX-012), by hooking apple-targets' own xcode base mod and
+      //    running AFTER it has created the targets — so the integration is
+      //    just "add the plugin + `expo prebuild`", no postprebuild step.
+      //    `relativePath` is relative to the dir CONTAINING the .xcodeproj
+      //    (<projectRoot>/ios by Expo convention).
+      cfg = withReactWatchNativeWiring(cfg, {
+        packagePath: swiftPackageRelativePath(
+          projectRoot,
+          path.join(projectRoot, "ios"),
+        ),
+        targetProducts: targetProductsFor(opts),
+      });
 
-        return cfg;
-      }) as import("@expo/config-plugins").ConfigPlugin<void>,
+      return cfg;
+    }) as import("@expo/config-plugins").ConfigPlugin<void>,
     pkg.name,
     pkg.version,
   );

@@ -806,19 +806,32 @@ function ConnectivityScreen() {
   );
 }
 
-/** The Digital Crown drives a 0–100 value (volume-style). */
+/**
+ * TWO Crown bindings on one screen — the multi-Crown case focus management
+ * exists for. `focused` (derived from one piece of state) says which binding
+ * owns the Crown; `onFocusChange` folds a system-made hand-off (tapping the
+ * other view) back into that state so the button and the tap never disagree.
+ * See docs/design-focus-management.md.
+ */
 function CrownScreen() {
   const [volume, setVolume] = useState(30);
+  const [zoom, setZoom] = useState(1);
+  const [owner, setOwner] = useState<"volume" | "zoom">("volume");
+  const other = owner === "volume" ? "zoom" : "volume";
   return (
-    <CrownRotation
-      value={volume}
-      min={0}
-      max={100}
-      step={1}
-      onChange={setVolume}
-      accessibilityLabel="Volume"
-    >
-      <VStack spacing={6}>
+    <VStack spacing={6}>
+      <CrownRotation
+        value={volume}
+        min={0}
+        max={100}
+        step={1}
+        focused={owner === "volume"}
+        onFocusChange={(f) => {
+          if (f) setOwner("volume");
+        }}
+        onChange={setVolume}
+        accessibilityLabel="Volume"
+      >
         <Gauge
           value={volume}
           min={0}
@@ -826,21 +839,38 @@ function CrownScreen() {
           label="Volume"
           style="circular"
         />
-        <Text bold size={24}>
-          {String(volume)}
-        </Text>
-        <Text size={11} color="secondary">
-          Turn the Crown
-        </Text>
-      </VStack>
-    </CrownRotation>
+      </CrownRotation>
+      <CrownRotation
+        value={zoom}
+        min={1}
+        max={10}
+        step={0.5}
+        focused={owner === "zoom"}
+        onFocusChange={(f) => {
+          if (f) setOwner("zoom");
+        }}
+        onChange={setZoom}
+        accessibilityLabel="Zoom"
+      >
+        <Text bold size={20}>{`${zoom}×`}</Text>
+      </CrownRotation>
+      <Button onPress={() => setOwner(other)}>
+        <Text size={12}>{`Crown → ${other}`}</Text>
+      </Button>
+      <Text size={11} color="secondary">
+        {`Crown drives ${owner}`}
+      </Text>
+    </VStack>
   );
 }
 
 /**
- * On-device AI via Apple's Foundation Models (~3B LLM, watchOS 26+). The
+ * On-device AI via Apple's Foundation Models (~3B LLM, watchOS 27+). The
  * prompt runs entirely on the watch — no network, no phone. The Generate
  * button is double-tap-enabled (primaryAction), so it fires on a pinch.
+ * Streaming: `onPartial` repaints the result as the model decodes (cumulative
+ * snapshots), so the screen reads like typing instead of stalling on
+ * "thinking…" until the final resolve.
  */
 function AIScreen() {
   const [prompt, setPrompt] = useState("");
@@ -848,7 +878,11 @@ function AIScreen() {
   const go = async () => {
     setResult("thinking…");
     try {
-      setResult(await generateText(prompt || "Say hi in three words"));
+      setResult(
+        await generateText(prompt || "Say hi in three words", {
+          onPartial: setResult,
+        }),
+      );
     } catch (e) {
       setResult(`error: ${(e as Error).message}`);
     }

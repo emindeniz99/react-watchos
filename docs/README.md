@@ -110,12 +110,44 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   two Always-On initial-value mechanisms that both have to exist. Also records
   the standing gaps: file transfer is 🔴 **unverifiable on a simulator** (Apple
   says so twice) and wrist-down is device-only.
+- [design-focus-management.md](./design-focus-management.md) — Crown focus
+  management (the last open Track-1 row), shipped 2026-08-21: a declarative
+  `focused` claim + `onFocusChange` observation on `<CrownRotation>`, chosen
+  over an imperative `focus()` and over a FocusScope/id coordinator after the
+  SwiftUI / react-native-tvos / RNW survey. Records the availability sweep
+  (`@FocusState` & friends — watchOS 8.0, so `@available`-free at the v10
+  floor), why the claim is edge-triggered rather than CX-010-controlled
+  (focus is OS-owned hardware routing), how it composes with ARCH-09 lazy
+  navigation (claims re-apply on mount — autofocus-on-push for free), and the
+  honest ③ boundary: the Linux suite pins the wire + JS semantics; actual
+  Crown routing needs a Mac/device.
+- [design-ai-streaming-structured-output.md](./design-ai-streaming-structured-output.md) —
+  on-device AI streaming + structured output (roadmap §6, shipped 2026-08-22):
+  cumulative `ai.partial` snapshots through `__pushNativeEvent` composed into
+  the existing `generateText` (`onPartial`, no forked entry point), abort that
+  actually stops the model (`cancelGenerate`, the `abortFetch` idiom), and
+  `generateObject(prompt, schema)` over a closed JSON-Schema subset mapped to
+  `DynamicGenerationSchema`, with a closed `AIErrorCode` reject vocabulary.
+  Records the full watchOS-27.0-beta availability sweep (incl. the per-page
+  metadata gaps), the Vercel-AI-SDK/Apple/OpenAI prior-art verdicts, and the
+  honest boundary: Linux tests pin the wire/validation/JS semantics; the
+  FoundationModels block has still never compiled (Xcode 27 owed — CX-002's
+  standing condition).
 - [design-cx-025-release-freshness.md](./design-cx-025-release-freshness.md) —
   CX-025 OTA `releaseId` (so non-breaking fixes can ship). Core primitive proven
   (JS FNV-1a == Swift `ContentHash`); spec ready for a focused load-flow pass.
 - [design-bundler-choice.md](./design-bundler-choice.md) — why the watch bundle
   uses esbuild (not Metro/Vite/Rollup/Bun), and when to revisit Rolldown.
   Verified against the 2026 landscape.
+- [design-dap-debugger.md](./design-dap-debugger.md) — real breakpoints for
+  watch JS without JavaScriptCore. Records the finding that quickjs-ng has **no
+  debug hooks to drive** (only a positionless interrupt watchdog), so the
+  breakpoint moves into a DEBUG-only source transform; and the second finding
+  that `fetch` cannot be the paused transport (it settles by hopping onto the
+  queue a paused debugger is holding), so one synchronous `#if DEBUG` host hook
+  is needed. Prototype landed and gated end-to-end in the vendored engine;
+  measured at +5.2 % bytes / +1.1 % per interaction; the watchOS wiring is
+  flagged as not yet run on hardware.
 - [design-arch-08-runtime-session.md](./design-arch-08-runtime-session.md) —
   ARCH-08 RuntimeSession isolation: the per-runtime vs persistent-transport
   seam, why it's deferred (no failing scenario today), and the shape to build.

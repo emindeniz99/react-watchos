@@ -6,7 +6,7 @@
 
 # Interface: TextFieldProps
 
-Defined in: [js/src/components.ts:326](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L326)
+Defined in: [js/src/components.ts:328](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L328)
 
 ## Extends
 
@@ -67,7 +67,7 @@ only — widgets are static snapshots and ignore it.
 
 > `optional` **autoFocus?**: `boolean`
 
-Defined in: [js/src/components.ts:337](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L337)
+Defined in: [js/src/components.ts:339](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L339)
 
 Request focus as soon as the field appears (e.g. a search field revealed by
 a button). On iOS this opens the keyboard; on **watchOS the system still
@@ -154,7 +154,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:330](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L330)
+Defined in: [js/src/components.ts:332](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L332)
 
 Fired on input commit (watchOS input is modal: dictation/scribble/QWERTY).
 
@@ -202,7 +202,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **placeholder?**: `string`
 
-Defined in: [js/src/components.ts:328](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L328)
+Defined in: [js/src/components.ts:330](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L330)
 
 ***
 
@@ -224,4 +224,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `string`
 
-Defined in: [js/src/components.ts:327](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L327)
+Defined in: [js/src/components.ts:329](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L329)

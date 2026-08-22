@@ -109,14 +109,25 @@ public final class JSRuntime {
     /// (the matching `is_handled == true` edge) before anything is reported;
     /// an entry still here when the turn ends really did have no handler.
     ///
-    /// Known gap: the key is the promise's raw address, not an owning
-    /// reference. If quickjs-ng's refcounting GC frees a zero-refcount
-    /// promise synchronously before `drainJobs()` finishes the turn, a new
-    /// object could in principle land at the same address later in that same
-    /// turn, letting an unrelated `is_handled` edge (or a park) match the
-    /// wrong entry. Narrow — needs a promise nothing holds a reference to,
-    /// freed mid-turn — and not covered by a test.
-    private var pendingRejections: [UnsafeRawPointer: String] = [:]
+    /// Each entry OWNS a `JS_DupValue` retain on its promise for exactly as
+    /// long as it sits here. The key alone was not enough: quickjs-ng's
+    /// refcounting frees a reference-less promise MID-TURN, and the very next
+    /// promise allocation reuses the freed address — so a later same-turn
+    /// promise's `is_handled` edge (or park) matched the DEAD promise's key
+    /// and retracted a genuine report (pinned by
+    /// `testFreedPromiseAddressReuseCannotRetractAnotherPromisesReport`,
+    /// which fails on the unretained version). The retain pins the address
+    /// for the entry's lifetime, so a key can never be two promises. Every
+    /// removal frees the retain — the retraction, the drain's report, and a
+    /// shutdown whose skipped drain left entries behind — or the engine's
+    /// leak assertion aborts `JS_FreeRuntime`.
+    private struct PendingRejection {
+        let message: String
+        /// The promise itself, retained (`JS_DupValue`); `JS_FreeValue`d on
+        /// every path that removes the entry.
+        let promise: JSValue
+    }
+    private var pendingRejections: [UnsafeRawPointer: PendingRejection] = [:]
 
     /// - Parameters:
     ///   - memoryLimitBytes: caps the QuickJS heap (the widget extension runs in
@@ -233,6 +244,12 @@ public final class JSRuntime {
         pendingTimers.removeAll()
         globalFnCache.values.forEach { JS_FreeValue(context, $0) }
         globalFnCache.removeAll()
+        // A shutdown requested from inside a turn skipped that turn's drain,
+        // so parked entries can still be here — release their retains before
+        // the context goes away, or JS_FreeRuntime aborts on the leaked
+        // promises. Their reports are deliberately dropped: the caller asked
+        // to stop.
+        pendingRejections.values.forEach { JS_FreeValue(context, $0.promise) }
         pendingRejections.removeAll()
         JS_FreeContext(context)
         JS_FreeRuntime(runtime)
@@ -371,6 +388,14 @@ public final class JSRuntime {
     /// only valid for this exact quickjs-ng version — load it with
     /// `evaluateBytecode`, which throws on a version mismatch so the caller can
     /// fall back to parsing the source. nil if `source` doesn't compile.
+    ///
+    /// The blob carries NO source text and DOES carry the line/column debug
+    /// tables — the same write policy the build-time compiler applies to the
+    /// shipped bundle (see `qjs_write_obj_bytecode_strip_source` and
+    /// tools/qjs-compile/qjs-compile.c for the measured trade). So
+    /// `Function.prototype.toString` on anything from a cached OTA bundle
+    /// returns no source, exactly as on the shipped `.qbc`, and stacks out of
+    /// it symbolicate normally.
     public func compileToBytecode(_ source: String) -> Data? {
         onOwningQueue {
             if refuseAfterShutdown("compileToBytecode") { return nil }
@@ -384,7 +409,8 @@ public final class JSRuntime {
             var size = 0
             guard
                 let buf = JS_WriteObject(
-                    context, &size, compiled, qjs_write_obj_bytecode()
+                    context, &size, compiled,
+                    qjs_write_obj_bytecode_strip_source()
                 )
             else { return nil }
             defer { js_free(context, buf) }
@@ -858,10 +884,16 @@ public final class JSRuntime {
         // attach anywhere in this turn — including a same-turn attach, which
         // `noteRejectionHandled` already removed. See `pendingRejections`.
         if !pendingRejections.isEmpty {
-            let messages = pendingRejections.values
+            let entries = pendingRejections.values
             pendingRejections.removeAll()
-            for message in messages {
-                onError?("promiseRejection", message)
+            // Release every retain BEFORE any report: the messages are
+            // already Strings, and `onError` may run arbitrary host code —
+            // it must find the engine with no half-torn ledger to trip on.
+            for entry in entries {
+                JS_FreeValue(context, entry.promise)
+            }
+            for entry in entries {
+                onError?("promiseRejection", entry.message)
             }
         }
     }
@@ -897,26 +929,75 @@ public final class JSRuntime {
     }
 
     /// Records a "possibly unhandled" rejection, keyed by the promise's
-    /// identity, instead of reporting it immediately — `drainJobs()` reports
-    /// (or drops) it once the current turn finishes. `reason` is formatted to
-    /// a String right away: it is read synchronously off the live JSValue
-    /// here, on the JS thread, same as the old immediate report did.
+    /// identity and RETAINING the promise for the entry's lifetime (see
+    /// `pendingRejections`), instead of reporting it immediately —
+    /// `drainJobs()` reports (or drops) it once the current turn finishes.
+    /// `reason` is formatted to a String right away: it is read synchronously
+    /// off the live JSValue here, on the JS thread, same as the old immediate
+    /// report did.
     fileprivate func notePossiblyUnhandledRejection(
-        promise: UnsafeRawPointer?, reason: JSValue
+        promise: JSValue, reason: JSValue
     ) {
-        guard let promise else { return }
-        pendingRejections[promise] =
-            "Possibly unhandled promise rejection: " + describe(reason)
+        guard let key = qjs_value_get_ptr(promise) else { return }
+        let entry = PendingRejection(
+            message: "Possibly unhandled promise rejection: " + describe(reason),
+            promise: JS_DupValue(context, promise))
+        // A promise settles once, so a same-key entry "cannot" already exist
+        // — but balance it anyway rather than assume: an unfreed displaced
+        // retain would abort teardown, and the ledger should hold locally.
+        if let displaced = pendingRejections.updateValue(entry, forKey: key) {
+            JS_FreeValue(context, displaced.promise)
+        }
     }
 
     /// The matching retraction: a `.catch`/`.then` attached to `promise`
     /// (synchronously, per spec, from `PerformPromiseThen`) before this turn's
     /// drain finished. Removing the entry is what makes a same-turn handler
-    /// invisible to the overlay instead of merely late.
-    fileprivate func noteRejectionHandled(promise: UnsafeRawPointer?) {
-        guard let promise else { return }
-        pendingRejections.removeValue(forKey: promise)
+    /// invisible to the overlay instead of merely late — and releasing the
+    /// entry's retain here is what lets the handled promise die normally.
+    fileprivate func noteRejectionHandled(promise: JSValue) {
+        guard let key = qjs_value_get_ptr(promise) else { return }
+        if let entry = pendingRejections.removeValue(forKey: key) {
+            JS_FreeValue(context, entry.promise)
+        }
     }
+
+    #if DEBUG
+    // MARK: - Debugger transport (DEBUG only)
+
+    /// The blocking exchange an instrumented bundle's probes call as
+    /// `globalThis.__debugPoll(stateJson) -> commandJson`
+    /// (docs/design-dap-debugger.md). Internal, not part of `HostBridge`: the
+    /// generated bridge is compiled into RELEASE builds and each of its methods
+    /// is an ARCH-01 capability a bundle may require, and a debugger must be
+    /// neither. Installed as a bare global under `#if DEBUG`, the same way the
+    /// host installs `__inspectorUrl`.
+    var debugPoll: ((String) -> String)?
+
+    /// Installs `__debugPoll`. Absent until this is called, which is what makes
+    /// an instrumented bundle safe to run with no debugger attached: the probe
+    /// sees no function, detaches itself, and never asks again.
+    ///
+    /// `handler` is called ON the owning queue, from inside JS, and is expected
+    /// to BLOCK — that is the whole point. A paused debugger has to hold the JS
+    /// thread, and holding it is why `fetch` cannot be the transport here: the
+    /// app runtime's owning queue is `main`, and `fetch` settles by hopping
+    /// back to that queue to call `__resolveFetch`. Blocking main while waiting
+    /// for a hop onto main is a deadlock, not a slow poll.
+    /// ``DebugPollTransport/handler(url:timeout:)`` is the handler that does
+    /// this correctly.
+    public func installDebugPoll(_ handler: @escaping (String) -> String) {
+        onOwningQueue {
+            if refuseAfterShutdown("installDebugPoll") { return }
+            debugPoll = handler
+            let global = JS_GetGlobalObject(context)
+            defer { JS_FreeValue(context, global) }
+            JS_SetPropertyStr(
+                context, global, "__debugPoll",
+                JS_NewCFunction(context, jsDebugPoll, "__debugPoll", 1))
+        }
+    }
+    #endif
 
     private func jsStringLiteral(_ value: String) -> String {
         let data =
@@ -938,20 +1019,40 @@ public final class JSRuntime {
 // @convention(c) callbacks cannot capture state; the owning JSRuntime is
 // recovered through the context opaque pointer.
 
+#if DEBUG
+/// The `__debugPoll` trampoline (DEBUG only). Synchronous by construction: JS
+/// gets the dev server's answer as this call's RETURN VALUE, with no promise
+/// and no return to the event loop — which is the only shape that can serve a
+/// debugger paused inside a running JS frame.
+private func jsDebugPoll(
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    guard let runtime = JSRuntime.from(context: ctx),
+        let handler = runtime.debugPoll, let argv, argc >= 1,
+        let stateCString = JS_ToCString(ctx, argv[0])
+    else { return qjs_undefined() }
+    let state = String(cString: stateCString)
+    JS_FreeCString(ctx, stateCString)
+    return JS_NewString(ctx, handler(state))
+}
+#endif
+
 /// quickjs-ng calls this whenever a promise's rejection-handled state changes.
 /// Both edges matter now (see `pendingRejections`): "no handler yet" parks a
 /// report, and the matching "handled" edge (a `.catch` attached later in the
-/// SAME turn) retracts it before `drainJobs()` ever surfaces it.
+/// SAME turn) retracts it before `drainJobs()` ever surfaces it. The promise
+/// crosses as the borrowed JSValue itself (not a bare pointer) so the park
+/// can take its own retain.
 private func promiseRejectionTracker(
     ctx: OpaquePointer?, promise: JSValue, reason: JSValue,
     isHandled: Bool, opaque _: UnsafeMutableRawPointer?
 ) {
     guard let runtime = JSRuntime.from(context: ctx) else { return }
-    let promiseId = qjs_value_get_ptr(promise)
     if isHandled {
-        runtime.noteRejectionHandled(promise: promiseId)
+        runtime.noteRejectionHandled(promise: promise)
     } else {
-        runtime.notePossiblyUnhandledRejection(promise: promiseId, reason: reason)
+        runtime.notePossiblyUnhandledRejection(promise: promise, reason: reason)
     }
 }
 
@@ -965,7 +1066,12 @@ extension JSRuntime {
         bridgeCall("__resolveGenerate", [.int(id), .string(text)], filename: "ai.js")
     }
 
-    public func rejectGenerate(id: Int, message: String) {
-        bridgeCall("__rejectGenerate", [.int(id), .string(message)], filename: "ai.js")
+    /// `errorJson` is the `{code, message}` payload of the closed AIErrorCode
+    /// vocabulary (AIErrorJSON in ReactWatchSupport) — a bare message string
+    /// left js/src/ai.ts nothing to switch on, so every native failure looked
+    /// the same to a caller deciding between "hide the feature" (UNAVAILABLE)
+    /// and "show the refusal" (REFUSAL).
+    public func rejectGenerate(id: Int, errorJson: String) {
+        bridgeCall("__rejectGenerate", [.int(id), .string(errorJson)], filename: "ai.js")
     }
 }

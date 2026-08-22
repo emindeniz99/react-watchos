@@ -1,0 +1,268 @@
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { TraceMap } from "@jridgewell/trace-mapping";
+import { build } from "esbuild";
+import { beforeAll, describe, expect, it } from "vitest";
+import { watchBuildOptions } from "../esbuild/preset.mts";
+import {
+  type OriginalPosition,
+  parseStackFrame,
+  type StackFrame,
+  symbolicateFrame,
+} from "../scripts/symbolicate-core.ts";
+import { buildTool, qjsAvailable, requireQjs } from "./qjs-tools";
+
+/**
+ * The production stack-position gate, end to end and with nothing simulated:
+ *
+ *   a .tsx that throws
+ *     -> the REAL esbuild preset (minified, external source map)
+ *     -> the REAL tools/qjs-compile (JS_WriteObject to .qbc)
+ *     -> the REAL vendored quickjs-ng loading that .qbc through
+ *        JS_ReadObject + JS_EvalFunction — the exact sequence
+ *        JSRuntime.evaluateBytecode runs on the watch
+ *     -> the Error.stack that comes back out
+ *     -> the SHIPPED symbolicator (scripts/symbolicate-core.ts, which
+ *        `pnpm symbolicate` is a thin CLI over)
+ *     -> back to the .tsx, at the line and column that threw.
+ *
+ * Why the whole chain and not a unit test over `originalPositionFor`: the
+ * thing that was broken could not be seen from either end. The build wrote a
+ * perfectly good map, the map resolved perfectly good positions, and the CLI
+ * worked — but the artifact the watch actually boots is bytecode, and
+ * qjs-compile used to strip the debug tables out of it, so every real frame
+ * read `at fn (<null>:0:1)` and there was nothing left to resolve. Only a test
+ * that runs the real bytecode can tell those two worlds apart, which is why
+ * the `<null>` assertion is the one that anchors the feature.
+ */
+
+const fixtureEntry = join(__dirname, "fixtures/qbc-throw.entry.tsx");
+const FIXTURE_SOURCE_RE = /test\/fixtures\/qbc-throw\.entry\.tsx$/;
+
+// buildTool/qjsAvailable/requireQjs — the real-tool-against-real-engine
+// harness — live in ./qjs-tools, shared with content-hash-parity.test.ts.
+
+// Read the fixture's line numbers OUT of the fixture rather than hardcoding
+// them, so editing its comments can never silently make the assertions wrong.
+const fixtureSource = readFileSync(fixtureEntry, "utf8").split("\n");
+function fixtureLine(needle: string): number {
+  const hits = fixtureSource
+    .map((text, index) => ({ text, line: index + 1 }))
+    .filter(({ text }) => text.includes(needle));
+  if (hits.length !== 1) {
+    throw new Error(
+      "qbc-symbolication: expected exactly one fixture line containing " +
+        `${JSON.stringify(needle)}, found ${hits.length}`,
+    );
+  }
+  return hits[0].line;
+}
+
+const throwLine = fixtureLine("// THROW_MARKER");
+const callLine = fixtureLine("qbcSymbolicationInnerThrow(props.detail)");
+const moduleCallLine = fixtureLine("QbcSymbolicationFixtureScreen({ detail:");
+
+interface ResolvedFrame {
+  frame: StackFrame;
+  position: OriginalPosition | null;
+}
+
+describe.skipIf(!qjsAvailable && !requireQjs)(
+  "production .qbc stack symbolication",
+  () => {
+    let stack = "";
+    let frames: ResolvedFrame[] = [];
+    let bundleLineCount = 0;
+    let qbcBlob = "";
+    // Shared with the --strip-debug test below, which recompiles the same
+    // bundle with the opt-out flag and compares against these.
+    let bundlePath = "";
+    let qbcPath = "";
+
+    beforeAll(async () => {
+      // Reached with no compiler only under REQUIRE_QJS=1 (otherwise the suite
+      // is skipped above) — fail with a message that names the fix.
+      if (!qjsAvailable) {
+        throw new Error(
+          "REQUIRE_QJS=1 is set but the vendored quickjs-ng could not be " +
+            "built. tools/vendored-qjs/build.sh needs a C compiler (cc). This " +
+            "suite is the gate that the SHIPPED bytecode carries stack " +
+            "positions at all, and must not be skipped in CI.",
+        );
+      }
+      const dir = mkdtempSync(join(tmpdir(), "qbc-symbolication-"));
+      bundlePath = join(dir, "bundle.min.js");
+      qbcPath = join(dir, "bundle.qbc");
+
+      // The SHIPPING shape: `buildBundles` minifies by default, and minify is
+      // what makes symbolication necessary at all (locals are renamed, so the
+      // frames below carry two-letter names, not the fixture's). `sourcemap`
+      // defaults on and writes `<outfile>.map` as esbuild "external" — no
+      // sourceMappingURL comment, so the bytes hashed into the OTA releaseId
+      // are byte-identical with the map on or off.
+      await build({
+        ...watchBuildOptions({
+          entry: fixtureEntry,
+          outfile: bundlePath,
+          minify: true,
+        }),
+        logLevel: "silent",
+      });
+      bundleLineCount = readFileSync(bundlePath, "utf8").split("\n").length;
+
+      // The real compiler, not a stand-in: same flags, same engine, the blob
+      // layout the watch reads.
+      execFileSync(buildTool("qjs-compile"), [bundlePath, qbcPath], {
+        stdio: "pipe",
+      });
+      qbcBlob = readFileSync(qbcPath).toString("latin1");
+
+      // …and the real bytecode load path. Everything past this line is what
+      // the watch itself would have reported.
+      stack = execFileSync(buildTool("qbc-stack"), [qbcPath], {
+        encoding: "utf8",
+      });
+
+      const tracer = new TraceMap(
+        JSON.parse(
+          readFileSync(`${bundlePath}.map`, "utf8"),
+        ) as ConstructorParameters<typeof TraceMap>[0],
+      );
+      frames = stack
+        .split("\n")
+        .map((line) => parseStackFrame(line))
+        .filter((frame): frame is StackFrame => frame !== null)
+        .map((frame) => ({
+          frame,
+          position: symbolicateFrame({
+            tracer,
+            line: frame.line,
+            column: frame.column,
+          }),
+        }));
+    }, 180_000);
+
+    /** Every frame whose ORIGINAL position landed on `line` of the fixture. */
+    const framesAt = (line: number): ResolvedFrame[] => {
+      const hits = frames.filter((f) => f.position?.line === line);
+      if (hits.length === 0) {
+        throw new Error(
+          `no frame resolved to ${fixtureEntry}:${line}\nstack was:\n${stack}` +
+            `\nresolved to:\n${frames
+              .map(
+                (f) =>
+                  `  ${f.frame.name} (${f.frame.file}:${f.frame.line}:${f.frame.column})` +
+                  ` -> ${f.position?.source}:${f.position?.line}:${f.position?.column}` +
+                  ` [${f.position?.name}]`,
+              )
+              .join("\n")}`,
+        );
+      }
+      return hits;
+    };
+
+    it("reports real file/line/column for every bytecode frame — no `<null>`", () => {
+      // THE regression signature. JS_WRITE_OBJ_STRIP_DEBUG makes quickjs-ng
+      // emit `at fn (<null>:0:1)` for every frame — a stack with no
+      // information in it and a source map with nothing to resolve. If this
+      // ever fails, someone put STRIP_DEBUG back in
+      // tools/qjs-compile/qjs-compile.c.
+      expect(stack).not.toContain("<null>");
+      expect(frames.length).toBeGreaterThanOrEqual(3);
+      for (const { frame, position } of frames) {
+        // `bundle.js` is the name qjs-compile compiled under, so it is the
+        // name baked into the bytecode's debug tables.
+        expect(frame.file).toBe("bundle.js");
+        expect(frame.line).toBeGreaterThan(0);
+        expect(frame.column).toBeGreaterThan(0);
+        expect(frame.line).toBeLessThanOrEqual(bundleLineCount);
+        // Every frame of a bundle built from one fixture must resolve; a
+        // "[no mapping]" here would mean the positions are noise.
+        expect(position?.source).toMatch(FIXTURE_SOURCE_RE);
+      }
+      // esbuild does not emit one endless line (the app bundle is ~84), so a
+      // frame line of 1 would be a constant rather than a measurement — this
+      // is the guard against a test that would pass on a degenerate bundle.
+      expect(bundleLineCount).toBeGreaterThan(1);
+    });
+
+    it("really ran a MINIFIED bundle, so the names had to be recovered", () => {
+      // If the fixture's own identifiers had survived into the stack there
+      // would be nothing for the map to do and this file would prove nothing.
+      expect(stack).toContain(
+        "qbc-symbolication fixture: thrown from bytecode",
+      );
+      expect(stack).not.toContain("qbcSymbolicationInnerThrow");
+      expect(stack).not.toContain("QbcSymbolicationFixtureScreen");
+    });
+
+    it("resolves the throwing frame back to the .tsx line and column", () => {
+      const position = framesAt(throwLine)[0].position;
+      expect(position?.source).toMatch(FIXTURE_SOURCE_RE);
+      expect(position?.line).toBe(throwLine);
+      // Column precision, pinned without a magic number: the engine's column
+      // lands inside the `new Error(...)` under construction, and the map's
+      // name for exactly that column is the interpolated identifier. A column
+      // off by even one token would not come back as `detail`.
+      const text = fixtureSource[throwLine - 1];
+      expect(position?.column).toBeGreaterThan(text.indexOf("throw"));
+      expect(position?.column).toBeLessThanOrEqual(text.indexOf("// THROW"));
+      expect(position?.name).toBe("detail");
+    });
+
+    it("resolves the calling frame too — a stack, not one lucky position", () => {
+      const position = framesAt(callLine)[0].position;
+      expect(position?.source).toMatch(FIXTURE_SOURCE_RE);
+      expect(position?.line).toBe(callLine);
+    });
+
+    it("recovers the original function name minification erased", () => {
+      // The engine's own frame names are the minified ones; the map's `names`
+      // array is what puts `QbcSymbolicationFixtureScreen` back.
+      expect(framesAt(moduleCallLine).map((f) => f.position?.name)).toContain(
+        "QbcSymbolicationFixtureScreen",
+      );
+      expect(frames.map((f) => f.frame.name)).not.toContain(
+        "QbcSymbolicationFixtureScreen",
+      );
+    });
+
+    it("carries the original .tsx text in the map it resolved through", () => {
+      expect(framesAt(throwLine)[0].position?.sourceContent).toContain(
+        "// THROW_MARKER",
+      );
+    });
+
+    // The opt-out must really opt out: a consumer who keeps no maps and reads
+    // no stacks buys their ~45 KB back with --strip-debug, and this pins that
+    // the flag reaches JS_WriteObject rather than being parsed and ignored.
+    // The <null> frame it asserts is exactly what the default-path test above
+    // forbids — the two tests hold opposite ends of the same switch.
+    it("--strip-debug is a working escape hatch, and smaller", () => {
+      const stripped = qbcPath.replace(/\.qbc$/, ".stripped.qbc");
+      execFileSync(
+        buildTool("qjs-compile"),
+        ["--strip-debug", bundlePath, stripped],
+        { stdio: "pipe" },
+      );
+      expect(statSync(stripped).size).toBeLessThan(statSync(qbcPath).size);
+      const strippedStack = execFileSync(buildTool("qbc-stack"), [stripped], {
+        encoding: "utf8",
+      });
+      expect(strippedStack).toContain("<null>");
+      expect(strippedStack).not.toContain("bundle.js:");
+    });
+
+    it("still ships bytecode with the SOURCE stripped (STRIP_SOURCE stays)", () => {
+      // The debug tables came back; the source text did not, and must not —
+      // keeping it roughly quadruples the blob for stacks that are identical
+      // either way. The visible consequence is that Function.prototype.toString
+      // returns no source on the watch, which is the documented trade
+      // (docs/debugging.md).
+      expect(qbcBlob).not.toContain("throw new Error");
+      expect(qbcBlob).not.toContain("qbcSymbolicationInnerThrow");
+    });
+  },
+);

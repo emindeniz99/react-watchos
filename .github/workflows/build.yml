@@ -15,6 +15,21 @@ on:
         description: "Xcode version (e.g. 16.2, 26.0, latest-stable)"
         default: "latest-stable"
         required: false
+  # Callable from another workflow — see the same block in ci.yml for why. An
+  # engine bump is exactly the change this macOS job exists for: CQuickJS is
+  # compiled for arm64_32 here and nowhere else, so the bot runs it on the
+  # vendor branch before asking anyone to look at the PR.
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to check out. Empty = the caller's own ref."
+        type: string
+        required: false
+      xcode:
+        description: "Xcode version"
+        type: string
+        default: "latest-stable"
+        required: false
   # CX-013 REVERSED, 2026-08-20 (maintainer's call). That decision — "native
   # compilation is not a required PR gate" — was made when the plugin was
   # simpler and the only native surface was a SwiftUI shell. It is now the
@@ -76,11 +91,13 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
-          xcode-version: ${{ github.event.inputs.xcode || 'latest-stable' }}
+          xcode-version: ${{ inputs.xcode || 'latest-stable' }}
       - name: swift-format (check only)
         run: npm run format:swift:check
 
@@ -98,12 +115,58 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
-          xcode-version: ${{ github.event.inputs.xcode || 'latest-stable' }}
+          xcode-version: ${{ inputs.xcode || 'latest-stable' }}
+
+      # BundleSmokeTests boots the REAL production bundle (js/dist/bundle.js
+      # and the .qbc next to it) through JSRuntime on the simulator — the only
+      # place the shipped artifact meets the shipped embedding on the watch
+      # architecture. Those files are build products, not fixtures, so without
+      # the steps below the test would SKIP and this job would look green while
+      # proving nothing. (The `build` job below already does this for the Xcode
+      # build; this job never needed a bundle until now.)
+      #
+      # No `version` input: pnpm/action-setup reads the exact pinned version
+      # from the root package.json "packageManager" field.
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          # 24: `pnpm build` runs scripts/build.ts through Node's native type
+          # stripping (matches .mise.toml and the other jobs).
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install (pnpm workspace)
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+      # build:bytecode links the vendored quickjs-ng, which is ~30 s of C to
+      # compile cold and free warm — same cache directory and key as ci.yml, so
+      # a macOS runner keeps its own (the stamp hashes `uname -sm` too).
+      - name: Cache the vendored quickjs-ng build
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.cache/react-watchos/vendored-qjs
+          key: qjs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('js/swift/Sources/CQuickJS/**', 'tools/vendored-qjs/main.c', 'tools/vendored-qjs/build.sh') }}
+      - name: Build the JS bundle + bytecode (BundleSmokeTests inputs)
+        working-directory: .
+        run: |
+          pnpm --filter react-watchos build
+          pnpm --filter react-watchos build:bytecode
+
       - name: Test on watchOS simulator (xcodebuild)
+        env:
+          # xcodebuild strips the TEST_RUNNER_ prefix and passes the rest into
+          # the test process, so the tests see REQUIRE_BUNDLE=1: a missing
+          # js/dist artifact FAILS here instead of skipping (the REQUIRE_QJS
+          # posture from the JS engine gate). If a future Xcode stops
+          # forwarding it, the test degrades to skipping — the pre-2026-08-21
+          # behaviour — rather than failing spuriously.
+          TEST_RUNNER_REQUIRE_BUNDLE: "1"
         run: |
           set -o pipefail
           WATCH_ID=$(xcrun simctl list devices available -j \
@@ -129,12 +192,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
         with:
-          xcode-version: ${{ github.event.inputs.xcode || 'latest-stable' }}
+          xcode-version: ${{ inputs.xcode || 'latest-stable' }}
 
       - name: Toolchain versions
         run: |
@@ -188,7 +253,10 @@ jobs:
         run: |
           echo "--- ios/ tree (depth 2) ---"
           find ios -maxdepth 2 -mindepth 1 | sort
-          WORKSPACE=$(ls -d ios/*.xcworkspace | head -1)
+          # find, not `ls -d ios/*.xcworkspace`: shellcheck SC2012, and the
+          # glob would expand to the literal pattern if prebuild produced no
+          # workspace, silently setting WORKSPACE to a path that does not exist.
+          WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)
           echo "WORKSPACE=$WORKSPACE" >> "$GITHUB_ENV"
           echo "--- schemes ---"
           xcodebuild -workspace "$WORKSPACE" -list || true

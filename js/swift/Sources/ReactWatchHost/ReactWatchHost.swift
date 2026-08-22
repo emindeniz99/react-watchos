@@ -158,6 +158,13 @@ final class ReactWatchModel {
     /// claim on this one object rather than each constructing a session.
     private let workout = WorkoutSessionOwner()
     @ObservationIgnored private var fetchTasks: [Int: URLSessionDataTask] = [:]
+    /// In-flight Foundation Models generations by request id, so an abort
+    /// (`cancelGenerate`), the JS inactivity watchdog, or a reload's teardown
+    /// can actually STOP the model decoding — dropping the settle alone would
+    /// leave the ~3B model running for nobody. Main-isolated like the model;
+    /// each task's own cleanup is generation-guarded (ids reset per runtime,
+    /// CX-008).
+    @ObservationIgnored private var generateTasks: [Int: Task<Void, Never>] = [:]
     /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
     /// the JS-assigned id of a request whose id space resets with the runtime, so
     /// a callback from a previous generation could settle the WRONG pending
@@ -414,9 +421,12 @@ final class ReactWatchModel {
         // bridge names its own event — `HealthUpdatesPlan.eventName`, the single
         // definition both sides derive from — so this forwards rather than
         // spelling `health.samples.` a second time, which is the one string in
-        // the feature nothing else can check.
-        health.onSamples = { [weak self] event, samples in
-            self?.pushNativeEvent(event, payload: ["samples": samples])
+        // the feature nothing else can check. Both keys always ride (either
+        // array can be empty, never both): JS narrows per key, and a
+        // conditional payload here would be a second shape for it to misread.
+        health.onSamples = { [weak self] event, samples, deletedIds in
+            self?.pushNativeEvent(
+                event, payload: ["samples": samples, "deletedIds": deletedIds])
         }
         speechBridge.onFinished = { [weak self] text in
             self?.pushNativeEvent("speech.finished", payload: ["text": text])
@@ -544,6 +554,15 @@ final class ReactWatchModel {
             task.cancel()
         }
         fetchTasks.removeAll()
+        // The sensor rule applied to the model: a stream must not outlive the
+        // runtime that asked for it. Cancelling stops the decode itself (and
+        // with it the `ai.partial` pushes, which are name-routed with no
+        // generation guard); each task's completion is generation-guarded, so
+        // nothing settles into the fresh runtime's reset id space.
+        for task in generateTasks.values {
+            task.cancel()
+        }
+        generateTasks.removeAll()
         // ARCH-08: the workout slot is a single-occupancy SYSTEM resource, so
         // the outgoing generation must not leave one running for a runtime that
         // never started it. `tearDownForReload` ends AND saves it, parking the
@@ -607,6 +626,15 @@ final class ReactWatchModel {
         try? js.evaluate(
             "globalThis.__inspectorUrl='http://127.0.0.1:8099/snapshot'"
         )
+        // The source-level debugger's transport (docs/design-dap-debugger.md).
+        // Installed unconditionally in DEBUG, exactly like the inspector URL
+        // above, because only an INSTRUMENTED bundle ever calls it: an ordinary
+        // bundle has no `__dbg` probes and never reaches `__debugPoll`. The
+        // first exchange from an instrumented bundle with no `react-watchos
+        // debug` running fails and the probe detaches itself for the rest of
+        // the runtime's life, so the cost of being wrong here is one refused
+        // connection, not a poll loop.
+        js.installDebugPoll(DebugPollTransport.handler(url: Self.debugPollURL))
         #endif
         return js
     }
@@ -786,6 +814,8 @@ final class ReactWatchModel {
             handleQueryHealthStatistics(id: id, payload: payload)
         case "queryHealthDailyStatistics":
             handleQueryHealthDailyStatistics(id: id, payload: payload)
+        case "queryHealthHourlyStatistics":
+            handleQueryHealthHourlyStatistics(id: id, payload: payload)
         case "queryHealthSamples":
             handleQueryHealthSamples(id: id, payload: payload)
         case "querySleepSamples":
@@ -1339,15 +1369,6 @@ final class ReactWatchModel {
         }
     }
 
-    private struct GenerateRequest: Decodable {
-        let prompt: String
-        let instructions: String?
-        let temperature: Double?
-        /// Optional cap on the model's response length (GenerationOptions
-        /// .maximumResponseTokens), from js/src/ai.ts GenerateOptions.maxTokens.
-        let maxTokens: Int?
-    }
-
     /// Resolves the invoke with whether on-device AI can run now (CX-002):
     /// `SystemLanguageModel.default.isAvailable` on watchOS 27+, else `false`.
     /// On an older SDK FoundationModels isn't in the watch SDK, so this compiles
@@ -1363,14 +1384,31 @@ final class ReactWatchModel {
         runtime?.resolveInvoke(id: id, resultJson: "false")
     }
 
-    /// On-device text generation via Foundation Models (js/src/ai.ts).
+    /// The one reject path for the generate channel — always the typed
+    /// `{code, message}` wire (AIErrorJSON), never a bare string.
+    private func rejectGenerate(id: Int, code: AIErrorCode, message: String) {
+        runtime?.rejectGenerate(
+            id: id, errorJson: AIErrorJSON.make(code: code, message: message))
+    }
+
+    /// On-device generation via Foundation Models (js/src/ai.ts): one-shot
+    /// text, cumulative-snapshot streaming (`ai.partial` pushes), or guided
+    /// generation against a schema (`generateObject`). Decode + validation
+    /// live in ReactWatchSupport's `GeneratePlan` (Linux-tested); only the
+    /// FoundationModels mapping is SDK-gated here.
     private func generate(id: Int, requestJson: String) {
-        guard
-            let req = try? JSONDecoder().decode(
-                GenerateRequest.self, from: Data(requestJson.utf8)
-            )
-        else {
-            runtime?.rejectGenerate(id: id, message: "bad request")
+        guard let plan = GeneratePlan(json: requestJson) else {
+            // JS builds this JSON, so a decode failure is a bridge bug, not a
+            // caller error — the honest code is INTERNAL.
+            rejectGenerate(
+                id: id, code: .internalError, message: "bad generate request")
+            return
+        }
+        if let problem = plan.schemaProblem() {
+            // Backstop to the identical js-side validation: this is the copy
+            // the wire actually enforces (a raw `__host.generate` caller
+            // never ran the JS walk).
+            rejectGenerate(id: id, code: .invalidSchema, message: problem)
             return
         }
         #if canImport(FoundationModels)
@@ -1381,36 +1419,188 @@ final class ReactWatchModel {
         // the watch SDK, so this whole block compiles out and generate() rejects
         // below with "on-device AI unavailable".
         if #available(watchOS 27.0, *) {
-            let gen = generation
-            Task { [weak self] in
-                do {
-                    let session = LanguageModelSession(
-                        instructions: req.instructions ?? ""
-                    )
-                    var options = GenerationOptions()
-                    if let t = req.temperature { options.temperature = t }
-                    if let max = req.maxTokens { options.maximumResponseTokens = max }
-                    let response = try await session.respond(
-                        to: req.prompt, options: options
-                    )
-                    await MainActor.run {
-                        guard let self, gen == self.generation else { return }
-                        self.runtime?.resolveGenerate(id: id, text: response.content)
-                    }
-                } catch {
-                    await MainActor.run {
-                        guard let self, gen == self.generation else { return }
-                        self.runtime?.rejectGenerate(
-                            id: id, message: error.localizedDescription
-                        )
-                    }
-                }
-            }
+            startFoundationModelsGenerate(id: id, plan: plan)
             return
         }
         #endif
-        runtime?.rejectGenerate(id: id, message: "on-device AI unavailable")
+        rejectGenerate(
+            id: id, code: .unavailable, message: "on-device AI unavailable")
     }
+
+    /// Stops the model decoding for one request (js abort / watchdog — the
+    /// `abortFetch` idiom). JS has already settled its promise; cancelling
+    /// the task is the whole job, so there is no reply. The remove-then-cancel
+    /// also makes the task's own cleanup a no-op for this id.
+    private func cancelGenerate(id: Int) {
+        generateTasks.removeValue(forKey: id)?.cancel()
+    }
+
+    #if canImport(FoundationModels)
+    @available(watchOS 27.0, *)
+    private func startFoundationModelsGenerate(id: Int, plan: GeneratePlan) {
+        let gen = generation
+        let task = Task { [weak self] in
+            do {
+                let session = LanguageModelSession(
+                    instructions: plan.instructions ?? ""
+                )
+                var options = GenerationOptions()
+                if let t = plan.temperature { options.temperature = t }
+                if let max = plan.maxTokens { options.maximumResponseTokens = max }
+                if let schemaNode = plan.schema {
+                    // generateObject: guided generation against the runtime
+                    // schema. GenerationSchema's init throws on a schema
+                    // DynamicGenerationSchema can't take (e.g. colliding type
+                    // names two nested objects derived from the same property
+                    // name) — mapped to INVALID_SCHEMA below via
+                    // GenerationError/unsupportedGuide or the generic catch.
+                    let schema = try GenerationSchema(
+                        root: Self.dynamicSchema(from: schemaNode, name: "Output"),
+                        dependencies: [])
+                    let response = try await session.respond(
+                        to: Prompt(plan.prompt), schema: schema, options: options
+                    )
+                    // GeneratedContent -> its canonical JSON; js parses it and
+                    // rejects DECODING_FAILURE if a native bug hands back
+                    // anything else.
+                    let json = response.content.jsonString
+                    await MainActor.run {
+                        guard let self, gen == self.generation else { return }
+                        self.generateTasks.removeValue(forKey: id)
+                        self.runtime?.resolveGenerate(id: id, text: json)
+                    }
+                } else if plan.wantsStream {
+                    // Streaming: Apple's ResponseStream is an async sequence
+                    // of CUMULATIVE snapshots (each carries the whole text so
+                    // far), which is exactly what a watch UI renders — so the
+                    // wire forwards snapshots, not deltas. The floor bounds
+                    // bridge crossings only (every push commits a render);
+                    // dropped intermediates are superseded by construction,
+                    // and the final text always arrives via the resolve.
+                    let floorSeconds = max((plan.partialIntervalMs ?? 250), 0) / 1000
+                    var lastPush = Date.distantPast
+                    var finalText = ""
+                    let stream = session.streamResponse(
+                        to: Prompt(plan.prompt), options: options)
+                    for try await snapshot in stream {
+                        try Task.checkCancellation()
+                        let text = snapshot.content
+                        finalText = text
+                        let now = Date()
+                        guard now.timeIntervalSince(lastPush) >= floorSeconds
+                        else { continue }
+                        lastPush = now
+                        await MainActor.run {
+                            guard let self, gen == self.generation else { return }
+                            // Name-routed like sensor.<kind>; js filters by id.
+                            self.pushNativeEvent(
+                                "ai.partial", payload: ["id": id, "text": text])
+                        }
+                    }
+                    await MainActor.run {
+                        guard let self, gen == self.generation else { return }
+                        self.generateTasks.removeValue(forKey: id)
+                        self.runtime?.resolveGenerate(id: id, text: finalText)
+                    }
+                } else {
+                    let response = try await session.respond(
+                        to: Prompt(plan.prompt), options: options
+                    )
+                    await MainActor.run {
+                        guard let self, gen == self.generation else { return }
+                        self.generateTasks.removeValue(forKey: id)
+                        self.runtime?.resolveGenerate(
+                            id: id, text: response.content)
+                    }
+                }
+            } catch is CancellationError {
+                // cancelGenerate (abort/watchdog — js already settled) or a
+                // reload's teardown (the runtime that asked is gone). Either
+                // way nobody is listening; settling would only race the next
+                // generation's id space.
+            } catch let error as LanguageModelSession.GenerationError {
+                // Transcribe the FM case to its NAME; the name -> wire-code
+                // classification is the Linux-tested table in
+                // AIErrorCode.forGenerationError (AIPlanTests pins it).
+                let caseName: String
+                switch error {
+                case .assetsUnavailable: caseName = "assetsUnavailable"
+                case .guardrailViolation: caseName = "guardrailViolation"
+                case .exceededContextWindowSize:
+                    caseName = "exceededContextWindowSize"
+                case .unsupportedLanguageOrLocale:
+                    caseName = "unsupportedLanguageOrLocale"
+                case .decodingFailure: caseName = "decodingFailure"
+                case .rateLimited: caseName = "rateLimited"
+                case .concurrentRequests: caseName = "concurrentRequests"
+                case .refusal: caseName = "refusal"
+                case .unsupportedGuide: caseName = "unsupportedGuide"
+                @unknown default: caseName = "unknown"
+                }
+                await MainActor.run {
+                    guard let self, gen == self.generation else { return }
+                    self.generateTasks.removeValue(forKey: id)
+                    self.rejectGenerate(
+                        id: id,
+                        code: AIErrorCode.forGenerationError(caseName: caseName),
+                        message: error.localizedDescription)
+                }
+            } catch {
+                await MainActor.run {
+                    guard let self, gen == self.generation else { return }
+                    self.generateTasks.removeValue(forKey: id)
+                    self.rejectGenerate(
+                        id: id, code: .internalError,
+                        message: error.localizedDescription)
+                }
+            }
+        }
+        generateTasks[id] = task
+    }
+
+    /// Wire schema node -> DynamicGenerationSchema. The subset was validated
+    /// (js + `GeneratePlan.schemaProblem()`) before this runs, so the
+    /// force-unwraps on validated invariants are safe; `name` matters because
+    /// every object schema is a model-visible named type — the root is
+    /// "Output", a nested object takes its property name, an array element
+    /// takes the array's name + "Item".
+    @available(watchOS 27.0, *)
+    private static func dynamicSchema(
+        from node: AISchemaNode, name: String
+    ) -> DynamicGenerationSchema {
+        switch node.type {
+        case "object":
+            let properties = (node.properties ?? []).map { property in
+                DynamicGenerationSchema.Property(
+                    name: property.name,
+                    description: property.schema.description,
+                    schema: dynamicSchema(
+                        from: property.schema, name: property.name),
+                    isOptional: property.optional ?? false)
+            }
+            return DynamicGenerationSchema(
+                name: name, description: node.description,
+                properties: properties)
+        case "array":
+            return DynamicGenerationSchema(
+                arrayOf: dynamicSchema(from: node.items!, name: name + "Item"),
+                minimumElements: node.minItems,
+                maximumElements: node.maxItems)
+        case "string":
+            if let choices = node.choices {
+                return DynamicGenerationSchema(
+                    type: String.self, guides: [.anyOf(choices)])
+            }
+            return DynamicGenerationSchema(type: String.self)
+        case "integer":
+            return DynamicGenerationSchema(type: Int.self)
+        case "number":
+            return DynamicGenerationSchema(type: Double.self)
+        default:  // "boolean" — the validated subset's last member
+            return DynamicGenerationSchema(type: Bool.self)
+        }
+    }
+    #endif
 
     /// How many times the OTA bundle may boot without reaching a healthy commit
     /// before it's rolled back to shipped (ARCH-04 crash-loop guard).
@@ -1885,6 +2075,9 @@ final class ReactWatchModel {
         js.bridge.generate = { [weak self] id, reqJson in
             self?.generate(id: id, requestJson: reqJson)
         }
+        js.bridge.cancelGenerate = { [weak self] id in
+            self?.cancelGenerate(id: id)
+        }
         // Capture the generation NOW (makeRuntime runs under the boot that
         // just bumped it): reading it when the error fires would see the new
         // generation after a swap and defeat the guard (CX-008 / NF-14).
@@ -2286,6 +2479,19 @@ final class ReactWatchModel {
             return url
         }
         return URL(string: "http://127.0.0.1:8788/bundle.js")!
+    }()
+    /// Where an instrumented bundle's probes exchange state for commands (the
+    /// `react-watchos debug` contract). Overridable via the
+    /// `ReactWatchDebugPollURL` Info.plist key for the same reason the dev
+    /// bundle URL is: a physical watch needs the Mac's LAN IP, not localhost.
+    private static let debugPollURL: URL = {
+        if let s = Bundle.main.object(
+            forInfoDictionaryKey: "ReactWatchDebugPollURL") as? String,
+            let url = URL(string: s)
+        {
+            return url
+        }
+        return URL(string: "http://127.0.0.1:8790/debug/poll")!
     }()
     @ObservationIgnored private var devTask: Task<Void, Never>?
     @ObservationIgnored private var lastDevBundle: String?
@@ -3014,6 +3220,25 @@ extension ReactWatchModel {
             Task { [weak self] in
                 guard let bridge = self?.health else { return }
                 let outcome = await bridge.dailyStatistics(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// The hourly bucketed query — `decodeHourly`, because the ceiling is
+    /// counted in hours there; everything after the decode is `dailyStatistics`
+    /// with a different stride, and the bridge shares the implementation so the
+    /// two cannot drift.
+    private func handleQueryHealthHourlyStatistics(id: Int, payload: String) {
+        switch HealthStatisticsPlan.decodeHourly(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.hourlyStatistics(plan)
                 self?.settleHealth(id: id, generation: gen, outcome)
             }
         }

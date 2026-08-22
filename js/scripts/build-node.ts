@@ -102,4 +102,6 @@ rmSync(importMetaUrlShim, { force: true });
 
 // stderr, not stdout: `prepare` runs inside `npm pack --json`, whose stdout
 // must stay machine-parseable JSON.
-console.error("[build-node] compiled bin/plugin/esbuild surfaces -> dist-node/");
+console.error(
+  "[build-node] compiled bin/plugin/esbuild surfaces -> dist-node/",
+);

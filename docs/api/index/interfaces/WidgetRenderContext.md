@@ -6,7 +6,7 @@
 
 # Interface: WidgetRenderContext
 
-Defined in: [js/src/widgets.ts:34](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L34)
+Defined in: [js/src/widgets.ts:37](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L37)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/widgets.ts:34](https://github.com/emindeniz99/react-watchos/
 
 > **family**: [`WidgetFamily`](../type-aliases/WidgetFamily.md)
 
-Defined in: [js/src/widgets.ts:35](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L35)
+Defined in: [js/src/widgets.ts:38](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L38)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/widgets.ts:35](https://github.com/emindeniz99/react-watchos/
 
 > `optional` **instanceId?**: `string`
 
-Defined in: [js/src/widgets.ts:43](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L43)
+Defined in: [js/src/widgets.ts:46](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L46)
 
 For a widget with `instances`, the id of the instance being rendered.
 The published key is `kind/instanceId`, which a configurable widget's
@@ -34,6 +34,6 @@ native provider looks up from the user's per-complication selection.
 
 > **now**: `number`
 
-Defined in: [js/src/widgets.ts:37](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L37)
+Defined in: [js/src/widgets.ts:40](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L40)
 
 Timeline render time, ms since epoch.

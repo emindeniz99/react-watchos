@@ -218,8 +218,15 @@ Notes:
   `{ minify: false }` / `{ minify: true }` to say which you want explicitly.
 - `react-watchos/manifest` — `writeOTAManifest({ distDir, version, … })`,
   the OTA `manifest.json` stamper (also used by `buildBundles`' `manifest`).
-- `react-watchos/testing` — `findByType` / `findByText` for asserting
-  on committed trees with `runApp(element, new MemoryHost())`.
+- `react-watchos/testing` — the test harness. `mountApp`/`resetApp` (a
+  tracked `runApp` + the `afterEach` that disposes it, so the second test in
+  a file doesn't hit the single-active-root guard), `installInvokeHost` (a
+  recording, auto-settling `__host.invoke` — per-method results/rejects, so
+  BLE/health/connectivity tests don't hand-roll the wire), `pushDeepLink`
+  (drives navigation the way the platform does — a `NavigationLink` press is
+  confirmed by the NATIVE stack, so dispatching "press" on a link is
+  deliberately `{handled: false}` in a JS-only test), and `findByType` /
+  `findByText` for asserting on committed trees.
 
 ## Dev loop (hot restart + inspector)
 
@@ -232,7 +239,18 @@ npx react-watchos inspector                             # live tree/log/error UI
 npx react-watchos build --entry watch-ui/entry.tsx \
   --asset targets/watch/assets/bundle.js                # one-shot build + copy
 npx react-watchos build --entry watch-ui/entry.tsx --no-minify   # readable
+
+npx react-watchos dev --entry watch-ui/entry.tsx --debug  # + breakpoint probes
+npx react-watchos debug                                   # DAP for VS Code
 ```
+
+`dev --debug` instruments every statement so you can stop on a line, and
+`debug` is the adapter an editor attaches to (`{"debugServer": 8791}` in
+`launch.json`). It is DEBUG-only by construction — `build --debug` is refused,
+because `build` is the shipping entry. Read
+[docs/design-dap-debugger.md](../docs/design-dap-debugger.md) for the measured
+cost (+5.2% bytes, +1.1% per interaction) and the limits (arguments, not
+locals; statement granularity).
 
 `build` ships, so it **minifies** (≈-68% bytes, a third less QuickJS heap);
 `--no-minify` opts out when you need your components' names in a stack trace.

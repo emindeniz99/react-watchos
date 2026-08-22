@@ -143,16 +143,32 @@ const PRODUCERS: Record<string, Producer> = {
       calls: "bridge.statistics(plan)",
     },
   },
+  // Both bucketed queries resolve the SAME shape from the SAME producer —
+  // `bucketedStatistics`, which the two public wrappers pass a stride to (the
+  // guards test pins the strides). Scanning the shared body is what keeps the
+  // hourly and daily rows from ever disagreeing about a key name.
   queryHealthDailyStatistics: {
     sites: [
       {
         file: HEALTH,
-        decl: "func dailyStatistics(_ plan: HealthStatisticsPlan) async -> Outcome {",
+        decl: "private func bucketedStatistics(",
       },
     ],
     delegates: {
       decl: "private func handleQueryHealthDailyStatistics(id: Int, payload: String) {",
       calls: "bridge.dailyStatistics(plan)",
+    },
+  },
+  queryHealthHourlyStatistics: {
+    sites: [
+      {
+        file: HEALTH,
+        decl: "private func bucketedStatistics(",
+      },
+    ],
+    delegates: {
+      decl: "private func handleQueryHealthHourlyStatistics(id: Int, payload: String) {",
+      calls: "bridge.hourlyStatistics(plan)",
     },
   },
   queryHealthSamples: {

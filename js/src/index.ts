@@ -1,10 +1,33 @@
+/**
+ * The public package surface.
+ *
+ * The `@module` tag pins the typedoc module NAME (and with it the whole
+ * docs/api directory layout) so `pnpm docs:api` emits the same tree from any
+ * checkout — without it the name derives from `basePath`, which the config
+ * roots at the repo for stable source links (see js/typedoc.json).
+ *
+ * @module index
+ */
 import type { ReactNode } from "react";
 import type { HostBridge, QuickJSHostGlobal, SerializedTree } from "./host";
 import { dispatchNativeEvent } from "./nativeEvents";
 import { WatchRoot } from "./renderer";
 
-export type { GenerateOptions } from "./ai";
-export { generateText, isOnDeviceAIAvailable } from "./ai";
+export type {
+  AbortSignalLike,
+  AIError,
+  AIErrorCode,
+  AIObjectSchema,
+  AISchema,
+  GenerateObjectOptions,
+  GenerateOptions,
+} from "./ai";
+export {
+  AI_PARTIAL_EVENT,
+  generateObject,
+  generateText,
+  isOnDeviceAIAvailable,
+} from "./ai";
 export type { ScenePhase } from "./appState";
 export {
   LUMINANCE_REDUCED_EVENT,
@@ -199,6 +222,8 @@ export type {
   ActivitySummary,
   HealthAuthorizationOptions,
   HealthAuthorizationResult,
+  HealthDeletion,
+  HealthDeletionHandler,
   HealthQuantityType,
   HealthSample,
   HealthSamplesQuery,
@@ -219,6 +244,7 @@ export {
   HEALTH_UPDATE_EVENT_PREFIX,
   queryActivitySummaries,
   queryHealthDailyStatistics,
+  queryHealthHourlyStatistics,
   queryHealthSamples,
   queryHealthStatistics,
   querySleepSamples,

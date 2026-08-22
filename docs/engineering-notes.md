@@ -28,6 +28,22 @@ substance.)*
   so React's scheduler captures `setTimeout` at module init — the QuickJS
   shims are therefore force-prepended via esbuild's `inject` option
   (`scripts/config.ts`), not by import-order convention.
+- Injection is unconditional bundling, so the **network** shims
+  (`fetch`/`Headers`/`AbortController`) sit behind a build-time gate the
+  injected module branches on (`network: false` on a preset target, or
+  `--no-network`). A bundle whose declared capability contract has no
+  `network` — the widget extension, `["storage","widgets"]` — was carrying
+  3,798 B of a fetch it can never call; the repo's own build derives the flag
+  from `requiredFeatures` so the contract stays the single source of truth. A
+  runtime check would have saved nothing: only *not bundling* is a saving.
+- The same lever, for dev-only wiring: `process.env.REACT_WATCH_DEV` is "1" in
+  a dev build and "" in a shipping one (`dev`, defaulting to `!minify`), so
+  `if (process.env.REACT_WATCH_DEV) { … }` in an entry compiles the branch —
+  and everything only it imported — out of the release bundle. The remote
+  inspector was the case that paid for it: 1,307 B that shipped because a
+  static import outlives a dead call site. `NODE_ENV` cannot serve here; it is
+  pinned to `"production"` in every build, dev included, because React's dev
+  bundle is too heavy and chatty for the watch.
 - The build runs the **React Compiler** (`babel-plugin-react-compiler`) —
   a published preset flag, so consumers get it too:
   `watchBuildOptions({ reactCompiler: true })` (needs the Babel dev deps —

@@ -1,6 +1,6 @@
 {
   "name": "react-watchos",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "license": "MIT",
   "engines": {
     "node": ">=22.18"
@@ -24,6 +24,7 @@
   },
   "sideEffects": [
     "./src/install-shims.ts",
+    "./src/debugProbe.ts",
     "./src/shims.ts",
     "./src/widgets.ts",
     "./src/intents.ts"
@@ -81,6 +82,7 @@
     "inspector": "node --experimental-strip-types bin/inspector-server.mts",
     "build:bytecode": "sh ../tools/qjs-compile/run.sh",
     "bench:qjs": "sh ../tools/embed-smoke/bench.sh",
+    "bench:debug": "node --experimental-strip-types scripts/debug-overhead.ts",
     "ota:keygen": "node --experimental-strip-types scripts/ota-keygen.ts",
     "ota:sign": "node --experimental-strip-types scripts/ota-sign.ts",
     "check:size": "node --experimental-strip-types scripts/check-size.ts",
@@ -88,6 +90,8 @@
     "codegen": "node --experimental-strip-types codegen/generate.ts",
     "docs:api": "typedoc && node --experimental-strip-types scripts/gen-capability-table.ts",
     "test": "vitest run",
+    "coverage": "vitest run --coverage --testTimeout=30000",
+    "quality": "bash scripts/quality.sh",
     "test:swift": "cd swift && swift test",
     "test:swift:watch": "bash scripts/test-watch.sh",
     "run:watch": "bash scripts/run-watch-sim.sh",
@@ -143,17 +147,22 @@
     }
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
     "@babel/core": "^8.0.0",
     "@babel/preset-react": "^8.0.0",
     "@babel/preset-typescript": "^8.0.0",
-    "@biomejs/biome": "2.5.7",
+    "@biomejs/biome": "2.5.8",
     "@expo/config-plugins": "~57.0.6",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.0",
+    "@vitest/coverage-v8": "4.1.10",
     "babel-plugin-react-compiler": "^1.0.0",
+    "dependency-cruiser": "18.2.0",
     "esbuild": "^0.28.1",
     "expo": "~57.0.9",
+    "knip": "6.32.2",
+    "publint": "0.3.23",
     "react": "^19.2.0",
     "react-reconciler": "0.33.0",
     "typedoc": "^0.28.20",

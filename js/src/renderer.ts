@@ -11,7 +11,14 @@ import {
   type OpaqueRoot,
   type WatchHostConfig,
 } from "./reconcilerAdapter";
-import { serializeTree, textContent } from "./serialize";
+import {
+  hasElementChild,
+  RAW_TEXT_ERROR,
+  type SerializableNode,
+  type SerializableRoot,
+  serializeTree,
+  textContent,
+} from "./serialize";
 
 /**
  * Structured result of a native event dispatch (ARCH-09), returned to Swift as
@@ -34,10 +41,7 @@ export interface DispatchResult {
   reason?: string;
 }
 
-export interface Instance {
-  id: number;
-  type: string;
-  props: Record<string, unknown>;
+export interface Instance extends SerializableNode {
   children: Instance[];
   container: Container;
   /** True for a raw text segment React created inside a rich <Text> — only
@@ -45,12 +49,10 @@ export interface Instance {
   rawText?: boolean;
 }
 
-export interface Container {
+export interface Container extends SerializableRoot {
   children: Instance[];
   instances: Map<number, Instance>;
   nextId: number;
-  /** Highest event seq processed; acked on every commit (tree.seq). */
-  lastSeq: number;
   /** True when a mutation since the last serialize changed what the wire
    *  would carry (NF-21) — lets onCommit skip the O(tree) serialize +
    *  stringify for effect-only or value-identical commits entirely. */
@@ -69,16 +71,10 @@ function insertInto(list: Instance[], child: Instance, before: Instance): void {
   list.splice(index < 0 ? list.length : index, 0, child);
 }
 
-/** A React element child (vs a scalar) — the rich-text trigger. */
-function hasElementChild(children: unknown): boolean {
-  if (Array.isArray(children)) return children.some(hasElementChild);
-  return typeof children === "object" && children !== null;
-}
-
 /** Raw text segments are only legal under a <Text> parent (fail loud). */
 function assertTextParent(parent: Instance, child: Instance): void {
   if (child.rawText && parent.type !== "Text") {
-    throw new Error("Raw text must be wrapped in a <Text> element");
+    throw new Error(RAW_TEXT_ERROR);
   }
 }
 
@@ -224,7 +220,7 @@ const hostConfig: WatchHostConfig<
   },
   appendChildToContainer: (container: Container, child: Instance) => {
     if (child.rawText) {
-      throw new Error("Raw text must be wrapped in a <Text> element");
+      throw new Error(RAW_TEXT_ERROR);
     }
     removeFrom(container.children, child);
     container.children.push(child);

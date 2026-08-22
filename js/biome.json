@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.5.7/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.8/schema.json",
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -10,11 +10,11 @@
       "src/**/*.{ts,tsx}",
       "test/**/*.{ts,tsx}",
       "demo/**/*.{ts,tsx}",
-      "scripts/**/*.mjs",
-      "codegen/**/*.mjs",
-      "esbuild/**/*.mjs",
-      "bin/**/*.{cjs,mjs}",
-      "plugin/**/*.{js,cjs}",
+      "scripts/**/*.ts",
+      "codegen/**/*.{ts,mts}",
+      "esbuild/**/*.mts",
+      "bin/**/*.{cts,mts}",
+      "plugin/**/*.cts",
       "app.plugin.js",
       "!src/generated",
       "!dist",

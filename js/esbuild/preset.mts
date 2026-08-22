@@ -1,28 +1,67 @@
 // The QuickJS-correct esbuild preset, exported as `react-watchos/build`
 // so consumers don't copy this config. It pins the settings the watch engine
-// needs: the shims are force-injected before react/scheduler init, ES2020
-// (both Bellard quickjs and quickjs-ng cover it), a platform-neutral IIFE
-// (no Node/browser globals; one self-contained script the runtime evals).
+// needs: the shims are force-injected before react/scheduler init, ES2020, a
+// platform-neutral IIFE (no Node/browser globals; one self-contained script the
+// runtime evals).
+//
+// ES2020 is a CONSUMER-FACING FLOOR, not an engine limit — the old reason here
+// ("both Bellard quickjs and quickjs-ng cover it") died when this repo stopped
+// using Bellard's engine anywhere. Measured 2026-08-21 against the vendored
+// quickjs-ng 0.16.1: it parses AND runs everything esbuild emits up to
+// `esnext` — class fields, `static {}`, `#p in o`, logical assignment, `/v`
+// regex, even `using` — and raising the target buys 393 B on the app bundle
+// (0.20%), 344 B on the widget (0.22%) and 110 B of BYTECODE (0.05%), all of it
+// esbuild's class-field lowering helper; es2021 saves exactly zero.
+//
+// And the risk is asymmetric, which is what actually decides it: OTA ships JS
+// SOURCE, evaluated by the engine baked into the INSTALLED app binary — the
+// `.qbc` fast path exists only for the shipped asset and is gated on matching
+// bundle.js (OP-1 in ReactWatchHost). So a bundle built by a newer toolchain
+// can legitimately land on an older vendored engine. A low floor costs 393
+// bytes; a floor set above what some installed app can parse costs a boot
+// failure in the field. Raise this only when a measurement says the
+// down-levelling is worth more than a few tenths of a percent.
 //
 // The preset resolves its OWN install-shims.ts, so a consumer only supplies
 // their entry + outfile. Every build through the preset is gated by
 // `singleCopyPlugin`: two copies of react in one bundle break hooks at boot,
 // and only the module graph can prove there is one (see single-copy.mts).
 
-import { mkdirSync, statSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { BuildOptions, Plugin } from "esbuild";
-import { type OTAManifest, writeOTAManifest } from "./manifest.mts";
+import { DEBUG_INJECT_SPECIFIER, debugProbePlugin } from "./debug-probe.mts";
+import {
+  contentHash,
+  type OTAManifest,
+  writeOTAManifest,
+} from "./manifest.mts";
 import { reactCompilerPlugin } from "./react-compiler.mts";
 import { singleCopyPlugin } from "./single-copy.mts";
+import { writeSymbolEntry } from "./symbol-store.mts";
 
+export {
+  type DebugManifest,
+  type DebugManifestFile,
+  debugProbePlugin,
+} from "./debug-probe.mts";
 export { reactCompilerPlugin } from "./react-compiler.mts";
 export {
   findDuplicateCopies,
   SINGLE_COPY_PACKAGES,
   singleCopyPlugin,
 } from "./single-copy.mts";
+export {
+  describeSymbolStore,
+  listSymbolStore,
+  readSymbolEntry,
+  SYMBOL_METADATA_FILE,
+  type SymbolMetadata,
+  type SymbolStoreEntry,
+  symbolTargetDir,
+  writeSymbolEntry,
+} from "./symbol-store.mts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -31,6 +70,41 @@ export const rendererRoot = join(here, "..");
 
 /** The shim entry esbuild must `inject` (captures setTimeout & co. first). */
 export const shimEntry = join(rendererRoot, "src/install-shims.ts");
+
+/**
+ * The debug probe runtime. In a `debug` build it is evaluated AHEAD of the
+ * shims, so `__dbg` exists before the first instrumented statement — including
+ * the instrumented statements inside the shim entry itself. Reached through the
+ * injected virtual module rather than an `import` in src, for the same reason
+ * the inspector is define-gated: an `import` keeps a module in the bundle
+ * however dead its call site is, and this one must be ABSENT from a shipping
+ * bundle, not merely unreachable in it.
+ */
+export const debugProbeEntry = join(rendererRoot, "src/debugProbe.ts");
+
+/**
+ * The define that decides whether {@link shimEntry} installs the NETWORK shims
+ * (fetch/Headers/AbortController) — "1" or "", never absent, because QuickJS
+ * has no `process` to read it from at runtime. Empty folds the branch away and
+ * lets esbuild tree-shake src/fetch.ts out of the bundle entirely; see
+ * {@link WatchBuildOptions.network}.
+ */
+const NET_SHIM_DEFINE = "process.env.REACT_WATCH_NET";
+
+/**
+ * The dev/ship define — "1" in a dev build, "" in a shipping one, never absent
+ * (QuickJS has no `process`). Wrap dev-only wiring in
+ * `if (process.env.REACT_WATCH_DEV)` and esbuild drops both the branch and
+ * whatever it was the only importer of; this is the ONLY way that code leaves
+ * the bundle, since a static import keeps a module alive however dead the call
+ * site is.
+ *
+ * It exists because `NODE_ENV` cannot do this job: it is pinned to
+ * `"production"` in EVERY build here, dev included, because React's dev bundle
+ * is far too heavy and chatty for the watch — so it says nothing about whether
+ * this build is one you are debugging. See {@link WatchBuildOptions.dev}.
+ */
+const DEV_DEFINE = "process.env.REACT_WATCH_DEV";
 
 /** Options for {@link watchBuildOptions}. */
 export interface WatchBuildOptions {
@@ -100,10 +174,78 @@ export interface WatchBuildOptions {
    */
   keepNames?: boolean;
   /**
+   * Include the network shims (`fetch`, `Headers`, `AbortController`) in this
+   * bundle. Defaults to **`true`**: a bundle that calls fetch and didn't get
+   * the shim fails at runtime, so the safe default is to ship it.
+   *
+   * Turn it OFF for a bundle whose feature contract has no network — a widget
+   * extension that only reads shared storage and publishes timelines is the
+   * standard case. Measured on this repo's widget bundle: 153,362 -> 149,564 B
+   * (-3,798 B, -2.5%), which on the extension's 16 MB heap is heap as well as
+   * flash. This has to be a BUILD switch, not a runtime one: the injected
+   * `install-shims` module called `installFetch` unconditionally, and no `if`
+   * can un-bundle code esbuild already had to include. It is spent as a
+   * `define` the injected module branches on (see NET_SHIM_DEFINE), so the
+   * dead branch — and src/fetch.ts behind it — is tree-shaken away.
+   *
+   * Off means `fetch` is simply undefined; nothing here polyfills a rejection,
+   * because a `TypeError: fetch is not a function` at the call site names the
+   * real mistake (this bundle declared no network) better than a fake one.
+   */
+  network?: boolean;
+  /**
+   * Build for the DEV loop rather than for shipping: defines
+   * `process.env.REACT_WATCH_DEV` to `"1"`, so anything the entry guards with
+   * `if (process.env.REACT_WATCH_DEV)` is kept. In a shipping build the define
+   * is `""`, the branch folds away, and every module reachable only from it is
+   * tree-shaken out — which is the point, because a static `import` keeps a
+   * module in the bundle no matter how dead the call site is. The remote
+   * inspector (src/inspector.ts) is the case this was cut for: it survived at
+   * 1,307 B in the shipped app bundle behind a runtime
+   * `if (globalThis.__inspectorUrl)`.
+   *
+   * Defaults to **`!minify`**, which is not a coincidence but the same
+   * distinction stated once: `watchBuildOptions` (minify off) is what
+   * `react-watchos dev` builds the live-reload bundle with, `buildBundles`
+   * (minify on) is the shipping entry. Pass it explicitly to separate them —
+   * e.g. a minified bundle you still want to inspect.
+   *
+   * NOT `NODE_ENV`: that stays `"production"` in every build (React's dev
+   * bundle is too heavy for the watch), so it cannot also mean "debuggable".
+   */
+  dev?: boolean;
+  /**
    * Run the React Compiler over app + renderer source (auto-memoization ->
    * fewer commits). Needs Babel dev deps — see esbuild/react-compiler.mts.
+   *
+   * IGNORED when {@link WatchBuildOptions.debug} is on: the compiler rewrites
+   * code before the debug transform could read its line numbers, and a
+   * debugger whose lines are off by a memoization block is worse than none.
    */
   reactCompiler?: boolean;
+  /**
+   * Instrument the bundle for the source-level debugger
+   * (docs/design-dap-debugger.md): every statement gets a `__dbg(file, line)`
+   * probe, every function body a shadow frame, and `<outfile>.dbg.json` records
+   * which line in which file each probe belongs to.
+   *
+   * Defaults to **`false`**, and forces {@link WatchBuildOptions.dev} on when
+   * set — an instrumented bundle IS a dev bundle by definition. Nothing here
+   * can leak into a shipping build: the transform is an esbuild plugin that is
+   * only registered when this is true, so a release build contains no `__dbg`
+   * identifier at all (asserted by test/dap-debugger.test.ts).
+   *
+   * Costs bytes and boot time — measured numbers are in the design doc. Turn it
+   * on for the session where you need to stop on a line, not for the dev loop
+   * in general.
+   */
+  debug?: boolean;
+  /**
+   * Instrument this package's own renderer source as well as app code. Off by
+   * default: breakpoints belong in app code, and the renderer's probes are pure
+   * cost for frames nobody asked to stop in. @see WatchBuildOptions.debug
+   */
+  debugIncludeRenderer?: boolean;
   /**
    * Extra resolution roots. This is an esbuild *fallback*, consulted only when
    * normal walk-up resolution fails — it cannot override a react the renderer
@@ -126,19 +268,48 @@ export function watchBuildOptions({
   minify = false,
   sourcemap = true,
   keepNames = false,
+  network = true,
+  // Dev-ness follows `minify` by default rather than being a second knob to
+  // forget: this function IS the dev/hand-assembly path (minify off) and
+  // `buildBundles` IS the shipping one (minify on). Stated explicitly at a
+  // call site that needs the two apart.
+  dev = !minify,
   reactCompiler = false,
+  debug = false,
+  debugIncludeRenderer = false,
   nodePaths,
   plugins = [],
 }: WatchBuildOptions = {}): BuildOptions {
   if (!entry) throw new Error("watchBuildOptions: `entry` is required");
   if (!outfile) throw new Error("watchBuildOptions: `outfile` is required");
-  if (reactCompiler) plugins = [reactCompilerPlugin(), ...plugins];
+  // Exactly one transform plugin may claim the `.[jt]sx?` onLoad: esbuild runs
+  // the first callback that returns a result and no others, so registering both
+  // would silently mean "only the debug one runs" — and the React Compiler
+  // would be off while the build still claimed to have it. State the exclusion
+  // here instead of discovering it as a missing memoization.
+  if (debug) {
+    plugins = [
+      debugProbePlugin({
+        outfile,
+        includeRenderer: debugIncludeRenderer,
+        rendererSrcDir: join(rendererRoot, "src"),
+        // Evaluation order, stated once: probe runtime, then the shims.
+        injectModules: [debugProbeEntry, shimEntry],
+      }),
+      ...plugins,
+    ];
+  } else if (reactCompiler) {
+    plugins = [reactCompilerPlugin(), ...plugins];
+  }
   return {
     entryPoints: [entry],
     outfile,
     bundle: true,
     format: "iife",
-    inject: [shimEntry],
+    // ONE inject in a debug build: a virtual module that imports the probe
+    // runtime and then the shims. Two inject entries do not order their
+    // evaluation (see DebugProbeOptions.injectModules for what that cost).
+    inject: debug ? [DEBUG_INJECT_SPECIFIER] : [shimEntry],
     target: "es2020",
     // This package ships its TSX as source WITHOUT a tsconfig.json in the
     // tarball, and esbuild's per-file tsconfig discovery stops at the package
@@ -159,6 +330,16 @@ export function watchBuildOptions({
     define: {
       "process.env.NODE_ENV": '"production"',
       "process.env.BUNDLE_VERSION": '"1"',
+      // Read by src/install-shims.ts (injected above) to decide whether the
+      // fetch shims are part of this bundle AT ALL. Always defined, both ways:
+      // an unreplaced read would crash the bundle in QuickJS.
+      [NET_SHIM_DEFINE]: network ? '"1"' : '""',
+      // Read by the app entry to fence off dev-only wiring (the inspector).
+      // Always defined, both ways — an unreplaced read crashes in QuickJS.
+      // An instrumented bundle is a dev bundle by definition: the probes are
+      // already in it, so a `dev: false` here would only hide the dev-only
+      // wiring that makes them usable.
+      [DEV_DEFINE]: dev || debug ? '"1"' : '""',
     },
     plugins: [...plugins, singleCopyPlugin()],
     // Read by singleCopyPlugin to count react copies in the module graph.
@@ -194,6 +375,13 @@ export interface BundleTarget {
   define?: Record<string, string>;
   plugins?: Plugin[];
   manifest?: BundleManifestInput;
+  /**
+   * Per-target network shims. Lives on the TARGET, not on
+   * {@link BuildBundlesOptions}, because it is a property of the bundle's
+   * feature contract: in the two-bundle shape this helper exists for, the app
+   * fetches and the widget doesn't. @see WatchBuildOptions.network
+   */
+  network?: boolean;
 }
 
 /** One built bundle's result. */
@@ -202,6 +390,20 @@ export interface BuildBundleResult {
   outfile: string;
   sizeKB: number;
   manifest?: OTAManifest | undefined;
+  /**
+   * This bundle's identity: FNV-1a over the exact bytes written to `outfile`,
+   * the same hash the OTA manifest stamps and a `Diagnostic` from the field
+   * carries — so this is the id to log, or to name an uploaded artifact by.
+   *
+   * Present whenever it was computed, which is whenever something asked for
+   * it: a target that stamped a `manifest` (which hashes these bytes anyway)
+   * or a run with {@link BuildBundlesOptions.symbols}. Absent otherwise, since
+   * the hash costs a measured 55 ms on a 628 KB bundle and a build that wants
+   * neither has nothing to spend it on.
+   */
+  releaseId?: string | undefined;
+  /** Where this target's symbols were stored, when `symbols` was set. */
+  symbols?: string | undefined;
 }
 
 /** Shared options for a whole {@link buildBundles} run (per-target knobs live
@@ -218,10 +420,34 @@ export interface BuildBundlesOptions {
   sourcemap?: boolean;
   /** @see WatchBuildOptions.keepNames */
   keepNames?: boolean;
+  /**
+   * @see WatchBuildOptions.dev — defaults to `!minify` there, so this entry
+   * (minified by default) builds a SHIPPING bundle unless you say otherwise.
+   */
+  dev?: boolean;
   /** @see WatchBuildOptions.reactCompiler */
   reactCompiler?: boolean;
+  /** @see WatchBuildOptions.debug */
+  debug?: boolean;
+  /** @see WatchBuildOptions.debugIncludeRenderer */
+  debugIncludeRenderer?: boolean;
   /** @see WatchBuildOptions.nodePaths */
   nodePaths?: string[];
+  /**
+   * Keep every target's bundle + map + a `metadata.json` under
+   * `<dir>/<releaseId>/<target>/`, so a stack that arrives weeks later with
+   * nothing but a `releaseId` can still find the map that reads it. OPT-IN and
+   * additive: absent, this build behaves exactly as before — the map is still
+   * written beside the outfile and the next build still overwrites it.
+   *
+   * `releaseId` is the ONLY key, on purpose: it is already the FNV-1a over the
+   * exact shipped bytes that the OTA manifest stamps and that every
+   * `Diagnostic` records, so the stack and the store agree without anyone
+   * stamping a second identifier. The target level below it is load-bearing —
+   * see esbuild/symbol-store.mts. Resolve one later with
+   * `pnpm symbolicate --symbols <dir> --release <id>`.
+   */
+  symbols?: string;
 }
 
 /**
@@ -236,8 +462,15 @@ export interface BuildBundlesOptions {
  * `watchBuildOptions` alone never requires esbuild to be installed.
  *
  * A target may also pass `plugins` (esbuild plugins like the React Compiler,
- * forwarded to the preset). The manifest is stamped against the target's real
- * outfile name, so a bundle not named `bundle.js` still hashes correctly.
+ * forwarded to the preset) and `network: false` to leave the fetch shims out of
+ * a bundle whose feature contract has no network (the widget half of that same
+ * two-bundle shape — see {@link WatchBuildOptions.network}). The manifest is
+ * stamped against the target's real outfile name, so a bundle not named
+ * `bundle.js` still hashes correctly.
+ *
+ * Pass {@link BuildBundlesOptions.symbols} to also keep each target's bundle +
+ * map under `<dir>/<releaseId>/<target>/`, which is what makes a crash stack
+ * from a shipped build readable weeks later.
  */
 export async function buildBundles(
   targets: BundleTarget[],
@@ -250,8 +483,12 @@ export async function buildBundles(
     minify = true,
     sourcemap = true,
     keepNames = false,
+    dev,
     reactCompiler = false,
+    debug = false,
+    debugIncludeRenderer = false,
     nodePaths,
+    symbols,
   }: BuildBundlesOptions = {},
 ): Promise<BuildBundleResult[]> {
   if (!Array.isArray(targets) || targets.length === 0) {
@@ -275,7 +512,15 @@ export async function buildBundles(
   }
   const results: BuildBundleResult[] = [];
   for (const target of targets) {
-    const { entry, outfile, name = outfile, define, plugins, manifest } = target;
+    const {
+      entry,
+      outfile,
+      name = outfile,
+      define,
+      plugins,
+      manifest,
+      network = true,
+    } = target;
     if (!entry || !outfile) {
       throw new Error("buildBundles: each target needs `entry` and `outfile`");
     }
@@ -286,7 +531,14 @@ export async function buildBundles(
       minify,
       sourcemap,
       keepNames,
+      network,
+      // Undefined here means "let the preset derive it from minify" — spelling
+      // it as `dev: false` would quietly override a `{ minify: false }` caller
+      // who wanted a debuggable bundle.
+      ...(dev === undefined ? {} : { dev }),
       reactCompiler,
+      debug,
+      debugIncludeRenderer,
       nodePaths,
       plugins,
     });
@@ -318,11 +570,43 @@ export async function buildBundles(
           ...manifest,
         })
       : undefined;
+    // The identity, computed at most once and never twice: `writeOTAManifest`
+    // already hashed exactly these bytes, so reuse its answer, and fall back to
+    // manifest.mts's FNV-1a (the single implementation, the one Swift's
+    // ContentHash mirrors) only for a target that stamped no manifest — the
+    // widget, which is shipped rather than OTA'd but whose stacks still need to
+    // find a map. Computed ONLY when something will read it: the hash is a
+    // measured 55 ms on a 628 KB bundle, and a build that asked for no store
+    // and no manifest should not pay it for a field nobody consumes.
+    let releaseId = stamped?.releaseId;
+    let stored: ReturnType<typeof writeSymbolEntry> | undefined;
+    if (symbols) {
+      releaseId ??= contentHash(readFileSync(outfile, "utf8"));
+      stored = writeSymbolEntry({
+        symbolsDir: symbols,
+        releaseId,
+        target: name,
+        outfile,
+        minify,
+        keepNames,
+        sourcemap,
+      });
+    }
     console.log(
       `${name} bundle: ${sizeKB} KB${minify ? " (minified)" : ""}` +
-        (stamped ? ` (OTA v${stamped.version} ${stamped.releaseId})` : ""),
+        (stamped ? ` (OTA v${stamped.version} ${stamped.releaseId})` : "") +
+        (stored
+          ? ` (symbols ${stored.metadata.releaseId}/${basename(stored.dir)})`
+          : ""),
     );
-    results.push({ name, outfile, sizeKB, manifest: stamped });
+    results.push({
+      name,
+      outfile,
+      sizeKB,
+      manifest: stamped,
+      releaseId,
+      symbols: stored?.dir,
+    });
   }
   return results;
 }

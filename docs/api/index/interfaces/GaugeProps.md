@@ -6,7 +6,7 @@
 
 # Interface: GaugeProps
 
-Defined in: [js/src/components.ts:264](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L264)
+Defined in: [js/src/components.ts:266](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L266)
 
 ## Extends
 
@@ -81,7 +81,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:271](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L271)
+Defined in: [js/src/components.ts:273](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L273)
 
 ***
 
@@ -149,7 +149,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:268](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L268)
+Defined in: [js/src/components.ts:270](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L270)
 
 ***
 
@@ -157,7 +157,7 @@ Defined in: [js/src/components.ts:268](https://github.com/emindeniz99/react-watc
 
 > `optional` **max?**: `number`
 
-Defined in: [js/src/components.ts:267](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L267)
+Defined in: [js/src/components.ts:269](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L269)
 
 ***
 
@@ -165,7 +165,7 @@ Defined in: [js/src/components.ts:267](https://github.com/emindeniz99/react-watc
 
 > `optional` **min?**: `number`
 
-Defined in: [js/src/components.ts:266](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L266)
+Defined in: [js/src/components.ts:268](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L268)
 
 ***
 
@@ -201,7 +201,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **style?**: `string`
 
-Defined in: [js/src/components.ts:270](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L270)
+Defined in: [js/src/components.ts:272](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L272)
 
 "circular" | "linear"; widgets pick accessory styles by family.
 
@@ -225,4 +225,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:265](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L265)
+Defined in: [js/src/components.ts:267](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L267)

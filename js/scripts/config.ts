@@ -73,9 +73,18 @@ export const targets: BuildTarget[] = [
     asset: join(root, "../app/targets/widget/assets/bundle.js"),
     // Kept far tighter than the app: the widget bundle's bytecode loads into the
     // extension's 16 MB JS heap under the ~30 MB WidgetKit limit, so size here
-    // trades against MEMORY, not (bytecode) boot. 1 MB is ~6% of the heap —
-    // safe; do NOT match the app's ceiling (docs/budgets-and-limits.md).
-    budgetKB: 1000,
+    // trades against MEMORY, not (bytecode) boot. Do NOT match the app's ceiling
+    // (docs/budgets-and-limits.md).
+    //
+    // Lowered 1000 -> 100 KB when the widget path stopped rendering timelines
+    // through react-reconciler (src/staticRender.ts): the demo widget bundle
+    // went 153,362 -> 27,870 B minified, because the reconciler + scheduler +
+    // renderer adapter were 83.8% of it and existed only for a one-shot static
+    // render. 100 KB is ~3.5x the current bundle — generous for real widget
+    // code — while still failing loudly if the reconciler (~121 KB) is ever
+    // dragged back into this graph by a stray import. That regression is
+    // invisible at 1 MB, which is exactly why the old budget never caught it.
+    budgetKB: 100,
     // The widget bundle only reads/writes shared state and publishes timelines.
     requiredFeatures: ["storage", "widgets"],
   },
@@ -101,7 +110,10 @@ export function buildOptions({
   // anything.
   minify = false,
   target = targets[0],
-}: { minify?: boolean; target?: BuildTarget } = {}): BuildOptions {
+}: {
+  minify?: boolean;
+  target?: BuildTarget;
+} = {}): BuildOptions {
   const otaUrl = process.env.REACT_WATCH_OTA_URL ?? "";
   // The demo build is the shared QuickJS preset (shim inject, es2020,
   // neutral IIFE) with the React Compiler enabled — the same published flag
@@ -111,6 +123,12 @@ export function buildOptions({
     entry: target.entry,
     outfile: target.outfile,
     minify,
+    // Derived from the SAME declared contract the OTA manifest and the ARCH-01
+    // capability gate read, rather than a second hand-maintained flag that
+    // could disagree with it: a bundle that never declared `network` has no
+    // business carrying the fetch shim (-3,798 B on the widget). Declaring the
+    // feature is therefore what turns the shim back on — one edit, not two.
+    network: target.requiredFeatures.includes("network"),
     reactCompiler: true,
   });
   options.define = {

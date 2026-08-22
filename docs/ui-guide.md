@@ -154,6 +154,41 @@ scarcest thing a publish spends. The
 gauge complication, a corner gauge, a rectangular Smart Stack card, and
 the inline text slot — all from one React render function.
 
+### Widget components render without the reconciler
+
+A timeline entry's `view` is rendered **once**, by a plain element-tree walker
+(`js/src/staticRender.ts`), **not** by React's reconciler. A widget component is
+therefore a **pure function of its props and the stores it reads**:
+
+- **No effects.** `useEffect`/`useLayoutEffect`/`useInsertionEffect` never run —
+  there is no commit for them to run after. Read what you need during render.
+- **No state updates.** `useState`/`useReducer` hand back their initial value,
+  and calling a setter *during* the render throws: there is no second render to
+  produce, so silently dropping the update would be worse. Passing a setter as a
+  prop is fine — function props serialize to the literal `true` and are never
+  invoked on the widget side. Interaction is an AppIntent (`registerIntent`),
+  not a handler in the tree.
+- **No `Suspense`, no `lazy()`, no portals.** These throw, naming the offending
+  type, instead of quietly rendering something a fiber render wouldn't have.
+
+Everything a static tree *can* honour works, and is asserted against the fiber
+path node-for-node (`js/test/staticRender.test.tsx`): function and class
+components, `memo`, `forwardRef`, `Fragment`, arrays and keys, conditional and
+`null` children, context `Provider`/`Consumer` and `useContext` (so
+`ThemeProvider` / `TranslationProvider` work inside a widget), plus `useMemo`,
+`useCallback`, `useRef`, `useSyncExternalStore`, `useId` — and the React
+Compiler's memo cache, so a compiled component needs no special handling.
+
+**Why**: `react-reconciler` + `scheduler` + the renderer adapter were **83.8% of
+the widget bundle** (128,478 B of 153,362 B, minified) and were there only to
+mount a fiber tree, commit it once, take a single serialized node and throw the
+tree away — no host, no events, no second render. Cutting that edge took the
+demo widget bundle from **153,362 B to 27,870 B (−81.8%)**, and in the widget
+extension that is 16 MB-of-JS-heap money spent on every timeline request. The
+app keeps the real reconciler for its UI; `renderToTree` is the same walker in
+both bundles, so the payload the app publishes and the payload the extension
+re-renders in-process cannot disagree.
+
 The extension also embeds its own QuickJS (`IntentRuntime.swift`,
 measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
 
@@ -183,7 +218,85 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
   React render (`__renderWidgets`) over the stored payload.
 - **Timelines & relevance**: the daypart demo widget publishes
   future-dated entries (WidgetKit swaps them all day with no process
-  running) plus Smart Stack relevance scores per entry.
+  running) plus Smart Stack relevance scores per entry and predictive
+  `relevantContexts` clues — see the next section.
+
+### Smart Stack relevance: ranking scores + predictive clues
+
+Two different Smart Stack signals ride the published payload, and they answer
+different questions:
+
+- **`entry.relevance` (`{ score, durationMs? }`) — ranking.** "How prominent is
+  this widget once the stack is already showing it." Maps to WidgetKit's
+  `TimelineEntryRelevance(score:duration:)` (watchOS 9.0) per entry.
+- **`timeline.relevantContexts` — prediction.** "When/where should the system
+  surface this widget at all." Each clue maps to a RelevanceKit
+  `RelevantContext`, and the package's `ReactTimelineProvider` hands them to
+  WidgetKit through the provider's `relevance()` callback (`WidgetRelevance`,
+  watchOS 11.0) — a consumer's own configurable (`AppIntentTimelineProvider`)
+  provider does the same with the `reactRelevantContexts` /
+  `reactRelevantContext(from:)` helpers, exactly as the demo's
+  `ShoppingTimelineProvider` does. Clues are metadata for the on-device
+  ranker: publishing one costs a few bytes at render time and zero wakeups,
+  CPU or radio at surface time.
+
+The clue vocabulary is a tagged union covering RelevanceKit's whole surface
+(every `introducedAt` below read from Apple's docs JSON, 2026-08-22):
+
+| JS clue (`kind`) | RelevanceKit factory | watchOS |
+|---|---|---|
+| `date` (no `dateKind`) | `date(_:)` | 10.0 |
+| `date` + `dateKind` | `date(_:kind:)` | 26.0 (dropped below) |
+| `dateRange` | `date(range:kind:)` | 26.0 (dropped below — no sub-26 overload; `date(from:to:)` is deprecated AT 26.0) |
+| `location` (lat/lon/radius, default 100 m) | `location(_:)` + `CLCircularRegion` | 10.0 |
+| `poi` (73 MapKit categories) | `location(category:)` | 26.0 (dropped below) |
+| `inferredLocation` (`home\|work\|school\|commute`) | `location(inferred:)` | 10.0 |
+| `fitness` (`activityRingsIncomplete\|workoutActive`) | `fitness(_:)` | 10.0 |
+| `sleep` (`bedtime\|wakeup`) | `sleep(_:)` | 10.0 |
+| `headphones` (`connected`) | `hardware(headphones:)` | 10.0 |
+
+Not mirrored, deliberately: `date(interval:kind:)` (26.0) is start + duration —
+the same signal `dateRange` already spells as from/to, so it gets no ninth wire
+kind. MapKit's 11 newest POI categories are watchOS 27.0 **beta** and excluded
+on both sides (the CX-002 rule). The name vocabularies are pinned JS↔Swift by
+`js/test/widget-relevance-guards.test.ts`; the wire decode by
+`PublishedRelevantContextTests` in Linux `swift test`.
+
+**Permissions — a clue only works if the app already holds the matching
+grant.** Publishing a clue requests nothing and reads nothing in-process; the
+system evaluates it, and an ungranted clue silently "doesn't have an effect"
+(Apple's wording — the widget just never surfaces for it, no error anywhere).
+Per Apple's `RelevantContext` docs:
+
+- **`location` / `poi` / `inferredLocation`**: the app must "request a
+  person's permission to access their location with the When in Use or Always
+  access level" — i.e. hold CoreLocation authorization (trigger the prompt
+  with `getCurrentLocation()` or the `location` sensor stream, and ship
+  `NSLocationWhenInUseUsageDescription`; the config plugin emits that key
+  under `workouts: true`, otherwise supply it via its `infoPlist` option).
+  Apple's clue pages point onward to "Accessing location information in
+  widgets" (`NSWidgetWantsLocation` in the widget extension's Info.plist, the
+  user extending the app's grant to the widget) — that article covers widgets
+  that *read* location; whether clue evaluation also needs the key is not
+  stated by Apple and is recorded as an open question, verifiable only on
+  device (Smart Stack surfacing is permanently ③, see status.md).
+- **`fitness`**: HealthKit grants, per condition — `workoutActive` "requires
+  usage of `HKWorkoutType`" (`requestHealthAuthorization({ workoutHistory:
+  true })` asks for that exact type; recording via `startWorkout` holds it
+  too); `activityRingsIncomplete` requires the `appleExerciseTime`,
+  `appleMoveTime` and `appleStandTime` *quantity* types —
+  `read: ["appleExerciseTime", "appleStandTime"]` covers two, and
+  `appleMoveTime` is not in the package's read vocabulary yet (recorded gap;
+  the `activitySummaries` flag is no substitute — it asks for the summary
+  type, a different sheet row than these three).
+- **`sleep`**: the `sleepAnalysis` read —
+  `requestHealthAuthorization({ sleep: true })`.
+- **`date` / `dateRange` / `headphones`**: nothing. Apple notes the
+  headphones clue gives the app no fitness data in return.
+
+RelevanceKit is watchOS-only by Apple's design: Smart Stacks also exist on
+iOS/iPadOS, but "functionality provided by RelevanceKit API is only available
+in watchOS. Calling its API on other platforms doesn't have any effect."
 
 ## Text formatting & translation (there is no `Intl`)
 
@@ -216,6 +329,26 @@ round-trip, released by a seq-ack protocol — every dispatch carries a
 sequence number, every commit acks the highest one processed (`tree.seq`, with
 a guaranteed ack commit even when React doesn't re-render), so rapid
 interactions can't snap back to stale values.
+
+## Crown focus (multi-Crown screens)
+
+watchOS routes the Digital Crown to exactly one focused view. A screen with
+two `<CrownRotation>`s says which one owns it with the declarative `focused`
+claim, and observes hand-offs the system makes (the user taps the other one)
+with `onFocusChange`:
+
+```tsx
+const [owner, setOwner] = useState<"volume" | "zoom">("volume");
+<CrownRotation value={volume} focused={owner === "volume"}
+               onFocusChange={(f) => { if (f) setOwner("volume"); }}
+               onChange={setVolume}>…</CrownRotation>
+```
+
+At most one node per screen should claim `focused`; omit it entirely on
+single-Crown screens. The claim re-applies when a screen mounts, so a pushed
+route's marked Crown view grabs the Crown automatically. Model, survey, and
+the deliberate cuts (no traversal order, no imperative `focus()`):
+[design-focus-management.md](./design-focus-management.md).
 
 ## See also
 
