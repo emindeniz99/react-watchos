@@ -11,6 +11,7 @@ const eventToProp: Record<string, string> = {
   swipeAction: "onSwipeAction",
   leadingSwipeAction: "onLeadingSwipeAction",
   drag: "onDrag",
+  focusChange: "onFocusChange",
 };
 
 /** Calls the matching handler prop on a live instance. */
@@ -28,6 +29,8 @@ export function dispatchToInstance(
     handler(event.payload?.path);
   } else if (event.event === "swipe") {
     handler(event.payload?.direction);
+  } else if (event.event === "focusChange") {
+    handler(event.payload?.focused);
   } else {
     handler(event.payload);
   }

@@ -6,7 +6,7 @@
 
 # Interface: InvokeHost
 
-Defined in: [js/src/testing.ts:130](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L130)
+Defined in: [js/src/testing.ts:136](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L136)
 
 Handle returned by [installInvokeHost](../functions/installInvokeHost.md).
 
@@ -16,7 +16,7 @@ Handle returned by [installInvokeHost](../functions/installInvokeHost.md).
 
 > **calls**: [`RecordedInvoke`](RecordedInvoke.md)[]
 
-Defined in: [js/src/testing.ts:139](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L139)
+Defined in: [js/src/testing.ts:145](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L145)
 
 Every invoke in call order, with the payload already parsed.
 
@@ -26,7 +26,7 @@ Every invoke in call order, with the payload already parsed.
 
 > **host**: `object`
 
-Defined in: [js/src/testing.ts:137](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L137)
+Defined in: [js/src/testing.ts:143](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L143)
 
 The invoke-only `__host` object the call installed. A suite that keeps
 its own full `__host` mock grafts the channel on instead of being
@@ -61,7 +61,7 @@ package's own `installMockHost` test helper does exactly that).
 
 > **uninstall**: () => `void`
 
-Defined in: [js/src/testing.ts:144](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L144)
+Defined in: [js/src/testing.ts:150](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L150)
 
 Removes the installed `__host` — a no-op if something else was installed
 over it since (`resetApp` removes whatever `__host` is current).

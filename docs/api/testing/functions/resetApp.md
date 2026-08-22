@@ -8,7 +8,7 @@
 
 > **resetApp**(): `void`
 
-Defined in: [js/src/testing.ts:82](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L82)
+Defined in: [js/src/testing.ts:88](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L88)
 
 The shared `afterEach` for any file that mounts an app: disposes every
 `mountApp` root (newest first), clears the module-scope registries

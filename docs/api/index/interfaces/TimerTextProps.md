@@ -6,7 +6,7 @@
 
 # Interface: TimerTextProps
 
-Defined in: [js/src/components.ts:503](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L503)
+Defined in: [js/src/components.ts:536](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L536)
 
 A self-ticking time label. React renders this ONCE with a start/end
 timestamp and SwiftUI animates the digits natively (Text(timerInterval:)),
@@ -86,7 +86,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **bold?**: `boolean`
 
-Defined in: [js/src/components.ts:512](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L512)
+Defined in: [js/src/components.ts:545](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L545)
 
 ***
 
@@ -94,7 +94,7 @@ Defined in: [js/src/components.ts:512](https://github.com/emindeniz99/react-watc
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:514](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L514)
+Defined in: [js/src/components.ts:547](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L547)
 
 ***
 
@@ -162,7 +162,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **milliseconds?**: `boolean`
 
-Defined in: [js/src/components.ts:511](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L511)
+Defined in: [js/src/components.ts:544](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L544)
 
 Show mm:ss.SSS using native SwiftUI ticking instead of JS intervals.
  Watch-only: in a widget this degrades to the seconds timer (WidgetKit
@@ -202,7 +202,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **since?**: `number`
 
-Defined in: [js/src/components.ts:505](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L505)
+Defined in: [js/src/components.ts:538](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L538)
 
 Count up from this epoch-ms start (elapsed time).
 
@@ -212,7 +212,7 @@ Count up from this epoch-ms start (elapsed time).
 
 > `optional` **size?**: `number`
 
-Defined in: [js/src/components.ts:513](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L513)
+Defined in: [js/src/components.ts:546](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L546)
 
 ***
 
@@ -234,6 +234,6 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **until?**: `number`
 
-Defined in: [js/src/components.ts:507](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L507)
+Defined in: [js/src/components.ts:540](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L540)
 
 Count down to this epoch-ms deadline. Takes precedence over `since`.

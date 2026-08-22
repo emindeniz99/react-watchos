@@ -6,7 +6,7 @@
 
 # Interface: SpacerProps
 
-Defined in: [js/src/components.ts:226](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L226)
+Defined in: [js/src/components.ts:228](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L228)
 
 ## Extends
 

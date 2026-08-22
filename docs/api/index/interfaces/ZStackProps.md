@@ -6,7 +6,7 @@
 
 # Interface: ZStackProps
 
-Defined in: [js/src/components.ts:239](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L239)
+Defined in: [js/src/components.ts:241](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L241)
 
 ## Extends
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **alignment?**: `"top"` \| `"leading"` \| `"center"` \| `"trailing"` \| `"bottom"` \| `"topLeading"` \| `"topTrailing"` \| `"bottomLeading"` \| `"bottomTrailing"`
 
-Defined in: [js/src/components.ts:241](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L241)
+Defined in: [js/src/components.ts:243](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L243)
 
 Anchor for stacked children (SwiftUI ZStack(alignment:)).
 
@@ -91,7 +91,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:251](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L251)
+Defined in: [js/src/components.ts:253](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L253)
 
 ***
 

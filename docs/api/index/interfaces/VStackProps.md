@@ -6,7 +6,7 @@
 
 # Interface: VStackProps
 
-Defined in: [js/src/components.ts:143](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L143)
+Defined in: [js/src/components.ts:145](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L145)
 
 ## Extends
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **alignment?**: `"leading"` \| `"center"` \| `"trailing"`
 
-Defined in: [js/src/components.ts:146](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L146)
+Defined in: [js/src/components.ts:148](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L148)
 
 Horizontal alignment of children (SwiftUI VStack(alignment:)).
 
@@ -91,7 +91,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:147](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L147)
+Defined in: [js/src/components.ts:149](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L149)
 
 ***
 
@@ -113,9 +113,11 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **focusable?**: `boolean`
 
-Defined in: [js/src/components.ts:109](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L109)
+Defined in: [js/src/components.ts:111](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L111)
 
 Make this view Crown/focus-addressable (watchOS focus traversal).
+ To programmatically CLAIM the Crown, use `<CrownRotation focused>` —
+ see docs/design-focus-management.md.
 
 #### Inherited from
 
@@ -157,7 +159,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **glass?**: `boolean`
 
-Defined in: [js/src/components.ts:120](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L120)
+Defined in: [js/src/components.ts:122](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L122)
 
 Apply the watchOS 26 Liquid Glass effect (no-op on older OSes).
 
@@ -290,7 +292,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **spacing?**: `number`
 
-Defined in: [js/src/components.ts:144](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L144)
+Defined in: [js/src/components.ts:146](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L146)
 
 ***
 

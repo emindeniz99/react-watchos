@@ -252,6 +252,26 @@ sequence number, every commit acks the highest one processed (`tree.seq`, with
 a guaranteed ack commit even when React doesn't re-render), so rapid
 interactions can't snap back to stale values.
 
+## Crown focus (multi-Crown screens)
+
+watchOS routes the Digital Crown to exactly one focused view. A screen with
+two `<CrownRotation>`s says which one owns it with the declarative `focused`
+claim, and observes hand-offs the system makes (the user taps the other one)
+with `onFocusChange`:
+
+```tsx
+const [owner, setOwner] = useState<"volume" | "zoom">("volume");
+<CrownRotation value={volume} focused={owner === "volume"}
+               onFocusChange={(f) => { if (f) setOwner("volume"); }}
+               onChange={setVolume}>…</CrownRotation>
+```
+
+At most one node per screen should claim `focused`; omit it entirely on
+single-Crown screens. The claim re-applies when a screen mounts, so a pushed
+route's marked Crown view grabs the Crown automatically. Model, survey, and
+the deliberate cuts (no traversal order, no imperative `focus()`):
+[design-focus-management.md](./design-focus-management.md).
+
 ## See also
 
 - [battery-defaults.md](./battery-defaults.md) — the power policy behind the

@@ -28,7 +28,7 @@ can point at the offending component rather than just the error message.
 
 > **new ErrorBoundary**(`props`): `ErrorBoundary`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:958
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:958](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L958)
 
 #### Parameters
 
@@ -48,7 +48,7 @@ Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/
 
 > **new ErrorBoundary**(`props`, `context`): `ErrorBoundary`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:966
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:966](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L966)
 
 #### Parameters
 
@@ -77,7 +77,7 @@ in `contextType`.
 
 > **context**: `unknown`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:955
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:955](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L955)
 
 If using React Context, re-declare this in your class to be the
 `React.ContextType` of your `static contextType`.
@@ -107,7 +107,7 @@ declare context: React.ContextType<typeof MyContext>
 
 > `readonly` **props**: `Readonly`\<`P`\>
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:979
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:979](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L979)
 
 #### Inherited from
 
@@ -131,7 +131,7 @@ Defined in: [js/src/errorBoundary.tsx:34](https://github.com/emindeniz99/react-w
 
 > `static` `optional` **contextType?**: `Context`\<`any`\>
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:931
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:931](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L931)
 
 If set, `this.context` will be set at runtime to the current value of the given Context.
 
@@ -164,7 +164,7 @@ class Foo extends React.Component {
 
 > `static` `optional` **propTypes?**: `any`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:937
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:937](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L937)
 
 Ignored by React.
 
@@ -211,7 +211,7 @@ the entire component tree to unmount.
 
 > `optional` **componentDidMount**(): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1198
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1198](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1198)
 
 Called immediately after a component is mounted. Setting state here will trigger re-rendering.
 
@@ -229,7 +229,7 @@ Called immediately after a component is mounted. Setting state here will trigger
 
 > `optional` **componentDidUpdate**(`prevProps`, `prevState`, `snapshot?`): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1261
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1261](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1261)
 
 Called immediately after updating occurs. Not called for the initial render.
 
@@ -263,7 +263,7 @@ The snapshot is only present if [getSnapshotBeforeUpdate](#getsnapshotbeforeupda
 
 > `optional` **componentWillMount**(): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1277
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1277](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1277)
 
 Called immediately before mounting occurs, and before Component.render.
 Avoid introducing any side-effects or subscriptions in this method.
@@ -295,7 +295,7 @@ this from being invoked.
 
 > `optional` **componentWillReceiveProps**(`nextProps`, `nextContext`): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1308
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1308](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1308)
 
 Called when the component may be receiving new props.
 React may call this even if props have not changed, so be sure to compare new and existing
@@ -340,7 +340,7 @@ this from being invoked.
 
 > `optional` **componentWillUnmount**(): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1214
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1214](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1214)
 
 Called immediately before a component is destroyed. Perform any necessary cleanup in this method, such as
 cancelled network requests, or cleaning up any DOM elements created in `componentDidMount`.
@@ -359,7 +359,7 @@ cancelled network requests, or cleaning up any DOM elements created in `componen
 
 > `optional` **componentWillUpdate**(`nextProps`, `nextState`, `nextContext`): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1340
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1340](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1340)
 
 Called immediately before rendering when new props or state is received. Not called for the initial render.
 
@@ -406,7 +406,7 @@ this from being invoked.
 
 > **forceUpdate**(`callback?`): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:976
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:976](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L976)
 
 #### Parameters
 
@@ -428,7 +428,7 @@ Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/
 
 > `optional` **getSnapshotBeforeUpdate**(`prevProps`, `prevState`): `any`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1255
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1255](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1255)
 
 Runs before React applies the result of Component.render render to the document, and
 returns an object to be given to [componentDidUpdate](#componentdidupdate). Useful for saving
@@ -477,7 +477,7 @@ Defined in: [js/src/errorBoundary.tsx:47](https://github.com/emindeniz99/react-w
 
 > **setState**\<`K`\>(`state`, `callback?`): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:971
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:971](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L971)
 
 #### Type Parameters
 
@@ -509,7 +509,7 @@ Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/
 
 > `optional` **shouldComponentUpdate**(`nextProps`, `nextState`, `nextContext`): `boolean`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1209
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1209](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1209)
 
 Called to determine whether the change in props and state should trigger a re-render.
 
@@ -548,7 +548,7 @@ and `componentDidUpdate` will not be called.
 
 > `optional` **UNSAFE\_componentWillMount**(): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1292
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1292](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1292)
 
 Called immediately before mounting occurs, and before Component.render.
 Avoid introducing any side-effects or subscriptions in this method.
@@ -582,7 +582,7 @@ this from being invoked.
 
 > `optional` **UNSAFE\_componentWillReceiveProps**(`nextProps`, `nextContext`): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1326
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1326](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1326)
 
 Called when the component may be receiving new props.
 React may call this even if props have not changed, so be sure to compare new and existing
@@ -629,7 +629,7 @@ this from being invoked.
 
 > `optional` **UNSAFE\_componentWillUpdate**(`nextProps`, `nextState`, `nextContext`): `void`
 
-Defined in: node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1356
+Defined in: [node\_modules/.pnpm/@types+react@19.2.18/node\_modules/@types/react/index.d.ts:1356](https://github.com/emindeniz99/react-watchos/blob/main/node_modules/.pnpm/@types+react@19.2.18/node_modules/@types/react/index.d.ts#L1356)
 
 Called immediately before rendering when new props or state is received. Not called for the initial render.
 

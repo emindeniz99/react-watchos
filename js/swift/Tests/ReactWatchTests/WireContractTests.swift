@@ -133,6 +133,13 @@ final class WireContractTests: XCTestCase {
         XCTAssertEqual(timer.double("since"), 1000)
         XCTAssertEqual(timer.bool("milliseconds"), true)
 
+        // Crown focus management: the declarative claim crosses as a plain
+        // bool and the onFocusChange handler folds to the `true` flag —
+        // exactly what CrownRotationView reads on the watch.
+        let crown = try XCTUnwrap(find(root, "CrownRotation"))
+        XCTAssertEqual(crown.bool("focused"), true)
+        XCTAssertEqual(crown.bool("onFocusChange"), true)
+
         // Rich text: the nested <Text> segment survives as an element child.
         let richText = try XCTUnwrap(find(root, "Text"))
         XCTAssertEqual(richText.string("textStyle"), "headline")

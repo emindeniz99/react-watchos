@@ -8,7 +8,7 @@
 
 > **InvokeHandlers** = `Record`\<`string`, `unknown` \| ((`payload`, `method`) => `unknown`)\>
 
-Defined in: [js/src/testing.ts:124](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L124)
+Defined in: [js/src/testing.ts:130](https://github.com/emindeniz99/react-watchos/blob/main/js/src/testing.ts#L130)
 
 Per-method outcomes for [installInvokeHost](../functions/installInvokeHost.md): a value resolves the
 invoke with it; a function is called with the parsed payload (and the
