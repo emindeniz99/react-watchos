@@ -8,7 +8,7 @@
 
 > **HealthDeletionHandler** = (`deletion`) => `void`
 
-Defined in: [js/src/health.ts:638](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L638)
+Defined in: [js/src/health.ts:644](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L644)
 
 Handler for [HealthUpdateOptions.onDeleted](../interfaces/HealthUpdateOptions.md#ondeleted).
 

@@ -29,6 +29,7 @@ export type HealthQuantityType =
   | "vo2Max"
   | "walkingHeartRateAverage"
   | "appleStandTime"
+  | "appleMoveTime"
   ;
 
 /** Every live HKWorkoutActivityType member (the 3 deprecated spellings excluded). Swift maps the NAME to the case; raw values are undocumented. */

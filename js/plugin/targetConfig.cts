@@ -123,7 +123,7 @@ function watchTargetConfig(opts: ResolvedOptions) {
     }
   }
   if (opts.healthKit) {
-    // Reads are no longer heart-rate-only — js/src/health.ts reads fourteen
+    // Reads are no longer heart-rate-only — js/src/health.ts reads fifteen
     // quantity types plus sleep — and this string is what the user is shown
     // when the permission sheet opens: a sheet that says "heart rate" while the
     // app asks for sleep history is the kind of mismatch App Review and users
@@ -151,7 +151,7 @@ function watchTargetConfig(opts: ResolvedOptions) {
       "Read your Health data to show it in this app: heart rate and its " +
         "variability, respiratory rate, blood oxygen and cardio fitness; " +
         "steps, flights climbed, distance, active and resting energy, " +
-        "exercise and stand time; your activity rings and their goals; " +
+        "exercise, stand and move time; your activity rings and their goals; " +
         "your saved workouts; and sleep.";
     infoPlist.NSHealthUpdateUsageDescription =
       infoPlist.NSHealthUpdateUsageDescription ??

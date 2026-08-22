@@ -6,7 +6,7 @@
 
 # Interface: HealthSample
 
-Defined in: [js/src/health.ts:212](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L212)
+Defined in: [js/src/health.ts:218](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L218)
 
 One raw quantity sample.
 
@@ -16,7 +16,7 @@ One raw quantity sample.
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:221](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L221)
+Defined in: [js/src/health.ts:227](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L227)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:221](https://github.com/emindeniz99/react-watchos/
 
 > **id**: `string`
 
-Defined in: [js/src/health.ts:219](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L219)
+Defined in: [js/src/health.ts:225](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L225)
 
 The sample's HealthKit UUID — a stable list key, and the identity a
  live-stream deletion names: when the user deletes a sample in the Health
@@ -39,7 +39,7 @@ The sample's HealthKit UUID — a stable list key, and the identity a
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:220](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L220)
+Defined in: [js/src/health.ts:226](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L226)
 
 ***
 
@@ -47,7 +47,7 @@ Defined in: [js/src/health.ts:220](https://github.com/emindeniz99/react-watchos/
 
 > **unit**: `string`
 
-Defined in: [js/src/health.ts:224](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L224)
+Defined in: [js/src/health.ts:230](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L230)
 
 Same per-type unit as [HealthStatisticsResult.unit](HealthStatisticsResult.md#unit).
 
@@ -57,4 +57,4 @@ Same per-type unit as [HealthStatisticsResult.unit](HealthStatisticsResult.md#un
 
 > **value**: `number`
 
-Defined in: [js/src/health.ts:222](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L222)
+Defined in: [js/src/health.ts:228](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L228)

@@ -99,6 +99,7 @@ import ReactWatchSupport
         case .vo2Max: HKQuantityType(.vo2Max)
         case .walkingHeartRateAverage: HKQuantityType(.walkingHeartRateAverage)
         case .appleStandTime: HKQuantityType(.appleStandTime)
+        case .appleMoveTime: HKQuantityType(.appleMoveTime)
         }
     }
 
@@ -128,6 +129,7 @@ import ReactWatchSupport
                 by: HKUnit.gramUnit(with: .kilo).unitMultiplied(by: HKUnit.minute()))
         case .walkingHeartRateAverage: HKUnit.count().unitDivided(by: .minute())
         case .appleStandTime: HKUnit.minute()
+        case .appleMoveTime: HKUnit.minute()
         }
     }
 

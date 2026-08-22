@@ -439,11 +439,15 @@ describe("targetConfig (options -> apple-targets config)", () => {
       "cardio fitness",
       "flights climbed",
       "active and resting energy",
-      "exercise and stand time",
+      // Move time joined the vocabulary 2026-08-22 (the Smart Stack
+      // `activityRingsIncomplete` clue needs all three ring quantities), and it
+      // is its own sheet row — so the sentence names it rather than letting
+      // "exercise and stand time" quietly stand for three types.
+      "exercise, stand and move time",
       "your saved workouts",
       // `queryActivitySummaries` (same day) reads the ACTIVITY RINGS —
       // `HKObjectType.activitySummaryType()`, a third kind of read type and its
-      // own row again. Named separately from "exercise and stand time" because
+      // own row again. Named separately from the minute-counting rows because
       // it is a different row disclosing a different thing: the GOALS the user
       // is scored against, every day, which no quantity read exposes.
       "your activity rings and their goals",

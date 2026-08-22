@@ -8,7 +8,7 @@
 
 > **HealthUpdateHandler** = (`update`) => `void`
 
-Defined in: [js/src/health.ts:620](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L620)
+Defined in: [js/src/health.ts:626](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L626)
 
 Handler for [startHealthUpdates](../functions/startHealthUpdates.md).
 

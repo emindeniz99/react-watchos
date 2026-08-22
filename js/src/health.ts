@@ -75,7 +75,7 @@ export type { HealthQuantityType };
  * - **Cumulative** — `"sum"` only. Things that accumulate over a window:
  *   `stepCount`, `flightsClimbed`, `distanceWalkingRunning`,
  *   `activeEnergyBurned`, `basalEnergyBurned`, `appleExerciseTime`,
- *   `appleStandTime`.
+ *   `appleStandTime`, `appleMoveTime`.
  * - **Discrete** — `"average" | "min" | "max" | "mostRecent"` only. Things
  *   that are *measured* at an instant: `heartRate`, `restingHeartRate`,
  *   `walkingHeartRateAverage`, `heartRateVariabilitySDNN`, `respiratoryRate`,
@@ -197,7 +197,13 @@ export interface HealthStatisticsResult {
    *    `walkingHeartRateAverage`, `respiratoryRate`
    *  - `"m"` — `distanceWalkingRunning`
    *  - `"kcal"` — `activeEnergyBurned`, `basalEnergyBurned`
-   *  - `"min"` — `appleExerciseTime`, `appleStandTime`
+   *  - `"min"` — `appleExerciseTime`, `appleStandTime`, `appleMoveTime`.
+   *    `appleMoveTime` fills the MOVE ring only for accounts tracking move
+   *    minutes (automatic under 13, the user's choice from 13 to 18); for
+   *    everyone else that ring is `activeEnergyBurned` and this type reads
+   *    zero. Which one is live is not guesswork: {@link ActivitySummary}'s
+   *    `moveMode` says, and carries both `moveTimeMinutes` and
+   *    `activeEnergyKcal` beside it.
    *  - `"ms"` — `heartRateVariabilitySDNN`, **milliseconds**: 45, not 0.045
    *  - `"fraction"` — `oxygenSaturation`, **0…1**, not 0…100
    *  - `"ml/kg/min"` — `vo2Max`. Apple states the watch estimates the 14-60

@@ -47,6 +47,7 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
     case vo2Max
     case walkingHeartRateAverage
     case appleStandTime
+    case appleMoveTime
 
     /// Whether HealthKit treats this as a CUMULATIVE quantity (summable over a
     /// window) rather than a DISCRETE one (sampled). This is the axis that
@@ -56,7 +57,7 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
         switch self {
         case .stepCount, .activeEnergyBurned, .distanceWalkingRunning,
             .appleExerciseTime, .basalEnergyBurned, .flightsClimbed,
-            .appleStandTime:
+            .appleStandTime, .appleMoveTime:
             true
         case .heartRate, .oxygenSaturation, .heartRateVariabilitySDNN,
             .restingHeartRate, .respiratoryRate, .vo2Max,
@@ -100,6 +101,7 @@ public enum HealthQuantityKind: String, CaseIterable, Sendable {
         case .vo2Max: "ml/kg/min"
         case .walkingHeartRateAverage: "count/min"
         case .appleStandTime: "min"
+        case .appleMoveTime: "min"
         }
     }
 }

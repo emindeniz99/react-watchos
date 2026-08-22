@@ -6,7 +6,7 @@
 
 # Interface: WatchEvent
 
-Defined in: [js/src/generated/wire.ts:175](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L175)
+Defined in: [js/src/generated/wire.ts:176](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L176)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/generated/wire.ts:175](https://github.com/emindeniz99/react-
 
 > **event**: `string`
 
-Defined in: [js/src/generated/wire.ts:177](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L177)
+Defined in: [js/src/generated/wire.ts:178](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L178)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/generated/wire.ts:177](https://github.com/emindeniz99/react-
 
 > **nodeId**: `number`
 
-Defined in: [js/src/generated/wire.ts:176](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L176)
+Defined in: [js/src/generated/wire.ts:177](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L177)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/generated/wire.ts:176](https://github.com/emindeniz99/react-
 
 > `optional` **payload?**: `Record`\<`string`, `unknown`\>
 
-Defined in: [js/src/generated/wire.ts:178](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L178)
+Defined in: [js/src/generated/wire.ts:179](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L179)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [js/src/generated/wire.ts:178](https://github.com/emindeniz99/react-
 
 > `optional` **seq?**: `number`
 
-Defined in: [js/src/generated/wire.ts:179](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L179)
+Defined in: [js/src/generated/wire.ts:180](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L180)

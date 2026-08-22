@@ -23,8 +23,12 @@ import XCTest
 ///
 /// Every assertion about the quantity family is driven off
 /// `HealthQuantityKind.allCases` and every table below is an exhaustive
-/// `switch`, so a fifteenth read type cannot land with its mapping unasserted:
-/// this file stops compiling until someone writes the arm.
+/// `switch`, so a sixteenth read type cannot land with its mapping unasserted:
+/// this file stops compiling until someone writes the arm. (Worth knowing where
+/// that guard does and does not reach: this file is `#if os(watchOS)`, so the
+/// compile error lands on the Mac job alone — the Linux-side scan in
+/// health-package-guards.test.ts covers HealthQueryBridge's own two switches,
+/// not these tables.)
 ///
 /// The saved-workout tests at the end cannot be driven that way —
 /// `HKWorkoutActivityType` is an ObjC `NS_ENUM` with no `allCases` — so they
@@ -69,7 +73,7 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
     }
 
     /// The same slip from the other side, and the half that needs no table:
-    /// fourteen kinds that resolve to thirteen types means one of them is
+    /// fifteen kinds that resolve to fourteen types means one of them is
     /// reading someone else's data, whichever arm is wrong.
     @MainActor
     func testNoTwoKindsReadTheSameType() {
@@ -499,6 +503,7 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
         case .vo2Max: .vo2Max
         case .walkingHeartRateAverage: .walkingHeartRateAverage
         case .appleStandTime: .appleStandTime
+        case .appleMoveTime: .appleMoveTime
         }
     }
 
@@ -540,7 +545,7 @@ final class HealthQueryBridgeMappingTests: XCTestCase {
         case .stepCount, .activeEnergyBurned, .distanceWalkingRunning, .heartRate,
             .heartRateVariabilitySDNN, .restingHeartRate, .appleExerciseTime,
             .basalEnergyBurned, .respiratoryRate, .flightsClimbed,
-            .walkingHeartRateAverage, .appleStandTime:
+            .walkingHeartRateAverage, .appleStandTime, .appleMoveTime:
             kind.unit
         }
     }
