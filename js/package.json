@@ -151,7 +151,7 @@
     "@babel/core": "^8.0.0",
     "@babel/preset-react": "^8.0.0",
     "@babel/preset-typescript": "^8.0.0",
-    "@biomejs/biome": "2.5.7",
+    "@biomejs/biome": "2.5.8",
     "@expo/config-plugins": "~57.0.6",
     "@jridgewell/trace-mapping": "^0.3.31",
     "@types/node": "^24.13.3",
