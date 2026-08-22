@@ -62,4 +62,26 @@ if [ -n "$base" ] &&
   fi
 fi
 
+# API-docs freshness, when renderer sources changed: typedoc's "Defined in"
+# links carry line numbers, so ANY js/src edit that shifts lines makes
+# docs/api stale and CI's freshness gate red on main. This has now bitten
+# three times (biome reformat, TabView prop, the covered-params fix) —
+# each a "docs(docs): regenerate" commit after the fact. Regenerate here,
+# where the fix is still free.
+if [ -n "$base" ] &&
+  git diff --name-only "$base" HEAD 2>/dev/null | grep -q '^js/src/'; then
+  if [ -d js/node_modules ]; then
+    echo "pre-push: js/src changed — checking docs/api freshness…" >&2
+    if (cd js && pnpm run docs:api >/dev/null 2>&1) &&
+      ! git diff --quiet -- docs/api; then
+      echo "pre-push: BLOCKED — docs/api is stale for these src changes." >&2
+      echo "pre-push: the regenerated pages are in your working tree; commit" >&2
+      echo "pre-push: them (docs scope) and push again." >&2
+      status=1
+    fi
+  else
+    echo "pre-push: js/node_modules missing — skipping docs:api check (CI still gates it)." >&2
+  fi
+fi
+
 exit "$status"
