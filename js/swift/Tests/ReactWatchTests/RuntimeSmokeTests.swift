@@ -110,6 +110,56 @@ final class RuntimeSmokeTests: XCTestCase {
             "a rejection with a same-turn .catch must not report as unhandled")
     }
 
+    // The parked report is keyed by the promise's address, and quickjs-ng's
+    // refcounting frees a reference-less promise MID-TURN — so without an
+    // owning retain, a later promise in the same turn can land on the freed
+    // address and its `.catch` retraction (same key) silently deletes the
+    // FIRST promise's genuine report. That is exactly this shape: the IIFE's
+    // rejected promise is dropped at statement end, and the very next
+    // allocation is another promise, which quickjs's allocator hands the
+    // recycled address. Reverting the JS_DupValue retain in
+    // `notePossiblyUnhandledRejection` makes this fail with NO report at all
+    // (verified) — the handled-one-line-later promise ate the genuine one.
+    func testFreedPromiseAddressReuseCannotRetractAnotherPromisesReport() throws {
+        let runtime = try JSRuntime()
+        var messages: [String] = []
+        runtime.onError = { _, message in messages.append(message) }
+
+        try runtime.evaluate(
+            #"""
+            (() => { Promise.reject(new Error("genuine unhandled")); })();
+            Promise.reject(new Error("handled same turn")).catch(() => {});
+            """#)
+
+        XCTAssertEqual(messages.count, 1, "expected only the genuine report, got: \(messages)")
+        XCTAssertTrue(
+            messages.first?.contains("genuine unhandled") == true,
+            "got: \(messages)")
+    }
+
+    // Exit path 3 of the pendingRejections retain (the other two are the
+    // report and the retraction, covered above): a shutdown requested from
+    // INSIDE the turn skips the drain, so the parked entry is still in the
+    // map when performShutdown frees the engine. The retained promise must be
+    // released there — a leaked GC object aborts JS_FreeRuntime's leak
+    // assertion, which is what this test holds green.
+    func testShutdownWithAParkedRejectionBalancesTheRetain() throws {
+        let runtime = try JSRuntime(queue: DispatchQueue(label: "t.reject-shutdown"))
+        nonisolated(unsafe) let r = runtime
+        nonisolated(unsafe) var reported = false
+        r.onError = { _, _ in reported = true }
+        r.bridge.log = { _ in r.shutdown() }
+        try r.evaluate(
+            #"""
+            Promise.reject(new Error("parked at shutdown"));
+            __host.log("shutdown-now");
+            """#)
+        // The caller asked to stop mid-turn: the drain is skipped, so the
+        // parked report is deliberately dropped, not surfaced post-mortem.
+        XCTAssertFalse(reported, "a skipped drain must not report")
+        XCTAssertFalse(r.evaluateBool("true"), "runtime must be shut down by now")
+    }
+
     // ARCH-13: onError tags each report with its entry path so the host can
     // stamp a structured diagnostic code (js.eval/js.call/js.job/
     // js.promiseRejection) without parsing the message.
