@@ -392,13 +392,25 @@ watch — no network, no phone — through the `generate` host method, settled o
 the main actor. **Status: blocked/unreachable today** — it's gated at
 `watchOS 26.0` but Foundation Models is **watchOS 27.0+ (beta)**, so the fix
 (gate→27, `maxTokens`, capability query) and an Xcode-27 build are still pending
-(CX-002, [status.md](./status.md)). Natural extensions once it's reachable, all
-behind the same `HostBridge` seam:
+(CX-002, [status.md](./status.md) — re-verified 2026-08-22: the gate→27,
+`maxTokens` and capability-query fix is in the tree via the import commit;
+only the Xcode-27 device verify remains). Extensions, all behind the same
+`HostBridge` seam:
 
-- **Streaming tokens** via the existing `__pushNativeEvent` channel (partial
-  results as they decode), instead of one resolve.
-- **Structured output** — Foundation Models `@Generable` guided generation
-  maps cleanly onto a typed `generateObject(schema)`.
+- **Streaming tokens** — ✅ **shipped 2026-08-22**: cumulative-snapshot
+  `onPartial` on `generateText` (Apple's own stream shape — renderable and
+  self-healing, vs delta streams), bridge-coalesced with a `partialIntervalMs`
+  floor, `AbortSignal` cancellation that stops the model natively, teardown
+  cancelling every live generation under the sensor-stream epoch rule.
+- **Structured output** — ✅ **shipped 2026-08-22**: `generateObject(schema)`
+  over a typed-CLOSED JSON-Schema subset (deliberately not JSONSchema7 — it
+  would type-check `$ref`/`oneOf` the wire must reject; no Zod — bundle
+  size) mapped to `DynamicGenerationSchema`; malformed/refused generations
+  reject with a closed 12-code `AIError` union, never garbage. Design
+  record: [design-ai-streaming-structured-output.md](./design-ai-streaming-structured-output.md).
+  Honest boundary: the `canImport(FoundationModels)` block has NEVER
+  compiled (needs Xcode 27) — Linux pins the wire, plan, schema subset and
+  JS semantics; the design note lists the exact spellings at risk.
 - **Tool calling** — let the model invoke our host methods (haptics, widgets,
   fetch) as tools.
 - **App Shortcuts / Siri** — surface app actions to Siri so a phrase can drive
@@ -558,7 +570,19 @@ earn their keep.
    that the synchronous path ships; reuses the push channel.
 4. **Cross-platform core extraction** (→ tvOS) — the strategic bet.
 5. **`Map` primitive** + Smart Stack POI signals — ride the new APIs.
-6. Then: OTA channel hardening, tree-diff (still measure-first).
+6. Then: OTA channel hardening. (Tree-diff got its measure-first answer
+   2026-08-22 — **declined**, full numbers in
+   [perf-tree-diff.md](./perf-tree-diff.md): the one ~10× win needs a
+   ~600-node covered stack streaming at 10–20 Hz, ~6× past the worst real
+   screen and exactly where the ARCH-13 tripwires already point; nav swaps
+   produce all-new ids so patch ≈ full tree, and wire bytes are
+   intra-process anyway. Prototype + cross-language fixtures kept so a
+   future adoption is days. Cheaper levers it ranked: coalescing, tree
+   size, and a MEASURED 2× wire-neutral decoder swap — the native commit's
+   hot spot is the Codable `JSONValue` try-cascade (10.7 ms vs 5.8 ms via
+   JSONSerialization on the 595-node fixture), an open item. The pass also
+   caught a real bug, fixed same day: covered dynamic routes lost their
+   params and serialized their no-param branch into the held tree.)
 
 Done since the last pass: **React Compiler** (build), **DevTools** (remote
 inspector), **double-tap** (`primaryAction`). **On-device AI** (`generateText`)
