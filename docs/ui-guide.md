@@ -218,7 +218,85 @@ measured ~6MB peak vs the ~30MB widget budget, capped at 16MB):
   React render (`__renderWidgets`) over the stored payload.
 - **Timelines & relevance**: the daypart demo widget publishes
   future-dated entries (WidgetKit swaps them all day with no process
-  running) plus Smart Stack relevance scores per entry.
+  running) plus Smart Stack relevance scores per entry and predictive
+  `relevantContexts` clues — see the next section.
+
+### Smart Stack relevance: ranking scores + predictive clues
+
+Two different Smart Stack signals ride the published payload, and they answer
+different questions:
+
+- **`entry.relevance` (`{ score, durationMs? }`) — ranking.** "How prominent is
+  this widget once the stack is already showing it." Maps to WidgetKit's
+  `TimelineEntryRelevance(score:duration:)` (watchOS 9.0) per entry.
+- **`timeline.relevantContexts` — prediction.** "When/where should the system
+  surface this widget at all." Each clue maps to a RelevanceKit
+  `RelevantContext`, and the package's `ReactTimelineProvider` hands them to
+  WidgetKit through the provider's `relevance()` callback (`WidgetRelevance`,
+  watchOS 11.0) — a consumer's own configurable (`AppIntentTimelineProvider`)
+  provider does the same with the `reactRelevantContexts` /
+  `reactRelevantContext(from:)` helpers, exactly as the demo's
+  `ShoppingTimelineProvider` does. Clues are metadata for the on-device
+  ranker: publishing one costs a few bytes at render time and zero wakeups,
+  CPU or radio at surface time.
+
+The clue vocabulary is a tagged union covering RelevanceKit's whole surface
+(every `introducedAt` below read from Apple's docs JSON, 2026-08-22):
+
+| JS clue (`kind`) | RelevanceKit factory | watchOS |
+|---|---|---|
+| `date` (no `dateKind`) | `date(_:)` | 10.0 |
+| `date` + `dateKind` | `date(_:kind:)` | 26.0 (dropped below) |
+| `dateRange` | `date(range:kind:)` | 26.0 (dropped below — no sub-26 overload; `date(from:to:)` is deprecated AT 26.0) |
+| `location` (lat/lon/radius, default 100 m) | `location(_:)` + `CLCircularRegion` | 10.0 |
+| `poi` (73 MapKit categories) | `location(category:)` | 26.0 (dropped below) |
+| `inferredLocation` (`home\|work\|school\|commute`) | `location(inferred:)` | 10.0 |
+| `fitness` (`activityRingsIncomplete\|workoutActive`) | `fitness(_:)` | 10.0 |
+| `sleep` (`bedtime\|wakeup`) | `sleep(_:)` | 10.0 |
+| `headphones` (`connected`) | `hardware(headphones:)` | 10.0 |
+
+Not mirrored, deliberately: `date(interval:kind:)` (26.0) is start + duration —
+the same signal `dateRange` already spells as from/to, so it gets no ninth wire
+kind. MapKit's 11 newest POI categories are watchOS 27.0 **beta** and excluded
+on both sides (the CX-002 rule). The name vocabularies are pinned JS↔Swift by
+`js/test/widget-relevance-guards.test.ts`; the wire decode by
+`PublishedRelevantContextTests` in Linux `swift test`.
+
+**Permissions — a clue only works if the app already holds the matching
+grant.** Publishing a clue requests nothing and reads nothing in-process; the
+system evaluates it, and an ungranted clue silently "doesn't have an effect"
+(Apple's wording — the widget just never surfaces for it, no error anywhere).
+Per Apple's `RelevantContext` docs:
+
+- **`location` / `poi` / `inferredLocation`**: the app must "request a
+  person's permission to access their location with the When in Use or Always
+  access level" — i.e. hold CoreLocation authorization (trigger the prompt
+  with `getCurrentLocation()` or the `location` sensor stream, and ship
+  `NSLocationWhenInUseUsageDescription`; the config plugin emits that key
+  under `workouts: true`, otherwise supply it via its `infoPlist` option).
+  Apple's clue pages point onward to "Accessing location information in
+  widgets" (`NSWidgetWantsLocation` in the widget extension's Info.plist, the
+  user extending the app's grant to the widget) — that article covers widgets
+  that *read* location; whether clue evaluation also needs the key is not
+  stated by Apple and is recorded as an open question, verifiable only on
+  device (Smart Stack surfacing is permanently ③, see status.md).
+- **`fitness`**: HealthKit grants, per condition — `workoutActive` "requires
+  usage of `HKWorkoutType`" (`requestHealthAuthorization({ workoutHistory:
+  true })` asks for that exact type; recording via `startWorkout` holds it
+  too); `activityRingsIncomplete` requires the `appleExerciseTime`,
+  `appleMoveTime` and `appleStandTime` *quantity* types —
+  `read: ["appleExerciseTime", "appleStandTime"]` covers two, and
+  `appleMoveTime` is not in the package's read vocabulary yet (recorded gap;
+  the `activitySummaries` flag is no substitute — it asks for the summary
+  type, a different sheet row than these three).
+- **`sleep`**: the `sleepAnalysis` read —
+  `requestHealthAuthorization({ sleep: true })`.
+- **`date` / `dateRange` / `headphones`**: nothing. Apple notes the
+  headphones clue gives the app no fitness data in return.
+
+RelevanceKit is watchOS-only by Apple's design: Smart Stacks also exist on
+iOS/iPadOS, but "functionality provided by RelevanceKit API is only available
+in watchOS. Calling its API on other platforms doesn't have any effect."
 
 ## Text formatting & translation (there is no `Intl`)
 
