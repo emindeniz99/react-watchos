@@ -190,6 +190,39 @@ describe("useParams", () => {
     expect(findByText(host.lastCommit!.root!, "id=42")).toHaveLength(1);
   });
 
+  it("keeps a covered route's params — its subtree is still in native's tree", () => {
+    // The tree-diff measurement pass caught this: a covered screen stays
+    // mounted (ARCH-09) and native still HOLDS its serialized subtree, but
+    // params used to be extracted only against the TOP of the stack — so
+    // /list/[id] under a pushed settings screen matched nothing and rendered
+    // its no-param branch into the tree the user returns to on pop.
+    function ListProbe() {
+      const { id } = useParams<{ id: string }>();
+      const focused = useIsFocused();
+      return <Text>{id ? `list:${id}:${focused}` : "list-not-found"}</Text>;
+    }
+    const host = new MemoryHost();
+    mountApp(
+      <NavigationStack path={["/list/7", "/settings"]}>
+        <NavigationRoute path="/">
+          <Text>home</Text>
+        </NavigationRoute>
+        <NavigationRoute path="/list/[id]">
+          <ListProbe />
+        </NavigationRoute>
+        <NavigationRoute path="/settings">
+          <Text>settings</Text>
+        </NavigationRoute>
+      </NavigationStack>,
+      host,
+    );
+    const root = host.lastCommit!.root!;
+    // Covered, unfocused — but with ITS entry's params, not the top's.
+    expect(findByText(root, "list:7:false")).toHaveLength(1);
+    expect(findByText(root, "list-not-found")).toHaveLength(0);
+    expect(findByText(root, "settings")).toHaveLength(1);
+  });
+
   it("focuses and mounts only the best-scoring route when patterns overlap", () => {
     // The native host renders only the highest-scoring match (RouteMatcher.best),
     // so JS must mount and focus only that one — else a losing overlapping route
