@@ -1,0 +1,31 @@
+{
+  "prompt": "How is my hydration going?",
+  "tools": [
+    {
+      "name": "getHydration",
+      "description": "Read today's water intake and the daily goal.",
+      "schema": {
+        "type": "object",
+        "properties": [
+          {
+            "name": "unit",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "glasses",
+                "ml"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "getGoal",
+      "schema": {
+        "type": "object",
+        "properties": []
+      }
+    }
+  ]
+}

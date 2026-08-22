@@ -31,7 +31,13 @@ public enum AIErrorCode: String, Sendable, CaseIterable {
     case refusal = "REFUSAL"
     /// The `generateObject` schema is outside the supported subset (or
     /// FoundationModels rejected it — `GenerationError.unsupportedGuide`).
+    /// Also a tool's `parameters` schema, same subset, `tools.<name>` path.
     case invalidSchema = "INVALID_SCHEMA"
+    /// A tool the model invoked failed: the JS handler threw or replied
+    /// malformed (`LanguageModelSession.ToolCallError` natively — a distinct
+    /// wrapper type, not a `GenerationError` case, which is why it has no row
+    /// in `forGenerationError`).
+    case toolFailed = "TOOL_FAILED"
     /// JS-side only: the caller's abort signal fired.
     case aborted = "ABORTED"
     /// JS-side only: the inactivity watchdog fired (no settle, no partial).
@@ -182,6 +188,64 @@ public struct AISchemaProperty: Decodable, Sendable {
     public let schema: AISchemaNode
 }
 
+/// One declared tool on the generate wire (`{name, description?, schema}`).
+/// The JS `tools` RECORD is folded to an ordered array at the edge — the
+/// properties-wire idiom: declaration order is the order the definitions
+/// reach the model-visible prompt, and a Swift dictionary decode would
+/// shuffle it. (A record also makes duplicate names impossible at the call
+/// site; the wire walk below still rejects them for a raw `__host` caller.)
+public struct AIToolSpec: Decodable, Sendable {
+    public let name: String
+    /// What the tool does, for the model — FM puts it in the prompt.
+    public let description: String?
+    /// Argument schema — object-rooted, the same closed subset as
+    /// `generateObject` (an FM `GenerationSchema` natively, either way).
+    public let schema: AISchemaNode
+}
+
+/// The JS side's answer to one `ai.toolCall` push, as it crosses
+/// `__host.toolResult(id, callId, replyJson)`: `{"result": <any JSON>}` when
+/// the handler returned, `{"error": "<message>"}` when it threw. Parsed here
+/// (Foundation-only, Linux-tested); the SDK-gated tool conformance only maps
+/// the outcome onto `GeneratedContent` / a thrown `AIToolFailure`.
+public enum AIToolReply: Equatable, Sendable {
+    /// The handler's result, re-serialized to canonical JSON (fragments
+    /// allowed — a tool may return a bare string/number/bool; keys sorted for
+    /// determinism, since JSONSerialization dictionaries lose order anyway).
+    case result(json: String)
+    /// The handler failed; `message` is its error text, verbatim.
+    case error(message: String)
+
+    /// nil = malformed (not JSON, not an object, or neither key) — the
+    /// SDK-gated caller turns that into a failed call, never a silent hang.
+    public init?(json: String) {
+        guard
+            let object = try? JSONSerialization.jsonObject(
+                with: Data(json.utf8)) as? [String: Any]
+        else { return nil }
+        if let message = object["error"] as? String {
+            self = .error(message: message)
+            return
+        }
+        guard object.keys.contains("result"),
+            let data = try? JSONSerialization.data(
+                withJSONObject: object["result"] ?? NSNull(),
+                options: [.fragmentsAllowed, .sortedKeys]),
+            let rendered = String(data: data, encoding: .utf8)
+        else { return nil }
+        self = .result(json: rendered)
+    }
+}
+
+/// Thrown inside the SDK-gated tool conformance when JS reports `{error}` (or
+/// replies malformed) — FoundationModels wraps it in
+/// `LanguageModelSession.ToolCallError` and rethrows at the `respond` call
+/// site, where the host maps it to `TOOL_FAILED` with this message.
+public struct AIToolFailure: Error, Equatable, Sendable {
+    public let message: String
+    public init(message: String) { self.message = message }
+}
+
 /// Decodes a js/src/ai.ts generate request. The parsing/validation lives here
 /// (Foundation-only) so it builds and is unit-tested on Linux — the FetchPlan
 /// idiom; the SDK-gated host only maps a valid plan onto FoundationModels.
@@ -203,6 +267,9 @@ public struct GeneratePlan: Decodable, Sendable {
     public let partialIntervalMs: Double?
     /// Present for `generateObject`: guided generation against this schema.
     public let schema: AISchemaNode?
+    /// Present when the caller declared tools: the model may invoke them
+    /// mid-generation (the `ai.toolCall`/`toolResult` round trip).
+    public let tools: [AIToolSpec]?
 
     public init?(json: String) {
         guard
@@ -219,4 +286,32 @@ public struct GeneratePlan: Decodable, Sendable {
 
     /// The schema's first problem, or nil (no schema = no problem).
     public func schemaProblem() -> String? { schema?.rootProblem() }
+
+    /// First problem in the declared tools, or nil. Mirrors the JS-side
+    /// `toolProblem` walk (that copy rejects at the call site, before the
+    /// bridge; this one is the backstop the wire enforces). Tools with a
+    /// response schema are refused: guided generation with tool calls is a
+    /// recorded follow-up, and half-shipping it here would silently change
+    /// what `generateObject` means.
+    public func toolsProblem() -> String? {
+        guard let tools, !tools.isEmpty else { return nil }
+        if schema != nil {
+            return "tools: not supported with a response schema (generateObject)"
+        }
+        var seen = Set<String>()
+        for tool in tools {
+            if tool.name.isEmpty { return "tools: tool name must not be empty" }
+            if !seen.insert(tool.name).inserted {
+                return "tools: duplicate tool \"\(tool.name)\""
+            }
+            if tool.schema.type != "object" {
+                return "tools.\(tool.name): parameters root must be type "
+                    + "\"object\", got \"\(tool.schema.type)\""
+            }
+            if let nested = tool.schema.problem(at: "tools.\(tool.name)") {
+                return nested
+            }
+        }
+        return nil
+    }
 }
