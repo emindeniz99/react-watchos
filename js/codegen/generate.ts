@@ -340,6 +340,15 @@ const JSON_VALUE_SWIFT = `public enum JSONValue: Codable, Equatable, Sendable {
     case object([String: JSONValue])
     case null
 
+    /// Codable decode, KEPT for the cold paths only: the widget-side
+    /// \`PublishedWidgets\` payloads (SharedWidgetStore / WidgetPublishGate /
+    /// WidgetIntentRuntime) and the test targets' fixture decodes still come
+    /// through \`JSONDecoder\`. The per-commit HOT path does not — this try?
+    /// cascade throws one swallowed DecodingError per non-bool scalar, which
+    /// made it ~half of a big commit's decode cost, so committed trees
+    /// decode via \`RNTree(wireJSON:)\` (WireDecode.swift, ~2x cheaper;
+    /// docs/perf-tree-diff.md §4). WireDecodeTests pins the two decoders to
+    /// identical semantics.
     public init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {

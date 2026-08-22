@@ -124,12 +124,6 @@ final class ReactWatchModel {
     @ObservationIgnored private var commitBlessesHealth = true
     /// Serial queue for decoding committed trees off the main thread.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
-    /// Reused across commits, decoded on the serial decodeQueue. No
-    /// `nonisolated(unsafe)` needed: `JSONDecoder` is `Sendable` in the
-    /// current SDK, so a plain isolated `let` crosses to the decode closure
-    /// without a Swift 6 diagnostic. A fresh JSONDecoder per commit would be
-    /// pure allocation churn at sensor-driven commit rates (10-20 commits/sec).
-    private let treeDecoder = JSONDecoder()
     private let connectivity = PhoneConnectivity()
     private let bluetooth = BluetoothBridge()
     private let sensors = SensorBridge()
@@ -1929,9 +1923,13 @@ final class ReactWatchModel {
                 // Byte count off main (it's O(payload), like the decode
                 // it precedes); the budget verdict hops back with the tree.
                 let bytes = json.utf8.count
-                let decoded = try? self?.treeDecoder.decode(
-                    RNTree.self, from: Data(json.utf8)
-                )
+                // RNTree(wireJSON:), not JSONDecoder: same semantics
+                // (WireDecodeTests pins the parity), ~2x cheaper per big
+                // commit — Codable's JSONValue cascade was half the decode
+                // cost (docs/perf-tree-diff.md §4). This queue drains
+                // 10-20 commits/sec under sensor streams, so the decode is
+                // the native side's biggest recurring CPU bill.
+                let decoded = try? RNTree(wireJSON: Data(json.utf8))
                 DispatchQueue.main.async { [weak self] in
                     guard let self, gen == self.generation else { return }
                     // Budget tripwire BEFORE the decode/wire guards: an

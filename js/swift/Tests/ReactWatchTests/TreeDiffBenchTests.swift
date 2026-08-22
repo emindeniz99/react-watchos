@@ -14,9 +14,11 @@ import XCTest
 ///     decoded `RNNode` values must reproduce the after-tree exactly — the
 ///     same fixture discipline ARCH-11 uses for the invoke wire;
 ///  2. MEASURES the native side of the tree-diff question on Linux CI-class
-///     hardware: full-tree `JSONDecoder` cost, the NF-22 `root != tree.root`
-///     equality guard (independent-decode vs shared-storage vs short-circuit
-///     unequal), and patch decode+apply with structural sharing.
+///     hardware: full-tree decode cost — the Codable decode the commit path
+///     replaced against `RNTree(wireJSON:)`, the decoder it ships since the
+///     §8 swap — the NF-22 `root != tree.root` equality guard
+///     (independent-decode vs shared-storage vs short-circuit unequal), and
+///     patch decode+apply with structural sharing.
 ///
 /// The timings are printed, never asserted — they feed the report, and a
 /// timing threshold on shared CI hardware would only flake (see the variance
@@ -101,61 +103,6 @@ final class TreeDiffBenchTests: XCTestCase {
             + Double(duration.components.attoseconds) / 1e15
     }
 
-    // MARK: - Alternative decoder (measurement only)
-
-    /// `RNTree` decode via `JSONSerialization` + a hand-rolled builder,
-    /// timed against `JSONDecoder`. Codable's `JSONValue.init(from:)` is a
-    /// try?-cascade over a single-value container — one thrown-and-dropped
-    /// `DecodingError` per non-bool prop value — and the measurement below
-    /// shows THAT, not the wire shape, is where the native commit path's
-    /// time goes. Kept in the test because it is an argument, not a product:
-    /// if cost #2 ever needs cutting, swap the decoder before touching the
-    /// wire (docs/perf-tree-diff.md).
-    private func jsonValue(_ any: Any) -> JSONValue {
-        if let string = any as? String { return .string(string) }
-        #if canImport(Darwin)
-        // On Darwin every scalar is an NSNumber and `as? Bool` would
-        // happily turn 1 into true — CFBoolean is the only honest test.
-        if let number = any as? NSNumber {
-            if CFGetTypeID(number) == CFBooleanGetTypeID() {
-                return .bool(number.boolValue)
-            }
-            return .number(number.doubleValue)
-        }
-        #else
-        // swift-corelibs-foundation hands back native Bool/Int/Double.
-        if let bool = any as? Bool { return .bool(bool) }
-        if let int = any as? Int { return .number(Double(int)) }
-        if let double = any as? Double { return .number(double) }
-        #endif
-        if let array = any as? [Any] { return .array(array.map(jsonValue)) }
-        if let object = any as? [String: Any] {
-            return .object(object.mapValues(jsonValue))
-        }
-        return .null
-    }
-
-    private func node(fromAny any: Any) -> RNNode? {
-        guard let dict = any as? [String: Any],
-            let id = dict["id"] as? Int,
-            let type = dict["type"] as? String
-        else { return nil }
-        let props = (dict["props"] as? [String: Any]) ?? [:]
-        let children = (dict["children"] as? [Any]) ?? []
-        return RNNode(
-            id: id, type: type,
-            props: props.mapValues(jsonValue),
-            children: children.compactMap { node(fromAny: $0) })
-    }
-
-    private func serializationDecode(_ data: Data) throws -> RNNode? {
-        let raw = try JSONSerialization.jsonObject(with: data)
-        guard let dict = raw as? [String: Any], let root = dict["root"] else {
-            return nil
-        }
-        return node(fromAny: root)
-    }
-
     func testPatchAppliedInSwiftReproducesTheAfterTree() throws {
         let decoder = JSONDecoder()
         for scale in ["small", "large"] {
@@ -194,22 +141,25 @@ final class TreeDiffBenchTests: XCTestCase {
             return ms(elapsed) / Double(iterations)
         }
 
-        // Today's per-commit native path: full decode off-main…
+        // The Codable decode the per-commit path used to run…
         var kept = false
         let decodeMs = try measure(40) {
             kept = try decoder.decode(RNTree.self, from: afterData).root != nil
         }
-        // …the same payload through JSONSerialization + a hand-built tree —
-        // isolates Codable's try?-cascade overhead from the bytes themselves
-        // (correctness pinned first: both decoders must agree exactly).
-        XCTAssertEqual(try serializationDecode(afterData), after.root)
-        let decodeSerializationMs = try measure(40) {
-            kept = try serializationDecode(afterData) != nil
+        // …against `RNTree(wireJSON:)` — the JSONSerialization-based decoder
+        // that PATH NOW SHIPS (WireDecode.swift; it started here as a
+        // prototype and the ~2x below is why it was promoted). Correctness
+        // is pinned first — both decoders must agree exactly — and case by
+        // case in WireDecodeTests.
+        XCTAssertEqual(try RNTree(wireJSON: afterData).root, after.root)
+        let decodeWireMs = try measure(40) {
+            kept = try RNTree(wireJSON: afterData).root != nil
         }
-        // Small (demo-realistic ~50-node) commit for scaling context.
+        // Small (demo-realistic ~50-node) commit for scaling context, via
+        // the decoder the commit path ships.
         let smallData = try fixture("treediff-small-after")
         let decodeSmallMs = try measure(200) {
-            kept = try decoder.decode(RNTree.self, from: smallData).root != nil
+            kept = try RNTree(wireJSON: smallData).root != nil
         }
         // …then the NF-22 equality guard on main. Three shapes of it:
         // two independent decodes (all-fresh storage — today's equal case),
@@ -234,8 +184,8 @@ final class TreeDiffBenchTests: XCTestCase {
             """
             [treediff-bench] large fixture: \(afterData.count) bytes on the wire, \
             small: \(smallData.count)
-            [treediff-bench] decodeFullMs=\(fmt(decodeMs)) \
-            decodeSerializationMs=\(fmt(decodeSerializationMs)) \
+            [treediff-bench] decodeCodableMs=\(fmt(decodeMs)) \
+            decodeWireMs=\(fmt(decodeWireMs)) \
             decodeSmallMs=\(fmt(decodeSmallMs)) \
             eqIndependentDecodesMs=\(fmt(eqIndependentMs)) \
             eqSharedStorageMs=\(fmt(eqSharedMs)) \
