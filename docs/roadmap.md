@@ -587,9 +587,17 @@ earn their keep.
    produce all-new ids so patch ≈ full tree, and wire bytes are
    intra-process anyway. Prototype + cross-language fixtures kept so a
    future adoption is days. Cheaper levers it ranked: coalescing, tree
-   size, and a MEASURED 2× wire-neutral decoder swap — the native commit's
-   hot spot is the Codable `JSONValue` try-cascade (10.7 ms vs 5.8 ms via
-   JSONSerialization on the 595-node fixture), an open item. The pass also
+   size, and a MEASURED 2× wire-neutral decoder swap — ✅ **taken
+   2026-08-22**: `RNTree(wireJSON:)` builds the wire models straight from
+   JSONSerialization (10.1 → 5.5 ms on the 595-node bench, 1.9×; small
+   commits 2.1×), number semantics pinned decoder-vs-decoder across every
+   fixture plus ~20 adversarial payloads, Codable kept for the cold paths
+   that really use it. Honest premise correction recorded: the decode runs
+   on the host's decodeQueue, not main — the win is per-commit CPU/battery
+   at streaming rates, not frame budget. Bonus trap measured and dodged: on
+   corelibs an early `is NSNull` on the root flips the container into
+   NSObject representation and every string cast then pays an eager bridge
+   copy — a naive port ships at 1.0×. The pass also
    caught a real bug, fixed same day: covered dynamic routes lost their
    params and serialized their no-param branch into the held tree.)
 
