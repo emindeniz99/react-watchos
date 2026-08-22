@@ -42,8 +42,7 @@ import ReactWatchSupport
     /// `sensors.onReading` is — this bridge does not know the runtime exists.
     /// Either array can be empty, never both: an update carrying neither is not
     /// pushed at all.
-    var onSamples:
-        ((_ event: String, _ samples: [[String: Any]], _ deletedIds: [String]) -> Void)?
+    var onSamples: ((_ event: String, _ samples: [[String: Any]], _ deletedIds: [String]) -> Void)?
 
     /// The live query per type. A `Task`, because an
     /// `HKAnchoredObjectQueryDescriptor` has no `stop(_:)` — the descriptor

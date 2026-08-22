@@ -465,7 +465,8 @@ export function NavigationRoute(props: NavigationRouteProps) {
   // branch. Only winners carry an entry, so an overlapping loser (e.g. a
   // catch-all beside a concrete path) still gets no match, no focus and no
   // params — a screen never shown must not fire useFocusEffect either.
-  const wonEntry = winners === null ? null : (winners.wonEntries.get(path) ?? null);
+  const wonEntry =
+    winners === null ? null : (winners.wonEntries.get(path) ?? null);
   const match = useMemo(
     () => (wonEntry === null ? null : matchRoute(path, wonEntry)),
     [path, wonEntry],
