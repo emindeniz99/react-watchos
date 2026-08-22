@@ -414,9 +414,12 @@ final class ReactWatchModel {
         // bridge names its own event — `HealthUpdatesPlan.eventName`, the single
         // definition both sides derive from — so this forwards rather than
         // spelling `health.samples.` a second time, which is the one string in
-        // the feature nothing else can check.
-        health.onSamples = { [weak self] event, samples in
-            self?.pushNativeEvent(event, payload: ["samples": samples])
+        // the feature nothing else can check. Both keys always ride (either
+        // array can be empty, never both): JS narrows per key, and a
+        // conditional payload here would be a second shape for it to misread.
+        health.onSamples = { [weak self] event, samples, deletedIds in
+            self?.pushNativeEvent(
+                event, payload: ["samples": samples, "deletedIds": deletedIds])
         }
         speechBridge.onFinished = { [weak self] text in
             self?.pushNativeEvent("speech.finished", payload: ["text": text])
@@ -795,6 +798,8 @@ final class ReactWatchModel {
             handleQueryHealthStatistics(id: id, payload: payload)
         case "queryHealthDailyStatistics":
             handleQueryHealthDailyStatistics(id: id, payload: payload)
+        case "queryHealthHourlyStatistics":
+            handleQueryHealthHourlyStatistics(id: id, payload: payload)
         case "queryHealthSamples":
             handleQueryHealthSamples(id: id, payload: payload)
         case "querySleepSamples":
@@ -3036,6 +3041,25 @@ extension ReactWatchModel {
             Task { [weak self] in
                 guard let bridge = self?.health else { return }
                 let outcome = await bridge.dailyStatistics(plan)
+                self?.settleHealth(id: id, generation: gen, outcome)
+            }
+        }
+    }
+
+    /// The hourly bucketed query — `decodeHourly`, because the ceiling is
+    /// counted in hours there; everything after the decode is `dailyStatistics`
+    /// with a different stride, and the bridge shares the implementation so the
+    /// two cannot drift.
+    private func handleQueryHealthHourlyStatistics(id: Int, payload: String) {
+        switch HealthStatisticsPlan.decodeHourly(json: payload) {
+        case .failure(let error):
+            rejectInvalid(id: id, message: error.message)
+        case .success(let plan):
+            guard healthAvailable(id: id) else { return }
+            let gen = generation
+            Task { [weak self] in
+                guard let bridge = self?.health else { return }
+                let outcome = await bridge.hourlyStatistics(plan)
                 self?.settleHealth(id: id, generation: gen, outcome)
             }
         }

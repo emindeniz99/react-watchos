@@ -484,11 +484,12 @@ struct HealthStatisticsResult: InvokeShape {
 }
 
 struct HealthSample: InvokeShape {
+    let id: String
     let startMs: Double
     let endMs: Double
     let value: Double
     let unit: String
-    static let declaredKeys: Set<String> = ["startMs", "endMs", "value", "unit"]
+    static let declaredKeys: Set<String> = ["id", "startMs", "endMs", "value", "unit"]
 }
 
 /// A staged sleep interval; sleep is not a numeric series, so it is its own shape.
@@ -667,6 +668,7 @@ enum InvokeShapes {
         },
         "queryHealthStatistics": { try decodeStrict(HealthStatisticsRequest.self, from: $0) },
         "queryHealthDailyStatistics": { try decodeStrict(HealthStatisticsRequest.self, from: $0) },
+        "queryHealthHourlyStatistics": { try decodeStrict(HealthStatisticsRequest.self, from: $0) },
         "queryHealthSamples": { try decodeStrict(HealthSamplesRequest.self, from: $0) },
         "querySleepSamples": { try decodeStrict(SleepSamplesRequest.self, from: $0) },
         "queryWorkoutHistory": { try decodeStrict(WorkoutHistoryRequest.self, from: $0) },
@@ -708,6 +710,9 @@ enum InvokeShapes {
         "queryPedometer": { try decodeStrict(PedometerData.self, from: $0) },
         "queryHealthStatistics": { try decodeStrict(HealthStatisticsResult.self, from: $0) },
         "queryHealthDailyStatistics": {
+            try decodeStrict(arrayOf: HealthStatisticsResult.self, from: $0)
+        },
+        "queryHealthHourlyStatistics": {
             try decodeStrict(arrayOf: HealthStatisticsResult.self, from: $0)
         },
         "queryHealthSamples": { try decodeStrict(arrayOf: HealthSample.self, from: $0) },

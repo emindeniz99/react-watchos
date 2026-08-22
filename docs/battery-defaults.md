@@ -45,11 +45,12 @@ static audit that produced most of these defaults.
   `openWorkoutPlanInWorkoutApp` **launches the Workout app**, so your app
   leaves the foreground and resolving means "the plan was handed over", never
   "the user started it".
-- **A week chart is one health query, not seven.**
-  `queryHealthDailyStatistics` returns one aggregate per day from a single
+- **A week chart is one health query, not seven — and an hours chart is one,
+  not twenty-four.** `queryHealthDailyStatistics` returns one aggregate per
+  day, `queryHealthHourlyStatistics` one per hour, each from a single
   `HKStatisticsCollectionQueryDescriptor`; a loop of `queryHealthStatistics`
-  pays a full HealthKit round trip per day. Buckets are contiguous, so an
-  empty day is `value: null` rather than a missing entry.
+  pays a full HealthKit round trip per bar. Buckets are contiguous, so an
+  empty day or hour is `value: null` rather than a missing entry.
 - **BLE auto-reconnect is bounded.** An unexpected drop re-scans for 5
   attempts × 60 s each, then stays `disconnected` instead of scanning
   forever for a peripheral that left. Tune per connection:

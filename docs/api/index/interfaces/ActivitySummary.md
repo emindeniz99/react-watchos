@@ -6,7 +6,7 @@
 
 # Interface: ActivitySummary
 
-Defined in: [js/src/health.ts:246](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L246)
+Defined in: [js/src/health.ts:253](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L253)
 
 One day's Activity rings: three value/goal pairs, plus the day they are for.
 
@@ -31,7 +31,7 @@ and the "activity moved to a paused state" story around it.
 
 > **activeEnergyGoalKcal**: `number`
 
-Defined in: [js/src/health.ts:264](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L264)
+Defined in: [js/src/health.ts:271](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L271)
 
 The move ring's goal, kcal. Always present — HealthKit reports it on
  every summary whatever the `moveMode` is, which also means it is *not*
@@ -45,7 +45,7 @@ The move ring's goal, kcal. Always present — HealthKit reports it on
 
 > **activeEnergyKcal**: `number`
 
-Defined in: [js/src/health.ts:258](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L258)
+Defined in: [js/src/health.ts:265](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L265)
 
 Move ring, energy spelling: active energy burned, kcal.
 
@@ -55,7 +55,7 @@ Move ring, energy spelling: active energy burned, kcal.
 
 > **date**: `string`
 
-Defined in: [js/src/health.ts:254](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L254)
+Defined in: [js/src/health.ts:261](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L261)
 
 The day this row is *for*, `"YYYY-MM-DD"` — a calendar day as the user
  perceives it, never an instant. Every row names its own day because
@@ -71,7 +71,7 @@ The day this row is *for*, `"YYYY-MM-DD"` — a calendar day as the user
 
 > **exerciseGoalMinutes**: `number` \| `null`
 
-Defined in: [js/src/health.ts:278](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L278)
+Defined in: [js/src/health.ts:285](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L285)
 
 The exercise goal, minutes, or `null` when HealthKit has none for that day
  (the goal became per-day in watchOS 9). `null` is **not** 30: a ring with
@@ -84,7 +84,7 @@ The exercise goal, minutes, or `null` when HealthKit has none for that day
 
 > **exerciseMinutes**: `number`
 
-Defined in: [js/src/health.ts:273](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L273)
+Defined in: [js/src/health.ts:280](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L280)
 
 Exercise ring: exercise minutes. Minutes, not milliseconds — this is a
  counter the watch increments and a goal set in whole minutes, not a
@@ -96,7 +96,7 @@ Exercise ring: exercise minutes. Minutes, not milliseconds — this is a
 
 > **moveMode**: `"activeEnergy"` \| `"appleMoveTime"`
 
-Defined in: [js/src/health.ts:256](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L256)
+Defined in: [js/src/health.ts:263](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L263)
 
 Which pair below is the move ring — see [ActivityMoveMode](../type-aliases/ActivityMoveMode.md).
 
@@ -106,7 +106,7 @@ Which pair below is the move ring — see [ActivityMoveMode](../type-aliases/Act
 
 > **moveTimeGoalMinutes**: `number`
 
-Defined in: [js/src/health.ts:269](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L269)
+Defined in: [js/src/health.ts:276](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L276)
 
 The move-time goal, minutes.
 
@@ -116,7 +116,7 @@ The move-time goal, minutes.
 
 > **moveTimeMinutes**: `number`
 
-Defined in: [js/src/health.ts:267](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L267)
+Defined in: [js/src/health.ts:274](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L274)
 
 Move ring, *time* spelling: Apple move time, minutes. Reported whichever
  mode is active, so the day a user switches modes needs no second query.
@@ -127,7 +127,7 @@ Move ring, *time* spelling: Apple move time, minutes. Reported whichever
 
 > **standHours**: `number`
 
-Defined in: [js/src/health.ts:281](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L281)
+Defined in: [js/src/health.ts:288](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L288)
 
 Stand ring: stand hours, a **count** of hours (the ring reads "10 of
  12"), not a duration.
@@ -138,7 +138,7 @@ Stand ring: stand hours, a **count** of hours (the ring reads "10 of
 
 > **standHoursGoal**: `number` \| `null`
 
-Defined in: [js/src/health.ts:284](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L284)
+Defined in: [js/src/health.ts:291](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L291)
 
 The stand goal, in hours, or `null` — same watchOS 9 optionality and the
  same rule as [ActivitySummary.exerciseGoalMinutes](#exercisegoalminutes).

@@ -8,7 +8,7 @@
 
 > **startHealthUpdates**(`type`, `handler`, `options?`): [`HealthUpdatesSubscription`](../interfaces/HealthUpdatesSubscription.md)
 
-Defined in: [js/src/health.ts:699](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L699)
+Defined in: [js/src/health.ts:778](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L778)
 
 Live HealthKit updates for one quantity type: `handler` is called as new
 samples land, so a screen showing today's steps or the current heart rate

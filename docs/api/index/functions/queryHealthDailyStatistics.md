@@ -8,7 +8,7 @@
 
 > **queryHealthDailyStatistics**(`request`): `Promise`\<[`HealthStatisticsResult`](../interfaces/HealthStatisticsResult.md)[]\>
 
-Defined in: [js/src/health.ts:405](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L405)
+Defined in: [js/src/health.ts:412](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L412)
 
 The same aggregate, computed **once per day** across the window
 (`HKStatisticsCollectionQueryDescriptor`) — "steps per day for the last

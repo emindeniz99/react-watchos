@@ -193,6 +193,7 @@ public enum HostInvokeFeatures {
         "purchase": "iap",
         "queryActivitySummaries": "health",
         "queryHealthDailyStatistics": "health",
+        "queryHealthHourlyStatistics": "health",
         "queryHealthSamples": "health",
         "queryHealthStatistics": "health",
         "queryPedometer": "sensors",

@@ -3025,6 +3025,69 @@ final class HealthQueryPlanTests: XCTestCase {
         }
     }
 
+    func testHourlyPlanRefusesAWindowWiderThanTheBucketCeiling() {
+        // The deferral's "an hourly ceiling is not the daily one" question,
+        // answered: the ceiling was never on days — it is on BUCKETS, the same
+        // ONE number as every size rule in this family, just counted in hours.
+        XCTAssertEqual(HealthWindow.maxHourlyBuckets, HealthWindow.maxLimit)
+        let hour = 3_600_000.0
+        let ok = try? HealthStatisticsPlan.decodeHourly(
+            json: #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":86400000}"#
+        ).get()
+        XCTAssertEqual(ok?.window.hourCount, 24)
+        // Exactly the ceiling decodes; one hour past it is refused — and the
+        // message points a too-wide chart at the DAILY query rather than only
+        // saying no, because ~41 days of hourly bars is a chart that wanted
+        // days.
+        let atCeiling = try? HealthStatisticsPlan.decodeHourly(
+            json: #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":3600000000}"#
+        ).get()
+        XCTAssertEqual(atCeiling?.window.hourCount, HealthWindow.maxHourlyBuckets)
+        let tooWide = HealthStatisticsPlan.decodeHourly(
+            json: #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":3603600000}"#
+        )
+        guard case .failure(let error) = tooWide else {
+            return XCTFail("a window past the bucket ceiling must be refused")
+        }
+        XCTAssertTrue(error.message.contains("ceiling"))
+        XCTAssertTrue(error.message.contains("queryHealthDailyStatistics"))
+        // A partial hour still counts as a bucket, so the count rounds UP —
+        // `dayCount`'s rule at the hourly stride.
+        let partial = try? HealthWindow.decode(
+            startMs: 0, endMs: hour + 1, limit: nil
+        ).get()
+        XCTAssertEqual(partial?.hourCount, 2)
+    }
+
+    func testHourlyPlanRefusesAnAbsurdWindowInsteadOfTrapping() {
+        // The same saturation rule as `dayCount`: an absurd window must come
+        // back INVALID_REQUEST, not trap converting a Double past Int.max.
+        for json in [
+            #"{"type":"stepCount","statistic":"sum","startMs":0,"endMs":1e300}"#,
+            #"{"type":"stepCount","statistic":"sum","startMs":-1.7e308,"endMs":1.7e308}"#,
+        ] {
+            guard case .failure(let error) = HealthStatisticsPlan.decodeHourly(json: json)
+            else {
+                return XCTFail("an absurd window must be refused, not accepted")
+            }
+            XCTAssertTrue(error.message.contains("ceiling"))
+        }
+    }
+
+    func testHourlyPlanKeepsEveryRuleTheScalarQueryHas() {
+        // Chopping the window into hours changes nothing about which
+        // statistics HealthKit will compute — the illegal pairing still throws
+        // natively — so the hourly decoder must not become a laxer third door.
+        XCTAssertNil(
+            try? HealthStatisticsPlan.decodeHourly(
+                json: #"{"type":"stepCount","statistic":"average","startMs":0,"endMs":1}"#
+            ).get())
+        XCTAssertNil(
+            try? HealthStatisticsPlan.decodeHourly(
+                json: #"{"type":"stepCount","statistic":"sum","startMs":2,"endMs":1}"#
+            ).get())
+    }
+
     func testDailyPlanKeepsEveryRuleTheScalarQueryHas() {
         // Chopping the window into buckets does not change which statistics
         // HealthKit will compute for a type — the pairing still throws — so the

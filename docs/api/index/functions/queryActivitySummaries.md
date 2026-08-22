@@ -8,7 +8,7 @@
 
 > **queryActivitySummaries**(`request`): `Promise`\<[`ActivitySummary`](../interfaces/ActivitySummary.md)[]\>
 
-Defined in: [js/src/health.ts:521](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L521)
+Defined in: [js/src/health.ts:561](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L561)
 
 The Activity **rings** for a range of days — move, exercise and stand, each
 with the goal it is scored against, one row per day

@@ -6,7 +6,7 @@
 
 # Interface: QuickJSHostGlobal
 
-Defined in: [js/src/generated/wire.ts:667](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L667)
+Defined in: [js/src/generated/wire.ts:668](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L668)
 
 Raw globals installed by the host before the bundle is evaluated
  (generated from the schema's direct methods). Strings/numbers cross the C
@@ -19,7 +19,7 @@ Raw globals installed by the host before the bundle is evaluated
 
 > `optional` **abortFetch**(`id`): `void`
 
-Defined in: [js/src/generated/wire.ts:687](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L687)
+Defined in: [js/src/generated/wire.ts:688](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L688)
 
 #### Parameters
 
@@ -37,7 +37,7 @@ Defined in: [js/src/generated/wire.ts:687](https://github.com/emindeniz99/react-
 
 > `optional` **ble**(`json`): `void`
 
-Defined in: [js/src/generated/wire.ts:689](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L689)
+Defined in: [js/src/generated/wire.ts:690](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L690)
 
 Fire-and-forget BLE op channel — now only `disconnect`; connect/write/subscribe settle via invoke (bleConnect/bleWrite/bleSubscribe).
 
@@ -57,7 +57,7 @@ Fire-and-forget BLE op channel — now only `disconnect`; connect/write/subscrib
 
 > `optional` **cancelNotification**(`id`): `void`
 
-Defined in: [js/src/generated/wire.ts:685](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L685)
+Defined in: [js/src/generated/wire.ts:686](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L686)
 
 #### Parameters
 
@@ -75,7 +75,7 @@ Defined in: [js/src/generated/wire.ts:685](https://github.com/emindeniz99/react-
 
 > `optional` **clearTimer**(`id`): `void`
 
-Defined in: [js/src/generated/wire.ts:671](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L671)
+Defined in: [js/src/generated/wire.ts:672](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L672)
 
 #### Parameters
 
@@ -93,7 +93,7 @@ Defined in: [js/src/generated/wire.ts:671](https://github.com/emindeniz99/react-
 
 > **commit**(`treeJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:668](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L668)
+Defined in: [js/src/generated/wire.ts:669](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L669)
 
 #### Parameters
 
@@ -111,7 +111,7 @@ Defined in: [js/src/generated/wire.ts:668](https://github.com/emindeniz99/react-
 
 > `optional` **counterAdd**(`key`, `delta`, `min`, `max`): `number`
 
-Defined in: [js/src/generated/wire.ts:681](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L681)
+Defined in: [js/src/generated/wire.ts:682](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L682)
 
 #### Parameters
 
@@ -141,7 +141,7 @@ Defined in: [js/src/generated/wire.ts:681](https://github.com/emindeniz99/react-
 
 > `optional` **counterGet**(`key`): `number`
 
-Defined in: [js/src/generated/wire.ts:680](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L680)
+Defined in: [js/src/generated/wire.ts:681](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L681)
 
 Cross-process-atomic integer counters (ARCH-05): counterAdd does a clamped read-modify-write get/set can't do atomically across processes.
 
@@ -161,7 +161,7 @@ Cross-process-atomic integer counters (ARCH-05): counterAdd does a clamped read-
 
 > `optional` **fetch**(`id`, `requestJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:686](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L686)
+Defined in: [js/src/generated/wire.ts:687](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L687)
 
 #### Parameters
 
@@ -183,7 +183,7 @@ Defined in: [js/src/generated/wire.ts:686](https://github.com/emindeniz99/react-
 
 > `optional` **generate**(`id`, `requestJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:691](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L691)
+Defined in: [js/src/generated/wire.ts:692](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L692)
 
 #### Parameters
 
@@ -205,7 +205,7 @@ Defined in: [js/src/generated/wire.ts:691](https://github.com/emindeniz99/react-
 
 > `optional` **getItem**(`key`): `string` \| `null`
 
-Defined in: [js/src/generated/wire.ts:677](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L677)
+Defined in: [js/src/generated/wire.ts:678](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L678)
 
 App Group UserDefaults, shared between app and widget extension.
 
@@ -225,7 +225,7 @@ App Group UserDefaults, shared between app and widget extension.
 
 > `optional` **invoke**(`id`, `method`, `payloadJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:673](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L673)
+Defined in: [js/src/generated/wire.ts:674](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L674)
 
 Generic request/response channel for fallible ops (SD-1); settles via __resolveInvoke(id, resultJson) / __rejectInvoke(id, errorJson).
 
@@ -253,7 +253,7 @@ Generic request/response channel for fallible ops (SD-1); settles via __resolveI
 
 > **log**(`message`): `void`
 
-Defined in: [js/src/generated/wire.ts:669](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L669)
+Defined in: [js/src/generated/wire.ts:670](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L670)
 
 #### Parameters
 
@@ -271,7 +271,7 @@ Defined in: [js/src/generated/wire.ts:669](https://github.com/emindeniz99/react-
 
 > `optional` **playHaptic**(`type`): `void`
 
-Defined in: [js/src/generated/wire.ts:684](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L684)
+Defined in: [js/src/generated/wire.ts:685](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L685)
 
 #### Parameters
 
@@ -289,7 +289,7 @@ Defined in: [js/src/generated/wire.ts:684](https://github.com/emindeniz99/react-
 
 > `optional` **publishWidgets**(`payloadJson`): `void`
 
-Defined in: [js/src/generated/wire.ts:675](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L675)
+Defined in: [js/src/generated/wire.ts:676](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L676)
 
 Persists rendered widget timelines and reloads WidgetKit.
 
@@ -309,7 +309,7 @@ Persists rendered widget timelines and reloads WidgetKit.
 
 > `optional` **sensor**(`json`): `void`
 
-Defined in: [js/src/generated/wire.ts:690](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L690)
+Defined in: [js/src/generated/wire.ts:691](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L691)
 
 #### Parameters
 
@@ -327,7 +327,7 @@ Defined in: [js/src/generated/wire.ts:690](https://github.com/emindeniz99/react-
 
 > `optional` **setItem**(`key`, `value`): `void`
 
-Defined in: [js/src/generated/wire.ts:678](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L678)
+Defined in: [js/src/generated/wire.ts:679](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L679)
 
 #### Parameters
 
@@ -349,7 +349,7 @@ Defined in: [js/src/generated/wire.ts:678](https://github.com/emindeniz99/react-
 
 > **setTimer**(`id`, `ms`): `void`
 
-Defined in: [js/src/generated/wire.ts:670](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L670)
+Defined in: [js/src/generated/wire.ts:671](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L671)
 
 #### Parameters
 
@@ -371,7 +371,7 @@ Defined in: [js/src/generated/wire.ts:670](https://github.com/emindeniz99/react-
 
 > `optional` **stateRevision**(): `number`
 
-Defined in: [js/src/generated/wire.ts:683](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L683)
+Defined in: [js/src/generated/wire.ts:684](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L684)
 
 Monotonic App-Group state revision (ARCH-06): sampled at widget render start and stamped into the payload so a consumer can prove the timelines derive from current state.
 
