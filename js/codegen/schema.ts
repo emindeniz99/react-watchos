@@ -2551,6 +2551,14 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     via: "invoke",
   },
+  // Direct (not via invoke) like `fetch`, and for its reason: the settle is a
+  // dedicated channel (`__resolveGenerate`/`__rejectGenerate`, the latter
+  // carrying an `{code, message}` AIErrorCode payload), and a streaming
+  // request additionally emits cumulative `ai.partial` pushes between call
+  // and settle. requestJson decodes as ReactWatchSupport's `GeneratePlan`
+  // (prompt/instructions/temperature/maxTokens/stream/partialIntervalMs/
+  // schema) — Linux-tested against fixtures the JS suite writes from real
+  // wrapper traffic.
   {
     name: "generate",
     targets: ["watch"],
@@ -2560,6 +2568,18 @@ export const hostMethods: HostMethod[] = [
       { name: "id", type: "int" },
       { name: "requestJson", type: "string" },
     ],
+  },
+  // The abortFetch of the generate channel: a screen popping mid-generation
+  // must stop the model decoding (ARCH-09 focus cleanup — the ~3B model is
+  // the most expensive thing this bridge can leave running), not merely drop
+  // the eventual resolve. JS settles its promise synchronously on abort; this
+  // just cancels the native task, so it needs no reply path.
+  {
+    name: "cancelGenerate",
+    targets: ["watch"],
+    feature: "ai",
+    since: 1,
+    args: [{ name: "id", type: "int" }],
   },
   // Runtime "can this watch run on-device AI now?" query (CX-002), distinct from
   // the build-time `ai` feature: a watch on the right OS may still be unable

@@ -34,6 +34,7 @@ public struct HostBridge {
     public var ble: ((String) -> Void)?
     public var sensor: ((String) -> Void)?
     public var generate: ((Int, String) -> Void)?
+    public var cancelGenerate: ((Int) -> Void)?
 
     public init() {}
 }
@@ -123,6 +124,9 @@ extension JSRuntime {
                 JS_SetPropertyStr(
                     context, host, "generate",
                     JS_NewCFunction(context, hostGenerate, "generate", 2))
+                JS_SetPropertyStr(
+                    context, host, "cancelGenerate",
+                    JS_NewCFunction(context, hostCancelGenerate, "cancelGenerate", 1))
             }
         }
     }
@@ -374,5 +378,17 @@ private func hostGenerate(
     var arg0: Int32 = 0
     JS_ToInt32(ctx, &arg0, argv[0])
     runtime.bridge.generate?(Int(arg0), arg1)
+    return qjs_undefined()
+}
+
+private func hostCancelGenerate(
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 1
+    else { return qjs_undefined() }
+    var arg0: Int32 = 0
+    JS_ToInt32(ctx, &arg0, argv[0])
+    runtime.bridge.cancelGenerate?(Int(arg0))
     return qjs_undefined()
 }

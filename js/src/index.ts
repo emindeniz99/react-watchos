@@ -13,8 +13,21 @@ import type { HostBridge, QuickJSHostGlobal, SerializedTree } from "./host";
 import { dispatchNativeEvent } from "./nativeEvents";
 import { WatchRoot } from "./renderer";
 
-export type { GenerateOptions } from "./ai";
-export { generateText, isOnDeviceAIAvailable } from "./ai";
+export type {
+  AbortSignalLike,
+  AIError,
+  AIErrorCode,
+  AIObjectSchema,
+  AISchema,
+  GenerateObjectOptions,
+  GenerateOptions,
+} from "./ai";
+export {
+  AI_PARTIAL_EVENT,
+  generateObject,
+  generateText,
+  isOnDeviceAIAvailable,
+} from "./ai";
 export type { ScenePhase } from "./appState";
 export {
   LUMINANCE_REDUCED_EVENT,
