@@ -8,7 +8,7 @@
 
 > **queryHealthHourlyStatistics**(`request`): `Promise`\<[`HealthStatisticsResult`](../interfaces/HealthStatisticsResult.md)[]\>
 
-Defined in: [js/src/health.ts:445](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L445)
+Defined in: [js/src/health.ts:451](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L451)
 
 The same aggregate, computed **once per hour** across the window — "steps
 per hour today" in one call, the chart the daily buckets are too coarse

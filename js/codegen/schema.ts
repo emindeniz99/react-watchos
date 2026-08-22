@@ -175,7 +175,7 @@ export const components: Component[] = [
  * reasoning as commit `2fd7739` (`fix!: narrow SensorKind to the four bound
  * kinds`): an open string type-checks, returns a plausible promise, and
  * resolves `null` forever. Every one is `HKQuantityTypeIdentifier` at watchOS
- * 2.0-6.0 (`appleStandTime` is the ceiling; nothing here is beta or
+ * 2.0-7.4 (`appleMoveTime` is the ceiling; nothing here is beta or
  * deprecated), far below the v10 floor, so none needs an `@available` gate.
  *
  * The unit each is reported in is fixed NATIVELY (never chosen by JS — a unit
@@ -198,6 +198,17 @@ export const healthQuantityTypes: string[] = [
   "vo2Max",
   "walkingHeartRateAverage",
   "appleStandTime",
+  // Added 2026-08-22 to close the gap the Smart Stack permission audit found:
+  // the `activityRingsIncomplete` relevance clue requires all THREE ring types
+  // on the sheet, and this vocabulary could only put two of them there.
+  //
+  // Not a synonym for `activeEnergyBurned`, and not redundant with it: Apple
+  // fills the MOVE ring from one or the other depending on the user's age —
+  // automatically move time under 13, the user's choice from 13 to 18, always
+  // active energy over 18. So an app whose users are teenagers reads a Move
+  // ring that `activeEnergyBurned` reports as zero, which is exactly the kind
+  // of silent empty chart a closed vocabulary is supposed to prevent.
+  "appleMoveTime",
 ];
 
 /**

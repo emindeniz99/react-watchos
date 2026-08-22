@@ -6,7 +6,7 @@
 
 # Interface: HealthUpdatesSubscription
 
-Defined in: [js/src/health.ts:691](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L691)
+Defined in: [js/src/health.ts:697](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L697)
 
 What [startHealthUpdates](../functions/startHealthUpdates.md) returns: a cleanup, plus the promise the
 fallible *start* settles on.
@@ -24,7 +24,7 @@ repeat.
 
 > **started**: `Promise`\<`void`\>
 
-Defined in: [js/src/health.ts:709](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L709)
+Defined in: [js/src/health.ts:715](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L715)
 
 Settles when native has the query **armed** — or, if the app is in the
 background, queued to arm on the next foreground (see the foreground-only
@@ -48,7 +48,7 @@ nothing failed, the subscriber simply left.
 
 > **stop**: [`Unsubscribe`](../type-aliases/Unsubscribe.md)
 
-Defined in: [js/src/health.ts:714](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L714)
+Defined in: [js/src/health.ts:720](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L720)
 
 Drops this subscriber and, when it is the last one for the type, stops the
 native query. Idempotent, and safe to call before [started](#started) settles.

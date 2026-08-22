@@ -240,10 +240,11 @@ export type PoiCategory =
  *   true })` puts that exact type on the sheet (an app recording workouts via
  *   `startWorkout` holds it too). `activityRingsIncomplete` requires the
  *   `appleExerciseTime`, `appleMoveTime` and `appleStandTime` QUANTITY types —
- *   `read: ["appleExerciseTime", "appleStandTime"]` covers two; `appleMoveTime`
- *   is not in this package's read vocabulary yet (recorded gap, not papered
- *   over — and note the `activitySummaries` flag is no substitute: it asks for
- *   the summary type, which Apple treats as a different row than these three).
+ *   `read: ["appleExerciseTime", "appleStandTime", "appleMoveTime"]` puts all
+ *   three on the sheet (`appleMoveTime` joined the vocabulary 2026-08-22 to
+ *   close exactly this gap). The `activitySummaries` flag is NOT a substitute:
+ *   it asks for the summary type, which Apple treats as a different row than
+ *   these three.
  * - `sleep` — the HealthKit `sleepAnalysis` read:
  *   `requestHealthAuthorization({ sleep: true })` (plugin `healthKit: true`).
  * - `date`, `dateRange`, `headphones` — nothing. Apple notes the headphones

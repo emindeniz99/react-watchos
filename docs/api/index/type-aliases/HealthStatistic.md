@@ -20,7 +20,7 @@ before calling — HealthKit decides it, not this package:
 - **Cumulative** — `"sum"` only. Things that accumulate over a window:
   `stepCount`, `flightsClimbed`, `distanceWalkingRunning`,
   `activeEnergyBurned`, `basalEnergyBurned`, `appleExerciseTime`,
-  `appleStandTime`.
+  `appleStandTime`, `appleMoveTime`.
 - **Discrete** — `"average" | "min" | "max" | "mostRecent"` only. Things
   that are *measured* at an instant: `heartRate`, `restingHeartRate`,
   `walkingHeartRateAverage`, `heartRateVariabilitySDNN`, `respiratoryRate`,

@@ -6,7 +6,7 @@
 
 # Interface: HealthUpdateOptions
 
-Defined in: [js/src/health.ts:641](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L641)
+Defined in: [js/src/health.ts:647](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L647)
 
 Options for [startHealthUpdates](../functions/startHealthUpdates.md).
 
@@ -16,7 +16,7 @@ Options for [startHealthUpdates](../functions/startHealthUpdates.md).
 
 > `optional` **minIntervalMs?**: `number`
 
-Defined in: [js/src/health.ts:658](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L658)
+Defined in: [js/src/health.ts:664](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L664)
 
 Minimum gap between two pushes for this type, in ms. Default 1000, maximum
 60000 (a wider floor rejects `INVALID_REQUEST`).
@@ -39,7 +39,7 @@ shared, exactly like `startSensor`'s options.
 
 > `optional` **onDeleted?**: [`HealthDeletionHandler`](../type-aliases/HealthDeletionHandler.md)
 
-Defined in: [js/src/health.ts:677](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L677)
+Defined in: [js/src/health.ts:683](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L683)
 
 Called when samples are **deleted** from HealthKit while the stream is up
 — the user removing an entry in the Health app is the case this exists

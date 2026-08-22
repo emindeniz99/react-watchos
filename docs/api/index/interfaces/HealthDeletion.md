@@ -6,7 +6,7 @@
 
 # Interface: HealthDeletion
 
-Defined in: [js/src/health.ts:624](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L624)
+Defined in: [js/src/health.ts:630](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L630)
 
 Samples RETRACTED from HealthKit while a live stream is up, as
  [HealthUpdateOptions.onDeleted](HealthUpdateOptions.md#ondeleted) delivers them.
@@ -17,7 +17,7 @@ Samples RETRACTED from HealthKit while a live stream is up, as
 
 > **ids**: `string`[]
 
-Defined in: [js/src/health.ts:634](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L634)
+Defined in: [js/src/health.ts:640](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L640)
 
 The deleted samples' [HealthSample.id](HealthSample.md#id)s. Never empty — a batch
  with nothing deleted is not delivered here at all. Ids can name samples
@@ -32,7 +32,7 @@ The deleted samples' [HealthSample.id](HealthSample.md#id)s. Never empty — a b
 
 > **type**: [`HealthQuantityType`](../type-aliases/HealthQuantityType.md)
 
-Defined in: [js/src/health.ts:627](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L627)
+Defined in: [js/src/health.ts:633](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L633)
 
 The type the stream is for — the same value passed to
  [startHealthUpdates](../functions/startHealthUpdates.md), so one handler can serve two subscriptions.

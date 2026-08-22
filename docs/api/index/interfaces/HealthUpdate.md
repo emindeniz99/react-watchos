@@ -6,7 +6,7 @@
 
 # Interface: HealthUpdate
 
-Defined in: [js/src/health.ts:585](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L585)
+Defined in: [js/src/health.ts:591](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L591)
 
 One batch of samples that just landed in HealthKit, as
  [startHealthUpdates](../functions/startHealthUpdates.md) delivers it.
@@ -17,7 +17,7 @@ One batch of samples that just landed in HealthKit, as
 
 > **latest**: [`HealthSample`](HealthSample.md)
 
-Defined in: [js/src/health.ts:616](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L616)
+Defined in: [js/src/health.ts:622](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L622)
 
 The newest sample in this batch — `samples` is never empty, so this always
 exists, which is the point: it is the whole answer for a "current heart
@@ -34,7 +34,7 @@ re-read it.
 
 > **samples**: [`HealthSample`](HealthSample.md)[]
 
-Defined in: [js/src/health.ts:605](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L605)
+Defined in: [js/src/health.ts:611](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L611)
 
 The new samples, **oldest first** (sorted natively — HealthKit promises
 `addedSamples` no order), each identical in shape and unit to a
@@ -57,7 +57,7 @@ one that renders a total re-reads it with [queryHealthStatistics](../functions/q
 
 > **type**: [`HealthQuantityType`](../type-aliases/HealthQuantityType.md)
 
-Defined in: [js/src/health.ts:588](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L588)
+Defined in: [js/src/health.ts:594](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L594)
 
 The type these samples are for — the same value passed to
  [startHealthUpdates](../functions/startHealthUpdates.md), so one handler can serve two subscriptions.

@@ -442,11 +442,18 @@ target every Apple timeline surface. Full inventory:
   rendering (`familyKey`), and **interactive widget buttons** via AppIntent
   (`ReactWidgetButtonIntent`, watchOS 11+). Smart Stack relevance is fully
   in — ranking AND predictive `relevantContexts` (the stale CX-017 note was
-  corrected 2026-08-22; see status.md row 53). Known vocabulary gap recorded
-  the same day: `appleMoveTime` is absent from the health read set, so the
-  `activityRingsIncomplete` fitness clue's documented requirement cannot be
-  fully honoured — adding it touches schema + unit table + bridge arms +
-  the plugin's sheet string.
+  corrected 2026-08-22; see status.md row 53). The vocabulary gap that audit
+  found — `appleMoveTime` missing, so the `activityRingsIncomplete` clue
+  could get only two of its three required quantities onto the sheet — was
+  ✅ **closed the same day**: watchOS 7.4 (raises the family's ceiling from
+  6.0, still under the v10 floor, still `@available`-free), CUMULATIVE,
+  `"min"`, with every per-type table moved in lockstep and the plugin's
+  sentence widened. Not a synonym for `activeEnergyBurned`: Apple fills the
+  Move ring from one or the other by account age, so for an under-18 user
+  the energy type reads zero where this reads the ring. Recorded for the
+  next type: `HealthQueryBridgeMappingTests`' two tables are the one site
+  the Linux guard scan cannot reach (`#if os(watchOS)`), so only the Mac job
+  fails when they rot — now stated in that file's own doc comment.
 
 **Missing — reachable by the same model, not yet targeted:**
 

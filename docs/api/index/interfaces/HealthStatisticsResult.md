@@ -16,7 +16,7 @@ One aggregate over a window.
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:208](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L208)
+Defined in: [js/src/health.ts:214](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L214)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [js/src/health.ts:208](https://github.com/emindeniz99/react-watchos/
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:207](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L207)
+Defined in: [js/src/health.ts:213](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L213)
 
 ***
 
@@ -32,7 +32,7 @@ Defined in: [js/src/health.ts:207](https://github.com/emindeniz99/react-watchos/
 
 > **unit**: `string`
 
-Defined in: [js/src/health.ts:206](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L206)
+Defined in: [js/src/health.ts:212](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L212)
 
 The unit `value` is in, fixed natively per type — never chosen by the
  caller — and reported so a chart can label its axis:
@@ -42,7 +42,13 @@ The unit `value` is in, fixed natively per type — never chosen by the
    `walkingHeartRateAverage`, `respiratoryRate`
  - `"m"` — `distanceWalkingRunning`
  - `"kcal"` — `activeEnergyBurned`, `basalEnergyBurned`
- - `"min"` — `appleExerciseTime`, `appleStandTime`
+ - `"min"` — `appleExerciseTime`, `appleStandTime`, `appleMoveTime`.
+   `appleMoveTime` fills the MOVE ring only for accounts tracking move
+   minutes (automatic under 13, the user's choice from 13 to 18); for
+   everyone else that ring is `activeEnergyBurned` and this type reads
+   zero. Which one is live is not guesswork: [ActivitySummary](ActivitySummary.md)'s
+   `moveMode` says, and carries both `moveTimeMinutes` and
+   `activeEnergyKcal` beside it.
  - `"ms"` — `heartRateVariabilitySDNN`, **milliseconds**: 45, not 0.045
  - `"fraction"` — `oxygenSaturation`, **0…1**, not 0…100
  - `"ml/kg/min"` — `vo2Max`. Apple states the watch estimates the 14-60

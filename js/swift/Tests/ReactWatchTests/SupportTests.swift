@@ -2808,6 +2808,7 @@ final class HealthQueryPlanTests: XCTestCase {
             .vo2Max: "ml/kg/min",
             .walkingHeartRateAverage: "count/min",
             .appleStandTime: "min",
+            .appleMoveTime: "min",
         ]
         XCTAssertEqual(
             Set(expected.keys), Set(HealthQuantityKind.allCases),
@@ -2827,7 +2828,9 @@ final class HealthQueryPlanTests: XCTestCase {
     private static let cumulativeKinds: Set<HealthQuantityKind> = [
         .stepCount, .activeEnergyBurned, .distanceWalkingRunning,
         .appleExerciseTime, .basalEnergyBurned, .flightsClimbed,
-        .appleStandTime,
+        // "These samples use time units and measure cumulative values" —
+        // appleMoveTime's own page, same sentence as appleStandTime's.
+        .appleStandTime, .appleMoveTime,
     ]
 
     func testOnlySumIsLegalForACumulativeType() {

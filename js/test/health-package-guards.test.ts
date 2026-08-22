@@ -603,6 +603,7 @@ describe("the read vocabulary cannot half-widen into the host bridge", () => {
         "count/min",
       ],
       appleStandTime: ["HKUnit.minute()", "min"],
+      appleMoveTime: ["HKUnit.minute()", "min"],
     };
     expect(Object.keys(UNITS).sort()).toEqual([...healthQuantityTypes].sort());
     const support = read("ReactWatchSupport/HealthQueryPlan.swift");

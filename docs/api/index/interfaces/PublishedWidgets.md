@@ -6,7 +6,7 @@
 
 # Interface: PublishedWidgets
 
-Defined in: [js/src/generated/wire.ts:166](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L166)
+Defined in: [js/src/generated/wire.ts:167](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L167)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/generated/wire.ts:166](https://github.com/emindeniz99/react-
 
 > **controls**: `Record`\<`string`, `PublishedControl`\>
 
-Defined in: [js/src/generated/wire.ts:172](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L172)
+Defined in: [js/src/generated/wire.ts:173](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L173)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/generated/wire.ts:172](https://github.com/emindeniz99/react-
 
 > **publishedAt**: `number`
 
-Defined in: [js/src/generated/wire.ts:168](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L168)
+Defined in: [js/src/generated/wire.ts:169](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L169)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/generated/wire.ts:168](https://github.com/emindeniz99/react-
 
 > `optional` **releaseId?**: `string`
 
-Defined in: [js/src/generated/wire.ts:170](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L170)
+Defined in: [js/src/generated/wire.ts:171](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L171)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [js/src/generated/wire.ts:170](https://github.com/emindeniz99/react-
 
 > **stateRevision**: `number`
 
-Defined in: [js/src/generated/wire.ts:169](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L169)
+Defined in: [js/src/generated/wire.ts:170](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L170)
 
 ***
 
@@ -46,7 +46,7 @@ Defined in: [js/src/generated/wire.ts:169](https://github.com/emindeniz99/react-
 
 > **v**: `1`
 
-Defined in: [js/src/generated/wire.ts:167](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L167)
+Defined in: [js/src/generated/wire.ts:168](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L168)
 
 ***
 
@@ -54,4 +54,4 @@ Defined in: [js/src/generated/wire.ts:167](https://github.com/emindeniz99/react-
 
 > **widgets**: `Record`\<`string`, `Record`\<`string`, `PublishedFamilyTimeline`\>\>
 
-Defined in: [js/src/generated/wire.ts:171](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L171)
+Defined in: [js/src/generated/wire.ts:172](https://github.com/emindeniz99/react-watchos/blob/main/js/src/generated/wire.ts#L172)
