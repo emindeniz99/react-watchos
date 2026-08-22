@@ -6,7 +6,7 @@
 
 # Interface: WidgetTimeline
 
-Defined in: [js/src/widgets.ts:238](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L238)
+Defined in: [js/src/widgets.ts:285](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L285)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/widgets.ts:238](https://github.com/emindeniz99/react-watchos
 
 > **entries**: [`WidgetTimelineEntry`](WidgetTimelineEntry.md)[]
 
-Defined in: [js/src/widgets.ts:239](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L239)
+Defined in: [js/src/widgets.ts:286](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L286)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/widgets.ts:239](https://github.com/emindeniz99/react-watchos
 
 > `optional` **relevantContexts?**: [`RelevantContext`](../type-aliases/RelevantContext.md)[]
 
-Defined in: [js/src/widgets.ts:243](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L243)
+Defined in: [js/src/widgets.ts:290](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L290)
 
 Smart Stack predictive clues — when/where to surface this widget.
 
@@ -32,6 +32,6 @@ Smart Stack predictive clues — when/where to surface this widget.
 
 > `optional` **reloadAfter?**: `number` \| `Date`
 
-Defined in: [js/src/widgets.ts:241](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L241)
+Defined in: [js/src/widgets.ts:288](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L288)
 
 Ask WidgetKit to re-publish after this time (ms or Date).
