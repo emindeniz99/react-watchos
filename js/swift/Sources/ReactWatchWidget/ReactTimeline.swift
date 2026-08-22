@@ -229,7 +229,19 @@ public func reactRelevantContexts(
 ///
 /// `dateRange` has no sub-26 path at all: `date(range:kind:)` is watchOS 26.0
 /// and the older `date(from:to:)` is deprecated AT 26.0, so there is nothing
-/// below it to fall back to.
+/// below it to fall back to. (`date(interval:kind:)`, also 26.0, is the same
+/// signal spelled start + duration and deliberately has no wire kind of its
+/// own — the JS `dateRange` covers it.)
+///
+/// **Permissions** (Apple's docs, recorded so nobody debugs a silent
+/// non-surface as a mapping bug): the three location families require the APP
+/// to hold CoreLocation authorization ("When in Use or Always"); `fitness`
+/// requires the matching HealthKit grants (workout type for `workoutActive`;
+/// exercise/move/stand time for `activityRingsIncomplete`); `sleep` requires
+/// the `sleepAnalysis` read. A clue whose grant is missing simply "doesn't
+/// have an effect" — no error reaches this code. Details + the
+/// `NSWidgetWantsLocation` open question live on the JS type
+/// (`RelevantContext` in js/src/widgets.ts) and in docs/ui-guide.md.
 @available(watchOS 11.0, *)
 public func reactRelevantContext(
     from ctx: PublishedRelevantContext
