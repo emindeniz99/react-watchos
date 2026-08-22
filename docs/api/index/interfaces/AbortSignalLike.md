@@ -6,7 +6,7 @@
 
 # Interface: AbortSignalLike
 
-Defined in: [js/src/ai.ts:97](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L97)
+Defined in: [js/src/ai.ts:104](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L104)
 
 The structural slice of `AbortSignal` this module needs — satisfied by the
 runtime's fetch-installed shim (`WatchAbortSignal`), by DOM/Node signals in
@@ -21,7 +21,7 @@ signals that work fine.
 
 > `readonly` **aborted**: `boolean`
 
-Defined in: [js/src/ai.ts:98](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L98)
+Defined in: [js/src/ai.ts:105](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L105)
 
 ***
 
@@ -29,7 +29,7 @@ Defined in: [js/src/ai.ts:98](https://github.com/emindeniz99/react-watchos/blob/
 
 > `readonly` `optional` **reason?**: `unknown`
 
-Defined in: [js/src/ai.ts:99](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L99)
+Defined in: [js/src/ai.ts:106](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L106)
 
 ## Methods
 
@@ -37,7 +37,7 @@ Defined in: [js/src/ai.ts:99](https://github.com/emindeniz99/react-watchos/blob/
 
 > **addEventListener**(`type`, `listener`): `void`
 
-Defined in: [js/src/ai.ts:100](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L100)
+Defined in: [js/src/ai.ts:107](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L107)
 
 #### Parameters
 
@@ -59,7 +59,7 @@ Defined in: [js/src/ai.ts:100](https://github.com/emindeniz99/react-watchos/blob
 
 > **removeEventListener**(`type`, `listener`): `void`
 
-Defined in: [js/src/ai.ts:101](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L101)
+Defined in: [js/src/ai.ts:108](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L108)
 
 #### Parameters
 

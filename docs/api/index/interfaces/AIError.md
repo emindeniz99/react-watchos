@@ -6,7 +6,7 @@
 
 # Interface: AIError
 
-Defined in: [js/src/ai.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L52)
+Defined in: [js/src/ai.ts:58](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L58)
 
 Error thrown by a rejected generation; `code` is machine-switchable.
  An aborted generation additionally carries `name: "AbortError"`, so a
@@ -22,7 +22,7 @@ Error thrown by a rejected generation; `code` is machine-switchable.
 
 > **code**: [`AIErrorCode`](../type-aliases/AIErrorCode.md)
 
-Defined in: [js/src/ai.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L53)
+Defined in: [js/src/ai.ts:59](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L59)
 
 ***
 

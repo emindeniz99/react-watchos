@@ -8,7 +8,7 @@
 
 > **generateObject**\<`T`\>(`prompt`, `schema`, `options?`): `Promise`\<`T`\>
 
-Defined in: [js/src/ai.ts:587](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L587)
+Defined in: [js/src/ai.ts:828](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L828)
 
 Guided generation: the on-device model fills in `schema` (a typed JSON
 Schema subset, [AISchema](../type-aliases/AISchema.md)) and the promise resolves the parsed object.

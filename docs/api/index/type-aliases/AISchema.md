@@ -8,7 +8,7 @@
 
 > **AISchema** = \{ `description?`: `string`; `enum?`: readonly `string`[]; `type`: `"string"`; \} \| \{ `description?`: `string`; `type`: `"number"` \| `"integer"`; \} \| \{ `description?`: `string`; `type`: `"boolean"`; \} \| \{ `description?`: `string`; `items`: `AISchema`; `maxItems?`: `number`; `minItems?`: `number`; `type`: `"array"`; \} \| [`AIObjectSchema`](../interfaces/AIObjectSchema.md)
 
-Defined in: [js/src/ai.ts:171](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L171)
+Defined in: [js/src/ai.ts:289](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L289)
 
 A [generateObject](../functions/generateObject.md) schema — a closed, typed SUBSET of JSON Schema.
 
