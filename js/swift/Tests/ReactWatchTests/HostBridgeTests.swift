@@ -105,6 +105,18 @@ final class HostBridgeTests: XCTestCase {
         XCTAssertEqual(generate?.1, "gen")
     }
 
+    func testToolResultReceivesTwoIntsAndTheReply() throws {
+        // The first (int, int, string) trampoline — two numerics BEFORE the
+        // string, an arg order nothing else exercises.
+        let r = try JSRuntime()
+        var got: (Int, Int, String)?
+        r.bridge.toolResult = { got = ($0, $1, $2) }
+        try r.evaluate(#"__host.toolResult(7, 42, "{\"result\":null}")"#)
+        XCTAssertEqual(got?.0, 7)
+        XCTAssertEqual(got?.1, 42)
+        XCTAssertEqual(got?.2, #"{"result":null}"#)
+    }
+
     // MARK: - returning methods — the VALUE must cross back to JS
 
     func testGetItemReturnsTheStringToJS() throws {
@@ -185,7 +197,7 @@ final class HostBridgeTests: XCTestCase {
             "commit", "log", "setTimer", "clearTimer", "invoke", "publishWidgets",
             "getItem", "setItem", "counterGet", "counterAdd", "stateRevision",
             "playHaptic", "cancelNotification", "fetch", "abortFetch", "ble",
-            "sensor", "generate", "cancelGenerate",
+            "sensor", "generate", "cancelGenerate", "toolResult",
         ] {
             XCTAssertTrue(
                 r.evaluateBool("typeof __host.\(name) === 'function'"),
@@ -214,7 +226,7 @@ final class HostBridgeTests: XCTestCase {
         }
         for name in [
             "playHaptic", "cancelNotification", "fetch", "abortFetch", "ble",
-            "sensor", "generate", "cancelGenerate",
+            "sensor", "generate", "cancelGenerate", "toolResult",
         ] {
             XCTAssertTrue(
                 widget.evaluateBool("typeof __host.\(name) === 'undefined'"),
@@ -237,7 +249,7 @@ final class HostBridgeTests: XCTestCase {
         }
         for name in [
             "fetch", "abortFetch", "ble", "sensor", "generate", "cancelGenerate",
-            "publishWidgets",
+            "toolResult", "publishWidgets",
         ] {
             XCTAssertTrue(
                 r.evaluateBool("typeof __host.\(name) === 'undefined'"),

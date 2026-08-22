@@ -19,11 +19,14 @@ export type {
   AIErrorCode,
   AIObjectSchema,
   AISchema,
+  AITool,
+  AIToolCallContext,
   GenerateObjectOptions,
   GenerateOptions,
 } from "./ai";
 export {
   AI_PARTIAL_EVENT,
+  AI_TOOL_CALL_EVENT,
   generateObject,
   generateText,
   isOnDeviceAIAvailable,

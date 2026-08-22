@@ -124,12 +124,6 @@ final class ReactWatchModel {
     @ObservationIgnored private var commitBlessesHealth = true
     /// Serial queue for decoding committed trees off the main thread.
     private let decodeQueue = DispatchQueue(label: "react.watch.decode")
-    /// Reused across commits, decoded on the serial decodeQueue. No
-    /// `nonisolated(unsafe)` needed: `JSONDecoder` is `Sendable` in the
-    /// current SDK, so a plain isolated `let` crosses to the decode closure
-    /// without a Swift 6 diagnostic. A fresh JSONDecoder per commit would be
-    /// pure allocation churn at sensor-driven commit rates (10-20 commits/sec).
-    private let treeDecoder = JSONDecoder()
     private let connectivity = PhoneConnectivity()
     private let bluetooth = BluetoothBridge()
     private let sensors = SensorBridge()
@@ -165,6 +159,24 @@ final class ReactWatchModel {
     /// each task's own cleanup is generation-guarded (ids reset per runtime,
     /// CX-008).
     @ObservationIgnored private var generateTasks: [Int: Task<Void, Never>] = [:]
+    /// Pending JS tool-call continuations by callId (AI tool calling): the
+    /// generate task PARKS here — a structured suspension, never a blocked
+    /// thread — while JS runs a declared tool; `toolResult` resumes it with
+    /// the reply, and cancel/teardown resumes it throwing so a dying
+    /// generation can never leave the model's task suspended forever.
+    /// Main-isolated like `generateTasks`. Not `#if canImport`-gated: the
+    /// cancel paths reference it on every SDK, it is merely always empty when
+    /// the FM block compiled out.
+    @ObservationIgnored private var toolContinuations:
+        [Int: CheckedContinuation<String, any Error>] = [:]
+    /// callIds parked per generate request id, so `cancelGenerate(id)` fails
+    /// exactly that request's pending calls (and `toolResult` can verify a
+    /// reply's callId actually belongs to the id it names).
+    @ObservationIgnored private var toolCallIds: [Int: Set<Int>] = [:]
+    /// Swift-minted — unlike request ids, which JS mints and RESETS per
+    /// runtime (CX-008) — and monotonic per process, so a stale reply from a
+    /// torn-down runtime can never alias onto a fresh continuation.
+    @ObservationIgnored private var nextToolCallId = 1
     /// Bumped on every boot/reload (CX-008). Async work (fetch, generate) carries
     /// the JS-assigned id of a request whose id space resets with the runtime, so
     /// a callback from a previous generation could settle the WRONG pending
@@ -563,6 +575,14 @@ final class ReactWatchModel {
             task.cancel()
         }
         generateTasks.removeAll()
+        // The parked tool calls are the other half of a generation's async: a
+        // cancelled task alone leaves the FM machinery suspended in
+        // `call(arguments:)` awaiting a JS reply that will never come (the
+        // runtime that would send it is being torn down). Resume them all
+        // throwing; the task's own unwind is generation-guarded like the rest.
+        for id in Array(toolCallIds.keys) {
+            failToolCalls(forRequest: id)
+        }
         // ARCH-08: the workout slot is a single-occupancy SYSTEM resource, so
         // the outgoing generation must not leave one running for a runtime that
         // never started it. `tearDownForReload` ends AND saves it, parking the
@@ -1404,7 +1424,7 @@ final class ReactWatchModel {
                 id: id, code: .internalError, message: "bad generate request")
             return
         }
-        if let problem = plan.schemaProblem() {
+        if let problem = plan.schemaProblem() ?? plan.toolsProblem() {
             // Backstop to the identical js-side validation: this is the copy
             // the wire actually enforces (a raw `__host.generate` caller
             // never ran the JS walk).
@@ -1430,9 +1450,38 @@ final class ReactWatchModel {
     /// Stops the model decoding for one request (js abort / watchdog — the
     /// `abortFetch` idiom). JS has already settled its promise; cancelling
     /// the task is the whole job, so there is no reply. The remove-then-cancel
-    /// also makes the task's own cleanup a no-op for this id.
+    /// also makes the task's own cleanup a no-op for this id. Pending tool
+    /// calls fail FIRST: a cancelled task alone would leave the FM machinery
+    /// suspended in `call(arguments:)` awaiting a reply that will never come.
     private func cancelGenerate(id: Int) {
+        failToolCalls(forRequest: id)
         generateTasks.removeValue(forKey: id)?.cancel()
+    }
+
+    /// Resumes (throwing CancellationError) every tool-call continuation
+    /// parked for request `id` — the tool half of stopping a generation.
+    private func failToolCalls(forRequest id: Int) {
+        guard let callIds = toolCallIds.removeValue(forKey: id) else { return }
+        for callId in callIds {
+            toolContinuations.removeValue(forKey: callId)?
+                .resume(throwing: CancellationError())
+        }
+    }
+
+    /// JS's reply to one `ai.toolCall` push (`__host.toolResult`). Resumes the
+    /// parked continuation with the raw replyJson; the SDK-gated tool
+    /// conformance parses it (AIToolReply) off the main actor. A callId that
+    /// isn't parked under this id is a silent no-op — the generation settled
+    /// (abort, watchdog, teardown) while the tool ran and the continuation was
+    /// already failed, so a late reply must resume nothing (and the id check
+    /// keeps a confused caller from resuming another request's call).
+    private func toolResult(id: Int, callId: Int, replyJson: String) {
+        guard toolCallIds[id]?.remove(callId) != nil else { return }
+        if toolCallIds[id]?.isEmpty == true {
+            toolCallIds.removeValue(forKey: id)
+        }
+        toolContinuations.removeValue(forKey: callId)?
+            .resume(returning: replyJson)
     }
 
     #if canImport(FoundationModels)
@@ -1440,8 +1489,28 @@ final class ReactWatchModel {
     private func startFoundationModelsGenerate(id: Int, plan: GeneratePlan) {
         let gen = generation
         let task = Task { [weak self] in
+            // Tool schemas build first, outside the main do: a
+            // GenerationSchema throw HERE is a schema problem (colliding
+            // derived type names inside one tool), not a generation failure,
+            // so it rejects INVALID_SCHEMA naming the tool rather than
+            // falling into the generic INTERNAL arm.
+            let fmTools: [any Tool]
+            do {
+                fmTools = try Self.bridgedTools(
+                    for: plan, host: self, generation: gen, requestId: id)
+            } catch {
+                await MainActor.run {
+                    guard let self, gen == self.generation else { return }
+                    self.generateTasks.removeValue(forKey: id)
+                    self.rejectGenerate(
+                        id: id, code: .invalidSchema,
+                        message: "tools: \(error.localizedDescription)")
+                }
+                return
+            }
             do {
                 let session = LanguageModelSession(
+                    tools: fmTools,
                     instructions: plan.instructions ?? ""
                 )
                 var options = GenerationOptions()
@@ -1518,6 +1587,25 @@ final class ReactWatchModel {
                 // reload's teardown (the runtime that asked is gone). Either
                 // way nobody is listening; settling would only race the next
                 // generation's id space.
+            } catch let error as LanguageModelSession.ToolCallError {
+                // A tool the model invoked failed. FM wraps whatever the
+                // tool's `call` threw and rethrows it here, at the respond
+                // call site (docs JSON, 2026-08-22). Unwrap OUR two: a
+                // cancelled round trip means js already settled
+                // (abort/watchdog/teardown) — the CancellationError posture,
+                // silent; an AIToolFailure carries the JS handler's message.
+                if error.underlyingError is CancellationError { return }
+                let message =
+                    (error.underlyingError as? AIToolFailure)?.message
+                    ?? error.localizedDescription
+                await MainActor.run {
+                    guard let self, gen == self.generation else { return }
+                    self.generateTasks.removeValue(forKey: id)
+                    self.rejectGenerate(
+                        id: id, code: .toolFailed,
+                        message: "tool \"\(error.tool.name)\" failed: \(message)"
+                    )
+                }
             } catch let error as LanguageModelSession.GenerationError {
                 // Transcribe the FM case to its NAME; the name -> wire-code
                 // classification is the Linux-tested table in
@@ -1598,6 +1686,103 @@ final class ReactWatchModel {
             return DynamicGenerationSchema(type: Double.self)
         default:  // "boolean" — the validated subset's last member
             return DynamicGenerationSchema(type: Bool.self)
+        }
+    }
+
+    /// A JS-implemented tool, bridged: FoundationModels calls `call` when the
+    /// model wants the tool, and `perform` round-trips through the JS runtime
+    /// (push `ai.toolCall`, park on a continuation, resume on `toolResult`).
+    /// `Arguments` and `Output` are both `GeneratedContent` — the FM type
+    /// verified (docs JSON, 2026-08-22) to conform to BOTH
+    /// `ConvertibleFromGeneratedContent` and `PromptRepresentable` — so a
+    /// runtime-declared schema and an arbitrary-JSON reply cross without a
+    /// compile-time `@Generable` type.
+    @available(watchOS 27.0, *)
+    private struct JSBridgedTool: Tool {
+        let name: String
+        let description: String
+        let parameters: GenerationSchema
+        let perform: @Sendable (String) async throws -> GeneratedContent
+
+        func call(
+            arguments: GeneratedContent
+        ) async throws -> GeneratedContent {
+            try await perform(arguments.jsonString)
+        }
+    }
+
+    /// The plan's declared tools as FM `Tool` conformances. Each tool's
+    /// argument schema is its OWN `GenerationSchema`, so derived nested type
+    /// names cannot collide across tools; the root type is the model-visible
+    /// "<name>Arguments".
+    @available(watchOS 27.0, *)
+    private static func bridgedTools(
+        for plan: GeneratePlan, host: ReactWatchModel?, generation: Int,
+        requestId: Int
+    ) throws -> [any Tool] {
+        guard let specs = plan.tools, !specs.isEmpty else { return [] }
+        return try specs.map { spec in
+            JSBridgedTool(
+                name: spec.name,
+                description: spec.description ?? "",
+                parameters: try GenerationSchema(
+                    root: dynamicSchema(
+                        from: spec.schema, name: spec.name + "Arguments"),
+                    dependencies: []),
+                perform: { [weak host] argumentsJson in
+                    try await bridgeToolCall(
+                        host: host, generation: generation,
+                        requestId: requestId, tool: spec.name,
+                        argumentsJson: argumentsJson)
+                })
+        }
+    }
+
+    /// One model → JS tool round trip. This is a STRUCTURED SUSPENSION, not a
+    /// wait: the DAP design's deadlock was a thread blocking for a hop onto
+    /// the queue it occupies, and here nothing blocks anywhere — the FM task
+    /// parks on the continuation (its thread is released), the main actor
+    /// stays free to deliver the `ai.toolCall` push and run the async JS
+    /// handler, and the handler's `toolResult` call (a synchronous C hop on
+    /// the JS queue) resumes the parked task. The registration is itself a
+    /// main-actor Task because `call` runs `@concurrent` off-main while every
+    /// piece of tool state is main-isolated.
+    @available(watchOS 27.0, *)
+    private static func bridgeToolCall(
+        host: ReactWatchModel?, generation: Int, requestId: Int, tool: String,
+        argumentsJson: String
+    ) async throws -> GeneratedContent {
+        let replyJson: String = try await withCheckedThrowingContinuation {
+            continuation in
+            Task { @MainActor in
+                // Registration races cancelGenerate/teardown: a generation
+                // that is already gone must fail the call NOW — nothing would
+                // ever resume a continuation parked after its cleanup ran.
+                guard let host, generation == host.generation,
+                    host.generateTasks[requestId] != nil
+                else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                let callId = host.nextToolCallId
+                host.nextToolCallId += 1
+                host.toolContinuations[callId] = continuation
+                host.toolCallIds[requestId, default: []].insert(callId)
+                host.pushNativeEvent(
+                    "ai.toolCall",
+                    payload: [
+                        "id": requestId, "callId": callId, "tool": tool,
+                        "argumentsJson": argumentsJson,
+                    ])
+            }
+        }
+        switch AIToolReply(json: replyJson) {
+        case .result(let json):
+            return try GeneratedContent(json: json)
+        case .error(let message):
+            throw AIToolFailure(message: message)
+        case nil:
+            throw AIToolFailure(message: "malformed tool reply from JS")
         }
     }
     #endif
@@ -1929,9 +2114,13 @@ final class ReactWatchModel {
                 // Byte count off main (it's O(payload), like the decode
                 // it precedes); the budget verdict hops back with the tree.
                 let bytes = json.utf8.count
-                let decoded = try? self?.treeDecoder.decode(
-                    RNTree.self, from: Data(json.utf8)
-                )
+                // RNTree(wireJSON:), not JSONDecoder: same semantics
+                // (WireDecodeTests pins the parity), ~2x cheaper per big
+                // commit — Codable's JSONValue cascade was half the decode
+                // cost (docs/perf-tree-diff.md §4). This queue drains
+                // 10-20 commits/sec under sensor streams, so the decode is
+                // the native side's biggest recurring CPU bill.
+                let decoded = try? RNTree(wireJSON: Data(json.utf8))
                 DispatchQueue.main.async { [weak self] in
                     guard let self, gen == self.generation else { return }
                     // Budget tripwire BEFORE the decode/wire guards: an
@@ -2077,6 +2266,9 @@ final class ReactWatchModel {
         }
         js.bridge.cancelGenerate = { [weak self] id in
             self?.cancelGenerate(id: id)
+        }
+        js.bridge.toolResult = { [weak self] id, callId, replyJson in
+            self?.toolResult(id: id, callId: callId, replyJson: replyJson)
         }
         // Capture the generation NOW (makeRuntime runs under the boot that
         // just bumped it): reading it when the error fires would see the new

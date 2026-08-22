@@ -2617,6 +2617,24 @@ export const hostMethods: HostMethod[] = [
     since: 1,
     args: [{ name: "id", type: "int" }],
   },
+  // The reply half of the AI tool-calling round trip (design note): while a
+  // generation waits on a JS-implemented tool, native pushes `ai.toolCall`
+  // `{id, callId, tool, argumentsJson}` and the FM task parks on a
+  // continuation; JS runs the declared handler and answers with this —
+  // replyJson is `{"result": <json>}` or `{"error": "<message>"}` (AIToolReply
+  // in ReactWatchSupport). Fire-and-forget like cancelGenerate: the "response"
+  // is the generation itself resuming.
+  {
+    name: "toolResult",
+    targets: ["watch"],
+    feature: "ai",
+    since: 1,
+    args: [
+      { name: "id", type: "int" },
+      { name: "callId", type: "int" },
+      { name: "replyJson", type: "string" },
+    ],
+  },
   // Runtime "can this watch run on-device AI now?" query (CX-002), distinct from
   // the build-time `ai` feature: a watch on the right OS may still be unable
   // (model not downloaded / Apple Intelligence off). Routed via invoke.

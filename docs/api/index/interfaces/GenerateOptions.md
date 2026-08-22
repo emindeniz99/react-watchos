@@ -6,7 +6,7 @@
 
 # Interface: GenerateOptions
 
-Defined in: [js/src/ai.ts:105](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L105)
+Defined in: [js/src/ai.ts:197](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L197)
 
 Options for [generateText](../functions/generateText.md).
 
@@ -16,7 +16,7 @@ Options for [generateText](../functions/generateText.md).
 
 > `optional` **instructions?**: `string`
 
-Defined in: [js/src/ai.ts:111](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L111)
+Defined in: [js/src/ai.ts:203](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L203)
 
 Optional system instructions for the session.
 
@@ -26,7 +26,7 @@ Optional system instructions for the session.
 
 > `optional` **maxTokens?**: `number`
 
-Defined in: [js/src/ai.ts:109](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L109)
+Defined in: [js/src/ai.ts:201](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L201)
 
 Cap on the response length (`GenerationOptions.maximumResponseTokens`).
 
@@ -36,7 +36,7 @@ Cap on the response length (`GenerationOptions.maximumResponseTokens`).
 
 > `optional` **onPartial?**: (`text`) => `void`
 
-Defined in: [js/src/ai.ts:120](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L120)
+Defined in: [js/src/ai.ts:212](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L212)
 
 Streaming: called with the CUMULATIVE text so far as the model decodes
 (Apple's `streamResponse` snapshots, not deltas — a snapshot is directly
@@ -61,7 +61,7 @@ forking a second entry point.
 
 > `optional` **partialIntervalMs?**: `number`
 
-Defined in: [js/src/ai.ts:127](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L127)
+Defined in: [js/src/ai.ts:219](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L219)
 
 Coalescing floor for [onPartial](#onpartial), ms. Not a decode rate: the model
 decodes at its own pace, and this only bounds how often a snapshot may
@@ -74,7 +74,7 @@ your UI tolerates (the `metricsIntervalMs` idiom). Native default 250.
 
 > `optional` **signal?**: [`AbortSignalLike`](AbortSignalLike.md)
 
-Defined in: [js/src/ai.ts:144](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L144)
+Defined in: [js/src/ai.ts:236](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L236)
 
 Abort like fetch: generation stops natively (the model quits decoding —
 on a watch the ~3B model is the most expensive thing to leave running)
@@ -97,6 +97,36 @@ useEffect(() => {
 
 > `optional` **temperature?**: `number`
 
-Defined in: [js/src/ai.ts:107](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L107)
+Defined in: [js/src/ai.ts:199](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L199)
 
 0–1; higher = more creative.
+
+***
+
+### tools?
+
+> `optional` **tools?**: `Record`\<`string`, [`AITool`](AITool.md)\>
+
+Defined in: [js/src/ai.ts:260](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L260)
+
+Tools the model may invoke while it generates — the round trip is
+model → native pause → JS handler → native resume, so a tool can read
+app state, call host APIs, even fetch:
+
+```ts
+const text = await generateText("How is my hydration going?", {
+  tools: {
+    getHydration: {
+      description: "Read today's water intake and the daily goal.",
+      parameters: { type: "object", properties: {} },
+      execute: () => ({ glasses: store.glasses, goal: store.goal }),
+    },
+  },
+});
+```
+
+Composes with [onPartial](#onpartial) (snapshots pause while a tool runs) and
+[signal](#signal) (aborting also aborts pending tool calls via
+[AIToolCallContext.signal](AIToolCallContext.md#signal)). Tool definitions spend context window —
+Apple puts every declared tool's name/description/schema in the prompt —
+so declare only what the prompt needs.

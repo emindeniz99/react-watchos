@@ -35,6 +35,7 @@ public struct HostBridge {
     public var sensor: ((String) -> Void)?
     public var generate: ((Int, String) -> Void)?
     public var cancelGenerate: ((Int) -> Void)?
+    public var toolResult: ((Int, Int, String) -> Void)?
 
     public init() {}
 }
@@ -127,6 +128,9 @@ extension JSRuntime {
                 JS_SetPropertyStr(
                     context, host, "cancelGenerate",
                     JS_NewCFunction(context, hostCancelGenerate, "cancelGenerate", 1))
+                JS_SetPropertyStr(
+                    context, host, "toolResult",
+                    JS_NewCFunction(context, hostToolResult, "toolResult", 3))
             }
         }
     }
@@ -390,5 +394,22 @@ private func hostCancelGenerate(
     var arg0: Int32 = 0
     JS_ToInt32(ctx, &arg0, argv[0])
     runtime.bridge.cancelGenerate?(Int(arg0))
+    return qjs_undefined()
+}
+
+private func hostToolResult(
+    ctx: OpaquePointer?, thisVal _: JSValue, argc: Int32,
+    argv: UnsafeMutablePointer<JSValue>?
+) -> JSValue {
+    guard let runtime = JSRuntime.from(context: ctx), let argv, argc >= 3,
+        let arg2Cstr = JS_ToCString(ctx, argv[2])
+    else { return qjs_undefined() }
+    let arg2 = String(cString: arg2Cstr)
+    JS_FreeCString(ctx, arg2Cstr)
+    var arg0: Int32 = 0
+    JS_ToInt32(ctx, &arg0, argv[0])
+    var arg1: Int32 = 0
+    JS_ToInt32(ctx, &arg1, argv[1])
+    runtime.bridge.toolResult?(Int(arg0), Int(arg1), arg2)
     return qjs_undefined()
 }

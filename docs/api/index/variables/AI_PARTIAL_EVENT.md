@@ -8,7 +8,7 @@
 
 > `const` **AI\_PARTIAL\_EVENT**: `"ai.partial"` = `"ai.partial"`
 
-Defined in: [js/src/ai.ts:348](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L348)
+Defined in: [js/src/ai.ts:478](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L478)
 
 Cumulative streaming snapshots ride the native-event channel under this
  name, payload `{id, text}` — edge-triggered, so never replayed.
