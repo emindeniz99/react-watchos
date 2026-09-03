@@ -245,6 +245,18 @@ jobs:
           npm pack --pack-destination /tmp/pack >/dev/null
           mkdir -p /tmp/pack/x && tar -xzf /tmp/pack/react-watchos-*.tgz -C /tmp/pack/x
           /tmp/gitleaks dir /tmp/pack/x --no-banner --exit-code 1
+      # The suite above proves the WORKTREE matches CHECKSUMS.sha256
+      # (vendor-integrity.test.ts). It says nothing about what `files`
+      # actually packs, and the engine is ~52% of the unpacked payload
+      # reaching consumers as SwiftPM C sources. Re-verify the manifest
+      # INSIDE the extracted tarball — same artifact the gitleaks step
+      # scanned, no second pack — so a publish that ships no engine, or a
+      # mutated one, fails here instead of in a stranger's Xcode build.
+      - name: Verify the vendored engine in the tarball
+        run: |
+          set -euo pipefail
+          cd /tmp/pack/x/package/swift/Sources/CQuickJS
+          sha256sum -c CHECKSUMS.sha256
       # No --provenance flag: OIDC trusted publishing attaches provenance
       # automatically.
       - name: Publish to npm (trusted publishing)
