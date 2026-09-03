@@ -194,6 +194,16 @@ jobs:
           TAG: ${{ steps.decide.outputs.tag }}
         run: |
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            # Fetch the branch before reading or overwriting it. actions/checkout
+            # brings down only the ref that triggered the run, so without this
+            # there is no refs/remotes/origin/$BRANCH — which broke BOTH things
+            # below: the author guard read an empty string and waved every push
+            # through, and `--force-with-lease` had no lease to compare and
+            # refused outright. That refusal is why every scheduled run from
+            # 2026-08-27 on died with "! [rejected] ... (stale info)" while PR #9
+            # sat un-updated.
+            git fetch --no-tags --depth=1 origin \
+              "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
             author=$(git log -1 --format='%an' "origin/$BRANCH" 2>/dev/null || echo "")
             if [ -n "$author" ] && [ "$author" != "github-actions[bot]" ]; then
               echo "::error::$BRANCH carries a commit by $author — refusing to force-update someone else's work"
