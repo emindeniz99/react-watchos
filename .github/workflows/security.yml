@@ -17,6 +17,22 @@ permissions:
   contents: read
 
 jobs:
+  # Is the vendored engine still upstream's engine? CHECKSUMS.sha256 cannot
+  # answer that — it is self-referential, so regenerating it after an edit goes
+  # green over the same bytes — and `engine attest` only fires on
+  # `pull_request`, so a direct push to main never meets it. This compares our
+  # files against quickjs-ng's own git objects at the tag VERSION.md names, on
+  # every push and PR. The publish job runs the same script before npm sees the
+  # tarball, so a tampered engine cannot ship even if it reached main.
+  vendor-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Vendored engine matches upstream at its tag
+        run: sh tools/vendor-quickjs/verify-upstream.sh
+
   gitleaks:
     runs-on: ubuntu-latest
     steps:
