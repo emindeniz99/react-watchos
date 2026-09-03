@@ -539,7 +539,15 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
     "../swift/Sources/CQuickJS/include/quickjs.h",
     import.meta.url,
   );
-  const vendoredTag = vendoredTagFromHeader(readFileSync(headerPath, "utf8"));
+  // VENDORED_TAG belongs to the same dry-run seam as RELEASES_JSON/NOW below.
+  // Without it the vendored tag comes only from the header, so any fixture that
+  // describes a scenario relative to what is vendored drifts with the tree — and
+  // on a bump branch the header ALREADY names the new release, which flips
+  // "v0.16.2 is still soaking" into "vendored is newer than the candidate" and
+  // fails the bot's own gate on every PR it opens (run 33723399318).
+  const vendoredTag =
+    process.env.VENDORED_TAG ??
+    vendoredTagFromHeader(readFileSync(headerPath, "utf8"));
 
   // A dry-run seam. The workflow never sets this; it exists so the decision can
   // be reproduced offline against a saved release list — which is how you debug

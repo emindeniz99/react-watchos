@@ -384,12 +384,22 @@ describe("the CLI", () => {
           RELEASES_JSON: releases,
           PICK_OUT: out,
           NOW: "2026-08-21T08:00:00Z",
+          // Pinned, not read from the tree: this fixture describes "the newest
+          // release has not soaked yet", which is only true relative to a
+          // vendored tag. Left to the header it inverts on the bot's own bump
+          // branch — where the header already says v0.16.2 — and the gate the
+          // bot must pass fails on every PR it opens.
+          VENDORED_TAG: "v0.16.1",
         },
       },
     );
 
     expect(stdout).toContain("Decision: NONE");
     expect(stdout).toContain("`v0.16.2`");
+    // The REASON is the assertion, not the word: "none" is also the verdict
+    // when the vendored tag is newer than everything soaked, and that arm
+    // must not be able to satisfy this test.
+    expect(stdout).toContain("waiting on v0.16.2");
     expect(stdout).toContain("soaking");
 
     const pick = JSON.parse(readFileSync(out, "utf8"));
