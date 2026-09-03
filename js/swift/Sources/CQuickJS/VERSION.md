@@ -1,6 +1,6 @@
-# Vendored: quickjs-ng v0.16.1
+# Vendored: quickjs-ng v0.16.2
 
-Source: https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.16.1.tar.gz
+Source: https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.16.2.tar.gz
 License: MIT (see LICENSE in this directory)
 
 Core engine files only — `quickjs-libc` (the OS interface) is deliberately
@@ -26,6 +26,6 @@ and bumps the version line + source URL above. Then review the prose in this
 file, bump the version in `js/swift/README.md`, and run
 `tools/embed-smoke/run.sh` to prove the new engine still embeds.
 
-Tarball SHA-256: 4b3c11f37dab2c58bdeccbaeb23b923fa4a9798a45e50be6af55f3e75b616ea0
+Tarball SHA-256: 97c80625b26775a4c7ca618c004d4ea24cf99cbf867e4eba78bd927a8b23d106
 (recorded 2026-07-04; verified by re-downloading the tagged tarball — future
 re-vendors verify BEFORE extraction via tools/vendor-quickjs/run.sh)
