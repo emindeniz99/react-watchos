@@ -227,7 +227,15 @@ jobs:
     # (conclusion: startup_failure, "No jobs were run").
     permissions:
       contents: read
-    uses: ./.github/workflows/ci.yml
+    # GitHub's `$/` self-repository form
+    # (shipped 2026-07-30) is what zizmor wants here, and it resolves to the
+    # same running commit `./` does. It is NOT taken because actionlint
+    # 1.7.12 — the newest release as of 2026-09-03 — rejects `$/` for
+    # reusable-workflow calls outright, and actionlint is the gate that
+    # models what GitHub will actually parse; a `uses:` GitHub refuses kills
+    # the entire file before any job starts. Revisit when actionlint learns
+    # the syntax.
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
     with:
       ref: ${{ needs.propose.outputs.branch }}
 
@@ -237,7 +245,15 @@ jobs:
     # Same rule as `gates` above.
     permissions:
       contents: read
-    uses: ./.github/workflows/build.yml
+    # GitHub's `$/` self-repository form
+    # (shipped 2026-07-30) is what zizmor wants here, and it resolves to the
+    # same running commit `./` does. It is NOT taken because actionlint
+    # 1.7.12 — the newest release as of 2026-09-03 — rejects `$/` for
+    # reusable-workflow calls outright, and actionlint is the gate that
+    # models what GitHub will actually parse; a `uses:` GitHub refuses kills
+    # the entire file before any job starts. Revisit when actionlint learns
+    # the syntax.
+    uses: ./.github/workflows/build.yml # zizmor: ignore[self-repository]
     with:
       ref: ${{ needs.propose.outputs.branch }}
 
