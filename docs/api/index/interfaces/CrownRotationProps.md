@@ -136,7 +136,7 @@ Defined in: [js/src/components.ts:497](https://github.com/emindeniz99/react-watc
 Defined in: [js/src/components.ts:526](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L526)
 
 Fired when Crown focus moves to (`true`) or away from (`false`) this
-view — both when a [focused](#onfocuschange) claim lands and when the system
+view — both when a focused claim lands and when the system
 moves focus on its own (a tap on another Crown view). Fold it into the
 state that derives `focused` to keep JS's picture of the Crown owner
 truthful.
