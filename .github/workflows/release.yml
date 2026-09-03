@@ -259,6 +259,12 @@ jobs:
           sha256sum -c CHECKSUMS.sha256
       # No --provenance flag: OIDC trusted publishing attaches provenance
       # automatically.
+      # Same script security.yml runs on every push, repeated here because this
+      # is the last moment before bytes leave for npm: main can be pushed to
+      # directly, so "it was verified when it landed" is not the same statement
+      # as "it is verified now, in the run that publishes".
+      - name: Vendored engine matches upstream at its tag
+        run: sh tools/vendor-quickjs/verify-upstream.sh
       - name: Publish to npm (trusted publishing)
         working-directory: js
         run: npm publish
