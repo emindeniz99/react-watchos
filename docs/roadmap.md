@@ -328,6 +328,10 @@ natural second target (10-foot UI, focus engine, the Crown's cousin). This
 turns a watch demo into "**React Native for the parts of Apple that RN
 can't reach**."
 
+**Not being pursued (owner call, 2026-09-04).** The tvOS extraction is off
+the plan. Recorded here as analysis, not as queued work — see item 4 of
+"Re-prioritized what's next".
+
 ## 2. Ride watchOS 26's new APIs
 
 watchOS 26 added exactly the surfaces this project already models
@@ -588,9 +592,16 @@ earn their keep.
    more API surface, is what "HealthKit depth" now needs.
 3. **Foundation Models streaming + structured output** — high-leverage now
    that the synchronous path ships; reuses the push channel.
-4. **Cross-platform core extraction** (→ tvOS) — the strategic bet.
+4. ~~**Cross-platform core extraction** (→ tvOS)~~ — **dropped 2026-09-04,
+   owner call.** This package is about the watch. tvOS was the strategic
+   bet in §1 of the landscape scan, not a commitment; nothing depends on
+   it and no consumer has asked. §1 stays as a record of the analysis.
 5. **`Map` primitive** + Smart Stack POI signals — ride the new APIs.
-6. Then: OTA channel hardening. (Tree-diff got its measure-first answer
+6. ~~OTA channel hardening~~ — **already shipped**; the row in the feature
+   table above marks the hardening trio (signed version floor, OTA
+   observability, https enforcement) delivered on 2026-07-04. This line
+   sat here contradicting it until a 2026-09-04 audit caught the pair.
+   Kept only for the tree-diff verdict it carries. (Tree-diff got its measure-first answer
    2026-08-22 — **declined**, full numbers in
    [perf-tree-diff.md](./perf-tree-diff.md): the one ~10× win needs a
    ~600-node covered stack streaming at 10–20 Hz, ~6× past the worst real
