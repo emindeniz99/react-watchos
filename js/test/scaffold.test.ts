@@ -1,4 +1,9 @@
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // DX-3: the scaffolder's pure template logic (CommonJS, loaded by the CLI).
@@ -58,5 +63,50 @@ describe("scaffold (DX-3)", () => {
     expect(src).toContain(
       'reactWidgetView(entry, appGroupId: "group.com.example.expowatch")',
     );
+  });
+});
+
+// The CLI writes the watch glue first and used to exit the moment it found
+// that file already there — so re-running `scaffold` after turning the widget
+// target on (the ordinary way a widget gets added to an existing app) never
+// produced targets/widget/ReactWidgets.swift. Each glue file has to stand on
+// its own: an existing one is refused, the missing one is still written.
+describe("scaffold CLI", () => {
+  it("writes the widget glue even when the watch glue already exists", () => {
+    const projectRoot = mkdtempSync(join(tmpdir(), "rnw-scaffold-"));
+    writeFileSync(
+      join(projectRoot, "app.json"),
+      JSON.stringify({
+        expo: {
+          name: "Example",
+          ios: { bundleIdentifier: "com.example.app" },
+          plugins: [["react-watchos", { widget: true }]],
+        },
+      }),
+    );
+    const watchGlue = join(projectRoot, "targets/watch/WatchApp.swift");
+    mkdirSync(dirname(watchGlue), { recursive: true });
+    writeFileSync(watchGlue, "// hand-edited\n");
+
+    const run = spawnSync(
+      process.execPath,
+      [
+        "--experimental-strip-types",
+        join(
+          dirname(fileURLToPath(import.meta.url)),
+          "../bin/react-watchos.cts",
+        ),
+        "scaffold",
+      ],
+      { cwd: projectRoot, encoding: "utf8" },
+    );
+    // The refusal is still a failure — nothing silently skipped…
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("targets/watch/WatchApp.swift already exists");
+    // …but it no longer takes the widget glue down with it.
+    expect(
+      existsSync(join(projectRoot, "targets/widget/ReactWidgets.swift")),
+    ).toBe(true);
+    expect(run.stdout).toContain("wrote targets/widget/ReactWidgets.swift");
   });
 });

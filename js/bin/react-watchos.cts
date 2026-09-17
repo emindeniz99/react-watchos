@@ -307,6 +307,9 @@ function scaffold(args: string[]) {
 
 /**
  * Write one scaffolded file, refusing to clobber an edited one without --force.
+ * A refusal marks the run failed but does NOT exit: the watch glue is written
+ * first, and exiting on it would skip the widget glue every time `scaffold`
+ * is re-run after `widget: true` is switched on — the one time it is needed.
  */
 function writeGlue(
   projectRoot: string,
@@ -321,7 +324,8 @@ function writeGlue(
     console.error(
       `[scaffold] ${relPath} already exists (pass --force to overwrite)`,
     );
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   fs.writeFileSync(file, contents);
   console.log(`[scaffold] wrote ${relPath} (${note})`);
