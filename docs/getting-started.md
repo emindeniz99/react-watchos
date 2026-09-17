@@ -257,7 +257,18 @@ a second clone or git worktree reuses it.
 runs the bundle through the same embedding calls `JSRuntime.swift` makes. Both
 are also the local crash-repro loop — see [debugging.md](./debugging.md#the-local-repro-loop-no-watch-required).
 
-## Watch app — requires macOS 15+, Xcode 16+
+## Watch app — requires macOS 15+, Xcode 26.x
+
+The Swift host calls a handful of watchOS-26-only symbols (`.glass`,
+`.glassEffect()`, `RelevantContext.DateKind`) — each is guarded by
+`#available(watchOS 26.0, *)` for *runtime* dispatch, but the symbols still
+have to exist in the SDK you *compile* against, so an older Xcode fails to
+build the package at all (`value of type 'some View' has no member
+'glassEffect'`, and similar). CI builds on a `macos-26` runner for exactly
+this reason. Deployment stays down to watchOS 10 (`Package.swift`'s floor,
+unchanged) — the toolchain requirement and the runtime floor are two
+different things: older watches still run the app, they just never reach the
+gated code paths.
 
 ```bash
 pnpm install                              # workspace install (every member)
