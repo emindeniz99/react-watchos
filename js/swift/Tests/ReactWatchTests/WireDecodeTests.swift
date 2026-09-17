@@ -80,6 +80,16 @@ final class WireDecodeTests: XCTestCase {
         XCTAssertEqual(root.props["half"], .number(0.5))
     }
 
+    /// NodeViewRenderTests' extreme rows are all ±1e308 and rely on the wire
+    /// handing that back as the finite Double it is, not a refusal (the
+    /// parity case above would accept either) and not ±inf.
+    func testDoubleExtremesDecodeFinite() throws {
+        let root = try XCTUnwrap(
+            try RNTree(wireJSON: Data(propsPayload(#"{"hi":1e308,"lo":-1e308}"#).utf8)).root)
+        XCTAssertEqual(root.props["hi"], .number(1e308))
+        XCTAssertEqual(root.props["lo"], .number(-1e308))
+    }
+
     func testNullAndAbsentRootBothDecodeToNil() throws {
         XCTAssertNil(try RNTree(wireJSON: Data(#"{"v":1,"seq":3,"root":null}"#.utf8)).root)
         XCTAssertNil(try RNTree(wireJSON: Data(#"{"v":1,"seq":3}"#.utf8)).root)
