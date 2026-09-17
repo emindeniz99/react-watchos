@@ -113,8 +113,8 @@ cat <<EOF
 Done — vendored quickjs-ng $TAG (tarball $ACTUAL_SHA).
 Next:
   1. Review the prose in $VENDOR/VERSION.md (the qjs_sources note may need an
-     update if upstream changed which files compile).
-  2. Bump the version in js/swift/README.md.
-  3. Verify it still embeds:  tools/embed-smoke/run.sh
-  4. Run the manifest gate:   cd js && pnpm vitest run test/vendor-integrity
+     update if upstream changed which files compile; js/swift/README.md
+     links here and needs no edit).
+  2. Verify it still embeds:  tools/embed-smoke/run.sh
+  3. Run the manifest gate:   cd js && pnpm vitest run test/vendor-integrity
 EOF

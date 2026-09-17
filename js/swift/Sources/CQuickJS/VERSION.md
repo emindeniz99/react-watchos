@@ -23,7 +23,7 @@ Run `tools/vendor-quickjs/run.sh <tag>` (e.g. `v0.16.0`). It downloads the
 upstream tarball, overwrites the four `qjs_sources` files, refreshes the
 headers we vendor (leaving our `quickjs-swift-shim.h` alone) and the LICENSE,
 and bumps the version line + source URL above. Then review the prose in this
-file, bump the version in `js/swift/README.md`, and run
+file (`js/swift/README.md`'s table links here, so it needs no edit) and run
 `tools/embed-smoke/run.sh` to prove the new engine still embeds.
 
 Tarball SHA-256: 97c80625b26775a4c7ca618c004d4ea24cf99cbf867e4eba78bd927a8b23d106
