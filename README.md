@@ -168,8 +168,9 @@ live instances. Same producer/consumer pattern as
 ## Quick start
 
 In your own Expo app (the plugin does the Xcode wiring — no hand-written
-target config). The package publishes to npm as **`react-watchos`**, so this
-path works after the first release — nothing is published yet. (The
+target config). The package is on npm as **`react-watchos`** — latest is
+**0.7.0**, eight releases since 0.1.0 — so this works today, whether you
+install via `npx expo install` or `pnpm add react-watchos` directly. (The
 `react-native-watchos` name on npm is an unrelated empty placeholder, not
 this project.)
 
@@ -178,7 +179,17 @@ npx expo install react-watchos @bacons/apple-targets
 # app.json → "plugins": [["react-watchos", { "name": "My Watch", "widget": true }]]
 npx react-watchos scaffold     # the @main Swift glue
 npx expo prebuild              # creates + links the watch/widget targets
+npx react-watchos build --entry <your-entry.tsx> --asset <watch-target>/assets/bundle.js
 ```
+
+Build the JS bundle **after** `expo prebuild`, not before — `--asset` copies
+into the target directory prebuild just created (see
+[docs/getting-started.md](./docs/getting-started.md) for the concrete
+target path), so there's nowhere to copy to if you build first. Skip this
+step and the watch app boots to `` bundle.js missing — run `npm run build` ``
+— that error names this package's own repo script, not one your app has;
+`npx react-watchos build` above is the command that actually produces the
+bundle in your app.
 
 In this repo (Linux/macOS, no Xcode needed for the JS half). Node ≥ 22.18 is
 the floor (native TypeScript type stripping); the repo pins Node 24 via mise
@@ -301,9 +312,12 @@ can't claim) is
   truth is `pnpm check:size` (run from `js/` — not a root script), and every
   limit with its real ceiling is
   tabulated in [docs/budgets-and-limits.md](./docs/budgets-and-limits.md).
-- **CI has never run.** GitHub Actions is disabled at the repo level, so the
-  Linux and macOS workflows have never executed — the gates are run locally.
-  Recorded in [docs/status.md](./docs/status.md).
+- **CI runs, but nothing requires it to be green.** `ci.yml`/`quality.yml`/
+  `build.yml` run on every push and PR (0.7.0 shipped through
+  `release.yml`), but main's only ruleset blocks deletion and force-push —
+  no status check is required, so a red run doesn't block a push or a
+  release; `release.yml` re-runs its own subset of the gates before
+  publishing. Recorded in [docs/status.md](./docs/status.md).
 
 ## When NOT to use this
 
@@ -350,7 +364,7 @@ else. Five, honestly:
 
 - **Pre-1.0 (`0.x`): every release may break.** Nothing has shipped to a
   store yet and the project deliberately prefers clean breaking changes over
-  compatibility shims — pin an **exact** version (`"react-watchos": "0.1.0"`,
+  compatibility shims — pin an **exact** version (`"react-watchos": "0.7.0"`,
   no `^`/`~`) and read the changelog before upgrading.
 - **OTA bundles are coupled to the native binary** — the fact that bites
   adopters: a served bundle must match the binary's wire version (`tree.v`),
