@@ -175,6 +175,17 @@ companion (the key is then omitted; Apple treats absent as dependent).
 > submission. (This is why the plugin gates the key behind an explicit option
 > instead of always emitting it.)
 
+**Version and build number.** There is no plugin option for them, and none
+is needed: `@bacons/apple-targets` (every version in the plugin's peer range)
+sets `MARKETING_VERSION` on every native target from `expo.version` (or
+`ios.version`) and `CURRENT_PROJECT_VERSION` on the targets it creates from
+`ios.buildNumber` (`EAS_BUILD_IOS_BUILD_NUMBER` when EAS manages the number),
+and the generated watch and widget targets read `CFBundleShortVersionString`
+/ `CFBundleVersion` from those settings. So the watch app's version always
+matches the iOS app's, which App Store Connect requires for an embedded
+watch app. Bump `version` / `ios.buildNumber` in the Expo config and
+prebuild; do not hand-edit the target Info.plists.
+
 ## Versioning & the wire contract
 
 The JS↔Swift wire schema (`js/codegen`) generates `WIRE_VERSION` into both
