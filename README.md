@@ -308,12 +308,16 @@ can't claim) is
   truth is `pnpm check:size` (run from `js/` — not a root script), and every
   limit with its real ceiling is
   tabulated in [docs/budgets-and-limits.md](./docs/budgets-and-limits.md).
-- **CI runs, but nothing requires it to be green.** `ci.yml`/`quality.yml`/
-  `build.yml` run on every push and PR (0.7.0 shipped through
-  `release.yml`), but main's only ruleset blocks deletion and force-push —
-  no status check is required, so a red run doesn't block a push or a
-  release; `release.yml` re-runs its own subset of the gates before
-  publishing. Recorded in [docs/status.md](./docs/status.md).
+- **CI runs, but nothing requires it to be green.** `ci.yml` runs on every
+  push and PR; `quality.yml` and `build.yml` are path-filtered (JS/docs and
+  native/plugin changes respectively), so a push that touches neither's
+  paths triggers neither. Main's only ruleset blocks deletion and
+  force-push — no status check is required, so a red run doesn't block a
+  push or a release. `release.yml` re-runs only the Linux JS gates
+  (typecheck, lint, size budget, vitest against the vendored engine) before
+  publishing — none of `swift-lint`/`watchos-tests`/`build`, so an npm
+  release can ship with the native side red. `build.yml` has been running
+  on schedule since 2026-08-07 ([docs/status.md](./docs/status.md)).
 
 ## When NOT to use this
 
