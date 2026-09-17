@@ -149,7 +149,14 @@ jobs:
     # The half of lychee that needs the network. Weekly, and NEVER on a PR: a
     # third-party URL can 404 on a Tuesday with nothing in this repo having
     # changed, and that must not be somebody's red build.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    #
+    # `github.workflow == 'quality'` because a CALLED copy sees its caller's
+    # event: release.yml's RUNBOOK recovers a failed publish by dispatching
+    # release, and without this clause that dispatch would also sweep every
+    # external link (and, below, apt-install cppcheck) inside the publish run.
+    # Neither can turn it red — both are continue-on-error — but neither
+    # belongs there. Only this workflow's own schedule and dispatch run them.
+    if: github.workflow == 'quality' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -187,8 +194,9 @@ jobs:
     # GitHub, not by us. Everything else in this battery is pinned to an exact
     # release; a tool that can change rules under us does not get to fail a
     # pull request. It found nothing at adoption (cppcheck 2.13.0,
-    # --enable=warning,portability).
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # --enable=warning,portability). Same `github.workflow` clause as
+    # external-links above, for the same reason.
+    if: github.workflow == 'quality' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
