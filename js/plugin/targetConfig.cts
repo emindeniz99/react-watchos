@@ -98,7 +98,7 @@ function watchTargetConfig(opts: ResolvedOptions) {
       ? {
           NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
           NSLocalNetworkUsageDescription:
-            "Fetch development bundles from your Mac on the local network.",
+            "Fetch development OTA bundles from your Mac on the local network.",
         }
       : {}),
     ...opts.infoPlist,
