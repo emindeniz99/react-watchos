@@ -228,11 +228,15 @@ jobs:
       # Trusted publishing requires npm >= 11.5.1. Whichever npm the Node 24
       # image happens to bundle is an assumption, not a control: an image
       # refresh that ships an older npm would break OIDC auth at publish time,
-      # after the tag and the Release already exist. Pin it.
+      # after the tag and the Release already exist. Pin it — to an EXACT
+      # version, not a range: `^11.5.1` resolved to whatever the registry
+      # served on the day, so the one job that holds `id-token: write` ran a
+      # publisher nobody had chosen. Bump deliberately, with a look at the
+      # release notes; the OIDC floor is the reason for the pin, not its value.
       # (zizmor flags any un-lockfiled global install; that IS the point here —
       # the version we need is a control, not whatever the image ships.)
       - name: Pin npm (trusted publishing needs >= 11.5.1)
-        run: npm install -g npm@^11.5.1 # zizmor: ignore[adhoc-packages]
+        run: npm install -g npm@11.19.1 # zizmor: ignore[adhoc-packages]
       - name: Install (pnpm workspace)
         run: pnpm install --frozen-lockfile
       # The core gates run HERE too, against the tagged tree, before the
