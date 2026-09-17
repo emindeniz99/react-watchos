@@ -12,9 +12,25 @@ will run it. This is how you produce that signature.
 
 ## 1. Generate a keypair (once)
 
-```sh
-npm run ota:keygen
+There's no shipped `keygen` command — call `generateSigningKey()` from
+`react-watchos/manifest` directly:
+
+```js
+// keygen.mjs — run once, keep the output somewhere safe
+import { generateSigningKey } from "react-watchos/manifest";
+
+const { keyId, publicKeyBase64, privateKeySeedBase64 } = generateSigningKey();
+console.log("keyId:", keyId);
+console.log("public key (ships in the app):", publicKeyBase64);
+console.log("private key (CI secret, NEVER commit):", privateKeySeedBase64);
 ```
+
+```sh
+node keygen.mjs
+```
+
+(In this repo, `pnpm ota:keygen` is a thin CLI over the same
+`generateSigningKey()` — see [`scripts/ota-keygen.ts`](../js/scripts/ota-keygen.ts).)
 
 Prints a **key id** (`kid`) plus two base64 values:
 
@@ -53,24 +69,49 @@ that trusts the new key.
 
 ## 2. Build, then sign (in CI, at publish time)
 
+Build with the shipped CLI (or `buildBundles()` directly — see
+[getting-started.md](./getting-started.md#consuming-it-in-your-own-app)),
+then sign with `signManifest()` from `react-watchos/manifest`:
+
 ```sh
-npm run build                          # emits dist/bundle.js + dist/manifest.json (signature: null)
-OTA_SIGNING_KEY="$OTA_SIGNING_KEY" \
-OTA_SIGNING_KEY_ID="$OTA_SIGNING_KEY_ID" \
-npm run ota:sign                       # fills manifest.json's signature + keyId
+npx react-watchos build --entry watch/index.tsx --outfile dist/bundle.js
+# emits dist/bundle.js + dist/manifest.json (signature: null)
 ```
 
-`ota:sign` signs the exact bytes the watch verifies —
+```js
+// sign.mjs
+import { signManifest } from "react-watchos/manifest";
+
+const signed = signManifest({
+  distDir: "dist",
+  keyId: process.env.OTA_SIGNING_KEY_ID,
+  privateKeySeedBase64: process.env.OTA_SIGNING_KEY,
+});
+console.log(`OTA manifest signed (keyId ${signed.keyId}, v${signed.version})`);
+```
+
+```sh
+OTA_SIGNING_KEY="$OTA_SIGNING_KEY" \
+OTA_SIGNING_KEY_ID="$OTA_SIGNING_KEY_ID" \
+node sign.mjs
+```
+
+(`examples/expo-watch-app/scripts/build-targets.mjs` wires both calls
+together for a real target, dev-key fallback included.)
+
+`signManifest` signs the exact bytes the watch verifies —
 `"v2:<kid>:<version>:<expiresAt>:<dist/bundle.js>"` (matching Swift's
 `UpdatePlan.signedMessage`) — and writes the base64 signature **and the `keyId`**
-into `dist/manifest.json`. Signing is a **separate step from `build`** on
+into `dist/manifest.json`. Signing is a **separate step from the build** on
 purpose: the private key never touches a dev build.
 
-Optional revocation lever: `OTA_SIGNING_EXPIRES_DAYS=<n>` binds an expiry
-(epoch seconds) into the signed bytes. The watch refuses a lapsed bundle at
+Optional revocation lever: pass `expiresAt` (epoch seconds) to `signManifest`
+to bind an expiry into the signed bytes. The watch refuses a lapsed bundle at
 save AND at every boot re-verification (app and widget both), so a leaked or
 superseded artifact can't be replayed forever — re-sign and re-publish to
-extend. Unset = the signature never expires (`expiresAt: 0`).
+extend. Omit it and the signature never expires (`expiresAt: 0`). (In this
+repo, `pnpm ota:sign` wraps this as `OTA_SIGNING_EXPIRES_DAYS=<n>` — see
+[`scripts/ota-sign.ts`](../js/scripts/ota-sign.ts).)
 
 Then upload `dist/manifest.json` and `dist/bundle.js` to your update endpoint
 (serve over **HTTPS**). The app's `fetchAndApplyUpdate(manifestUrl)` /
