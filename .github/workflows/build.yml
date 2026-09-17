@@ -98,7 +98,7 @@ jobs:
       run:
         working-directory: js
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Empty on push/PR — checkout then uses the event's own default ref.
           ref: ${{ inputs.ref }}
@@ -122,7 +122,7 @@ jobs:
       run:
         working-directory: js/swift
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Empty on push/PR — checkout then uses the event's own default ref.
           ref: ${{ inputs.ref }}
@@ -199,7 +199,7 @@ jobs:
       CI: "1"
       EXPO_NO_TELEMETRY: "1"
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Empty on push/PR — checkout then uses the event's own default ref.
           ref: ${{ inputs.ref }}
