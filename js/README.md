@@ -275,23 +275,24 @@ at `http://127.0.0.1:8099`.
 ## Consumer tsconfig contract (source-shipping)
 
 This package ships raw `.ts` — your compiler type-checks it as part of your
-program (`skipLibCheck` doesn't exempt it). The source references Node-typed
-globals, so every consumer needs `@types/node` in devDependencies and:
+program (`skipLibCheck` doesn't exempt it). Your `lib` must cover the
+timer/console/fetch globals the renderer uses — the standard Expo/web shape
+works:
 
 ```jsonc
-{ "compilerOptions": { "types": ["node"] } }
+{ "compilerOptions": { "lib": ["DOM", "DOM.Iterable", "ESNext"], "jsx": "react-jsx" } }
 ```
 
-Without it, a strict tsconfig fails with `TS2304/TS2580` errors inside the
-package (`setTimeout`, `process`, `console`).
+Without a covering `lib`, a strict tsconfig fails with `TS2304` errors inside
+the package.
 
-Everything else needed to type-check the shipped source is handled for you: the
-types for the untyped runtime/peer deps it imports (`plurals-cldr`,
-`react-reconciler`) are pulled in as regular dependencies, and the timer-id
-casts assert through `unknown` so `@types/node`'s `NodeJS.Timeout` return type
-doesn't clash. A fresh consumer that installs the package + the `react` /
-`react-reconciler` peers + `@types/node` gets a clean `tsc` — verified by
-packing the tarball and type-checking a consumer app against it.
+`@types/node` is **not** required (since 0.2.0) — the one `process` read
+carries its own module-local declaration. Everything else needed to
+type-check the shipped source is handled for you: the types for the untyped
+runtime/peer deps it imports (`plurals-cldr`, `react-reconciler`) are pulled
+in as regular dependencies. A fresh consumer that installs the package + the
+`react` / `react-reconciler` peers gets a clean `tsc` — verified by packing
+the tarball and type-checking a consumer app against it.
 
 ## React dedupe (single instance)
 
