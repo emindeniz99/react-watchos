@@ -315,3 +315,11 @@ in the project docs.
 - [How updates commit + serialization quirks](../docs/updates.md)
 - [Adding a native capability](../docs/extending.md)
 - [Roadmap](../docs/roadmap.md)
+
+## Upgrading
+
+Pre-1.0, breaking changes ship as minor versions. [`CHANGELOG.md`](./CHANGELOG.md)
+is in the package (release-please writes it, next to this file) and says what
+changed; what a consumer *does* about it is in
+[MIGRATIONS.md](https://github.com/emindeniz99/react-watchos/blob/main/MIGRATIONS.md)
+at the repository root — that one is not in the tarball, so read it there.

@@ -70,6 +70,7 @@
     "LICENSE",
     "NOTICE",
     "README.md",
+    "CHANGELOG.md",
     "bin"
   ],
   "scripts": {
