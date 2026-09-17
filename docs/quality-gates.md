@@ -28,7 +28,7 @@ has to stay fast.
 | **shellcheck** | 0.11.0 | every tracked `.sh` + `.githooks/pre-push` | — (`-x`) |
 | **typos** | 1.45.0 | spelling in source, comments, docs | [`_typos.toml`](../_typos.toml) |
 | **lychee** | 0.23.0 | internal links + `#anchors`, **offline** | [`lychee.toml`](../lychee.toml) |
-| **CodeQL** | action v4.37.8 | TS/JS + the workflow files, default suite | [`codeql.yml`](../.github/workflows/codeql.yml) |
+| **CodeQL** | action v4.38.0 | TS/JS + the workflow files, default suite | [`codeql.yml`](../.github/workflows/codeql.yml) |
 
 Report-only, never a gate:
 
@@ -56,6 +56,27 @@ Two things the audit found that are worth remembering:
   had one hyphen where the em-dash heading slugs to two. Exactly the class
   `lychee --include-fragments` exists for.
 
+### CodeQL alerts that are dismissed, and why
+
+`actions/cache-poisoning/poisonable-step` fires on every step that executes
+code in a job whose checkout is `ref: ${{ inputs.ref }}` — which is every job
+in `ci.yml`, `quality.yml` and `build.yml`, because they are reusable
+(`workflow_call`) and a caller has to name the ref. CodeQL reads the input as
+untrusted; it cannot see who the callers are. Here they are two workflows in
+this repo: `release.yml` passes the tag release-please just cut (the run's own
+commit), and `vendor-quickjs.yml` passes the branch its own bot just pushed. A
+direct `workflow_dispatch` leaves the input empty, and a foreign repo calling
+the file runs it in its own cache scope, not ours. So these alerts are
+dismissed as *false positive* with that sentence as the comment, and a new job
+on the same checkout will raise them again — dismiss again, same reason. Don't
+exclude the query in `codeql.yml`: it is the one that would fire if some future
+job checked out a pull request's head in a default-branch context, which is the
+defect it exists for.
+
+`js/polynomial-redos` on `update.ts`'s `/[^/]*$/` (the sonarjs row below had
+already weighed it) was fixed rather than dismissed — a one-line string scan is
+cheaper than an argument.
+
 ### Rejected after measuring: eslint-plugin-sonarjs
 
 Audited at 4.2.0 over `src/`, `esbuild/`, `plugin/`, `bin/`, `scripts/`,
@@ -70,7 +91,7 @@ wired**. The breakdown is the argument:
 | `redundant-type-aliases` | 3 | `BleState = string`, `EventPriority = number`, `InvokeShapeRef = string` — deliberate documentation aliases, each with a doc block saying so. |
 | `no-os-command-from-path` | 2 | `execFileSync("swift", …)` in dev-only codegen. |
 | `no-nested-conditional` | 2 | Style. |
-| `super-linear-regex` | 2 | The only class with teeth. `update.ts`'s `/[^/]*$/` runs on the developer-configured manifest URL (the remote-supplied `bundle` field goes through a linear test). `bin/symbolicate-core.mts`'s `STACK_FRAME_RE` does see field input — `react-watchos symbolicate` ingests stacks and `--diagnostics` rings that originate on users' watches — but it is a per-line regex over a stack you are already reading: the worst case is one slow line on the operator's Mac, not a service. |
+| `super-linear-regex` | 2 | The only class with teeth. `update.ts`'s `/[^/]*$/` ran on the developer-configured manifest URL (the remote-supplied `bundle` field goes through a linear test); replaced by a string scan (PR #19) once CodeQL raised the same finding. `bin/symbolicate-core.mts`'s `STACK_FRAME_RE` does see field input — `react-watchos symbolicate` ingests stacks and `--diagnostics` rings that originate on users' watches — but it is a per-line regex over a stack you are already reading: the worst case is one slow line on the operator's Mac, not a service. |
 | `todo-tag` | 2 | The repo's TODOs carry context on purpose. |
 | `concise-regex`, `no-inverted-boolean-check` | 2 | Style. |
 
