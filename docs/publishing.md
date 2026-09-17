@@ -1,9 +1,13 @@
 # Publishing `react-watchos` as an installable library
 
-Status: **plan** (2026-06). Synthesizes two research spikes — native-target
-distribution via Expo config plugins, and XCFramework-vs-source for the native
-host. Goal: a developer adds a React-written watchOS app to their **existing
-Expo app** with one install + one plugin line.
+Status: **Phase 1 shipped** (see [Decision 3](#decision-3--the-config-plugin));
+published on npm since 0.1.0, `npx expo install react-watchos` works today.
+Originated (2026-06) from two research spikes — native-target distribution
+via Expo config plugins, and XCFramework-vs-source for the native host — kept
+below as the design record; the "Current state → gaps" and "Plugin options"
+sections are updated to the shipped reality, everything else is history.
+Goal: a developer adds a React-written watchOS app to their **existing Expo
+app** with one install + one plugin line.
 
 ## Target developer experience
 
@@ -29,20 +33,24 @@ setup for real devices** (set their Apple Team in Xcode; approve App Group /
 HealthKit capabilities on their account). That step is Apple's requirement and
 cannot be automated by any plugin. Simulator needs no signing.
 
-## Current state → gaps
+## Current state → gaps (resolved — kept as the design record)
 
-The three real pieces of the library already exist and are tested:
+*This section described the pre-packaging repo, before Phase 1 shipped. The
+package has been on npm since 0.1.0; every blocker below is closed. Kept
+for the "why does the plugin look like this" history, not as an open list.*
 
-- **JS reconciler** (`js/`) — components, hooks, `runApp`, widgets, intents, navigation.
-- **Native host** (`swift/`) — `ReactWatchCore/Host/Runtime/Support` SwiftPM packages + a vendored **quickjs-ng** C engine (consumed as the Clang module `CQuickJS`).
-- **Glue** (`app/plugins/*`, `app/scripts/*`, `app/targets/*`, `@bacons/apple-targets`) — but it is **demo-specific and hand-wired**.
+The three real pieces of the library exist, are tested, and ship together:
 
-What blocks "installable by a stranger":
+- **JS reconciler** (`js/src/`) — components, hooks, `runApp`, widgets, intents, navigation.
+- **Native host** (`js/swift/`) — `ReactWatchCore/Host/Runtime/Support` SwiftPM packages + a vendored **quickjs-ng** C engine (consumed as the Clang module `CQuickJS`).
+- **Glue** — the unified `react-watchos` config plugin (`js/plugin/`) + the CLI's `scaffold` command; no per-consumer hand-wiring.
 
-1. **`swift/` is referenced by the relative path `../../swift`** (`wire-local-package.js`) — works only inside this monorepo. An external `npm i` consumer gets the JS but **no resolvable Swift package**.
-2. **`js/package.json` `files` ships only `src`/`esbuild`/`README`** — no plugin, no Swift.
-3. **The config plugin is not a package entry** (`app.plugin.js`); the logic is split across `app/plugins` + `app/scripts` + `app/targets`, wired to this one demo.
-4. **Hardcoded identifiers** — App Group, target names, bundle IDs, deployment targets.
+What used to block "installable by a stranger" (all closed):
+
+1. ~~`swift/` is referenced by the relative path `../../swift`~~ — **closed**: the SwiftPM host ships *inside* the npm package at `js/swift/`, and the plugin resolves its own install dir with `require.resolve('react-watchos/package.json')` (Decision 1).
+2. ~~`js/package.json` `files` ships only `src`/`esbuild`/`README`~~ — **closed**: `files` now includes `plugin`, `swift/Package.swift`, `swift/Sources`, `swift/Tests`, `bin`, `dist-node`, `esbuild` (see `js/package.json`).
+3. ~~The config plugin is not a package entry~~ — **closed**: `app.plugin.js` → `js/plugin/index.cts`, one parameterized plugin (Phase 1 below), still on `@bacons/apple-targets` — Phase 2 (own target creation) has not started.
+4. ~~Hardcoded identifiers~~ — **closed**: App Group, target names, bundle-id suffixes, deployment target, and more are options (see "Plugin options" below).
 
 ## Decision 1 — one npm package owns everything
 
@@ -122,14 +130,15 @@ target creation across Xcode versions (the brittle part) — but we already
 maintain the SPM-linking pbxproj code and have already hit every apple-targets
 limit that forced the current workarounds.
 
-### Plugin options (parameterize today's hardcoded values)
+### Plugin options (shipped — `ReactWatchOptions`, `js/plugin/index.cts`)
 
 ```ts
-type Options = {
-  name: string;                 // watch app display name
-  appGroup: string;             // App Group id (defaults to bundleId-derived)
+type ReactWatchOptions = {
+  name?: string;                // watch app display name (default "React Watch")
+  appGroup?: string;            // App Group id (default "group.<your bundleIdentifier>")
   widget?: boolean;             // create the widget extension (default true)
   healthKit?: boolean;          // HealthKit entitlement + read usage strings (default false — opt-in)
+  push?: boolean;               // remote push: aps-environment entitlement (default false — opt-in)
   workouts?: boolean;           // WKBackgroundModes ["workout-processing"] + HealthKit entitlement
                                 //   + the workout save/route usage strings (default false — opt-in).
                                 //   REQUIRED for startWorkout() and for
@@ -139,24 +148,34 @@ type Options = {
   motion?: boolean;             // NSMotionUsageDescription (default false — opt-in). Needed by the
                                 //   motion/gyroscope streams and by CMPedometer, which Apple
                                 //   documents as CRASHING without the key (the bridge refuses
-                                //   with UNAVAILABLE rather than calling). Previously emitted
-                                //   under `healthKit`, which was wrong: CoreMotion is not HealthKit.
+                                //   with UNAVAILABLE rather than calling).
   calendar?: boolean;           // EventKit reads: NSCalendarsFullAccessUsageDescription +
                                 //   NSRemindersFullAccessUsageDescription (default false — opt-in).
                                 //   NO entitlement — the personal-information.calendars one Apple
-                                //   documents is for SANDBOXED macOS apps. Never the deprecated
-                                //   NSCalendarsUsageDescription (deprecated at watchOS 10.0, our
-                                //   floor). REQUIRED: without the keys the OS denies every access
-                                //   request WITHOUT prompting, so getCalendarEvents/getReminders
-                                //   would reject PERMISSION_DENIED forever.
-  push?: boolean;               // remote push: aps-environment entitlement (default false — opt-in)
-  families?: WidgetFamily[];    // complication families
+                                //   documents is for SANDBOXED macOS apps. REQUIRED: without the
+                                //   keys the OS denies every access request WITHOUT prompting, so
+                                //   getCalendarEvents/getReminders would reject PERMISSION_DENIED
+                                //   forever.
   deploymentTarget?: string;    // default "10.0"
-  entry?: string;               // watch JS entry (default "watch/index")
-  appleTeamId?: string;         // for EAS / signing scaffolding
+  appleTeamId?: string;         // for EAS / signing scaffolding (default: your app.json ios.appleTeamId)
+  scheme?: string;              // the reactwatch:// deep-link scheme (default: your bundleIdentifier,
+                                //   reverse-DNS — surfaced to JS as globalThis.__urlScheme)
+  watchBundleSuffix?: string;   // appended to your bundleIdentifier for the watch target (default ".watch")
+  widgetBundleSuffix?: string;  // appended to your bundleIdentifier for the widget target
+                                //   (default ".watch.widgets")
   independent?: boolean;        // standalone watch app (default true); see below
+  infoPlist?: Record<string, unknown>; // escape hatch — merged into the generated watch target's
+                                //   Info.plist last, so it can add or override any key the plugin has
+                                //   no dedicated option for (e.g. NSLocationWhenInUseUsageDescription
+                                //   for startLocation, which predates this option and still has none
+                                //   of its own).
 };
 ```
+
+There is no `families` or `entry` option — a complication's families are a
+JS-side concept passed to `publishWidgets`/the widget component, not a plugin
+config key, and the watch JS entry point is a `react-watchos build --entry`
+flag / `buildBundles()` argument, not something the plugin reads.
 
 **`independent` (default `true`).** Sets `WKRunsIndependentlyOfCompanionApp` on
 the watch target, so the app installs and runs without the iPhone — the
@@ -168,6 +187,34 @@ companion (the key is then omitted; Apple treats absent as dependent).
 > the app to companion-dependent. Decide `independent` **before** your first
 > submission. (This is why the plugin gates the key behind an explicit option
 > instead of always emitting it.)
+
+### In flight this release — verify against the merged plugin branch
+
+Three `targetConfig.cts` behaviors are being changed in the same cycle as
+this doc edit (2026-09 production-readiness audit), and this section may be
+ahead of or behind what's actually merged — check the plugin's own PR/diff,
+not just this page, before relying on any of the three:
+
+- **`push` / `aps-environment`.** Today `push: true` always emits
+  `aps-environment: "development"`; the comment's premise (distribution
+  signing rewrites it) holds for Xcode automatic signing but not for EAS
+  Build's manual-profile signing, so an EAS-built release ships a sandbox
+  push token. The planned fix adds an option (audit's suggestion:
+  `pushEnvironment?: "development" | "production"`, default
+  `"development"`) — confirm the option exists and its name before
+  documenting it as fact.
+- **Watch/widget `MARKETING_VERSION`.** Today the generated targets are
+  unversioned (apple-targets' own default), which Apple's upload validation
+  rejects once your app's `CFBundleShortVersionString` diverges from `1.0`
+  (a watchOS target embedded in an iOS app must match). The planned fix has
+  the plugin write it from your Expo config's `version` automatically — this
+  is a behavior change, not a new option, so there may be nothing to add to
+  the table above.
+- **ATS / `NSAllowsLocalNetworking`.** Today the watch target's
+  `NSAppTransportSecurity` unconditionally sets `NSAllowsLocalNetworking:
+  true` (needed for local-network dev OTA) in every build, release included,
+  with no way to turn it off. A planned option lets a consumer opt out for
+  release; confirm the option's actual name before citing it here.
 
 ## Versioning & the wire contract
 
