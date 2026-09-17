@@ -333,8 +333,10 @@ function capabilityGap(
 
 function resolveBundleUrl(manifestUrl: string, bundle: string): string {
   if (/^https?:\/\//.test(bundle)) return bundle;
-  // Resolve relative to the manifest's directory (no URL() in QuickJS).
-  return manifestUrl.replace(/[^/]*$/, "") + bundle;
+  // Resolve relative to the manifest's directory (no URL() in QuickJS). A
+  // string scan, not `/[^/]*$/`: that regex backtracks quadratically on a
+  // long slash-free tail, which CodeQL flags (js/polynomial-redos).
+  return manifestUrl.slice(0, manifestUrl.lastIndexOf("/") + 1) + bundle;
 }
 
 /**
