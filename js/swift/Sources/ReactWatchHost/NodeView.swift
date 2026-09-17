@@ -20,15 +20,23 @@ import UIKit
 // interpreter's logs across any host app AND its widget extension (where
 // Bundle.main would otherwise differ per process).
 private let interpreterLog = Logger(subsystem: "react-watchos", category: "interpreter")
-private let loggedUnsupportedTypes = OSAllocatedUnfairLock(initialState: Set<String>())
+private let loggedUnsupportedKeys = OSAllocatedUnfairLock(initialState: Set<String>())
+
+/// The once-per-key gate behind `unsupportedNode`, shared with the bad-prop
+/// path (`dateComponents`) so an unknown enum value degrades the same way an
+/// unknown node type does: rendered as best we can, logged once, never a trap.
+private func logUnsupportedOnce(_ key: String, _ message: String) {
+    let isNew = loggedUnsupportedKeys.withLock { $0.insert(key).inserted }
+    if isNew {
+        interpreterLog.error("\(message, privacy: .public)")
+    }
+}
 
 private func unsupportedNode(_ type: String) -> some View {
-    let isNew = loggedUnsupportedTypes.withLock { $0.insert(type).inserted }
-    if isNew {
-        interpreterLog.error(
-            "tried to render unsupported node type '\(type, privacy: .public)' — skipped; rebuild the bundle or update the app"
-        )
-    }
+    logUnsupportedOnce(
+        type,
+        "tried to render unsupported node type '\(type)' — skipped; rebuild the bundle or update the app"
+    )
     return EmptyView()
 }
 
@@ -614,9 +622,15 @@ struct NodeView: View {
         case "dateAndTime", nil: return [.date, .hourAndMinute]
         default:
             // The contract is date / hourAndMinute / dateAndTime; an unknown
-            // value is a typo from dynamic JS. Fall back to date+time, but make
-            // it loud in DEBUG rather than silently swallowing the mistake.
-            assertionFailure("unknown DatePicker mode \"\(mode ?? "")\"")
+            // value is a typo from dynamic JS. Fall back to date+time and log
+            // it once, like an unknown node type. This used to be an
+            // assertionFailure: a prop that arrives from the bundle at
+            // runtime — an OTA bundle included — took down every consumer's
+            // DEBUG build, while every other enum prop in this file degrades.
+            logUnsupportedOnce(
+                "DatePicker.mode=\(mode ?? "")",
+                "unknown DatePicker mode '\(mode ?? "")' — rendering dateAndTime; "
+                    + "the contract is date / hourAndMinute / dateAndTime")
             return [.date, .hourAndMinute]
         }
     }
