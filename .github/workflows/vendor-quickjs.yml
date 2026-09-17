@@ -52,20 +52,26 @@ env:
   SKIP_TAGS: ""
 
 jobs:
-  # ── 1. Decide, vendor, push ────────────────────────────────────────────────
+  # ── 1. Decide, vendor, prove — with a read-only token ──────────────────────
+  # This job compiles and RUNS the engine it just downloaded (embed-smoke, the
+  # bytecode compiler). A hijacked upstream tag is therefore arbitrary code on
+  # this runner, so the runner must hold nothing worth taking: `contents: read`
+  # and no persisted credentials. Pushing is the next job's, which executes
+  # nothing from the tarball.
   propose:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     outputs:
       propose: ${{ steps.decide.outputs.propose }}
       tag: ${{ steps.decide.outputs.tag }}
       branch: ${{ steps.decide.outputs.branch }}
+      sha256: ${{ steps.vendor.outputs.sha256 }}
       body: ${{ steps.body.outputs.b64 }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          persist-credentials: true
+          persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
@@ -183,15 +189,38 @@ jobs:
           # base64 so a multi-line body survives job outputs without quoting games.
           echo "b64=$(base64 -w0 "$RUNNER_TEMP/body.md")" >> "$GITHUB_OUTPUT"
 
+  # ── 2. Push — the one job that can write, and it runs nothing new ──────────
+  # Re-vendors from the DIGEST job 1 produced rather than receiving its tree:
+  # tools/vendor-quickjs/run.sh refuses a tarball whose SHA-256 differs and
+  # only copies files out of it, so what lands here is byte-for-byte the tree
+  # that compiled and passed above — or a loud mismatch and no push. No Node,
+  # no pnpm, no compiler: nothing in this job executes anything from the
+  # download, which is the whole point of holding `contents: write` here and
+  # nowhere else.
+  push:
+    needs: propose
+    if: needs.propose.outputs.propose == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: true
+      - name: Re-vendor from the digest job 1 verified against
+        env:
+          TAG: ${{ needs.propose.outputs.tag }}
+          TARBALL_SHA256: ${{ needs.propose.outputs.sha256 }}
+        run: sh tools/vendor-quickjs/run.sh "$TAG" "$TARBALL_SHA256"
+
       # One long-lived branch, force-updated: the PR is a standing proposal that
       # retargets itself as upstream moves, rather than a graveyard of stale
       # per-version PRs. Guarded — if a human has pushed onto the branch, the
       # bot backs off rather than discarding their work.
       - name: Push the branch
-        if: steps.decide.outputs.propose == 'true'
         env:
-          BRANCH: ${{ steps.decide.outputs.branch }}
-          TAG: ${{ steps.decide.outputs.tag }}
+          BRANCH: ${{ needs.propose.outputs.branch }}
+          TAG: ${{ needs.propose.outputs.tag }}
         run: |
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
             # Fetch the branch before reading or overwriting it. actions/checkout
@@ -214,9 +243,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
           # Explicit pathspec, not `-A`: tools/vendor-quickjs/run.sh only ever
-          # writes inside this directory, and the job's own scratch files
-          # (pick.json, before/after.txt, report.md, body.md) now live under
-          # $RUNNER_TEMP anyway — this is belt-and-braces against anything
+          # writes inside this directory — belt-and-braces against anything
           # else ever landing in the working tree.
           git add js/swift/Sources/CQuickJS
           # `fix`, not `chore`: release-please releases only the types its
@@ -232,10 +259,11 @@ jobs:
           see the PR body."
           git push --force-with-lease -u origin "$BRANCH"
 
-  # ── 2. Prove it, using the SAME gates main uses ────────────────────────────
+  # ── 3. Prove it, using the SAME gates main uses ────────────────────────────
+  # `needs` on both: `push` is what makes the branch exist, `propose` is where
+  # its name comes from. A skipped push (nothing soaked) skips these too.
   gates:
-    needs: propose
-    if: needs.propose.outputs.propose == 'true'
+    needs: [propose, push]
     # Stated even though it looks redundant: a called workflow's token can only
     # be equal to or narrower than the CALLER's, and this file declares
     # `permissions: {}` at the top. ci.yml's jobs ask for `contents: read`, so
@@ -256,8 +284,7 @@ jobs:
       ref: ${{ needs.propose.outputs.branch }}
 
   watch-build:
-    needs: propose
-    if: needs.propose.outputs.propose == 'true'
+    needs: [propose, push]
     # Same rule as `gates` above.
     permissions:
       contents: read
@@ -273,13 +300,14 @@ jobs:
     with:
       ref: ${{ needs.propose.outputs.branch }}
 
-  # ── 3. Open or update the PR, with the gate results in it ──────────────────
+  # ── 4. Open or update the PR, with the gate results in it ──────────────────
   pull-request:
-    needs: [propose, gates, watch-build]
+    needs: [propose, push, gates, watch-build]
     # `always()` so a RED gate still produces the PR — a bump that breaks the
     # build is exactly the thing worth seeing, and hiding it would make the bot
-    # look like upstream had published nothing.
-    if: always() && needs.propose.outputs.propose == 'true'
+    # look like upstream had published nothing. A failed PUSH is different:
+    # there is no branch to open a PR for, so that one gates.
+    if: always() && needs.push.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
