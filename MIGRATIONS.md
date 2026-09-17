@@ -10,6 +10,53 @@ first, and only versions with consumer-facing action items appear.
      `files` and (verified against a real `pnpm pack` tarball) from the npm
      package. Release reading happens on the repo; the tarball carries code. -->
 
+## 0.7.x → 0.8.0 (not yet released — on `main` as commit `7aca6ce`)
+
+**Release builds no longer draw the developer diagnostic banner or the
+full-screen startup error text.** Both carried raw JS stack traces and Swift
+error descriptions with no way to turn them off — `ReactWatchRootView` had
+no knob. They are now `#if DEBUG`: a release build shows nothing for a
+recoverable diagnostic and a wordless ⚠︎ symbol for a boot failure.
+
+Action:
+- If your app relied on the banner/startup text as its user-facing error UI,
+  render your own — `<ErrorBoundary fallback={...}>` covers render throws;
+  for every other failure class (promise rejections, event-handler throws,
+  boot failures) pass your own view through the new
+  `ReactWatchRootView(diagnosticsSink:)` parameter.
+- If your app relied on the banner to *notice* a failure at all — nothing
+  else surfaced it — implement `DiagnosticsSink` and pass it as
+  `diagnosticsSink`. This is the fleet-telemetry hook docs/debugging.md
+  already described; it was hardcoded to `LogDiagnosticsSink` before this
+  release.
+- Diagnostics recorded before the bundle finishes evaluating — including the
+  OTA rollback notice, `boot.*`, and `ota.updateRequired` — now replay into
+  JS's `onDiagnostic` once the bundle is ready, instead of being dropped. No
+  action needed to receive them; a handler that assumed only post-boot
+  diagnostics would arrive now also sees these.
+
+## 0.6.x → 0.7.0
+
+**`installInvokeHost` (from `react-watchos/testing`) changed two defaults.**
+An invoke method with no matching entry in the handlers you pass now
+resolves the void wire (`undefined`) instead of JSON `null`, and a thrown
+`Error` now rejects with its own `message` instead of degrading to a generic
+`{}`.
+
+Action, only if a test asserts on the *old* default:
+- `expect(await someUnlistedMethod()).toBeNull()` → now resolves
+  `undefined`; update the assertion (this also matches what native actually
+  sends for a `Void` op).
+- A handler that `throw`s a plain `Error` to simulate a native rejection now
+  surfaces that `Error`'s own `message` on the caught `{code, message}`
+  instead of an opaque fallback; update an assertion that expected the old
+  generic message, or throw `{ code, message }` directly to control it.
+
+New, optional: handlers now receive the method name as a second argument,
+and an entry keyed `"*"` handles any method with no entry of its own — throw
+`{ code: "UNKNOWN_METHOD", message }` from it to mirror native's reply for a
+method your handlers don't cover, instead of the lenient void default.
+
 ## 0.5.x → 0.6.0
 
 **Widget timeline views now render without the React reconciler.** The
