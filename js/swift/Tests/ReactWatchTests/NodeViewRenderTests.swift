@@ -76,16 +76,30 @@ final class NodeViewRenderTests: XCTestCase {
 
     // MARK: - Part 1: corpus
 
-    func testEveryTreeFixtureRendersWhole() throws {
-        for name in [
-            "tree", "kitchen-sink", "treediff-small-before", "treediff-small-after",
-            "treediff-large-before", "treediff-large-after",
-        ] {
-            let tree = try RNTree(wireJSON: Self.fixture(name))
-            let root = try XCTUnwrap(tree.root, "\(name).json has no root")
-            mark("fixture \(name)")
-            render(root)
-        }
+    // One method per fixture and per hostile group, not one loop: a trap
+    // aborts the test host, xcodebuild restarts it and resumes at the NEXT
+    // method, so a loop would hide every row after the first trap. The first
+    // run of this file found two traps that way and skipped 190 rows.
+    func testFixtureTreeRendersWhole() throws { try renderFixture("tree") }
+    func testFixtureKitchenSinkRendersWhole() throws { try renderFixture("kitchen-sink") }
+    func testFixtureTreediffSmallBeforeRendersWhole() throws {
+        try renderFixture("treediff-small-before")
+    }
+    func testFixtureTreediffSmallAfterRendersWhole() throws {
+        try renderFixture("treediff-small-after")
+    }
+    func testFixtureTreediffLargeBeforeRendersWhole() throws {
+        try renderFixture("treediff-large-before")
+    }
+    func testFixtureTreediffLargeAfterRendersWhole() throws {
+        try renderFixture("treediff-large-after")
+    }
+
+    private func renderFixture(_ name: String) throws {
+        let tree = try RNTree(wireJSON: Self.fixture(name))
+        let root = try XCTUnwrap(tree.root, "\(name).json has no root")
+        mark("fixture \(name)")
+        render(root)
     }
 
     func testEveryKitchenSinkNodeRendersAsRoot() throws {
@@ -161,20 +175,63 @@ final class NodeViewRenderTests: XCTestCase {
         XCTAssertNotNil(render(try Self.decode(rich)))
     }
 
-    func testHostilePropsDegradeWithoutTrapping() throws {
-        for (_, cases) in Self.hostile {
-            for c in cases {
-                let node: RNNode
-                do {
-                    node = try Self.decode(c.json)
-                } catch {
-                    XCTFail(
-                        "\(c.type) \(c.prop)=\(c.value): case JSON is not wire-decodable: \(error)")
-                    continue
-                }
-                mark("\(c.type) \(c.prop)=\(c.value) — \(c.why)")
-                render(node)
+    func testHostileStacks() { hostile("VStack/HStack/ZStack") }
+    func testHostileText() { hostile("Text") }
+    func testHostileTimerText() { hostile("TimerText") }
+    func testHostileFormattedText() { hostile("FormattedText") }
+    func testHostileButton() { hostile("Button") }
+    func testHostileToggle() { hostile("Toggle") }
+    func testHostileImage() { hostile("Image") }
+    func testHostileGauge() { hostile("Gauge") }
+    func testHostileProgressView() { hostile("ProgressView") }
+    func testHostileSectionLabelContent() {
+        hostile("Section/Label/LabeledContent/ContentUnavailable")
+    }
+    func testHostileGrid() { hostile("Grid") }
+    func testHostileShareLink() { hostile("ShareLink") }
+    func testHostileChart() { hostile("Chart") }
+    func testHostileToolbar() { hostile("Toolbar") }
+    func testHostileTextFields() { hostile("TextField/SecureField") }
+    func testHostilePicker() { hostile("Picker") }
+    func testHostileTabView() { hostile("TabView") }
+    func testHostileCrownRotation() { hostile("CrownRotation") }
+    func testHostileSlider() { hostile("Slider") }
+    func testHostileStepper() { hostile("Stepper") }
+    func testHostileDatePicker() { hostile("DatePicker") }
+    func testHostileMap() { hostile("Map") }
+    func testHostileNavigationStack() { hostile("NavigationStack") }
+    func testHostilePresentations() { hostile("Alert/ConfirmationDialog/Sheet") }
+    func testHostileLayoutModifiers() { hostile("Text (LayoutModifier / shared modifier props)") }
+
+    /// Every group in the table has a method above; a group added without one
+    /// would otherwise never run.
+    func testEveryHostileGroupHasAMethod() {
+        XCTAssertEqual(Self.hostile.map(\.type), Self.hostileGroupsWithMethods)
+    }
+
+    private static let hostileGroupsWithMethods = [
+        "VStack/HStack/ZStack", "Text", "TimerText", "FormattedText", "Button", "Toggle",
+        "Image", "Gauge", "ProgressView", "Section/Label/LabeledContent/ContentUnavailable",
+        "Grid", "ShareLink", "Chart", "Toolbar", "TextField/SecureField", "Picker", "TabView",
+        "CrownRotation", "Slider", "Stepper", "DatePicker", "Map", "NavigationStack",
+        "Alert/ConfirmationDialog/Sheet", "Text (LayoutModifier / shared modifier props)",
+    ]
+
+    private func hostile(_ group: String) {
+        guard let cases = Self.hostile.first(where: { $0.type == group })?.cases else {
+            XCTFail("no hostile group named \(group)")
+            return
+        }
+        for c in cases {
+            let node: RNNode
+            do {
+                node = try Self.decode(c.json)
+            } catch {
+                XCTFail("\(c.type) \(c.prop)=\(c.value): case JSON is not wire-decodable: \(error)")
+                continue
             }
+            mark("\(c.type) \(c.prop)=\(c.value) — \(c.why)")
+            render(node)
         }
     }
 
@@ -673,18 +730,36 @@ final class NodeViewRenderTests: XCTestCase {
                         "points[].x", "string and number mixed",
                         "RNUI L178 categorical + positional marks on one x axis",
                         #"{"points":[{"x":"a","y":1},{"x":2,"y":2},{"y":3}]}"#),
+                    // ±1e308 trapped Swift Charts' tick layout on this file's
+                    // first run (Integers.swift:3011); RNStyle.chartPoints now
+                    // drops anything past chartMagnitudeLimit, and the rows at
+                    // the limit are what still reaches the framework.
                     chart(
-                        "points[].y", "±1e308", "RNUI L190 axis domain width overflows to inf",
+                        "points[].y", "±1e308",
+                        "RNStyle.chartMagnitudeLimit drops both → empty chart",
                         #"{"points":[{"x":0,"y":1e308},{"x":1,"y":-1e308}]}"#),
                     chart(
-                        "points[].y", "1e308 single", "RNUI L190 one point at Double.max",
+                        "points[].y", "1e308 single", "RNStyle.chartMagnitudeLimit drops it",
                         #"{"points":[{"y":1e308}]}"#),
+                    chart(
+                        "points[].y", "±1e15 (the limit)",
+                        "RNUI L190 the widest y domain Charts gets",
+                        #"{"points":[{"x":0,"y":1e15},{"x":1,"y":-1e15}]}"#),
+                    chart(
+                        "points[].y", "1e15 single", "RNUI L190 one point at the limit",
+                        #"{"points":[{"y":1e15}]}"#),
                     chart(
                         "points[].y", "all equal", "RNUI L190 zero-height domain",
                         #"{"points":[{"y":5},{"y":5},{"y":5}]}"#),
                     chart(
-                        "points[].x", "±1e308 numeric", "RNUI L206 x domain overflow",
+                        "points[].x", "±1e308 numeric", "RNStyle.chartMagnitudeLimit drops both",
                         #"{"points":[{"x":-1e308,"y":0},{"x":1e308,"y":1}]}"#),
+                    chart(
+                        "points[].x", "±1e15 numeric", "RNUI L206 the widest x domain Charts gets",
+                        #"{"points":[{"x":-1e15,"y":0},{"x":1e15,"y":1}]}"#),
+                    chart(
+                        "type+points", "bar at ±1e15", "RNUI L179 BarMark over the widest domain",
+                        #"{"type":"bar","points":[{"x":"a","y":1e15},{"x":"b","y":-1e15}]}"#),
                     chart(
                         "type", "pie", "RNUI L189 unknown kind → LineMark",
                         #"{"type":"pie","points":[{"y":1},{"y":2}]}"#),
