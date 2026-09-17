@@ -169,27 +169,23 @@ live instances. Same producer/consumer pattern as
 
 In your own Expo app (the plugin does the Xcode wiring — no hand-written
 target config). The package is on npm as **`react-watchos`** — latest is
-**0.7.0**, eight releases since 0.1.0 — so this works today, whether you
-install via `npx expo install` or `pnpm add react-watchos` directly. (The
-`react-native-watchos` name on npm is an unrelated empty placeholder, not
-this project.)
+**0.7.0**, eight releases, 0.1.0 through 0.7.0 — so this works today,
+whether you install via `npx expo install` or `pnpm add react-watchos`
+directly. (The `react-native-watchos` name on npm is an unrelated empty
+placeholder, not this project.)
 
 ```bash
 npx expo install react-watchos @bacons/apple-targets
 # app.json → "plugins": [["react-watchos", { "name": "My Watch", "widget": true }]]
 npx react-watchos scaffold     # the @main Swift glue
 npx expo prebuild              # creates + links the watch/widget targets
-npx react-watchos build --entry <your-entry.tsx> --asset <watch-target>/assets/bundle.js
+npx react-watchos build --entry <your-entry.tsx> --asset targets/watch/assets/bundle.js
 ```
 
-Build the JS bundle **after** `expo prebuild`, not before — `--asset` copies
-into the target directory prebuild just created (see
-[docs/getting-started.md](./docs/getting-started.md) for the concrete
-target path), so there's nowhere to copy to if you build first. Skip this
-step and the watch app boots to `` bundle.js missing — run `npm run build` ``
-— that error names this package's own repo script, not one your app has;
-`npx react-watchos build` above is the command that actually produces the
-bundle in your app.
+Skip that last step and the watch app boots to `` bundle.js missing — run
+`npm run build` `` — that error names this package's own repo script, not
+one your app has; `npx react-watchos build` above is the command that
+actually produces the bundle in your app.
 
 In this repo (Linux/macOS, no Xcode needed for the JS half). Node ≥ 22.18 is
 the floor (native TypeScript type stripping); the repo pins Node 24 via mise
