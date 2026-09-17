@@ -111,6 +111,35 @@ public struct SharedWidgetStore: Sendable {
         defaults?.string(forKey: Self.widgetReleaseIdKey)
     }
 
+    /// Widget → app: the last JS failure the widget extension hit (a throwing
+    /// intent handler, a timeline render that threw). The extension has no
+    /// diagnostics ring and no push channel to the app, so without this slot
+    /// its errors were logged and gone — the app, and any sink an operator
+    /// wired into it, never learned that the complication had failed. One
+    /// slot, last write wins: a plain `set` is atomic per key, whereas an
+    /// append (a ring) would be the cross-process read-modify-write ARCH-05
+    /// exists to avoid. The app reads AND clears it at boot (`take`), so each
+    /// failure is reported once; a write that lands between that read and the
+    /// clear is lost, which is accepted for a last-error slot.
+    public static let widgetDiagnosticKey = "react.widget.lastDiagnostic"
+
+    public func saveWidgetDiagnostic(_ diagnostic: Diagnostic) {
+        guard let data = try? JSONEncoder().encode(diagnostic),
+            let json = String(data: data, encoding: .utf8)
+        else { return }
+        defaults?.set(json, forKey: Self.widgetDiagnosticKey)
+    }
+
+    /// The stored diagnostic, removed from the slot on the way out. nil when
+    /// nothing was stored or the stored JSON doesn't decode.
+    public func takeWidgetDiagnostic() -> Diagnostic? {
+        guard let json = defaults?.string(forKey: Self.widgetDiagnosticKey) else {
+            return nil
+        }
+        defaults?.removeObject(forKey: Self.widgetDiagnosticKey)
+        return try? JSONDecoder().decode(Diagnostic.self, from: Data(json.utf8))
+    }
+
     /// App → widget: the app's custom URL scheme (see `HostURLScheme`). Only the
     /// app process can read `CFBundleURLSchemes` from its Info.plist; it
     /// publishes the value here so the widget extension — whose own Bundle.main

@@ -2014,6 +2014,37 @@ final class SharedWidgetStoreTests: XCTestCase {
         store.saveWidgetReleaseId("")
         XCTAssertEqual(store.widgetReleaseId(), "rel-a")
     }
+
+    // Audit 2026-09-04: the widget extension's JS errors were logged and then
+    // discarded — no ring, no shared storage, nothing the app could read — so
+    // a complication that failed to render or handle an intent was invisible
+    // to the app and to any diagnostics sink an operator wired into it. The
+    // extension writes its last failure here; the app's boot takes it (read
+    // AND clear, so one failure is one report) and re-reports it.
+    func testWidgetDiagnosticSlotIsTakenOnce() {
+        XCTAssertNil(store.takeWidgetDiagnostic(), "nothing before the widget failed")
+        let first = Diagnostic(
+            code: "js.call", severity: .recoverable, subsystem: .js,
+            sessionId: "w1", releaseId: "rel-w", target: .widget,
+            timestamp: 1000, details: "TypeError: boom\n    at render")
+        store.saveWidgetDiagnostic(first)
+        // Last write wins — one slot, never an append (ARCH-05).
+        let second = Diagnostic(
+            code: "js.eval", severity: .recoverable, subsystem: .js,
+            sessionId: "w2", target: .widget, timestamp: 2000, details: "later")
+        store.saveWidgetDiagnostic(second)
+        XCTAssertEqual(store.takeWidgetDiagnostic(), second)
+        XCTAssertNil(store.takeWidgetDiagnostic(), "taking clears the slot")
+    }
+
+    func testWidgetDiagnosticSlotIsInertWithoutAnAppGroup() {
+        let none = SharedWidgetStore(appGroupId: nil)
+        none.saveWidgetDiagnostic(
+            Diagnostic(
+                code: "js.eval", severity: .recoverable, subsystem: .js,
+                sessionId: "w", target: .widget))
+        XCTAssertNil(none.takeWidgetDiagnostic())
+    }
 }
 
 // CX-003: a configured-but-malformed signing key must not silently degrade to
