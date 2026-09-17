@@ -5,7 +5,6 @@ import ReactWatchCore
 import ReactWatchRuntime
 import ReactWatchSupport
 import WidgetKit
-import os
 
 /// Trusted OTA signer keys for the widget extension (NF-35). Set ONCE at
 /// extension startup — from the widget bundle's `@main` init — with the SAME
@@ -58,11 +57,6 @@ public enum ReactWatchWidgetOTA {
 /// long before the OS jetsams us.
 /// NOTE: untested until built with Xcode on macOS (WidgetKit).
 public final class WidgetIntentRuntime {
-    /// JS-error sink for the extension (filter subsystem
-    /// `com.reactwatchos.widget`, category `js` in Console.app).
-    private static let jsErrorLog = Logger(
-        subsystem: "com.reactwatchos.widget", category: "js")
-
     private let js: JSRuntime
     private let store: SharedWidgetStore
     /// ARCH-13 diagnostics context for this short-lived runtime: a fresh
@@ -109,16 +103,25 @@ public final class WidgetIntentRuntime {
         }
         self.js = js
         // Non-fatal JS errors (a throwing intent handler, a bad timeline render)
-        // would otherwise vanish in the extension — surface them through
-        // os.Logger (non-blocking, visible in Console.app/sysdiagnose in
-        // RELEASE too, unlike the old bare print). Persisting a last-N ring in
-        // the App Group was considered and skipped: SharedWidgetStore is a
-        // plain key-value wrapper, and an append would be a cross-process
-        // read-modify-write — the exact lost-update shape ARCH-05 exists for.
-        js.onError = { source, message in
-            Self.jsErrorLog.error(
-                "js error (\(source, privacy: .public)): \(message, privacy: .public)"
-            )
+        // would otherwise vanish in the extension. They become the same
+        // `js.<source>` recoverable diagnostic the app host stamps, emitted
+        // through the Logger sink (non-blocking, visible in Console.app /
+        // sysdiagnose in RELEASE too) AND written into the App Group's single
+        // last-error slot, which the app reads and reports at its next boot —
+        // the only path by which the app, and a sink an operator wired into
+        // it, learns that its complication failed. A last-N ring in the App
+        // Group stays out on purpose: SharedWidgetStore is a plain key-value
+        // wrapper, and an append would be a cross-process read-modify-write —
+        // the exact lost-update shape ARCH-05 exists for. One overwritten slot
+        // is atomic per key. `[weak self]` for the release id: a failure during
+        // the bundle's own evaluation fires this before init has returned.
+        js.onError = { [weak self, store, sessionId] source, message in
+            let diagnostic = Diagnostic(
+                code: "js.\(source)", severity: .recoverable, subsystem: .js,
+                sessionId: sessionId, releaseId: self?.bootedReleaseId,
+                target: .widget, details: message)
+            Self.diagnosticsSink.emit(diagnostic)
+            store.saveWidgetDiagnostic(diagnostic)
         }
         // The intent entrypoint must not mount UI; ignore any commit.
         js.bridge.commit = { _ in }

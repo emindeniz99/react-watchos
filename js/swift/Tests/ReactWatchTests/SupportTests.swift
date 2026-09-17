@@ -1121,6 +1121,29 @@ final class RNStyleTests: XCTestCase {
         XCTAssertEqual(hi, 1)
         XCTAssertEqual(v, 0)
     }
+
+    // Audit 2026-09-04 finding 5: both interpreters build
+    // `start...Date.distantFuture` for a count-up TimerText, and ClosedRange
+    // traps when the lower bound is above the upper — so a `since` past
+    // distantFuture (a microseconds-for-milliseconds unit slip is enough) or
+    // a NaN crashed the app render and the widget extension on every
+    // timeline request. The anchor must always be a usable lower bound.
+
+    func testTimerStartPassesAnOrdinaryEpochThrough() {
+        let start = RNStyle.timerStart(sinceMs: 1_700_000_000_000)
+        XCTAssertEqual(start.timeIntervalSince1970, 1_700_000_000, accuracy: 0.001)
+        XCTAssertEqual(RNStyle.timerStart(sinceMs: nil).timeIntervalSince1970, 0)
+    }
+
+    func testTimerStartClampsSoTheCountUpRangeCannotTrap() {
+        for sinceMs in [1e300, .infinity, -.infinity, .nan, -1e300] as [Double] {
+            let start = RNStyle.timerStart(sinceMs: sinceMs)
+            XCTAssertLessThanOrEqual(start, .distantFuture, "since=\(sinceMs)")
+            XCTAssertGreaterThanOrEqual(start, .distantPast, "since=\(sinceMs)")
+            // The exact expression both interpreters evaluate.
+            XCTAssertTrue((start...Date.distantFuture).contains(.distantFuture))
+        }
+    }
 }
 
 // CX-016: snapshots must show the entry applicable *now*, not the last
@@ -1990,6 +2013,37 @@ final class SharedWidgetStoreTests: XCTestCase {
         store.saveWidgetReleaseId(nil)
         store.saveWidgetReleaseId("")
         XCTAssertEqual(store.widgetReleaseId(), "rel-a")
+    }
+
+    // Audit 2026-09-04: the widget extension's JS errors were logged and then
+    // discarded — no ring, no shared storage, nothing the app could read — so
+    // a complication that failed to render or handle an intent was invisible
+    // to the app and to any diagnostics sink an operator wired into it. The
+    // extension writes its last failure here; the app's boot takes it (read
+    // AND clear, so one failure is one report) and re-reports it.
+    func testWidgetDiagnosticSlotIsTakenOnce() {
+        XCTAssertNil(store.takeWidgetDiagnostic(), "nothing before the widget failed")
+        let first = Diagnostic(
+            code: "js.call", severity: .recoverable, subsystem: .js,
+            sessionId: "w1", releaseId: "rel-w", target: .widget,
+            timestamp: 1000, details: "TypeError: boom\n    at render")
+        store.saveWidgetDiagnostic(first)
+        // Last write wins — one slot, never an append (ARCH-05).
+        let second = Diagnostic(
+            code: "js.eval", severity: .recoverable, subsystem: .js,
+            sessionId: "w2", target: .widget, timestamp: 2000, details: "later")
+        store.saveWidgetDiagnostic(second)
+        XCTAssertEqual(store.takeWidgetDiagnostic(), second)
+        XCTAssertNil(store.takeWidgetDiagnostic(), "taking clears the slot")
+    }
+
+    func testWidgetDiagnosticSlotIsInertWithoutAnAppGroup() {
+        let none = SharedWidgetStore(appGroupId: nil)
+        none.saveWidgetDiagnostic(
+            Diagnostic(
+                code: "js.eval", severity: .recoverable, subsystem: .js,
+                sessionId: "w", target: .widget))
+        XCTAssertNil(none.takeWidgetDiagnostic())
     }
 }
 

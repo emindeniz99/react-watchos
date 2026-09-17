@@ -174,6 +174,10 @@ public final class JSRuntime {
         if let memoryLimitBytes {
             JS_SetMemoryLimit(rt, size_t(memoryLimitBytes))
         }
+        // Before the first engine call below: JS_NewRuntime anchored the guard
+        // on this thread with the engine's default 1 MB, which is wrong for
+        // every thread this project creates runtimes on (see anchorStackGuard).
+        anchorStackGuard()
         JS_SetContextOpaque(ctx, Unmanaged.passUnretained(self).toOpaque())
         installHostObject()
         // Surface unhandled promise rejections. drainJobs only sees a thrown
@@ -717,7 +721,23 @@ public final class JSRuntime {
         // per call, so a stray console.log on a render/event/timer path is an
         // ongoing main-thread stall. os.Logger is non-blocking and filterable;
         // Linux (no os) keeps print — the tests there read stdout.
+        //
+        // The TEXT is app data the library does not control — a health sample,
+        // a location, a token, whatever the bundle logs — and `.notice` is
+        // persisted to the on-disk log store and swept into every sysdiagnose.
+        // Release keeps it `.private` (`<private>` in the store and in `log
+        // stream`), so leftover console.log calls cannot write user data to
+        // the device log in the clear. DEBUG keeps `.public`: `.private` text
+        // is shown only to a process Xcode itself launched (it sets
+        // OS_ACTIVITY_DT_MODE), and docs/debugging.md's workflow reads the
+        // watch from Console.app / `log stream` on the paired Mac, where a
+        // script-launched app (and always the widget extension) would show
+        // `<private>` for every line.
+        #if DEBUG
         bridge.log = { Self.jsLog.notice("\($0, privacy: .public)") }
+        #else
+        bridge.log = { Self.jsLog.notice("\($0, privacy: .private)") }
+        #endif
         #else
         bridge.log = { print("[js]", $0) }
         #endif
@@ -807,7 +827,7 @@ public final class JSRuntime {
     /// dangling pointer on the way in.
     private func onOwningQueue<T>(_ body: () throws -> T) rethrows -> T {
         if isOnOwningQueue {
-            if jsEntryDepth == 0 && !didShutdown { JS_UpdateStackTop(runtime) }
+            if jsEntryDepth == 0 && !didShutdown { anchorStackGuard() }
             return try body()
         }
         return try owningQueue.sync {
@@ -820,10 +840,56 @@ public final class JSRuntime {
             // tests catch this; the widget runtime is called from varying
             // WidgetKit threads in production). Depth-gated so a nested
             // re-entry can't loosen the guard mid-recursion.
-            if jsEntryDepth == 0 && !didShutdown { JS_UpdateStackTop(runtime) }
+            if jsEntryDepth == 0 && !didShutdown { anchorStackGuard() }
             return try body()
         }
     }
+
+    /// Points the engine's stack-overflow guard at the thread the entry runs
+    /// on AND sizes it to that thread. quickjs-ng trips the guard (a catchable
+    /// `RangeError: Maximum call stack size exceeded`) at every JS call and
+    /// parser recursion when the SP drops below `stack_top - stack_size` —
+    /// `stack_top` being the SP `JS_UpdateStackTop` last recorded and
+    /// `stack_size` a value that defaulted to 1 MB and was never set. Every
+    /// thread this project runs JS on is smaller than that (a 1 MB watchOS
+    /// main thread already partly used by SwiftUI, 512 KB GCD/WidgetKit/Swift
+    /// concurrency threads for the widget, validator and compiler runtimes),
+    /// so the limit sat BELOW the real stack floor and could not fire before
+    /// the kernel did: a recursive component or reducer was an EXC_BAD_ACCESS
+    /// with a QuickJS C stack instead of an error the ErrorBoundary/onError
+    /// path reports, and the OTA validator — which exists to reject a bundle
+    /// that fails at load — took the app down on the validate queue instead.
+    ///
+    /// `stack_size` is now what is actually left on the CURRENT thread (a
+    /// `sync` hop runs on the caller's thread, so this is per entry, which is
+    /// why it lives with the re-anchor) minus `nativeStackReserve` for the
+    /// native frames that run beneath the deepest JS frame: the interpreter
+    /// itself and any `bridge.*` closure it calls into (a commit decoding the
+    /// tree, an invoke reaching a capability bridge). The reserve is
+    /// deliberately generous relative to those; what it costs is JS recursion
+    /// depth, which the guard now turns into an error instead of a crash. An
+    /// entry that starts already inside the reserve still gets a token
+    /// budget so the limit stays positive — 0 would DISABLE the check.
+    private func anchorStackGuard() {
+        JS_UpdateStackTop(runtime)
+        let floor = Thread.isMainThread ? Self.mainThreadStackFloor : qjs_thread_stack_floor()
+        let sp = qjs_stack_pointer()
+        // 0 = the platform can't report a floor; leave the engine's limit alone.
+        guard floor != 0, sp > floor else { return }
+        let available = sp - floor
+        let budget =
+            available > Self.nativeStackReserve
+            ? available - Self.nativeStackReserve : Self.minimumJSStackBudget
+        JS_SetMaxStackSize(runtime, Int(budget))
+    }
+
+    private static let nativeStackReserve: UInt = 128 * 1024
+    private static let minimumJSStackBudget: UInt = 16 * 1024
+    /// The main thread's floor never moves, so it is read once: glibc answers
+    /// `pthread_getattr_np` for the initial thread by parsing /proc/self/maps,
+    /// which is too slow to repeat at every outermost entry on Linux CI. Only
+    /// ever touched from the main thread, so the lazy init measures it.
+    private static let mainThreadStackFloor: UInt = qjs_thread_stack_floor()
 
     /// Fail-loud gate for every JS entry, evaluated INSIDE the confinement (so
     /// it reads `didShutdown` on the owning queue). Reports through `onError`

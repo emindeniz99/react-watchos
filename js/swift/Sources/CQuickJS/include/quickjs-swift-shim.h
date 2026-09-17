@@ -48,4 +48,37 @@ static inline int qjs_write_obj_bytecode_strip_source(void) {
 // bare pointer, for use as a dictionary key — never dereferenced.
 static inline const void *qjs_value_get_ptr(JSValue v) { return JS_VALUE_GET_PTR(v); }
 
+// The two inputs JSRuntime needs to size the engine's stack-overflow guard to
+// the thread an entry actually runs on (JS_SetMaxStackSize is relative to the
+// SP JS_UpdateStackTop recorded, so the size must be measured from the same
+// place): the current SP, taken the way quickjs.c's js_get_stack_pointer
+// takes it, and the current thread's stack floor (lowest valid address), 0
+// when the platform can't say. In C rather than Swift because glibc hides
+// pthread_getattr_np behind _GNU_SOURCE, which Swift's Glibc import does not
+// define; the prototype is restated below so the Linux (CI) build sees it.
+static inline uintptr_t qjs_stack_pointer(void) {
+    return (uintptr_t)__builtin_frame_address(0);
+}
+#if defined(__APPLE__)
+#include <pthread.h>
+static inline uintptr_t qjs_thread_stack_floor(void) {
+    pthread_t self = pthread_self();
+    return (uintptr_t)pthread_get_stackaddr_np(self) - pthread_get_stacksize_np(self);
+}
+#elif defined(__linux__)
+#include <pthread.h>
+extern int pthread_getattr_np(pthread_t, pthread_attr_t *);
+static inline uintptr_t qjs_thread_stack_floor(void) {
+    pthread_attr_t attr;
+    void *addr;
+    size_t size;
+    if (pthread_getattr_np(pthread_self(), &attr) != 0) return 0;
+    int rc = pthread_attr_getstack(&attr, &addr, &size);
+    pthread_attr_destroy(&attr);
+    return rc == 0 ? (uintptr_t)addr : 0;
+}
+#else
+static inline uintptr_t qjs_thread_stack_floor(void) { return 0; }
+#endif
+
 #endif

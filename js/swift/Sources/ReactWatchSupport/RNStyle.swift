@@ -105,6 +105,20 @@ public enum RNStyle {
         let millis = totalMs % 1000
         return String(format: "%02d:%02d.%03d", minutes, seconds, millis)
     }
+
+    /// The count-up TimerText anchor (`since`, epoch ms) as a Date that can
+    /// be the lower bound of `start...Date.distantFuture` without trapping:
+    /// `ClosedRange` requires `lowerBound <= upperBound`, so a `since` past
+    /// `distantFuture` (~6.4e13 ms — one microseconds-for-milliseconds unit
+    /// slip away) or a non-finite one crashed the app render and, on the
+    /// same wire tree, the widget extension on every timeline request.
+    /// Shared for the same reason as `gaugeBounds`: both interpreters build
+    /// the range, and the widget copy is the one that traps out of sight.
+    public static func timerStart(sinceMs: Double?) -> Date {
+        let ms = (sinceMs?.isFinite == true) ? sinceMs! : 0
+        let start = Date(timeIntervalSince1970: ms / 1000)
+        return Swift.min(Swift.max(start, .distantPast), .distantFuture)
+    }
 }
 
 // MARK: - Layout modifiers (design-system Tier 1)

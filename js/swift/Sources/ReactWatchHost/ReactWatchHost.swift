@@ -547,6 +547,25 @@ final class ReactWatchModel {
                 code: "boot.startupFailed", severity: .fatal, subsystem: .boot,
                 details: "JS startup failed: \(error)")
         }
+        // The widget extension has no ring and no push channel, so a JS
+        // failure there lands in one App Group slot (WidgetIntentRuntime's
+        // onError → SharedWidgetStore.saveWidgetDiagnostic); this is where
+        // the app — and through the sink, an operator — learns that its
+        // complication failed to render or handle an intent. Read-and-cleared,
+        // so each failure is reported once. Re-wrapped as a `widgets`
+        // diagnostic of THIS session rather than re-reported verbatim: a `js`
+        // subsystem entry is held back from JS by pushDiagnosticToJS's
+        // echo-loop guard, which is about this process's own console, and the
+        // widget's code, release and message travel in `details`. After the
+        // boot's do/catch on purpose: it is reported whether or not the app
+        // itself came up.
+        if let widgetError = store.takeWidgetDiagnostic() {
+            report(
+                code: "widgets.jsError", severity: .recoverable, subsystem: .widgets,
+                details: "widget extension \(widgetError.code)"
+                    + (widgetError.releaseId.map { " (release \($0))" } ?? "")
+                    + (widgetError.details.map { ": \($0)" } ?? ""))
+        }
     }
 
     /// Tears the CURRENT JS generation down: stops every native async path that
