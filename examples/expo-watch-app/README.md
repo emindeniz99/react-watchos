@@ -148,7 +148,8 @@ moving parts:
    use any CDN/S3 instead.
 
 Demo flow on the simulator (the watch sim shares the Mac's network, so
-`127.0.0.1` works):
+`127.0.0.1` works; the plugin's `localNetworking: true` in `app.json` is what
+lets ATS accept that plain-http address — drop it for a store build):
 
 ```bash
 REACT_WATCH_OTA_URL=http://127.0.0.1:8788/manifest.json pnpm build:targets  # bake URL + stamp manifest

@@ -10,6 +10,38 @@ first, and only versions with consumer-facing action items appear.
      `files` and (verified against a real `pnpm pack` tarball) from the npm
      package. Release reading happens on the repo; the tarball carries code. -->
 
+## 0.7.x → 0.8.0
+
+**The watch target no longer ships an App Transport Security exception by
+default.** Every prebuild used to write `NSAppTransportSecurity:
+{ NSAllowsLocalNetworking: true }` and an `NSLocalNetworkUsageDescription`
+into the watch target's Info.plist, in release builds too, with no option
+to turn it off. An Info.plist is per target, not per build configuration,
+so the global exception meant for the development loop went into every
+store build. The config plugin now emits both keys only when its new
+`localNetworking` option is `true`.
+
+What depends on it: everything in the plain-http dev flow — the DEBUG
+dev-server poll (`react-watchos dev`, `ReactWatchDevServerURL`), the
+inspector and debug poll, and OTA from a Mac on the LAN or loopback. All of
+them fetch from an IP address, which ATS blocks on watchOS 10+ without the
+exception; the failure is silent (the poll swallows its error, so hot
+reload just stops happening).
+
+Action: add `"localNetworking": true` to the plugin options for the builds
+you develop with, and keep it out of the ones you ship. `app.json` cannot
+vary per build, so an `app.config.js` keyed on the build profile is the
+place: `localNetworking: process.env.EAS_BUILD_PROFILE !== "production"`.
+Then `expo prebuild`. The demo and `examples/expo-watch-app` set it in
+`app.json` because both exist to run the dev loop. When you flip the option
+off on a machine that already prebuilt with it on, delete
+`targets/watch/Info.plist` first: the in-prebuild merge adds keys to that
+generated file and never removes them. If your repo tracks that file,
+commit the deletion too — a clean checkout and EAS converge on their own
+only when the file is untracked (the demo and the example gitignore
+`targets/*/Info.plist`); tracked, it keeps shipping the exception from
+every EAS build after the upgrade.
+
 ## 0.5.x → 0.6.0
 
 **Widget timeline views now render without the React reconciler.** The

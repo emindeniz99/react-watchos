@@ -16,7 +16,8 @@
           "name": "Expo Watch",
           "widget": true,
           "healthKit": false,
-          "deploymentTarget": "11.0"
+          "deploymentTarget": "11.0",
+          "localNetworking": true
         }
       ]
     ]

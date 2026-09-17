@@ -55,6 +55,13 @@ REACT_WATCH_OTA_URL=http://192.168.x.y:8788/manifest.json \
   pnpm --filter react-watchos build
 ```
 
+Every one of these plain-http fetches — the OTA manifest, the DEBUG
+dev-server poll, the inspector — goes to an IP address, which App Transport
+Security blocks on watchOS 10+ unless the watch target's Info.plist carries
+`NSAllowsLocalNetworking`. The plugin emits that exception only when its
+`localNetworking` option is `true` (the demo's `app.json` sets it), so a
+release build keeps full ATS. Set it for development builds only.
+
 > The generated `app/targets/*/assets/bundle.js` is **not** committed (it's
 > gitignored). `pnpm --filter ... build` regenerates it, and `app`'s `prebuild`
 > script runs that build first, so `pnpm prebuild` (and CI) always produce a
@@ -311,6 +318,14 @@ pass is scoped in [status.md](./status.md) — Rule 12):**
   Support/Runtime transitively). The engine is a Clang module
   (`import CQuickJS`) — no bridging header.
 - Confirm `assets/bundle.js` landed in the watch target's bundle resources.
+- The package's required-reason API use (App Group `UserDefaults`, file
+  modification dates) is declared by its own `PrivacyInfo.xcprivacy`, a
+  SwiftPM resource of `ReactWatchSupport` that Xcode copies into the watch
+  app and the widget extension — nothing to add for this package's code;
+  see [`js/swift/README.md`](../js/swift/README.md). Expo's
+  `ios.privacyManifests` covers only the iOS app, so any required-reason
+  API your own watch-target Swift calls still needs a manifest in
+  `targets/watch/`.
 - `WKRunsIndependentlyOfCompanionApp` (standalone watch app) is set by the
   plugin by default (`independent` option) and applied by the same in-prebuild
   Info.plist merge — for a companion-dependent watch app pass `independent:

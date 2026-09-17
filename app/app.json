@@ -20,6 +20,7 @@
           "healthKit": true,
           "deploymentTarget": "10.0",
           "appleTeamId": "D68Q862K33",
+          "localNetworking": true,
           "infoPlist": {
             "NSBluetoothAlwaysUsageDescription": "Connect to a nearby device (e.g. your laptop) to control playback.",
             "NSLocationWhenInUseUsageDescription": "Show your location and route while the app is open."

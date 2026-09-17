@@ -303,6 +303,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     watchBundleSuffix: ".watch",
     widgetBundleSuffix: ".watch.widgets",
     independent: true,
+    localNetworking: false,
     bundleIdentifier: "com.emindeniz99.reactwatch",
     infoPlist: {},
   };
@@ -506,6 +507,32 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(off.entitlements["aps-environment"]).toBeUndefined();
   });
 
+  it("keeps ATS intact unless localNetworking is on", () => {
+    // NSAllowsLocalNetworking is a GLOBAL ATS exception, and an Info.plist is
+    // per target, not per build configuration — so an always-on emission
+    // shipped it in every consumer's release build with no way to turn it
+    // off (audit 2026-09-04). The secure posture is the default; the dev flow
+    // (DEBUG dev-server poll, inspector, LAN OTA — all plain http to an IP
+    // address, which watchOS 10+ blocks without the exception) opts in.
+    const off = watchTargetConfig(demoOpts);
+    expect(off.infoPlist.NSAppTransportSecurity).toBeUndefined();
+    expect(off.infoPlist.NSLocalNetworkUsageDescription).toBeUndefined();
+    const on = watchTargetConfig({ ...demoOpts, localNetworking: true });
+    expect(on.infoPlist.NSAppTransportSecurity).toEqual({
+      NSAllowsLocalNetworking: true,
+    });
+    expect(on.infoPlist.NSLocalNetworkUsageDescription).toBeTruthy();
+    // A consumer's own ATS dictionary still wins (the infoPlist escape hatch
+    // spreads last), so a narrower NSExceptionDomains setup is not clobbered.
+    expect(
+      watchTargetConfig({
+        ...demoOpts,
+        localNetworking: true,
+        infoPlist: { NSAppTransportSecurity: { NSExceptionDomains: {} } },
+      }).infoPlist.NSAppTransportSecurity,
+    ).toEqual({ NSExceptionDomains: {} });
+  });
+
   it("derives the deep-link CFBundleURLName from a custom bundle id + scheme", () => {
     const c = watchTargetConfig({
       ...demoOpts,
@@ -620,6 +647,15 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
     expect(watchTargetConfig(o).entitlements["aps-environment"]).toBe(
       "development",
     );
+  });
+
+  it("localNetworking is an explicit opt-in", () => {
+    // Same least-privilege default as the entitlements: the ATS exception is
+    // a dev-flow need, and a release build must not inherit it silently.
+    expect(resolveOptions(config, {}).localNetworking).toBe(false);
+    expect(
+      resolveOptions(config, { localNetworking: true }).localNetworking,
+    ).toBe(true);
   });
 
   it("scheme is overridable for a shorter custom scheme", () => {
