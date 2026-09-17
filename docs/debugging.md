@@ -16,9 +16,9 @@ landed spike whose watchOS wiring has not run on hardware yet
 
 | Surface | Where you see it | Available in | Use it for |
 |---|---|---|---|
-| **Full-screen error text** | On the watch, instead of your UI | always | boot failures — the bundle never rendered |
-| **Error banner** | On the watch, bottom overlay, tap to dismiss | always | a recoverable failure *after* something rendered |
-| **Diagnostics ring** | `onDiagnostic(...)` in JS; the native ring holds the last 50 | always, release builds too | structured, machine-readable failures with a session/release id |
+| **Full-screen error text** | On the watch, instead of your UI | DEBUG (release shows a wordless ⚠︎ symbol) | boot failures — the bundle never rendered |
+| **Error banner** | On the watch, bottom overlay, tap to dismiss | DEBUG | a recoverable failure *after* something rendered |
+| **Diagnostics ring** | `onDiagnostic(...)` in JS; the native ring holds the last 50; `ReactWatchRootView(diagnosticsSink:)` on the Swift side | always, release builds too | structured, machine-readable failures with a session/release id — and the **only** surface a shipped app has, so this is where a crash reporter attaches |
 | **Console.app / Xcode console** | Mac, streamed from the watch | always | `console.log`, cold-start timings, widget-extension logs |
 | **Remote inspector** | A browser page on your Mac | DEBUG (opt-in call) | the live committed tree + log/error history |
 | **Source-level debugger** | VS Code on your Mac | DEBUG (opt-in *build*) | stopping on a line and stepping through it |
@@ -126,7 +126,25 @@ Two fields do the forensic work:
 
 One deliberate asymmetry, so you are not confused by it: `js`-subsystem
 records are recorded and bannered but **not** pushed back into JS. A listener
-that throws would otherwise feed the next error — an echo loop.
+that throws would otherwise feed the next error — an echo loop. They do reach
+the Swift sink, which is how a release build gets them to a crash reporter:
+
+```swift
+struct CrashReporterSink: DiagnosticsSink {
+    func emit(_ diagnostic: Diagnostic) {
+        guard diagnostic.severity != .info else { return }
+        MyCrashReporter.record(diagnostic.code, details: diagnostic.details)
+    }
+}
+
+ReactWatchRootView(diagnosticsSink: CrashReporterSink())
+```
+
+Records written **before** the bundle finished evaluating — the OTA rollback
+notice, `boot.*`, `ota.updateRequired` — are replayed into `onDiagnostic` the
+moment the generation is ready, in order. Register the listener at module
+top level to receive them; one registered inside an effect runs after the
+replay and sees only what comes next.
 
 ## Console.app and the Xcode console
 
@@ -550,9 +568,11 @@ Stated plainly, because the gap is real:
   from the wrong server. Seen on a real device, 2026-08-11 (adagia session).
   Give each project its own port (`expo start --port 8082`) and check
   `lsof -ti :8081` before blaming your bundle.
-- **The error banner is developer-facing, not a user-facing error UI.** It is
-  a red bar with a monospaced message. Ship your own `ErrorBoundary` fallback
-  for anything a user should see.
+- **The error banner is developer-facing, and DEBUG-only.** It is a red bar
+  with a monospaced message; a release build draws nothing for a recoverable
+  diagnostic and a wordless ⚠︎ for a boot failure. Ship your own
+  `ErrorBoundary` fallback for anything a user should see, and a
+  `diagnosticsSink` for anything *you* should see.
 
 ## See also
 

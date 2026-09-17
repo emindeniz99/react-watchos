@@ -87,8 +87,11 @@ final class ReactWatchModel {
     /// OTA-rollback forensics (ARCH-13). Ring only; the inspector exposure on
     /// top stays DEV/opt-in. Survives reloads: `sessionId` tells boots apart.
     @ObservationIgnored private let diagnostics = DiagnosticsBuffer()
-    /// Default sink: one os.Logger line per diagnostic.
-    @ObservationIgnored private let diagnosticsSink = LogDiagnosticsSink()
+    /// Where diagnostics go besides the ring. The consumer's own sink when
+    /// `ReactWatchRootView(diagnosticsSink:)` supplies one — the release-build
+    /// crash-reporting hook, since the on-screen surfaces below are DEBUG-only
+    /// — else one os.Logger line per diagnostic.
+    @ObservationIgnored private let diagnosticsSink: any DiagnosticsSink
     /// Fresh UUID per boot() — stamps every diagnostic of one JS generation.
     @ObservationIgnored private var sessionId = UUID().uuidString
     /// Content hash of the bundle this boot actually evaluated (the CX-025
@@ -226,8 +229,10 @@ final class ReactWatchModel {
 
     init(
         appGroupId: String?, ota: OTAConfig = .init(),
-        useJSCallBridge: Bool = true, policy: HostPolicy = .allowAll
+        useJSCallBridge: Bool = true, policy: HostPolicy = .allowAll,
+        diagnosticsSink: (any DiagnosticsSink)? = nil
     ) {
+        self.diagnosticsSink = diagnosticsSink ?? LogDiagnosticsSink()
         store = SharedWidgetStore(appGroupId: appGroupId)
         counters = CoordinatedCounterStore(appGroupId: appGroupId)
         revisionCounter = CoordinatedCounterStore(
@@ -524,6 +529,7 @@ final class ReactWatchModel {
                 try load(into: js)
             }
             jsReady = true
+            replayBootDiagnostics()
             // Replay any `watchConnectivity.file` events that landed while
             // this generation wasn't ready yet (pre-boot, or a reload that
             // raced an inbound file) — see PhoneConnectivity.isReady /
@@ -685,7 +691,29 @@ final class ReactWatchModel {
         case .recoverable: latestRecoverable = diagnostic
         case .info: break
         }
-        guard diagnostic.subsystem != .js, jsReady else { return }
+        // Before the bundle runs there is no listener and no `__pushNativeEvent`;
+        // those entries are not lost — `replayBootDiagnostics` delivers them the
+        // moment the generation is ready.
+        guard jsReady else { return }
+        pushDiagnosticToJS(diagnostic)
+    }
+
+    /// Diagnostics recorded before this generation's bundle finished
+    /// evaluating — the OTA rollback notice, `boot.*`, `ota.updateRequired` —
+    /// are exactly the ones an operator's telemetry most needs, and they were
+    /// dropped: `report` gates its push on `jsReady`, which is false for the
+    /// whole boot. They sit in the ring under this boot's `sessionId`, so once
+    /// the bundle is up, hand them over in order.
+    private func replayBootDiagnostics() {
+        for diagnostic in diagnostics.all where diagnostic.sessionId == sessionId {
+            pushDiagnosticToJS(diagnostic)
+        }
+    }
+
+    /// `js`-subsystem entries never go back to JS: the listener table that
+    /// would receive them is where a console echo loop would close.
+    private func pushDiagnosticToJS(_ diagnostic: Diagnostic) {
+        guard diagnostic.subsystem != .js else { return }
         var payload: [String: Any] = [
             "code": diagnostic.code,
             "severity": diagnostic.severity.rawValue,
@@ -2846,14 +2874,64 @@ public struct ReactWatchRootView: View {
     /// wrist-down — the opposite of what this signal exists to save.
     @Environment(\.isLuminanceReduced) private var isLuminanceReduced
 
+    // Both diagnostic surfaces are DEBUG-only. They render raw JS stack traces
+    // and Swift error descriptions, and their triggers include events a
+    // correct app cannot avoid — an OTA rollback notice, a WatchConnectivity
+    // failure, a manifest check on a flaky network — so in a shipped build
+    // they would paint developer output over the end user's screen. Release
+    // keeps the ring, the sink and the `diagnostic` push to JS; it draws none
+    // of it.
+
+    /// Fatal boot failure. DEBUG shows the reason; release shows a wordless
+    /// symbol, because the text is a Swift error description and the app
+    /// itself has no way to localize it.
+    @ViewBuilder private var startupFailure: some View {
+        #if DEBUG
+        ScrollView {
+            Text(model.startupError ?? "").font(.footnote).foregroundStyle(.red)
+        }
+        #else
+        Image(systemName: "exclamationmark.triangle")
+            .font(.title2)
+            .foregroundStyle(.secondary)
+        #endif
+    }
+
+    /// Developer-facing banner: the latest RECOVERABLE diagnostic (ARCH-13).
+    /// Fatal boot failures take the full-screen path; info-severity
+    /// diagnostics stay in the ring/log only.
+    @ViewBuilder private var recoverableBanner: some View {
+        #if DEBUG
+        if let error = model.latestRecoverable?.message {
+            ScrollView {
+                Text(error)
+                    .font(.footnote.monospaced())
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(6)
+            }
+            .frame(maxHeight: 120)
+            .background(.red.opacity(0.85), in: .rect(cornerRadius: 8))
+            .onTapGesture { model.latestRecoverable = nil }
+        }
+        #endif
+    }
+
+    /// - Parameter diagnosticsSink: where every diagnostic goes besides the
+    ///   ring — the place to forward to a crash reporter. Release builds draw
+    ///   no diagnostic on screen, so without a sink a shipped app's JS errors,
+    ///   OTA rollbacks and boot failures reach only the device's unified log.
+    ///   Defaults to that log.
     public init(
         appGroupId: String? = nil, ota: OTAConfig = .init(),
-        useJSCallBridge: Bool = true, policy: HostPolicy = .allowAll
+        useJSCallBridge: Bool = true, policy: HostPolicy = .allowAll,
+        diagnosticsSink: (any DiagnosticsSink)? = nil
     ) {
         _model = State(
             initialValue: ReactWatchModel(
                 appGroupId: appGroupId, ota: ota,
-                useJSCallBridge: useJSCallBridge, policy: policy
+                useJSCallBridge: useJSCallBridge, policy: policy,
+                diagnosticsSink: diagnosticsSink
             ))
     }
 
@@ -2864,31 +2942,13 @@ public struct ReactWatchRootView: View {
             } else if let root = model.root {
                 // Screens own their scrolling (ScrollView/List nodes).
                 NodeView(node: root)
-            } else if let error = model.startupError {
-                ScrollView {
-                    Text(error).font(.footnote).foregroundStyle(.red)
-                }
+            } else if model.startupError != nil {
+                startupFailure
             } else {
                 ProgressView()
             }
         }
-        .overlay(alignment: .bottom) {
-            // Developer-facing banner: the latest RECOVERABLE diagnostic
-            // (ARCH-13). Fatal boot failures take the full-screen path above;
-            // info-severity diagnostics stay in the ring/log only.
-            if let error = model.latestRecoverable?.message {
-                ScrollView {
-                    Text(error)
-                        .font(.footnote.monospaced())
-                        .multilineTextAlignment(.leading)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(6)
-                }
-                .frame(maxHeight: 120)
-                .background(.red.opacity(0.85), in: .rect(cornerRadius: 8))
-                .onTapGesture { model.latestRecoverable = nil }
-            }
-        }
+        .overlay(alignment: .bottom) { recoverableBanner }
         .environment(model)
         .onAppear { model.start() }
         .onChange(of: scenePhase) { _, phase in
