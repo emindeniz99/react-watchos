@@ -89,8 +89,9 @@ function watchTargetConfig(opts: ResolvedOptions) {
     ],
     // The plain-http dev flow — the DEBUG dev-server poll, the inspector, and
     // OTA from a Mac on the LAN (the loopback/private-LAN scope
-    // UpdateURLPolicy allows) — needs ATS to permit IP-address and .local
-    // hosts, which watchOS 10+ blocks by default. That is a global ATS
+    // UpdateURLPolicy allows) — needs ATS to permit plain http to an IP
+    // address, which watchOS 10+ no longer exempts by default (unqualified
+    // and .local hostnames still are). That is a global ATS
     // exception, so it is emitted ONLY on `localNetworking`: an Info.plist
     // is per target, not per build configuration, and the exception used to
     // ship in every consumer's release build with no way to turn it off.
