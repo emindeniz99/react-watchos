@@ -9,6 +9,73 @@ they could not confirm it by reading the code themselves.
 Nine verifier agents died on an API safeguard error, so nine findings were judged
 by one verifier instead of two. Treat any single finding as one read, not a proof.
 
+## Status after the 2026-09-17 fix round
+
+Six fixers in isolated worktrees, one adversarial reviewer per branch, one
+repair pass where refused, then hand-merged with real merge commits and a
+full verification on the merged tree (852/852 vitest with the real engine,
+both Swift hosts in debug and release, zizmor 0, actionlint clean, the
+packed tarball installed with npm into a clean project). 79 commits on
+`main`, `416584d..6a637df`. What each finding became:
+
+| Finding | Status | Where |
+|---|---|---|
+| **Blocker** — diagnostic UI in release | **fixed** | `7aca6ce` — `#if DEBUG`; `ReactWatchRootView(diagnosticsSink:)` is the release hook |
+| Major 1 / 21 — symbolication not in the package | **fixed** | `55e443a` — `react-watchos symbolicate` subcommand, bundled into the compiled bin |
+| Major 2 — ota-signing.md documents repo-only scripts | **fixed** | `b4ed6b4`, `76e008b` |
+| Major 3 — same-`version` OTA replay | **open** | wire change (`v3` signed ordinal); design in roadmap.md's "Same-`version` OTA replay" row; docs no longer claim the high-water mark covers it (`32743e1`) |
+| Major 4 — QuickJS stack guard unsized | **fixed** | `2cf35df` |
+| Major 5 — TimerText `since` trap | **fixed** | `61062e6` |
+| Major 6 / 22 — JS text logged `.public` in release | **fixed** | `63a5b7d` |
+| Major 7 — publish races the other gates | **fixed** | `e946d89`, `ba21a2e` — publish `needs` ci.yml, quality.yml and build.yml called against the tag |
+| Major 8 — `chore(deps)` engine bumps never released | **fixed** | `f39b0fc` for future bumps; `6a637df` carries v0.16.2 into the 0.8.0 changelog |
+| Major 9 — bot runs upstream C under a write token | **fixed** | `0145231` — read-only verify job, write-only push job |
+| Major 10 — no vulnerability scanning | **fixed / owner** | `fa937b2` (`pnpm audit` gate with a baselined ignore list), `acfd63c` (Dependabot for actions; npm deliberately not — its updater cannot read pnpm lockfiles). **Owner:** Dependabot *alerts* are a repo setting: `gh api -X PUT repos/emindeniz99/react-watchos/vulnerability-alerts` |
+| Major 11 — attested check pair not complementary | **fixed** | `af84213` — one always-reporting check |
+| Major 12 / 17 — false Xcode 16 floor | **fixed** | `c515d50`, `19944fd` |
+| Major 13 / 18 — README says unpublished | **fixed** | `339296f`, `525605b` |
+| Major 14 — launch-checklist stale | **fixed** | `9600eef`, `8677ee4` |
+| Major 15 — NodeView has no behavioural test | **open** | XL; its own task, not a fix-round item |
+| Major 16 — no required checks, docs claim otherwise | **docs fixed; checks still advisory** | `1665846`, `50e9397` — the ruleset stays as the owner set it (deletion + force-push blocked, nothing required) |
+| Major 19 — js/README tsconfig contract obsolete | **fixed** | `0024d00` |
+| Major 20 — example OTA URL is an origin | **fixed** | `3a75c9c`, `6ea01c9` |
+| Major 23 — boot-time diagnostics dropped | **fixed** | `7aca6ce` — replayed into `onDiagnostic` once the bundle is ready |
+| Major 24 — uncaught JS errors unreachable in release | **fixed** | `7aca6ce` — the native sink sees them (JS deliberately still does not) |
+| Minor — CLI help points at docs/ paths | **fixed** | `beace54` |
+| Minor — getting-started ship-as-source / no-build-step claims | **fixed** | `be80180` |
+| Minor — no Jest guidance for `.ts` under node_modules | **fixed** | `563992a`, `6e0ebe3` |
+| Minor — SECURITY.md capability-gating promise, 0.1.1 date | **fixed** | `9629b18` |
+| Minor — ATS weakened in every release build | **fixed (breaking)** | `fd6a4b7` — opt-in `localNetworking`; MIGRATIONS 0.8.0 |
+| Minor — unknown DatePicker mode traps DEBUG | **fixed** | `b039b08` |
+| Minor — CONTRIBUTING says never published | **fixed** | `96e1f4b` |
+| Minor — floating `npm@^11.5.1` in the publish job | **fixed** | `c95e53d` |
+| Minor — README "CI has never run" | **fixed** | `339296f`, `50e9397` |
+| Minor — roadmap queue lists shipped items | **fixed** | `e4c9e6b`, `181f184` |
+| Minor — Node 22.18 floor exercised by no CI leg | **fixed** | `e47bb50` — consumer-path leg installs the tarball with npm on 22.18 |
+| Minor — peer-dependency floors exercised by no CI leg | **open** | structural; a matrix over Expo/apple-targets floors is its own task |
+| Minor — swift/README misstates the engine version | **fixed** | `0c5fabb` — no literal, points at VERSION.md |
+| Minor — Quick start omits the bundle build | **fixed** | `525605b`, `181f184` (widget line) |
+| Minor — 0.7.0 `testing` change has no MIGRATIONS entry | **fixed** | `b6a6bce` |
+| Minor — scaffold skips the widget glue | **fixed** | `66b0339`, `bde4f38` |
+| Minor — widget-extension JS errors discarded | **fixed** | `9405768` — parked in the App Group store, reported as `widgets.jsError` at the app's next boot |
+| Critic — no privacy manifest | **fixed** | `bd61541` — SwiftPM resource of ReactWatchSupport (1C8F.1 App-Group UserDefaults + file timestamps); copied into every product that links it |
+| Critic — `aps-environment: development` hardcoded | **not a defect** | `00f1782` — Apple derives the value from the provisioning profile at signing; a distribution profile always yields `production`. Citations added to the code comment |
+| Critic — `MARKETING_VERSION = "1.0"` | **not a defect** | `db3f6e8` — `@bacons/apple-targets` syncs it from `expo.version` on every target; verified in a real consumer's built watch app. Docs now say so |
+| Critic — publishing.md options wrong both ways | **fixed** | `8c59613`, `bb32439` — table regenerated from source |
+| Critic — CHANGELOG/MIGRATIONS not in the tarball | **fixed** | `70999b4` — CHANGELOG shipped; MIGRATIONS lives outside js/ and is linked by absolute URL |
+
+Not run by anyone yet: the three new Swift tests the runtime branch added
+(`testDeepRecursionThrowsInsteadOfOverflowingASmallThreadStack`,
+`testTimerStart*`, `testWidgetDiagnosticSlot*`). The Mac's local test run
+was refused by the session's safety gate after the 2026-09-01 xctest leak;
+CI's Linux `swift test` leg is the first executor. If it is red, that is
+where to look first.
+
+Two owner-side items remain from the table: enabling Dependabot alerts,
+and deciding whether any check becomes required. Two engineering items
+remain open by size, not by choice: the `v3` signed ordinal for OTA replay,
+and a behavioural test for the SwiftUI interpreter.
+
 ---
 
 ## Blocker
