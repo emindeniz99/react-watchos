@@ -472,7 +472,9 @@ struct NodeView: View {
                 style.apply(to: Text(formatTimer(interval)).monospacedDigit())
             }
         } else if let until = node.double("until") {
-            let end = Date(timeIntervalSince1970: until / 1000)
+            // Clamped like `since` below: the range is valid either way, but
+            // the countdown formatter gets a 1e305-second interval otherwise.
+            let end = RNStyle.timerStart(sinceMs: until)
             styledTimer(
                 Text(
                     timerInterval: Date()...Swift.max(Date(), end),
@@ -579,8 +581,20 @@ struct NodeView: View {
             let lon = node.double("longitude")
         else { return nil }
         let span = node.double("span") ?? 0.02
+        let center = CLLocationCoordinate2D(latitude: lat, longitude: lon)
+        // MapKit raises NSInvalidArgumentException ("Invalid Region") for a
+        // center outside ±90/±180 or a non-positive span, and the wire lets a
+        // bundle send either. Degrade to auto-fit and log once instead. 180 is
+        // the whole latitude axis: `span` feeds both deltas.
+        guard CLLocationCoordinate2DIsValid(center), span > 0, span <= 180 else {
+            logUnsupportedOnce(
+                "Map.region",
+                "Map latitude/longitude/span \(lat)/\(lon)/\(span) is not a valid "
+                    + "region — fitting the annotations instead")
+            return nil
+        }
         return MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: lat, longitude: lon),
+            center: center,
             span: MKCoordinateSpan(latitudeDelta: span, longitudeDelta: span))
     }
 
@@ -640,7 +654,10 @@ struct NodeView: View {
         Binding(
             get: {
                 let ms = model.optimisticDouble(node.id) ?? (node.double("value") ?? 0)
-                return Date(timeIntervalSince1970: ms / 1000)
+                // Same clamp as TimerText's `since`: a wire value is any finite
+                // Double, and a Date past distantFuture handed to the picker's
+                // calendar math is a trap, not a date.
+                return RNStyle.timerStart(sinceMs: ms)
             },
             set: { newDate in
                 let ms = newDate.timeIntervalSince1970 * 1000
