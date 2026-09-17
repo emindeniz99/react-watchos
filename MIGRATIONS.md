@@ -36,8 +36,11 @@ Then `expo prebuild`. The demo and `examples/expo-watch-app` set it in
 `app.json` because both exist to run the dev loop. When you flip the option
 off on a machine that already prebuilt with it on, delete
 `targets/watch/Info.plist` first: the in-prebuild merge adds keys to that
-generated file and never removes them (a clean checkout and EAS start
-without it, so they converge on their own).
+generated file and never removes them. If your repo tracks that file,
+commit the deletion too — a clean checkout and EAS converge on their own
+only when the file is untracked (the demo and the example gitignore
+`targets/*/Info.plist`); tracked, it keeps shipping the exception from
+every EAS build after the upgrade.
 
 ## 0.5.x → 0.6.0
 
