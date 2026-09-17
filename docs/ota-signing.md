@@ -126,13 +126,19 @@ The manifest:
 
 ## 3. Versioning (anti-rollback)
 
-`version` is a **monotonic compatibility integer** in
-[`scripts/config.ts`](../js/scripts/config.ts) (`bundleVersion`). **Bump it
-only on a breaking change** (db schema / wire contract). When you do:
+`version` is a **monotonic compatibility integer**, set via
+`react-watchos build --version <n>` (or `manifest: { version }` if you call
+`buildBundles()` directly). **Bump it only on a breaking change** (db schema /
+wire contract). When you do:
 
-1. raise `bundleVersion` in `config.ts`, and
+1. raise the version passed to `build`/`buildBundles()`, and
 2. raise `OTAConfig.shippedVersion` in the **native app** in lockstep with the
    bundle you ship in the binary.
+
+(In this repo, the number comes from `bundleVersion` in
+[`scripts/config.ts`](../js/scripts/config.ts), which `pnpm --filter
+react-watchos build` passes through — that file is repo-only tooling, not a
+published API.)
 
 The watch refuses any bundle **older** than the newest it has applied, so an old
 bundle can never run against a newer-schema db. With the **hard** gate, stale JS
