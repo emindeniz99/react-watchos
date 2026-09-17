@@ -53,7 +53,7 @@ react-reconciler — your app provides the single copy. The build preset's
 resolve to that copy; vitest's `resolve.dedupe` does the same for tests. Two
 React copies silently break hooks/context.
 
-## Watch target wiring (requires macOS 15+, Xcode 16+)
+## Watch target wiring (requires macOS 15+, Xcode 26.x)
 
 The renderer ships no native target — you embed the engine in your own watch
 app (the `app/` project in this repo is the reference; `@bacons/apple-targets`

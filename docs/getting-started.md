@@ -66,14 +66,16 @@ REACT_WATCH_OTA_URL=http://192.168.x.y:8788/manifest.json \
 The renderer is a real package: `exports` (main, `/build`, `/testing`),
 `peerDependencies` for react / react-reconciler, and a typed host surface.
 
-> **Toolchain: Node ≥ 22.18 (Node 24 recommended).** The app source ships as
-> TypeScript that your bundler compiles — but the Expo config plugin, the CLI
-> (`npx react-watchos`), and the esbuild preset (`react-watchos/build`) run in
-> **your** Node and ship as `.cts`/`.mts` source, executed by Node's native
-> type stripping. So `expo prebuild` and your bundle-build script need Node
-> ≥ 22.18 (stripping is on by default) — or ≥ 22.6 with
-> `--experimental-strip-types`. This is a pre-1.0 choice; a compiled-to-JS
-> build can be added if older Node support is needed.
+> **Toolchain: Node ≥ 22.18.** The app source (`src/`) ships as TypeScript
+> that your bundler compiles. The Expo config plugin, the CLI
+> (`npx react-watchos`), and the esbuild preset (`react-watchos/build`) are
+> written as `.cts`/`.mts` in this repo, but Node refuses native type
+> stripping for files under `node_modules`
+> (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so the package's own
+> `prepare` step precompiles them to plain JS in `dist-node/` (esbuild,
+> target `node22`) before publish — that's what a registry install actually
+> runs, not the `.cts`/`.mts` source. `expo prebuild` and your bundle-build
+> script need a Node that can run that output: ≥ 22.18.
 
 ```ts
 import { runApp, VStack, Text, Button, getHost } from "react-watchos";
@@ -174,10 +176,14 @@ Two worked examples (each its own workspace member, both verified on Linux):
 
 ## From outside the workspace
 
-The package ships **source** (no build step, no `prepare` hook), so consuming
-it from outside the workspace — a different repo/folder linking it via
-`file:`/`link:`, or a registry `npm i` — works without building anything: your
-bundler compiles the `.ts` directly.
+The renderer (`src/`) ships **source**, so consuming it from outside the
+workspace — a different repo/folder linking it via `file:`/`link:`, or a
+registry `npm i` — needs no build step on your side: your bundler compiles
+the `.ts` directly. The Node-loaded surfaces (plugin, CLI, esbuild preset)
+are different: the package's own `prepare` hook compiles them to `dist-node/`
+before publish (see the toolchain note above), so a registry install runs
+that already-compiled JS, not `.cts`/`.mts` source. Either way you build
+nothing yourself.
 
 **The source-shipping tsconfig contract (applies to EVERY consumer, registry
 installs included):** because you compile our `.ts` as part of your program,
@@ -218,7 +224,7 @@ Without `preserveSymlinks`, `tsc` type-checks the renderer's `.ts` source at
 its real path (outside your `node_modules`) and can't resolve `react` there.
 The first two prevent a second React copy in the bundle/tests (which silently
 breaks hooks). Published to a registry (a normal `npm i`, no symlink) only the
-`types: ["node"]` contract above applies — the symlink settings are specific
+`lib`/`jsx` contract above applies — the symlink settings are specific
 to linked local packages.
 
 ## Type safety & linting
@@ -257,7 +263,18 @@ a second clone or git worktree reuses it.
 runs the bundle through the same embedding calls `JSRuntime.swift` makes. Both
 are also the local crash-repro loop — see [debugging.md](./debugging.md#the-local-repro-loop-no-watch-required).
 
-## Watch app — requires macOS 15+, Xcode 16+
+## Watch app — requires macOS 15+, Xcode 26.x
+
+The Swift host calls a handful of watchOS-26-only symbols (`.glass`,
+`.glassEffect()`, `RelevantContext.DateKind`) — each is guarded by
+`#available(watchOS 26.0, *)` for *runtime* dispatch, but the symbols still
+have to exist in the SDK you *compile* against, so an older Xcode fails to
+build the package at all (`value of type 'some View' has no member
+'glassEffect'`, and similar). CI builds on a `macos-26` runner for exactly
+this reason. Deployment stays down to watchOS 10 (`Package.swift`'s floor,
+unchanged) — the toolchain requirement and the runtime floor are two
+different things: older watches still run the app, they just never reach the
+gated code paths.
 
 ```bash
 pnpm install                              # workspace install (every member)

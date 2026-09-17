@@ -69,7 +69,7 @@ npx react-watchos scaffold   # -> targets/watch/WatchApp.swift
 files. The generated `expo-target.config.js` / `Info.plist` / entitlements are
 not committed (see `.gitignore`).
 
-## Building the actual watch app (macOS 15+, Xcode 16+)
+## Building the actual watch app (macOS 15+, Xcode 26.x)
 
 ```bash
 pnpm --filter expo-watch-app prebuild   # build the watch bundle, then `expo prebuild`
@@ -139,8 +139,10 @@ moving parts:
    bundle is detectable. It also declares this UI's capability contract
    (`requiredFeatures: ["connectivity", "network", "ota"]`). The widget target
    has no `manifest` (it's shipped, not OTA'd).
-2. **`REACT_WATCH_OTA_URL` is baked into the bundle at build time** — the URL the
-   button fetches `/manifest.json` from. Empty (button shows a hint) unless set.
+2. **`REACT_WATCH_OTA_URL` is baked into the bundle at build time** — set it to
+   the full `manifest.json` URL itself: `fetchAndApplyUpdate` fetches that URL
+   directly and resolves the bundle relative to it (`watch-ui/App.tsx`). Empty
+   (button shows a hint) unless set.
 3. **Serve the assets.** [`scripts/serve-ota.mjs`](./scripts/serve-ota.mjs)
    (`pnpm ota:serve`) statically serves `targets/watch/assets/`; in production
    use any CDN/S3 instead.
@@ -149,11 +151,11 @@ Demo flow on the simulator (the watch sim shares the Mac's network, so
 `127.0.0.1` works):
 
 ```bash
-REACT_WATCH_OTA_URL=http://127.0.0.1:8788 pnpm build:targets  # bake URL + stamp manifest
+REACT_WATCH_OTA_URL=http://127.0.0.1:8788/manifest.json pnpm build:targets  # bake URL + stamp manifest
 pnpm prebuild                                               # build the app, run it on the sim
 pnpm ota:serve                                              # terminal A: serve the assets
 # edit watch-ui/App.tsx, then re-stamp the served bundle:
-REACT_WATCH_OTA_URL=http://127.0.0.1:8788 pnpm build:targets  # new releaseId
+REACT_WATCH_OTA_URL=http://127.0.0.1:8788/manifest.json pnpm build:targets  # new releaseId
 # tap "Check for update" on the watch → "staged v1 — relaunch"
 ```
 
