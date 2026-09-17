@@ -20,6 +20,11 @@
 // polls, and the remote inspector UI — all wrapping the published preset, so
 // a registry install gets the same loop the demo uses.
 //
+// `react-watchos symbolicate` reads a minified field stack back through the
+// map `build` wrote (or the store `build --symbols` kept). It lives in the
+// same bin as `build` on purpose: the install that can produce a symbol store
+// must be the install that can read it.
+//
 // There is intentionally no `prebuild` command: the config plugin links the
 // SwiftPM host + merges the target Info.plists during `expo prebuild` itself
 // (see plugin/withNativeWiring.js), so `expo prebuild` is all you run.
@@ -27,6 +32,11 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { parseArgs } = require("node:util");
+
+// Where a consumer can actually read the docs this CLI points at: `docs/` is
+// not in the tarball (package.json `files`), so a relative path printed from
+// node_modules leads nowhere.
+const DOCS = "https://github.com/emindeniz99/react-watchos/blob/main/docs";
 
 /**
  * Parse the shared build/dev flags.
@@ -70,7 +80,8 @@ function buildFlags(args: string[]) {
       // carrying only a releaseId can still find the map that reads it.
       // Affirmative-only and absent by default — writing artifacts nobody asked
       // for is not a default, and `releaseId` is the only key (never a second
-      // identifier). Resolve one later with `symbolicate --symbols <dir>`.
+      // identifier). Resolve one later with
+      // `react-watchos symbolicate --symbols <dir>`.
       symbols: { type: "string" },
       version: { type: "string", default: "1" },
       host: { type: "string", default: process.env.DEV_HOST ?? "127.0.0.1" },
@@ -109,7 +120,7 @@ async function build(args: string[]) {
   if (f.debug) {
     console.error(
       "[react-watchos] --debug instruments every statement and must never " +
-        "ship: use `react-watchos dev --debug` (docs/design-dap-debugger.md).",
+        `ship: use \`react-watchos dev --debug\` (${DOCS}/design-dap-debugger.md).`,
     );
     process.exit(1);
   }
@@ -246,6 +257,13 @@ async function inspector(args: string[]) {
   await import("./inspector-server.mts"); // listens on import
 }
 
+/** Resolve a minified stack through a map, or through the store a build kept
+ *  with `--symbols` (stack on stdin; see bin/symbolicate.mts for the modes). */
+async function symbolicate(args: string[]) {
+  const { symbolicate: run } = await import("./symbolicate.mts");
+  run(args);
+}
+
 /** Generate the watch app's Swift entry point, parameterized to match the
  *  plugin's resolved app.json config so the App Group + name always agree. */
 function scaffold(args: string[]) {
@@ -302,6 +320,9 @@ function scaffold(args: string[]) {
 
 /**
  * Write one scaffolded file, refusing to clobber an edited one without --force.
+ * A refusal marks the run failed but does NOT exit: the watch glue is written
+ * first, and exiting on it would skip the widget glue every time `scaffold`
+ * is re-run after `widget: true` is switched on — the one time it is needed.
  */
 function writeGlue(
   projectRoot: string,
@@ -316,7 +337,8 @@ function writeGlue(
     console.error(
       `[scaffold] ${relPath} already exists (pass --force to overwrite)`,
     );
-    process.exit(1);
+    process.exitCode = 1;
+    return;
   }
   fs.writeFileSync(file, contents);
   console.log(`[scaffold] wrote ${relPath} (${note})`);
@@ -339,6 +361,9 @@ switch (command) {
   case "debug":
     debug(rest).catch(fail);
     break;
+  case "symbolicate":
+    symbolicate(rest).catch(fail);
+    break;
   default:
     console.error(
       "react-watchos\n\n" +
@@ -358,14 +383,24 @@ switch (command) {
         "      component names in stack traces at that cost. A source map is\n" +
         "      written beside the outfile by default and referenced from\n" +
         "      nowhere, so it costs the shipped bytes nothing — resolve a stack\n" +
-        "      later with `react-watchos`'s symbolicate script. --keep-names\n" +
+        "      later with `react-watchos symbolicate`. --keep-names\n" +
         "      instead bakes the names into the bundle (+17 KB), for stacks\n" +
         "      nothing will symbolicate. --no-network leaves the fetch shims\n" +
         "      out (-3.7 KB) for a bundle that declares no network — a widget\n" +
         "      entry that only reads storage and publishes timelines.\n" +
         "      --symbols keeps the bundle + map under <dir>/<releaseId>/<target>/,\n" +
         "      so a field stack that carries only a releaseId still finds its\n" +
-        "      map weeks later (docs/debugging.md, 'Keep your symbols').\n\n" +
+        `      map weeks later (${DOCS}/debugging.md#keep-your-symbols).\n\n` +
+        "  react-watchos symbolicate <bundle.js.map>\n" +
+        "  react-watchos symbolicate --symbols <dir> --release <id>\n" +
+        "                            [--target <name>]\n" +
+        "  react-watchos symbolicate --symbols <dir> --diagnostics [ring.json]\n" +
+        "      Turn a minified stack (stdin) back into source positions through\n" +
+        "      the map `build` wrote, or through the store `build --symbols`\n" +
+        "      kept, looked up by the releaseId the stack arrived with.\n" +
+        "      --diagnostics reads a whole diagnostics ring and resolves each\n" +
+        "      record against its own releaseId. Frames with no mapping are\n" +
+        "      printed through unchanged, never dropped.\n\n" +
         "  react-watchos dev --entry <file> [--outfile dist/bundle.js]\n" +
         "                    [--host 127.0.0.1] [--port 8788]\n" +
         "      Live-reload server. DEBUG watch builds poll /bundle.js every 2s\n" +
@@ -382,7 +417,7 @@ switch (command) {
         "      /debug/poll and blocks there while paused; an editor attaches\n" +
         '      to the DAP port ({"debugServer": 8791} in launch.json).\n' +
         "      Breakpoints, stepping and the top frame's ARGUMENTS — not a\n" +
-        "      scope walker; see docs/design-dap-debugger.md for the limits.\n",
+        `      scope walker; the limits: ${DOCS}/design-dap-debugger.md\n`,
     );
     process.exit(command ? 1 : 0);
 }

@@ -413,8 +413,8 @@ describe("source map + keepNames defaults", () => {
   });
 
   // The map is only worth defaulting on if it actually resolves a MINIFIED
-  // frame back to a name — which is what a crash reporter (or js/scripts/
-  // symbolicate.ts) does with the `line:col` the vendored quickjs-ng reports.
+  // frame back to a name — which is what a crash reporter (or js/bin/
+  // symbolicate.mts) does with the `line:col` the vendored quickjs-ng reports.
   it("resolves a minified name back to the original through the map", async () => {
     const dir = mkdtempSync(join(tmpdir(), "rnw-map-name-"));
     const entry = join(dir, "entry.ts");

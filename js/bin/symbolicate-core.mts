@@ -1,5 +1,5 @@
-// The frame-resolution core behind `pnpm symbolicate`, extracted so the CLI
-// and the tests that PROVE it share one implementation.
+// The frame-resolution core behind `react-watchos symbolicate`, extracted so
+// the CLI and the tests that PROVE it share one implementation.
 //
 // Why it is its own module: two things about symbolication are easy to get
 // wrong in a way no reader notices, and both belong in exactly one place.

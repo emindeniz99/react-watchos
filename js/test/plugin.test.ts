@@ -849,11 +849,11 @@ describe("removeGeneratedTargetConfigFile (widget:false cleanup, CX-011)", () =>
 // surface only as a link-time "Undefined symbols: _main" — fail loudly during
 // `expo prebuild`, before apple-targets ever creates the target, instead.
 describe("ensureWatchSwiftGlue (DX-3: @main entry present before prebuild)", () => {
-  const { ensureWatchSwiftGlue, WATCH_DIR } = withReactWatch;
+  const { ensureWatchSwiftGlue, WATCH_DIR, WIDGET_DIR } = withReactWatch;
 
-  const stage = () => {
+  const stage = (target: string = WATCH_DIR) => {
     const root = mkdtempSync(join(tmpdir(), "rnw-swiftglue-"));
-    const dir = join(root, "targets", WATCH_DIR);
+    const dir = join(root, "targets", target);
     mkdirSync(dir, { recursive: true });
     return { root, dir };
   };
@@ -866,6 +866,25 @@ describe("ensureWatchSwiftGlue (DX-3: @main entry present before prebuild)", () 
     expect(() => ensureWatchSwiftGlue(root, WATCH_DIR)).toThrow(
       /react-watchos scaffold/,
     );
+    expect(() => ensureWatchSwiftGlue(root, WATCH_DIR)).toThrow(
+      /targets\/watch\/.*starter WatchApp\.swift/,
+    );
+  });
+
+  // The widget extension has its own @main (the WidgetBundle `scaffold`
+  // writes as ReactWidgets.swift), so the same guard covers targets/widget/
+  // when the widget is enabled — and names THAT starter, not the watch app's.
+  it("guards the widget dir too, naming the WidgetBundle starter", () => {
+    const { root, dir } = stage(WIDGET_DIR);
+    writeFileSync(join(dir, "expo-target.config.js"), "module.exports = {};\n");
+    expect(() => ensureWatchSwiftGlue(root, WIDGET_DIR)).toThrow(
+      /react-watchos scaffold/,
+    );
+    expect(() => ensureWatchSwiftGlue(root, WIDGET_DIR)).toThrow(
+      /targets\/widget\/.*starter ReactWidgets\.swift/,
+    );
+    writeFileSync(join(dir, "ReactWidgets.swift"), "@main struct B {}\n");
+    expect(() => ensureWatchSwiftGlue(root, WIDGET_DIR)).not.toThrow();
   });
 
   it("throws when the target dir does not exist at all", () => {

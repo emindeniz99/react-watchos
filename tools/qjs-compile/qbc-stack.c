@@ -9,7 +9,7 @@
  * report?" — and that is the only question this file answers. It is the middle
  * of the chain js/test/qbc-symbolication.test.ts proves end to end: the .qbc
  * comes from the real qjs-compile, the stack printed here is fed straight into
- * the shipped symbolicator (js/scripts/symbolicate-core.ts) and resolved back
+ * the shipped symbolicator (js/bin/symbolicate-core.mts) and resolved back
  * to the .tsx it was built from.
  *
  * The load sequence is JS_ReadObject + JS_EvalFunction — byte for byte what

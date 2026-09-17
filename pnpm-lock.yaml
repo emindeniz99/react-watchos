@@ -133,6 +133,9 @@ importers:
       '@expo/plist':
         specifier: ^0.8.1
         version: 0.8.1
+      '@jridgewell/trace-mapping':
+        specifier: ^0.3.31
+        version: 0.3.31
       '@types/plurals-cldr':
         specifier: ^1.0.5
         version: 1.0.5
@@ -161,9 +164,6 @@ importers:
       '@expo/config-plugins':
         specifier: ~57.0.9
         version: 57.0.9(supports-color@8.1.1)(typescript@6.0.3)
-      '@jridgewell/trace-mapping':
-        specifier: ^0.3.31
-        version: 0.3.31
       '@types/node':
         specifier: ^24.13.3
         version: 24.13.3

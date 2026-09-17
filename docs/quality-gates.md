@@ -70,7 +70,7 @@ wired**. The breakdown is the argument:
 | `redundant-type-aliases` | 3 | `BleState = string`, `EventPriority = number`, `InvokeShapeRef = string` — deliberate documentation aliases, each with a doc block saying so. |
 | `no-os-command-from-path` | 2 | `execFileSync("swift", …)` in dev-only codegen. |
 | `no-nested-conditional` | 2 | Style. |
-| `super-linear-regex` | 2 | The only class with teeth, and neither instance is reachable from untrusted input: `update.ts`'s `/[^/]*$/` runs on the developer-configured manifest URL (the remote-supplied `bundle` field goes through a linear test), and `symbolicate-core.ts` is a dev CLI over a crash log you hand it. |
+| `super-linear-regex` | 2 | The only class with teeth, and neither instance is reachable from untrusted input: `update.ts`'s `/[^/]*$/` runs on the developer-configured manifest URL (the remote-supplied `bundle` field goes through a linear test), and `bin/symbolicate-core.mts` is the `react-watchos symbolicate` subcommand, run over a crash log you hand it. |
 | `todo-tag` | 2 | The repo's TODOs carry context on purpose. |
 | `concise-regex`, `no-inverted-boolean-check` | 2 | Style. |
 

@@ -1,7 +1,9 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
+import { buildBundles } from "../esbuild/preset.mts";
 
 // Guards the packaging contract: every path the published package promises
 // (exports targets, main/types, the `files` whitelist) must exist AND be
@@ -171,4 +173,67 @@ describe("published tarball contents (DX-4)", () => {
       expect(files.some((f) => f.includes("swift/.build/"))).toBe(false);
     },
   );
+});
+
+// `build --symbols` shipped while its reader lived in scripts/ (not in
+// `files`), so a registry install could write a symbol store and nothing it
+// installed could read one. This drives the COMPILED bin — the file
+// package.json's `bin` points at, which the beforeAll above just built — not
+// the .cts source symbolicate-cli.test.ts spawns, so "the subcommand exists
+// in the source" cannot stand in for "it ships". It lives here rather than
+// next to the other symbolicate tests because this is the one file that
+// builds dist-node/, and build-node.ts starts by deleting it: a reader in
+// another file would race that rm -> rebuild under vitest's parallel workers.
+describe("compiled CLI (what a registry install runs)", () => {
+  const compiledBin = join(jsRoot, "dist-node/react-watchos.cjs");
+  const sourceBin = join(jsRoot, "bin/react-watchos.cts");
+
+  it("symbolicate is reachable from dist-node/react-watchos.cjs", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "rnw-pack-symcli-"));
+    const entry = join(dir, "entry.ts");
+    writeFileSync(
+      entry,
+      "function shoppingListProbe() {\n  return 1;\n}\n" +
+        "globalThis.__probeGlobal = shoppingListProbe() + 1;\n",
+    );
+    const outfile = join(dir, "bundle.js");
+    const symbols = join(dir, "symbols");
+    const [built] = await buildBundles([{ name: "app", entry, outfile }], {
+      symbols,
+    });
+    const releaseId = built?.releaseId ?? "";
+    expect(releaseId).not.toBe("");
+
+    // A stack in the shape the vendored quickjs-ng emits, pointing at the
+    // probe's declaration in the REAL minified bundle (located through the
+    // one identifier minification cannot rename). Columns are 1-based.
+    const code = readFileSync(outfile, "utf8");
+    const call = /globalThis\.__probeGlobal\s*=\s*([A-Za-z_$][\w$]*)\s*\(/.exec(
+      code,
+    );
+    const minified = call?.[1] ?? "";
+    expect(minified).not.toBe("");
+    const index = code.indexOf(`function ${minified}(`) + "function ".length;
+    const stack =
+      "Error: boom\n" +
+      `    at ${minified} (bundle.js:1:${index + 1})\n` +
+      "    at <anonymous> (bundle.js:1:1)\n";
+
+    const args = ["symbolicate", "--symbols", symbols, "--release", releaseId];
+    const shipped = spawnSync(process.execPath, [compiledBin, ...args], {
+      input: stack,
+      encoding: "utf8",
+    });
+    expect(shipped.status, shipped.stderr).toBe(0);
+    expect(shipped.stdout).toContain("at shoppingListProbe (");
+    expect(shipped.stdout).toContain("entry.ts:1:10");
+
+    // …and byte for byte what the source the rest of the suite drives prints.
+    const fromSource = spawnSync(
+      process.execPath,
+      ["--experimental-strip-types", sourceBin, ...args],
+      { input: stack, encoding: "utf8" },
+    );
+    expect(shipped.stdout).toBe(fromSource.stdout);
+  }, 60_000);
 });

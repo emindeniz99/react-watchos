@@ -133,7 +133,7 @@ export interface WatchBuildOptions {
    * `at Text`) are string literals in src/components.ts and survive, and the
    * diagnostics ring is minification-immune. The name is recoverable after the
    * fact through the map ({@link WatchBuildOptions.sourcemap}, on by default —
-   * `pnpm symbolicate`), or kept in the bundle up front for +17 KB
+   * `react-watchos symbolicate`), or kept in the bundle up front for +17 KB
    * ({@link WatchBuildOptions.keepNames}).
    *
    * NEVER add `mangleProps` alongside this. The wire protocol ships prop names
@@ -445,7 +445,7 @@ export interface BuildBundlesOptions {
    * `Diagnostic` records, so the stack and the store agree without anyone
    * stamping a second identifier. The target level below it is load-bearing —
    * see esbuild/symbol-store.mts. Resolve one later with
-   * `pnpm symbolicate --symbols <dir> --release <id>`.
+   * `react-watchos symbolicate --symbols <dir> --release <id>`.
    */
   symbols?: string;
 }

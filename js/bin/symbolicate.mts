@@ -9,8 +9,11 @@
 //
 // A column is exactly what a source map needs, so each frame resolves to the
 // original file, line, column and (when the map records one) the original name.
-// That is the same mechanism a hosted error tracker uses; this script is the
-// local, dependency-light version of it.
+// That is the same mechanism a hosted error tracker uses; this subcommand is
+// the local, dependency-light version of it. It SHIPS, as `react-watchos
+// symbolicate`, because the same CLI's `build --symbols` is what writes the
+// store a field stack is read against — an install that can produce the
+// symbols has to be able to consume them.
 //
 // It works on stacks from the PRODUCTION path too, not just the dev one: the
 // shipped `.qbc` bytecode keeps its line/column tables (tools/qjs-compile
@@ -19,16 +22,16 @@
 // same way. js/test/qbc-symbolication.test.ts proves that end to end through
 // this file's own core.
 //
-//   pnpm --filter react-watchos symbolicate dist/bundle.js.map < stack.txt
-//   pbpaste | pnpm --filter react-watchos symbolicate dist/bundle.js.map
+//   npx react-watchos symbolicate dist/bundle.js.map < stack.txt
+//   pbpaste | npx react-watchos symbolicate dist/bundle.js.map
 //
 // The other two modes exist because a stack from the FIELD does not arrive with
 // a map path — it arrives with a `releaseId`, and by then the map beside the
 // outfile has been overwritten by the next build. Given a store a build kept
 // (`--symbols`, see esbuild/symbol-store.mts), that id IS the lookup:
 //
-//   pnpm symbolicate --symbols ./symbols --release 8c4f… < stack.txt
-//   pnpm symbolicate --symbols ./symbols --diagnostics ring.json
+//   npx react-watchos symbolicate --symbols ./symbols --release 8c4f… < stack.txt
+//   npx react-watchos symbolicate --symbols ./symbols --diagnostics ring.json
 //
 // The second reads a diagnostics-ring document (what the inspector serves and
 // what `src/diagnostics.ts` types) and resolves EACH record against its OWN
@@ -46,12 +49,12 @@ import {
   describeSymbolStore,
   readSymbolEntry,
 } from "../esbuild/symbol-store.mts";
-import { parseStackFrame, symbolicateFrame } from "./symbolicate-core.ts";
+import { parseStackFrame, symbolicateFrame } from "./symbolicate-core.mts";
 
 const USAGE =
-  "usage: symbolicate <bundle.js.map>   (the stack arrives on stdin)\n" +
-  "       symbolicate --symbols <dir> --release <id> [--target <name>]\n" +
-  "       symbolicate --symbols <dir> --diagnostics [ring.json]\n" +
+  "usage: react-watchos symbolicate <bundle.js.map>   (the stack arrives on stdin)\n" +
+  "       react-watchos symbolicate --symbols <dir> --release <id> [--target <name>]\n" +
+  "       react-watchos symbolicate --symbols <dir> --diagnostics [ring.json]\n" +
   "The map is written beside the bundle on every build — sourcemap is on " +
   "by default and costs the shipped bytes nothing (it is `external`, so no " +
   "sourceMappingURL comment is added).\n" +
@@ -159,28 +162,52 @@ function headerOf(record: DiagnosticRecord): string {
   );
 }
 
-const { values, positionals } = (() => {
-  try {
-    return parseArgs({
-      args: process.argv.slice(2),
-      allowPositionals: true,
-      options: {
-        symbols: { type: "string" },
-        release: { type: "string" },
-        target: { type: "string" },
-        diagnostics: { type: "boolean" },
-      },
-    });
-  } catch (error) {
-    console.error(
-      `[symbolicate] ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return usage();
-  }
-})();
+/** The flags every mode reads; `parseArgs` is the one place they are declared. */
+interface Flags {
+  symbols?: string;
+  release?: string;
+  target?: string;
+  diagnostics?: boolean;
+}
 
-if (values.diagnostics) {
-  // ---- diagnostics ring: every record against its OWN releaseId ----------
+/**
+ * The `react-watchos symbolicate` subcommand: `argv` is everything after the
+ * subcommand name. Exits the process on a usage error or an unreadable store,
+ * like the sibling subcommands; returns once the stack is printed.
+ */
+export function symbolicate(argv: string[]): void {
+  const { values, positionals } = (() => {
+    try {
+      return parseArgs({
+        args: argv,
+        allowPositionals: true,
+        options: {
+          symbols: { type: "string" },
+          release: { type: "string" },
+          target: { type: "string" },
+          diagnostics: { type: "boolean" },
+        },
+      });
+    } catch (error) {
+      console.error(
+        `[symbolicate] ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return usage();
+    }
+  })();
+
+  if (values.diagnostics) {
+    symbolicateRing(values, positionals);
+  } else if (values.symbols || values.release) {
+    symbolicateFromStore(values, positionals);
+  } else {
+    symbolicateWithMap(values, positionals);
+  }
+}
+
+// ---- diagnostics ring: every record against its OWN releaseId --------------
+
+function symbolicateRing(values: Flags, positionals: string[]): void {
   const symbolsDir = values.symbols;
   if (!symbolsDir) {
     console.error("[symbolicate] --diagnostics needs --symbols <dir>");
@@ -231,20 +258,7 @@ if (values.diagnostics) {
     const key = `${record.releaseId} ${values.target ?? record.target ?? ""}`;
     let found = cache.get(key);
     if (found === undefined) {
-      try {
-        const entry = readSymbolEntry({
-          symbolsDir,
-          releaseId: record.releaseId,
-          target: values.target,
-          preferTarget: record.target,
-        });
-        found = entry.mapPath
-          ? tracerFor(entry.mapPath)
-          : `entry ${record.releaseId}/${entry.target} has no map ` +
-            "(built with sourcemap: false)";
-      } catch (error) {
-        found = error instanceof Error ? error.message : String(error);
-      }
+      found = tracerForRecord(symbolsDir, record, values.target);
       cache.set(key, found);
     }
     if (typeof found === "string") {
@@ -275,8 +289,37 @@ if (values.diagnostics) {
     );
     process.exit(1);
   }
-} else if (values.symbols || values.release) {
-  // ---- one stack on stdin, map found by releaseId ------------------------
+}
+
+/**
+ * The map for one record's release, or the one-line reason there is none —
+ * a string, not a throw, because a ring with one unknown release is still
+ * mostly readable and the loop prints on.
+ */
+function tracerForRecord(
+  symbolsDir: string,
+  record: DiagnosticRecord,
+  target: string | undefined,
+): TraceMap | string {
+  try {
+    const entry = readSymbolEntry({
+      symbolsDir,
+      releaseId: record.releaseId as string,
+      target,
+      preferTarget: record.target,
+    });
+    return entry.mapPath
+      ? tracerFor(entry.mapPath)
+      : `entry ${record.releaseId}/${entry.target} has no map ` +
+          "(built with sourcemap: false)";
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+}
+
+// ---- one stack on stdin, map found by releaseId ----------------------------
+
+function symbolicateFromStore(values: Flags, positionals: string[]): void {
   const symbolsDir = values.symbols;
   const releaseId = values.release;
   if (!symbolsDir || !releaseId) {
@@ -311,8 +354,11 @@ if (values.diagnostics) {
   }
   console.error(`[symbolicate] ${entry.mapPath}`); // stderr: stdout is the stack
   printStack(tracerFor(entry.mapPath), readFileSync(0, "utf8"));
-} else {
-  // ---- the original mode: an explicit map path, stack on stdin -----------
+}
+
+// ---- the original mode: an explicit map path, stack on stdin ---------------
+
+function symbolicateWithMap(values: Flags, positionals: string[]): void {
   if (values.target !== undefined) {
     // `--target` only picks a directory inside a store; against an explicit
     // map path it selects nothing. Say so rather than accept it and resolve

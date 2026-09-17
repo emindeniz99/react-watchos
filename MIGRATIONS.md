@@ -6,9 +6,10 @@ changed; this file says what a consumer *does* about it. Entries are newest
 first, and only versions with consumer-facing action items appear.
 
 <!-- Placement: repo root, next to README/CONTRIBUTING, and shipped nowhere —
-     mirroring js/CHANGELOG.md, which is likewise absent from js/package.json
-     `files` and (verified against a real `pnpm pack` tarball) from the npm
-     package. Release reading happens on the repo; the tarball carries code. -->
+     it is outside js/, so it cannot be listed in js/package.json `files`
+     without a copy step. js/CHANGELOG.md IS shipped (it lives inside the
+     package); the npm-page README links here by absolute GitHub URL so a
+     registry consumer can still find it. -->
 
 ## 0.7.x → 0.8.0
 

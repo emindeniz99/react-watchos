@@ -23,9 +23,11 @@ import { buildBundles } from "../esbuild/preset.mts";
 // by diffing its stdout against the store mode's rather than by re-describing
 // the format.
 
-const script = join(
+// The CLI source, as the rest of the suite drives it. The COMPILED bin a
+// registry install runs is exercised by packaging.test.ts, which builds it.
+const bin = join(
   dirname(fileURLToPath(import.meta.url)),
-  "../scripts/symbolicate.ts",
+  "../bin/react-watchos.cts",
 );
 
 const PROBE = (suffix: string) =>
@@ -38,7 +40,7 @@ function runCli(
 ): { status: number; stdout: string; stderr: string } {
   const result = spawnSync(
     process.execPath,
-    ["--experimental-strip-types", script, ...args],
+    ["--experimental-strip-types", bin, "symbolicate", ...args],
     { input, encoding: "utf8" },
   );
   return {

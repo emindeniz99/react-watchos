@@ -228,6 +228,38 @@ Notes:
   deliberately `{handled: false}` in a JS-only test), and `findByType` /
   `findByText` for asserting on committed trees.
 
+### Testing with Jest
+
+`react-watchos` and `react-watchos/testing` resolve to `.ts` files inside
+`node_modules`, and Jest leaves `node_modules` untransformed unless a package
+is on its allowlist — the Expo and React Native presets keep one in
+`transformIgnorePatterns`, and this package is not on it. The symptom is
+`SyntaxError: Unexpected token` from inside `react-watchos/src/` on the first
+import. Add the package to the allowlist; the preset's Babel transform already
+compiles TypeScript once the file is no longer ignored:
+
+```js
+// jest.config.js
+module.exports = {
+  preset: "jest-expo",
+  transformIgnorePatterns: [
+    "/node_modules/(?!(.pnpm|react-watchos|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation))",
+    "/node_modules/react-native-reanimated/plugin/",
+    "/node_modules/@react-native/babel-preset/",
+  ],
+};
+```
+
+That is jest-expo's `transformIgnorePatterns` (SDK 57) with `react-watchos`
+added to the first entry. Setting the key in your config REPLACES the
+preset's array rather than extending it, so copy all three entries: the last
+two re-ignore the reanimated Babel plugin and `@react-native/babel-preset`,
+which the first entry's allowlist would otherwise transform even though they
+are part of the transformer itself. The bare `@react-native/jest-preset` list
+is one entry — `node_modules/(?!((jest-)?react-native|@react-native(-community)?)/)`
+— and takes `|react-watchos` inside the group the same way. vitest needs none
+of this: it transforms `node_modules` TypeScript by default.
+
 ## Dev loop (hot restart + inspector)
 
 Ships as CLI subcommands (M11) — a registry install gets the same loop the
@@ -239,6 +271,10 @@ npx react-watchos inspector                             # live tree/log/error UI
 npx react-watchos build --entry watch-ui/entry.tsx \
   --asset targets/watch/assets/bundle.js                # one-shot build + copy
 npx react-watchos build --entry watch-ui/entry.tsx --no-minify   # readable
+npx react-watchos build --entry watch-ui/entry.tsx \
+  --symbols ./symbols                                   # keep map by releaseId
+npx react-watchos symbolicate --symbols ./symbols \
+  --release <id> < stack.txt                            # read a field stack
 
 npx react-watchos dev --entry watch-ui/entry.tsx --debug  # + breakpoint probes
 npx react-watchos debug                                   # DAP for VS Code
@@ -254,6 +290,11 @@ locals; statement granularity).
 
 `build` ships, so it **minifies** (≈-68% bytes, a third less QuickJS heap);
 `--no-minify` opts out when you need your components' names in a stack trace.
+Or keep minifying and read the stack back through the map:
+`build --symbols <dir>` files each build's map under its `releaseId`, and
+`symbolicate --symbols <dir> --release <id>` resolves a field stack that
+arrives with nothing else
+([docs/debugging.md](../docs/debugging.md#keep-your-symbols)).
 The `dev` command's own bundle is never minified — that is the point of it —
 but a DEBUG launch still boots the shipped ASSET bundle until your first edit,
 and widgets are never dev-served at all: read
@@ -320,3 +361,11 @@ in the project docs.
 - [How updates commit + serialization quirks](../docs/updates.md)
 - [Adding a native capability](../docs/extending.md)
 - [Roadmap](../docs/roadmap.md)
+
+## Upgrading
+
+Pre-1.0, breaking changes ship as minor versions. [`CHANGELOG.md`](./CHANGELOG.md)
+is in the package (release-please writes it, next to this file) and says what
+changed; what a consumer *does* about it is in
+[MIGRATIONS.md](https://github.com/emindeniz99/react-watchos/blob/main/MIGRATIONS.md)
+at the repository root — that one is not in the tarball, so read it there.

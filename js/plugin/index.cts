@@ -190,17 +190,23 @@ function ensureTargetConfigFile(
 // Target-folder handling note above `withReactWatch`): failing loudly here,
 // with the fix named, is what keeps that boundary intact instead of drifting
 // into Phase 2 ("own target creation") to route around a missed step.
+// The widget extension (targets/widget/, when `widget: true`) gets the same
+// guard: its @main WidgetBundle is the second file `scaffold` writes.
 function ensureWatchSwiftGlue(projectRoot: string, dir: string) {
   const targetDir = path.join(projectRoot, "targets", dir);
   const hasSwift =
     fs.existsSync(targetDir) &&
     fs.readdirSync(targetDir).some((f: string) => f.endsWith(".swift"));
   if (!hasSwift) {
+    const widget = dir === WIDGET_DIR;
     throw new Error(
-      `[react-watchos] targets/${dir}/ has no Swift source, so the watch ` +
-        'target would have no @main entry (a link-time "Undefined symbols: ' +
-        '_main" error, far from this cause) — run `npx react-watchos ' +
-        "scaffold` first to generate the starter WatchApp.swift, then re-run " +
+      `[react-watchos] targets/${dir}/ has no Swift source, so the ` +
+        (widget
+          ? "widget extension target would have no @main WidgetBundle"
+          : "watch target would have no @main entry (a link-time " +
+            '"Undefined symbols: _main" error, far from this cause)') +
+        " — run `npx react-watchos scaffold` first to generate the starter " +
+        `${widget ? "ReactWidgets.swift" : "WatchApp.swift"}, then re-run ` +
         "`expo prebuild`.",
     );
   }
@@ -346,8 +352,11 @@ const withReactWatch = (
       }
 
       // 1b. Fail loudly, before apple-targets creates a target with no
-      //     @main entry, if `react-watchos scaffold` hasn't run yet (DX-3).
+      //     @main entry, if `react-watchos scaffold` hasn't run yet (DX-3) —
+      //     for the widget extension too, since a re-run of `scaffold` after
+      //     switching `widget: true` on is what writes its WidgetBundle.
       ensureWatchSwiftGlue(projectRoot, WATCH_DIR);
+      if (opts.widget) ensureWatchSwiftGlue(projectRoot, WIDGET_DIR);
 
       // 2. Let apple-targets discover + inject the targets (its proven,
       //    Phase-1 target creation).
