@@ -89,14 +89,21 @@ jobs:
   # Known vulnerabilities in the dependency tree, read from the lockfile as it
   # is: `pnpm audit` resolves pnpm-lock.yaml against the registry's advisory
   # database and never rewrites it, so nothing here can drift from what
-  # `--frozen-lockfile` installs. One tree covers two exposures — what
-  # `npm install react-watchos` hands a consumer, and the devDependencies the
-  # publish job installs while holding `id-token: write`. Until this job the
-  # one HIGH the project ever handled (SECURITY.md, the @xmldom/xmldom
-  # override) was found by hand. High and above fails; the weekly schedule
-  # re-runs it so a new advisory against an unchanged lockfile is still a red
-  # run. Dependabot alerts are the other half, and a repo setting rather than
-  # a workflow.
+  # `--frozen-lockfile` installs. That is the WORKSPACE tree — what every job
+  # here installs, including the publish job while it holds `id-token:
+  # write`. It is not what a consumer gets: `npm install react-watchos`
+  # resolves the package's dependency ranges fresh, so a version this
+  # lockfile pins (say @xmldom/xmldom 0.8.13 under @expo/plist ^0.8.1) is not
+  # the one a consumer installs (0.8.15 as of 2026-09-17, `npm audit` clean —
+  # SECURITY.md). Consumer exposure is a separate question this job does not
+  # answer. Until this job the one HIGH the project ever handled
+  # (SECURITY.md, the @xmldom/xmldom override) was found by hand. High and
+  # above fails; the weekly schedule re-runs it so a new advisory against an
+  # unchanged lockfile is still a red run. The advisories already open when
+  # the gate went in are baselined in pnpm-workspace.yaml (`audit.ignore`,
+  # with the removal rule) so that only a NEW one turns this red — a gate
+  # that is red on every push shows nothing. Dependabot alerts are the other
+  # half, and a repo setting rather than a workflow.
   dependency-audit:
     runs-on: ubuntu-latest
     steps:
