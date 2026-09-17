@@ -42,6 +42,15 @@ public final class DiagnosticsBuffer {
 /// `com.reactwatchos.runtime`, category `diagnostics` — same subsystem as the
 /// boot/js logs, filterable in Console.app). Linux (no `os`) keeps `print`,
 /// matching JSRuntime's log fallback — the tests there read stdout.
+///
+/// The fixed fields (severity, code, subsystem, target) are always `.public`
+/// so Console.app filtering keeps working. `details` is not: a `js.*` entry
+/// carries the JS exception text — whatever the bundle put in the message,
+/// health values and URLs included — and `.notice` is persisted to the log
+/// store and swept into sysdiagnoses. Release logs it `.private`; DEBUG keeps
+/// it `.public` for the same reason JSRuntime's console sink does (`.private`
+/// text is shown only to a process Xcode launched, and the documented
+/// Console.app / `log stream` workflow reads processes it did not).
 public struct LogDiagnosticsSink: DiagnosticsSink, Sendable {
     #if canImport(os)
     private static let log = Logger(
@@ -51,14 +60,21 @@ public struct LogDiagnosticsSink: DiagnosticsSink, Sendable {
     public init() {}
 
     public func emit(_ diagnostic: Diagnostic) {
-        let line =
+        let head =
             "[\(diagnostic.severity.rawValue)] \(diagnostic.code) "
             + "(\(diagnostic.subsystem.rawValue)/\(diagnostic.target.rawValue))"
-            + (diagnostic.details.map { ": \($0)" } ?? "")
         #if canImport(os)
-        Self.log.notice("\(line, privacy: .public)")
+        guard let details = diagnostic.details else {
+            Self.log.notice("\(head, privacy: .public)")
+            return
+        }
+        #if DEBUG
+        Self.log.notice("\(head, privacy: .public): \(details, privacy: .public)")
         #else
-        print("[diagnostics]", line)
+        Self.log.notice("\(head, privacy: .public): \(details, privacy: .private)")
+        #endif
+        #else
+        print("[diagnostics]", head + (diagnostic.details.map { ": \($0)" } ?? ""))
         #endif
     }
 }

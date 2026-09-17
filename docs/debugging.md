@@ -151,7 +151,10 @@ replay and sees only what comes next.
 `console.log` in JS goes over `__host.log` into an
 [`os.Logger`](../js/swift/Sources/ReactWatchRuntime/JSRuntime.swift) — not
 `print` — on any platform that has `os` (the Linux/test builds fall back to
-`print`). Two streams, one subsystem:
+`print`), and in a release build the message text is logged as private data:
+it reads `<private>` in Console.app, `log stream` and the persisted log (only
+a process Xcode launched shows it), so a leftover `console.log` cannot write
+user data into a sysdiagnose. Two streams, one subsystem:
 
 | Subsystem | Category | Carries |
 |---|---|---|

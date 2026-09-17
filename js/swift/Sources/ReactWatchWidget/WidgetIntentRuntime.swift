@@ -115,10 +115,19 @@ public final class WidgetIntentRuntime {
         // the App Group was considered and skipped: SharedWidgetStore is a
         // plain key-value wrapper, and an append would be a cross-process
         // read-modify-write — the exact lost-update shape ARCH-05 exists for.
+        // The message is JS exception text — app data, `.private` in release
+        // for the same reason JSRuntime's console sink is; the source tag stays
+        // public so the line is still filterable.
         js.onError = { source, message in
+            #if DEBUG
             Self.jsErrorLog.error(
                 "js error (\(source, privacy: .public)): \(message, privacy: .public)"
             )
+            #else
+            Self.jsErrorLog.error(
+                "js error (\(source, privacy: .public)): \(message, privacy: .private)"
+            )
+            #endif
         }
         // The intent entrypoint must not mount UI; ignore any commit.
         js.bridge.commit = { _ in }

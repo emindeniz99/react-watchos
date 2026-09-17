@@ -717,7 +717,23 @@ public final class JSRuntime {
         // per call, so a stray console.log on a render/event/timer path is an
         // ongoing main-thread stall. os.Logger is non-blocking and filterable;
         // Linux (no os) keeps print — the tests there read stdout.
+        //
+        // The TEXT is app data the library does not control — a health sample,
+        // a location, a token, whatever the bundle logs — and `.notice` is
+        // persisted to the on-disk log store and swept into every sysdiagnose.
+        // Release keeps it `.private` (`<private>` in the store and in `log
+        // stream`), so leftover console.log calls cannot write user data to
+        // the device log in the clear. DEBUG keeps `.public`: `.private` text
+        // is shown only to a process Xcode itself launched (it sets
+        // OS_ACTIVITY_DT_MODE), and docs/debugging.md's workflow reads the
+        // watch from Console.app / `log stream` on the paired Mac, where a
+        // script-launched app (and always the widget extension) would show
+        // `<private>` for every line.
+        #if DEBUG
         bridge.log = { Self.jsLog.notice("\($0, privacy: .public)") }
+        #else
+        bridge.log = { Self.jsLog.notice("\($0, privacy: .private)") }
+        #endif
         #else
         bridge.log = { print("[js]", $0) }
         #endif
