@@ -224,7 +224,7 @@ Without `preserveSymlinks`, `tsc` type-checks the renderer's `.ts` source at
 its real path (outside your `node_modules`) and can't resolve `react` there.
 The first two prevent a second React copy in the bundle/tests (which silently
 breaks hooks). Published to a registry (a normal `npm i`, no symlink) only the
-`types: ["node"]` contract above applies — the symlink settings are specific
+`lib`/`jsx` contract above applies — the symlink settings are specific
 to linked local packages.
 
 ## Type safety & linting
