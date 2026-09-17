@@ -159,8 +159,9 @@ type Options = {
                                 //   the watch target (default false — opt-in). The plain-http
                                 //   dev flow (DEBUG dev-server poll, inspector, LAN OTA) needs
                                 //   it; a store build must not carry the global ATS exception.
-                                //   Info.plist keys can't be scoped to Debug, so set it per
-                                //   build from app.config.js, never in a release profile.
+                                //   The plugin writes one Info.plist for both configurations,
+                                //   so set it per build from app.config.js, never in a
+                                //   release profile.
 };
 ```
 

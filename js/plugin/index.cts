@@ -142,9 +142,11 @@ function resolveOptions(
     // target: what the plain-http dev flow (DEBUG dev-server poll, inspector,
     // LAN OTA) needs and a store build must not carry. Off by default for the
     // same least-privilege reason as the entitlements above — it is a global
-    // ATS exception, and Info.plist keys cannot be scoped to Debug. Turn it
-    // on for development builds (an app.config.js keyed on the build profile
-    // does this per build), never for a release.
+    // ATS exception, and the plugin writes one Info.plist for both build
+    // configurations (apple-targets owns the target's build settings, so
+    // there is no per-configuration plist here). Turn it on for development
+    // builds (an app.config.js keyed on the build profile does this per
+    // build), never for a release.
     localNetworking: o.localNetworking ?? false,
     bundleIdentifier,
     infoPlist: o.infoPlist ?? {},
