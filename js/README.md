@@ -228,6 +228,33 @@ Notes:
   deliberately `{handled: false}` in a JS-only test), and `findByType` /
   `findByText` for asserting on committed trees.
 
+### Testing with Jest
+
+`react-watchos` and `react-watchos/testing` resolve to `.ts` files inside
+`node_modules`, and Jest leaves `node_modules` untransformed unless a package
+is on its allowlist — the Expo and React Native presets keep one in
+`transformIgnorePatterns`, and this package is not on it. The symptom is
+`SyntaxError: Unexpected token` from inside `react-watchos/src/` on the first
+import. Add the package to the allowlist; the preset's Babel transform already
+compiles TypeScript once the file is no longer ignored:
+
+```js
+// jest.config.js
+module.exports = {
+  preset: "jest-expo",
+  transformIgnorePatterns: [
+    "/node_modules/(?!(.pnpm|react-watchos|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation))",
+  ],
+};
+```
+
+That is jest-expo's own list (SDK 57) with `react-watchos` added. Setting the
+key in your config REPLACES the preset's array rather than extending it, so
+keep the rest. The bare `@react-native/jest-preset` list is shorter —
+`node_modules/(?!((jest-)?react-native|@react-native(-community)?)/)` — and
+takes `|react-watchos` inside the group the same way. vitest needs none of
+this: it transforms `node_modules` TypeScript by default.
+
 ## Dev loop (hot restart + inspector)
 
 Ships as CLI subcommands (M11) — a registry install gets the same loop the
