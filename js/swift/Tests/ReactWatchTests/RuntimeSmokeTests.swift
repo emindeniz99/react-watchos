@@ -718,4 +718,39 @@ final class RuntimeSmokeTests: XCTestCase {
         }
         wait(for: [done], timeout: 5)
     }
+
+    // Audit 2026-09-04 finding 4: the engine's stack guard was never sized to
+    // the hosting thread. quickjs-ng's default is a 1 MB JS stack, and every
+    // thread this project runs JS on is smaller (a 1 MB watchOS main thread
+    // partly used by SwiftUI, 512 KB GCD/WidgetKit threads for the widget and
+    // OTA validator runtimes) — so the limit sat below the real stack floor and
+    // deep JS recursion was a SIGSEGV instead of the RangeError an
+    // ErrorBoundary/onError can report. Worse, the OTA validator exists to
+    // reject a bundle that fails at load, and a recursive one killed the app
+    // on the validate queue instead. Drive the entry from a thread with a
+    // stack SMALLER than the engine default, the way a `sync` hop lands on the
+    // caller's thread in production: before the fix this test does not fail,
+    // it crashes the test host.
+    func testDeepRecursionThrowsInsteadOfOverflowingASmallThreadStack() throws {
+        let runtime = try JSRuntime(queue: DispatchQueue(label: "test.small-stack"))
+        defer { runtime.shutdown() }
+        let done = expectation(description: "recursion settled")
+        nonisolated(unsafe) var outcome: String?
+        nonisolated(unsafe) let r = runtime
+        let thread = Thread {
+            // The sync hop runs the entry on THIS thread's 256 KB stack.
+            outcome = r.evaluateString(
+                """
+                (function () {
+                  try { (function f() { return f() + 1; })(); return "returned"; }
+                  catch (e) { return String(e); }
+                })()
+                """)
+            done.fulfill()
+        }
+        thread.stackSize = 256 * 1024
+        thread.start()
+        wait(for: [done], timeout: 30)
+        XCTAssertEqual(outcome, "RangeError: Maximum call stack size exceeded")
+    }
 }
