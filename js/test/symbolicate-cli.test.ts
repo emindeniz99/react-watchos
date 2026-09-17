@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 import {
-  existsSync,
   mkdtempSync,
   readFileSync,
   realpathSync,
@@ -24,11 +23,12 @@ import { buildBundles } from "../esbuild/preset.mts";
 // by diffing its stdout against the store mode's rather than by re-describing
 // the format.
 
-const jsRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-/** The CLI source, as the rest of the suite drives it. */
-const bin = join(jsRoot, "bin/react-watchos.cts");
-/** The compiled bin a registry install actually runs (scripts/build-node.ts). */
-const compiledBin = join(jsRoot, "dist-node/react-watchos.cjs");
+// The CLI source, as the rest of the suite drives it. The COMPILED bin a
+// registry install runs is exercised by packaging.test.ts, which builds it.
+const bin = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "../bin/react-watchos.cts",
+);
 
 const PROBE = (suffix: string) =>
   "function shoppingListProbe() {\n  return 1;\n}\n" +
@@ -186,36 +186,6 @@ describe("symbolicate --symbols", () => {
     );
     expect(run.status).toBe(2);
     expect(run.stderr).toContain("not both");
-  });
-
-  // The half that used to be missing from the package. `build --symbols`
-  // shipped while the reader lived in scripts/ (not in `files`), so a registry
-  // install could write a symbol store and nothing it installed could read
-  // one. This drives the COMPILED bin — the file package.json's `bin` points
-  // at, built by `prepare` — not the .cts source the tests above spawn, so
-  // "the subcommand exists in the source" cannot stand in for "it ships".
-  it("is reachable from the compiled bin a registry install runs", () => {
-    expect(
-      existsSync(compiledBin),
-      "dist-node/react-watchos.cjs missing — run pnpm build:node",
-    ).toBe(true);
-    const stack = stackInto(soloOutfile);
-    const shipped = spawnSync(
-      process.execPath,
-      [
-        compiledBin,
-        "symbolicate",
-        "--symbols",
-        symbols,
-        "--release",
-        soloRelease,
-      ],
-      { input: stack, encoding: "utf8" },
-    );
-    expect(shipped.status).toBe(0);
-    expect(shipped.stdout).toBe(
-      runCli(["--symbols", symbols, "--release", soloRelease], stack).stdout,
-    );
   });
 });
 
