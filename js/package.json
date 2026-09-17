@@ -157,7 +157,7 @@
     "@expo/config-plugins": "~57.0.9",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.0",
-    "@vitest/coverage-v8": "4.1.11",
+    "@vitest/coverage-v8": "5.0.0",
     "babel-plugin-react-compiler": "^1.0.0",
     "dependency-cruiser": "18.2.0",
     "esbuild": "^0.28.1",
@@ -169,7 +169,7 @@
     "typedoc": "^0.28.20",
     "typedoc-plugin-markdown": "^4.13.0",
     "typescript": "~6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.0"
   },
   "bin": {
     "react-watchos": "dist-node/react-watchos.cjs"
