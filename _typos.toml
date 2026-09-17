@@ -32,6 +32,10 @@ extend-ignore-re = ["`[0-9a-f]{7,40}`"]
 # `xcodebuild -destination id=` use. Not "UUID"; simctl prints both.
 udid = "udid"
 UDID = "UDID"
+# The prefix of App Store Connect's upload error codes (`ITMS-91053`,
+# "Missing API declaration") — the string a consumer searches for, so the
+# docs and the audit notes quote it verbatim. Not "ITEMS".
+ITMS = "ITMS"
 # SF Symbol name (`mappin`, `mappin.circle.fill`) — Apple's spelling, and the
 # string is matched by the interpreter, so "fixing" it breaks the icon.
 mappin = "mappin"
