@@ -180,6 +180,7 @@ npx expo install react-watchos @bacons/apple-targets
 npx react-watchos scaffold     # the @main Swift glue
 npx expo prebuild              # creates + links the watch/widget targets
 npx react-watchos build --entry <your-entry.tsx> --asset targets/watch/assets/bundle.js
+npx react-watchos build --entry <your-widget-entry.tsx> --asset targets/widget/assets/bundle.js   # only with "widget": true
 ```
 
 Skip that last step and the watch app boots to `` bundle.js missing — run
@@ -309,7 +310,7 @@ can't claim) is
   limit with its real ceiling is
   tabulated in [docs/budgets-and-limits.md](./docs/budgets-and-limits.md).
 - **CI runs, but nothing requires it to be green.** `ci.yml` runs on every
-  push and PR; `quality.yml` and `build.yml` are path-filtered (JS/docs and
+  push to main and every PR; `quality.yml` and `build.yml` are path-filtered (JS/docs and
   native/plugin changes respectively), so a push that touches neither's
   paths triggers neither. Main's only ruleset blocks deletion and
   force-push — no status check is required, so a red run doesn't block a

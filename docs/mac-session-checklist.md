@@ -205,7 +205,11 @@ assume the same of any new watchOS-only exhaustive `switch`.
 - Mark `engine attest / attested` a **required** check in branch protection
   (the workflow has no paths filter and reports on every PR — green when
   nothing under `js/swift/Sources/CQuickJS` changed — so it cannot wedge
-  non-engine PRs)
+  non-engine PRs opened by a person). Caveat before flipping it: a PR opened
+  with `GITHUB_TOKEN` — release-please's release PR, the vendor bot's PR —
+  raises no `pull_request` event, so the check never reports there until a
+  human adds any label; required, every release PR would sit at "Expected —
+  waiting for status" until you label it.
 - Attest the bump bot's engine PR out-of-band (~28 Aug), then add the
   `engine-digest-attested` label — the bot must never attest itself
 - File the two ready drafts:

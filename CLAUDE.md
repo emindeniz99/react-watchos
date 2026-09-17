@@ -19,11 +19,17 @@ a `Co-Authored-By:` trailer.
 
 Three project rules that bite if you miss them:
 
-1. **Pre-release — break freely.** Nothing has shipped/been built/signed. Prefer
-   the clean target shape over compatibility: no scheme-version bumps for
-   unsigned formats, no "tolerates old payload" branches, no deprecation shims.
-   Change the format/API/struct and update all call sites + tests together. Keep
-   structures extensible only where a known future axis is coming.
+1. **Published, pre-1.0 — break cleanly, never silently.** `react-watchos` is
+   on npm (0.1.0 through 0.7.0 as of 2026-09-17) with real consumers, so the
+   old "nothing has shipped, break freely" rule is gone. Still prefer the
+   clean target shape over compatibility shims — no "tolerates old payload"
+   branches, no deprecation layers — but every breaking change carries `!` in
+   the commit header (release-please turns it into the next 0.x minor) and an
+   entry in MIGRATIONS.md saying what a consumer does about it. Signed OTA
+   messages are the one wire format with a built-in story: the signature
+   covers the scheme prefix (`v2:` today), so a binary that verifies a newer
+   scheme rejects an old-scheme bundle as unsigned and keeps its shipped
+   bundle — no compatibility branch needed (see docs/ota-signing.md).
 
 2. **Verify Apple platform availability before calling a feature unavailable.**
    Fetch the docs JSON
@@ -52,7 +58,7 @@ earlier ones; the merged backlog is the reconciled view.
 
 **Naming:** the npm package publishes as **`react-watchos`** (B2: the
 `react-native-watchos` npm name is squatted, and the `react-native-*` prefix
-implied an RN-core membership the docs disclaim). The project FOLDER and the
-commit scope stay `react-native-watchos` — folder renames churn every path;
-only the published identity changed. Dated review docs keep the old name as
+implied an RN-core membership the docs disclaim). Only the published
+identity changed; the commit scope is the area list above (the old
+`react-native-watchos` scope is retired, see the history note there). Dated review docs keep the old name as
 historical record.

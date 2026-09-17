@@ -73,6 +73,7 @@ The diagnostic's `code` names **where** the engine was when it blew up:
 | `js.job` | a microtask/job threw (an `async` function with no `catch`) |
 | `js.promiseRejection` | a promise rejected with nobody listening — a failed `fetch`, an unawaited invoke |
 | `js.shutdown` | something called into the runtime after it was disposed |
+| `widgets.jsError` | the **widget extension's** runtime threw (`details` carries the source and message). The extension has no ring of its own, so it parks the last failure in the App Group store and the app reports it at its next boot — recoverable, `subsystem: widgets` |
 
 `js.promiseRejection` is the one people miss: a bare rejection never throws at
 the job level, so the runtime installs a rejection tracker specifically to make
@@ -194,6 +195,9 @@ import { startInspector } from "react-watchos";
 // then tree-shakes the whole inspector away. (See `dev` in the build preset.)
 if (process.env.REACT_WATCH_DEV) {
   startInspector({ url: "http://127.0.0.1:8099/snapshot" });
+  // plain http to an IP address: the watch target needs the plugin's
+  // `localNetworking: true` (ATS) in the build you develop with — see
+  // getting-started.md; without it this call fails silently.
 }
 ```
 
@@ -243,7 +247,9 @@ Then attach VS Code with a `launch.json` entry — no extension needed, because
 { "type": "node", "request": "attach", "name": "watch js", "debugServer": 8791 }
 ```
 
-The watch POSTs its state to `http://127.0.0.1:8790/debug/poll` and **blocks
+The watch POSTs its state to `http://127.0.0.1:8790/debug/poll` — plain http
+to an IP address, so the build needs the plugin's `localNetworking: true`
+like every other dev-loop flow — and **blocks
 there while paused** (override the URL with the `ReactWatchDebugPollURL`
 Info.plist key for a physical watch, exactly like `ReactWatchDevServerURL`).
 Blocking the JS thread freezes the UI — that is what a breakpoint is, and it is
@@ -345,8 +351,10 @@ thin CLI over [`symbolicate-core.mts`](../js/bin/symbolicate-core.mts) —
 `@jridgewell/trace-mapping`, the same mapping library the JS toolchain (Rollup,
 Vite, Sentry's tooling) resolves maps with. There is no watch-specific magic to
 it, so a hosted crash reporter fed the same `.map` resolves the same frames,
-and your own telemetry pipeline can `import { symbolicateFrame }` instead of
-re-deriving the 1-based/0-based column dance. (Engines report columns 1-based,
+and a telemetry pipeline that wants the same resolution shells out to
+`react-watchos symbolicate` (the core is not a package export — it ships as
+the CLI's own `bin/symbolicate-core.mts`) instead of re-deriving the
+1-based/0-based column dance. (Engines report columns 1-based,
 source maps are 0-based; the core does that conversion in exactly one place,
 which is why it is a module and not two copies.)
 
@@ -488,7 +496,7 @@ the guard, and it is deliberately end-to-end: a `.tsx` that throws, built
 through the real preset, compiled by the real `qjs-compile`, executed as
 bytecode in the real vendored quickjs-ng, and the resulting `Error.stack`
 resolved back to that `.tsx`'s line and column **through the same
-`symbolicate-core.ts` the CLI uses**. Its first assertion is that the stack
+`js/bin/symbolicate-core.mts` the CLI uses**. Its first assertion is that the stack
 contains no `<null>` — the regression signature of `STRIP_DEBUG` returning.
 
 What is still stripped is the **source text** (`JS_WRITE_OBJ_STRIP_SOURCE`

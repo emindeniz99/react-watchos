@@ -205,8 +205,9 @@ renderer uses — the standard Expo/web shape works:
 
 (`@types/node` is NOT required since 0.2.0 — the one `process` read carries
 its own module-local declaration.) Without a covering `lib`, a strict config
-fails with `TS2304` errors *inside the package*. Both in-repo examples carry
-this shape.
+fails with `TS2304` errors *inside the package*. Both in-repo examples satisfy it
+without spelling `lib` out: they leave it at TypeScript's default for their
+target (which includes DOM) and set `jsx`.
 
 A linked package additionally resolves through a symlink (realpath), so for
 `file:`/`link:` your tools also need to dedupe React across that boundary.

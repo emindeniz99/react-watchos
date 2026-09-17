@@ -234,8 +234,8 @@ Notes:
 `node_modules`, and Jest leaves `node_modules` untransformed unless a package
 is on its allowlist — the Expo and React Native presets keep one in
 `transformIgnorePatterns`, and this package is not on it. The symptom is
-`SyntaxError: Unexpected token` from inside `react-watchos/src/` on the first
-import. Add the package to the allowlist; the preset's Babel transform already
+`Jest encountered an unexpected token` pointing into `react-watchos/src/` on
+the first import. Add the package to the allowlist; the preset's Babel transform already
 compiles TypeScript once the file is no longer ignored:
 
 ```js
