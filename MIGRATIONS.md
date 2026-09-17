@@ -43,8 +43,6 @@ only when the file is untracked (the demo and the example gitignore
 `targets/*/Info.plist`); tracked, it keeps shipping the exception from
 every EAS build after the upgrade.
 
-## 0.7.x → next
-
 **Release builds no longer draw the developer diagnostic banner or the
 full-screen startup error text.** Both carried raw JS stack traces and Swift
 error descriptions with no way to turn them off — `ReactWatchRootView` had
@@ -53,22 +51,35 @@ recoverable diagnostic and a wordless ⚠︎ symbol for a boot failure.
 
 Action:
 - If your app relied on the banner/startup text as its user-facing error UI,
-  render your own — `<ErrorBoundary fallback={...}>` covers render throws;
-  for every other failure class (promise rejections, event-handler throws,
-  boot failures) there is no view slot to replace them with. Observe the
-  failure yourself — JS's `onDiagnostic`, or a native `DiagnosticsSink`
-  passed to the new `ReactWatchRootView(diagnosticsSink:)` parameter (see
-  the next item) — and render your own UI from that signal.
+  render your own. `<ErrorBoundary fallback={...}>` covers render throws.
+  Every other failure class — promise rejections, event-handler throws, boot
+  failures — is a `js`-subsystem diagnostic, and those are deliberately
+  never pushed into JS (a listener that throws would feed the next error).
+  The only place that sees them is the native side: implement
+  `DiagnosticsSink` and pass it to the new
+  `ReactWatchRootView(diagnosticsSink:)` parameter, then drive whatever UI
+  or telemetry you want from `emit(_:)`.
 - If your app relied on the banner to *notice* a failure at all — nothing
-  else surfaced it — implement `DiagnosticsSink` and pass it as
-  `diagnosticsSink`. This is the fleet-telemetry hook docs/debugging.md
-  already described; it was hardcoded to `LogDiagnosticsSink` before this
-  release.
-- Diagnostics recorded before the bundle finishes evaluating — including the
-  OTA rollback notice, `boot.*`, and `ota.updateRequired` — now replay into
-  JS's `onDiagnostic` once the bundle is ready, instead of being dropped. No
+  else surfaced it — the same sink is the replacement. This is the
+  fleet-telemetry hook docs/debugging.md already described; it was hardcoded
+  to `LogDiagnosticsSink` before this release.
+- Diagnostics recorded before the bundle finishes evaluating — the OTA
+  rollback notice, `boot.*`, `ota.updateRequired` — now replay into JS's
+  `onDiagnostic` once the bundle is ready, instead of being dropped. No
   action needed to receive them; a handler that assumed only post-boot
-  diagnostics would arrive now also sees these.
+  diagnostics would arrive now also sees these, and a listener registered
+  at module top level sees them in order.
+
+**JS log and error text is private in the release device log.** `console.*`
+output and JS error messages used to be written to the unified log with
+`privacy: .public`, so whatever the app logged — health samples, locations,
+tokens — persisted on the watch in the clear. In a release build the message
+text now reads `<private>` in Console.app and `log stream`; the structural
+fields (code, severity, subsystem, level) stay public so filtering still
+works. DEBUG builds are unchanged.
+
+Action: none for the app. If you read release-build logs to debug field
+issues, that text is gone — route it through `diagnosticsSink` instead.
 
 ## 0.6.x → 0.7.0
 
