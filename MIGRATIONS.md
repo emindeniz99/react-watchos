@@ -239,8 +239,11 @@ monorepo workspace before the first npm release. The worked example is the
 `ctrl-a-remote` migration (playground commit `63e331e3`).
 
 1. **Identity**: dependency and imports rename `react-native-watchos` →
-   `react-watchos`; install from the registry (`"react-watchos": "^0.1.0"`),
-   drop the `../react-native-watchos/js` workspace member.
+   `react-watchos`; install from the registry, pinned to the current
+   version per [Versioning & stability](./README.md#versioning--stability)
+   (not `^0.1.0` — that range resolves only to 0.1.0, which shipped with
+   the pbxproj-quoting and JSX-runtime bugs fixed since), and drop the
+   `../react-native-watchos/js` workspace member.
 2. **BLE (and every fallible API) rides the invoke channel** (CX-022):
    `bleConnect`/`bleWrite`/`bleSubscribe` return promises settled by native.
    There is no `__host.ble` channel any more. If your app treats
