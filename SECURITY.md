@@ -34,9 +34,14 @@ tests:
   runs.
 - **Cleartext HTTP for OTA is LAN-only** (development); production update
   URLs must be HTTPS.
-- **Keychain/BLE/Health access is feature-gated**: a bundle whose manifest
-  does not declare the feature — or whose host policy denies it — cannot
-  reach the corresponding APIs.
+- **Feature gating is host-wide, not per-bundle.** The app's `HostPolicy`
+  declares which feature categories (`keychain`, `bluetooth`, `health`, …)
+  are installed on `__host` at all — a category the policy denies is
+  unreachable from JS, for every bundle the app runs. A bundle's own
+  manifest `requiredFeatures` is checked only when an OTA update is staged:
+  applying an update that needs a feature the app's `HostPolicy` doesn't
+  grant is refused before it runs. Declaring fewer `requiredFeatures` does
+  not narrow what an already-installed bundle can call.
 
 Design details and the exact verification chain:
 [docs/ota-signing.md](./docs/ota-signing.md). What is verified at which level
@@ -78,7 +83,7 @@ exercised, not assumed. Drop it when `@bacons/xcode` moves off
 ## Supply-chain posture of this repo
 
 - npm releases publish via **GitHub Actions OIDC trusted publishing** (no
-  tokens anywhere; provenance attached automatically from 0.1.1 on; 0.1.0 was
+  tokens anywhere; provenance attached automatically from 0.2.0 on; 0.1.0 was
   the manual bootstrap publish and predates the attestation).
 - The repo runs **gitleaks + trufflehog** on every push/PR and weekly
   (`security.yml`), a local pre-push gitleaks hook, and a gitleaks scan of
