@@ -2379,6 +2379,28 @@ final class RNStyleChartTests: XCTestCase {
         XCTAssertEqual(points, [RNStyle.ChartPoint(y: 5)])
         XCTAssertEqual(RNStyle.chartPoints(from: nil), [])
     }
+
+    /// The trap NodeViewRenderTests found on its first run: Swift Charts
+    /// aborts converting an overflowed axis domain to Int. Points past the
+    /// limit are dropped like any malformed entry; the limit itself is kept.
+    func testDropsPointsBeyondTheMagnitudeLimit() {
+        let limit = RNStyle.chartMagnitudeLimit
+        let points = RNStyle.chartPoints(
+            from: .array([
+                .object(["y": .number(1e308)]),
+                .object(["y": .number(-1e308)]),
+                .object(["x": .number(1e308), "y": .number(1)]),
+                .object(["x": .string("Mon"), "y": .number(limit)]),
+                .object(["x": .number(-limit), "y": .number(-limit)]),
+                .object(["x": .number(limit.nextUp), "y": .number(0)]),
+            ]))
+        XCTAssertEqual(
+            points,
+            [
+                RNStyle.ChartPoint(label: "Mon", y: limit),
+                RNStyle.ChartPoint(x: -limit, y: -limit),
+            ])
+    }
 }
 
 // RNFormat (i18n step 2): the FormattedText kernel. Locale + timezone are
