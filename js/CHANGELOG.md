@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.8.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.7.0...react-watchos-v0.8.0) (2026-09-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plugin:** the watch target's Info.plist no longer contains NSAllowsLocalNetworking or NSLocalNetworkUsageDescription unless the plugin option `localNetworking: true` is set. Development builds that use `react-watchos dev`, the inspector or LAN/loopback OTA must set it; a machine that prebuilt with it on must delete targets/watch/Info.plist to converge after turning it off, since the merge never removes keys.
+* **host:** release builds no longer show the error banner or the startup error text. An app that relied on them as its user-facing error UI must ship an ErrorBoundary fallback; an app that relied on them to notice failures at all should pass a `diagnosticsSink`.
+
+### Features
+
+* **plugin:** ship symbolicate as a subcommand of the published CLI ([55e443a](https://github.com/emindeniz99/react-watchos/commit/55e443af4187fc6d026df386d3b5f27db987f19d))
+
+
+### Bug Fixes
+
+* **build:** point the shipped build types at react-watchos symbolicate ([eaad377](https://github.com/emindeniz99/react-watchos/commit/eaad377c969d5dc5fbd5a51dd21e8e5671be214e))
+* **deps:** ship quickjs-ng v0.16.2 to consumers ([6a637df](https://github.com/emindeniz99/react-watchos/commit/6a637df0bd9f76f519d5f83e6f5ea00c7b08f111))
+* **host:** keep diagnostic UI out of release builds, give them a sink instead ([7aca6ce](https://github.com/emindeniz99/react-watchos/commit/7aca6cec33e3faee06bfd425fe4eb86f357c8eba))
+* **plugin:** guard the widget target's Swift glue before prebuild too ([bde4f38](https://github.com/emindeniz99/react-watchos/commit/bde4f386d2d881534d3925faa3bcdbaa3ab846fa))
+* **plugin:** point the CLI's doc references at GitHub, not docs/ ([beace54](https://github.com/emindeniz99/react-watchos/commit/beace5459c1999579146fcd65d5863a65e2d8f29))
+* **plugin:** restore the 0.7.0 local-network purpose string ([faa1da6](https://github.com/emindeniz99/react-watchos/commit/faa1da6f3d0c162773eadbfd11bd31d9df9165c0))
+* **plugin:** stop shipping the ATS local-network exception by default ([fd6a4b7](https://github.com/emindeniz99/react-watchos/commit/fd6a4b7519c2778f4de0a81fc9087a11645fa7c1))
+* **plugin:** write each scaffold glue file independently ([66b0339](https://github.com/emindeniz99/react-watchos/commit/66b03398fdb7d51e91d539901a0060c6770eecf0))
+* **swift:** clamp TimerText since so a bad epoch cannot trap the range ([61062e6](https://github.com/emindeniz99/react-watchos/commit/61062e6ca6a6f6cbce87eed02b0b0c407a967753))
+* **swift:** degrade an unknown DatePicker mode instead of asserting ([b039b08](https://github.com/emindeniz99/react-watchos/commit/b039b0824bd7ba30baf7aea855122ed42335d88c))
+* **swift:** keep JS log and error text out of the release device log ([63a5b7d](https://github.com/emindeniz99/react-watchos/commit/63a5b7dac268525ad498fda133178f48a981088a))
+* **swift:** ship a privacy manifest for the required-reason APIs ([bd61541](https://github.com/emindeniz99/react-watchos/commit/bd61541043225d4d36cebc2aa7971f1846cc60cc))
+* **swift:** size the QuickJS stack guard to the thread an entry runs on ([2cf35df](https://github.com/emindeniz99/react-watchos/commit/2cf35df50cac17c4929a4ca191aed5e76499886d))
+* **widget:** hand the extension's JS errors to the app, not the void ([9405768](https://github.com/emindeniz99/react-watchos/commit/9405768df9839bd064c3eb9107bd75e4bf35edf5))
+
 ## [0.7.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.6.0...react-watchos-v0.7.0) (2026-09-03)
 
 
