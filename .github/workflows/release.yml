@@ -1,7 +1,7 @@
 name: release
 
-# ONE run, three stages: release-please cuts the release, ci.yml and
-# quality.yml re-run against THAT TAG as called workflows, then the npm
+# ONE run, three stages: release-please cuts the release, ci.yml, quality.yml
+# and build.yml re-run against THAT TAG as called workflows, then the npm
 # publish happens in the SAME run, gated on all of it.
 #
 # - The FILENAME release.yml is load-bearing — npm's trusted publisher config
@@ -28,8 +28,10 @@ name: release
 # - A publish that failed: re-run the failed job, push anything to main, or
 #   dispatch this workflow. All three converge on the same gate, which
 #   publishes only what is missing from the registry — re-runs are green no-ops.
-# - A red `gates`/`quality` job: the tag's tree cannot change, so no re-run
-#   turns it green. Fix on main and let the next release-please PR carry it —
+# - A red `gates`/`quality`/`watch-build` job: the tag's tree cannot change,
+#   so no re-run turns it green (a macOS runner or CocoaPods hiccup is the
+#   exception — re-run the failed jobs once before concluding). Otherwise
+#   fix on main and let the next release-please PR carry it —
 #   that version's tag is what gets verified and published. The red one stays
 #   a tagged Release with no npm version, which every later push re-reports
 #   until the next release moves the manifest past it.
@@ -157,17 +159,20 @@ jobs:
   # to main runs (build, typecheck, lint, size, vitest) and RACED the rest —
   # codegen drift, the examples' single-React build, the Linux `swift build`
   # + `swift test` of the sources the tarball ships, publint/attw over the
-  # packed artifact — none of which could stop a publish. ci.yml and
-  # quality.yml are called here as reusable workflows (the pattern
+  # packed artifact — none of which could stop a publish. ci.yml, quality.yml
+  # and build.yml are called here as reusable workflows (the pattern
   # vendor-quickjs.yml uses for the bot's branch) with the tag as `ref`, and
-  # `publish` needs both. Only when there is something to publish: on an
-  # ordinary push to main both workflows already ran on their own triggers.
+  # `publish` needs all three. Only when there is something to publish: on an
+  # ordinary push to main the workflows already ran on their own triggers.
   #
-  # Not called: build.yml, the macOS watch build. It is the only place the
-  # `#if os(watchOS)` host compiles, but it costs ~60 macOS-runner minutes
-  # per publish, and its cancel-in-progress concurrency group is keyed on
-  # `github.ref` alone, so a called copy would cancel — or be cancelled by —
-  # the push-triggered run on the same ref. It keeps gating PRs and main.
+  # build.yml is the expensive one — three macOS jobs, ~30-40 min wall clock
+  # per publish — and it is called anyway, because it is the ONLY place the
+  # `#if os(watchOS)` host compiles: the Linux `swift build` in ci.yml
+  # builds that target as an empty module. Without it a Swift compile break
+  # in ReactWatchHost or ReactWatchWidget publishes green and surfaces in a
+  # consumer's Xcode after they have installed the version. Its concurrency
+  # group carries `github.workflow`, so this called copy and a
+  # push-triggered run on the same ref never cancel each other.
   #
   # `permissions` is stated even though it looks redundant: a called
   # workflow's token can only be equal to or narrower than the CALLER's, and
@@ -195,11 +200,21 @@ jobs:
     with:
       ref: ${{ needs.release_please.outputs.tag }}
 
+  watch-build:
+    needs: release_please
+    if: needs.release_please.outputs.publish == 'true'
+    # Same rule as `gates` above.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ needs.release_please.outputs.tag }}
+
   publish:
-    # `needs` on the two called workflows is the gate: a red or cancelled
+    # `needs` on the three called workflows is the gate: a red or cancelled
     # battery skips this job (no status-check function in the `if`, so
     # `success()` is implied), and the RUNBOOK above says what happens next.
-    needs: [release_please, gates, quality]
+    needs: [release_please, gates, quality, watch-build]
     if: needs.release_please.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
