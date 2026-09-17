@@ -27,10 +27,12 @@ feature-set model supersedes the earlier scalar capability gate).
 
 ## Working principles (these bite — read before changing code)
 
-1. **Pre-release: break freely.** Nothing has shipped, been built into an app,
-   published to npm, or had an OTA bundle signed in the wild. There are no
-   consumers and no artifacts to stay compatible with. **Prefer the clean target
-   shape over a migration path.** Do *not* add: scheme-version bumps for formats
+1. **Pre-1.0: break freely, document it in MIGRATIONS.md.** The package is
+   published on npm (`react-watchos`, latest 0.7.0) and has real consumers,
+   but 0.x semver still means every release may break — **prefer the clean
+   target shape over a migration path**, and write the consumer-facing fix
+   into [`MIGRATIONS.md`](./MIGRATIONS.md) instead of adding a compatibility
+   shim. Do *not* add: scheme-version bumps for formats
    nobody has signed (keep one format, change it in place), "tolerates old
    payload" / back-compat branches, deprecation shims, or dual codepaths to ease
    a rollout. Change the format/API/struct to what it should be and update all
