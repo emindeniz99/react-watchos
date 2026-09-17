@@ -167,8 +167,9 @@ jobs:
   #
   # build.yml is the expensive one — three macOS jobs, ~30-40 min wall clock
   # per publish — and it is called anyway, because it is the ONLY place the
-  # `#if os(watchOS)` host compiles: the Linux `swift build` in ci.yml
-  # builds that target as an empty module. Without it a Swift compile break
+  # `#if os(watchOS)` host compiles: Package.swift drops ReactWatchHost and
+  # ReactWatchWidget from the package on Linux, so ci.yml's `swift build`
+  # never sees them. Without it a Swift compile break
   # in ReactWatchHost or ReactWatchWidget publishes green and surfaces in a
   # consumer's Xcode after they have installed the version. Its concurrency
   # group carries `github.workflow`, so this called copy and a

@@ -1,0 +1,27 @@
+# github-actions ONLY, on purpose. Every action here is pinned to a full
+# commit SHA (zizmor enforces it), which means nothing moves those pins
+# unless something proposes the move; this is that something.
+#
+# No npm entry. Dependabot's npm_and_yarn updater cannot resolve a pnpm 11
+# lockfile — every run fails with ERR_PNPM_BROKEN_METADATA_JSON (measured on
+# a sibling repo 2026-09-12; dependabot-core carries a live issue backlog in
+# that family). Vulnerability DETECTION for the JS graph is security.yml's
+# `pnpm audit` job; version bumps are a hand-run `pnpm update` behind the
+# 7-day cooldown in pnpm-workspace.yaml, or Renovate if that ever becomes
+# worth its own config.
+#
+# Cooldown mirrors the workspace's `minimumReleaseAge: 10080`: a new action
+# tag has to be a week old before a PR proposes it, so a retagged or
+# compromised release has a week of other people's eyes on it first.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci(ci)
+      include: scope
+    cooldown:
+      default-days: 7

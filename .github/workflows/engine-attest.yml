@@ -57,9 +57,14 @@ jobs:
           # no clone, and it is the merge-base diff GitHub itself shows. The
           # names arrive as data in a shell variable, never through a template
           # expansion; an odd name can only add a matching line, never hide
-          # one, so the check fails closed.
-          files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
-          if printf '%s\n' "$files" | grep -q '^js/swift/Sources/CQuickJS/'; then
+          # one, so the check fails closed. `previous_filename` is included so
+          # a rename OUT of the engine directory counts as a change to it.
+          # A here-string, not a pipe: under `pipefail` a file list past the
+          # pipe buffer makes printf die of SIGPIPE when grep exits early,
+          # and the `if` would take the else branch — failing OPEN.
+          files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)')
+          if grep -q '^js/swift/Sources/CQuickJS/' <<<"$files"; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
