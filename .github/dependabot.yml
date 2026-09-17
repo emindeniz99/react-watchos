@@ -21,7 +21,7 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     commit-message:
-      prefix: ci(ci)
+      prefix: ci
       include: scope
     cooldown:
       default-days: 7

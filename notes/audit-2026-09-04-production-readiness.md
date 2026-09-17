@@ -64,12 +64,12 @@ packed tarball installed with npm into a clean project). 79 commits on
 | Critic — publishing.md options wrong both ways | **fixed** | `8c59613`, `bb32439` — table regenerated from source |
 | Critic — CHANGELOG/MIGRATIONS not in the tarball | **fixed** | `70999b4` — CHANGELOG shipped; MIGRATIONS lives outside js/ and is linked by absolute URL |
 
-Not run by anyone yet: the three new Swift tests the runtime branch added
+The five new Swift tests the runtime branch added
 (`testDeepRecursionThrowsInsteadOfOverflowingASmallThreadStack`,
-`testTimerStart*`, `testWidgetDiagnosticSlot*`). The Mac's local test run
-was refused by the session's safety gate after the 2026-09-01 xctest leak;
-CI's Linux `swift test` leg is the first executor. If it is red, that is
-where to look first.
+`testTimerStart*`, `testWidgetDiagnosticSlot*`) were first executed by CI's
+Linux `swift test` leg on `6a637df` — all passed. The Mac's local test run
+was refused by the session's safety gate after the 2026-09-01 xctest leak,
+so CI was the first executor, not a re-run.
 
 Two owner-side items remain from the table: enabling Dependabot alerts,
 and deciding whether any check becomes required. Two engineering items
