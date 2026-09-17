@@ -470,7 +470,9 @@ struct NodeView: View {
                     timerInterval: Date()...Swift.max(Date(), end),
                     countsDown: true))
         } else {
-            let start = Date(timeIntervalSince1970: (node.double("since") ?? 0) / 1000)
+            // Clamped in RNStyle (shared with the widget interpreter, like
+            // gaugeBounds): a `since` past distantFuture trapped the range.
+            let start = RNStyle.timerStart(sinceMs: node.double("since"))
             styledTimer(
                 Text(
                     timerInterval: start...Date.distantFuture,

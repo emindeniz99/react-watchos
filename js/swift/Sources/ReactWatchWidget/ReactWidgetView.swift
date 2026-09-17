@@ -388,7 +388,10 @@ public struct WidgetNodeView: View {
                     timerInterval: Date()...Swift.max(Date(), end),
                     countsDown: true))
         } else {
-            let start = Date(timeIntervalSince1970: (node.double("since") ?? 0) / 1000)
+            // Clamped in RNStyle (shared with the app interpreter, like
+            // gaugeBounds): a `since` past distantFuture trapped the range —
+            // here on every timeline request, freezing the complication.
+            let start = RNStyle.timerStart(sinceMs: node.double("since"))
             styled(
                 node,
                 Text(

@@ -1121,6 +1121,29 @@ final class RNStyleTests: XCTestCase {
         XCTAssertEqual(hi, 1)
         XCTAssertEqual(v, 0)
     }
+
+    // Audit 2026-09-04 finding 5: both interpreters build
+    // `start...Date.distantFuture` for a count-up TimerText, and ClosedRange
+    // traps when the lower bound is above the upper — so a `since` past
+    // distantFuture (a microseconds-for-milliseconds unit slip is enough) or
+    // a NaN crashed the app render and the widget extension on every
+    // timeline request. The anchor must always be a usable lower bound.
+
+    func testTimerStartPassesAnOrdinaryEpochThrough() {
+        let start = RNStyle.timerStart(sinceMs: 1_700_000_000_000)
+        XCTAssertEqual(start.timeIntervalSince1970, 1_700_000_000, accuracy: 0.001)
+        XCTAssertEqual(RNStyle.timerStart(sinceMs: nil).timeIntervalSince1970, 0)
+    }
+
+    func testTimerStartClampsSoTheCountUpRangeCannotTrap() {
+        for sinceMs in [1e300, .infinity, -.infinity, .nan, -1e300] as [Double] {
+            let start = RNStyle.timerStart(sinceMs: sinceMs)
+            XCTAssertLessThanOrEqual(start, .distantFuture, "since=\(sinceMs)")
+            XCTAssertGreaterThanOrEqual(start, .distantPast, "since=\(sinceMs)")
+            // The exact expression both interpreters evaluate.
+            XCTAssertTrue((start...Date.distantFuture).contains(.distantFuture))
+        }
+    }
 }
 
 // CX-016: snapshots must show the entry applicable *now*, not the last
