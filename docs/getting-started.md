@@ -294,6 +294,14 @@ pass is scoped in [status.md](./status.md) — Rule 12):**
   Support/Runtime transitively). The engine is a Clang module
   (`import CQuickJS`) — no bridging header.
 - Confirm `assets/bundle.js` landed in the watch target's bundle resources.
+- The package's required-reason API use (App Group `UserDefaults`, file
+  modification dates) is declared by its own `PrivacyInfo.xcprivacy`, a
+  SwiftPM resource of `ReactWatchSupport` that Xcode copies into the watch
+  app and the widget extension — nothing to add for this package's code;
+  see [`js/swift/README.md`](../js/swift/README.md). Expo's
+  `ios.privacyManifests` covers only the iOS app, so any required-reason
+  API your own watch-target Swift calls still needs a manifest in
+  `targets/watch/`.
 - `WKRunsIndependentlyOfCompanionApp` (standalone watch app) is set by the
   plugin by default (`independent` option) and applied by the same in-prebuild
   Info.plist merge — for a companion-dependent watch app pass `independent:

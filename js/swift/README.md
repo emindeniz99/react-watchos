@@ -57,6 +57,18 @@ once in Xcode: Add Package Dependencies ▸ Add Local ▸ this folder). The wire
 models are generated from `js/codegen/schema.ts` — run `npm run codegen`; never
 edit `Sources/ReactWatchCore/WireModel.swift` by hand.
 
+**Privacy manifest.** The package declares its own required-reason API use
+in `Sources/ReactWatchSupport/PrivacyInfo.xcprivacy`, shipped as a SwiftPM
+resource of `ReactWatchSupport`: the App Group `UserDefaults` suite behind
+`SharedWidgetStore` (`NSPrivacyAccessedAPICategoryUserDefaults`, reason
+`1C8F.1`) and the file modification dates `FileInbox` reads and stamps
+(`NSPrivacyAccessedAPICategoryFileTimestamp`, reason `C617.1`). Xcode
+copies the target's resource bundle into every product that links it, so
+the watch app and the widget extension both carry the declaration and App
+Store Connect's ITMS-91053 check is satisfied for this package's code with
+no step on your side. Your own target code and the iOS app keep their own
+manifests (Expo's `ios.privacyManifests` covers the iOS app only).
+
 ## Breaking changes
 
 Pre-release, this package breaks freely (project rule 1: no shims, no
