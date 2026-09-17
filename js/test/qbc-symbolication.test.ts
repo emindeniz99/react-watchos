@@ -5,13 +5,13 @@ import { join } from "node:path";
 import { TraceMap } from "@jridgewell/trace-mapping";
 import { build } from "esbuild";
 import { beforeAll, describe, expect, it } from "vitest";
-import { watchBuildOptions } from "../esbuild/preset.mts";
 import {
   type OriginalPosition,
   parseStackFrame,
   type StackFrame,
   symbolicateFrame,
-} from "../scripts/symbolicate-core.ts";
+} from "../bin/symbolicate-core.mts";
+import { watchBuildOptions } from "../esbuild/preset.mts";
 import { buildTool, qjsAvailable, requireQjs } from "./qjs-tools";
 
 /**
@@ -24,8 +24,8 @@ import { buildTool, qjsAvailable, requireQjs } from "./qjs-tools";
  *        JS_ReadObject + JS_EvalFunction — the exact sequence
  *        JSRuntime.evaluateBytecode runs on the watch
  *     -> the Error.stack that comes back out
- *     -> the SHIPPED symbolicator (scripts/symbolicate-core.ts, which
- *        `pnpm symbolicate` is a thin CLI over)
+ *     -> the SHIPPED symbolicator (bin/symbolicate-core.mts, which
+ *        `react-watchos symbolicate` is a thin CLI over)
  *     -> back to the .tsx, at the line and column that threw.
  *
  * Why the whole chain and not a unit test over `originalPositionFor`: the

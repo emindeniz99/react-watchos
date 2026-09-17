@@ -86,7 +86,7 @@
     "ota:keygen": "node --experimental-strip-types scripts/ota-keygen.ts",
     "ota:sign": "node --experimental-strip-types scripts/ota-sign.ts",
     "check:size": "node --experimental-strip-types scripts/check-size.ts",
-    "symbolicate": "node --experimental-strip-types scripts/symbolicate.ts",
+    "symbolicate": "node --experimental-strip-types bin/react-watchos.cts symbolicate",
     "codegen": "node --experimental-strip-types codegen/generate.ts",
     "docs:api": "typedoc && node --experimental-strip-types scripts/gen-capability-table.ts",
     "test": "vitest run",
@@ -104,6 +104,7 @@
   },
   "dependencies": {
     "@expo/plist": "^0.8.1",
+    "@jridgewell/trace-mapping": "^0.3.31",
     "@types/plurals-cldr": "^1.0.5",
     "@types/react-reconciler": "^0.33.0",
     "plurals-cldr": "^2.0.1"
@@ -153,7 +154,6 @@
     "@babel/preset-typescript": "^8.0.0",
     "@biomejs/biome": "2.5.10",
     "@expo/config-plugins": "~57.0.9",
-    "@jridgewell/trace-mapping": "^0.3.31",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.0",
     "@vitest/coverage-v8": "4.1.11",

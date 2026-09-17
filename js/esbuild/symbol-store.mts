@@ -29,8 +29,8 @@
 // that could be assumed.
 //
 // Written by `buildBundles({ symbols })` (esbuild/preset.mts), read by
-// `pnpm symbolicate --symbols` (scripts/symbolicate.ts). Both sides live here
-// so the layout is stated once and cannot drift apart.
+// `react-watchos symbolicate --symbols` (bin/symbolicate.mts). Both sides live
+// here so the layout is stated once and cannot drift apart.
 
 import {
   copyFileSync,

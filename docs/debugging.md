@@ -331,13 +331,13 @@ Measured on the vendored quickjs-ng, a minified frame reads
 a stack in on stdin:
 
 ```bash
-pnpm --filter react-watchos symbolicate dist/bundle.js.map < stack.txt
+npx react-watchos symbolicate dist/bundle.js.map < stack.txt
 # at k (real.tsx:2:13)   [was k @ real.js:1:4792]
 ```
 
 Frames it cannot resolve are printed through unchanged rather than dropped.
-The script ([`js/scripts/symbolicate.ts`](../js/scripts/symbolicate.ts)) is a
-thin CLI over [`symbolicate-core.ts`](../js/scripts/symbolicate-core.ts) —
+The subcommand ([`js/bin/symbolicate.mts`](../js/bin/symbolicate.mts)) is a
+thin CLI over [`symbolicate-core.mts`](../js/bin/symbolicate-core.mts) —
 `parseStackFrame` + `symbolicateFrame`, ~40 lines over
 `@jridgewell/trace-mapping`, the same mapping library the JS toolchain (Rollup,
 Vite, Sentry's tooling) resolves maps with. There is no watch-specific magic to
@@ -402,7 +402,7 @@ Give the CLI the store and the id the stack arrived with — no map path, no
 guessing which build it came from:
 
 ```bash
-pnpm --filter react-watchos symbolicate \
+npx react-watchos symbolicate \
   --symbols ./symbols --release 8c4f1e7a90b3d5e2 < stack.txt
 # at ShoppingList (../src/ShoppingList.tsx:42:8)   [was t @ bundle.js:1:30]
 ```
@@ -419,7 +419,7 @@ matters because a ring routinely spans an OTA rollback and is at its most
 interesting exactly then:
 
 ```bash
-pnpm --filter react-watchos symbolicate --symbols ./symbols \
+npx react-watchos symbolicate --symbols ./symbols \
   --diagnostics ring.json          # or pipe it in on stdin
 # [recoverable] js.uncaught (js/watch) release 8c4f1e7a90b3d5e2 2026-08-21T…
 # Error: cannot read property 'id' of undefined
