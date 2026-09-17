@@ -155,6 +155,12 @@ type Options = {
   entry?: string;               // watch JS entry (default "watch/index")
   appleTeamId?: string;         // for EAS / signing scaffolding
   independent?: boolean;        // standalone watch app (default true); see below
+  localNetworking?: boolean;    // NSAllowsLocalNetworking + NSLocalNetworkUsageDescription on
+                                //   the watch target (default false — opt-in). The plain-http
+                                //   dev flow (DEBUG dev-server poll, inspector, LAN OTA) needs
+                                //   it; a store build must not carry the global ATS exception.
+                                //   Info.plist keys can't be scoped to Debug, so set it per
+                                //   build from app.config.js, never in a release profile.
 };
 ```
 

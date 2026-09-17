@@ -55,6 +55,13 @@ REACT_WATCH_OTA_URL=http://192.168.x.y:8788/manifest.json \
   pnpm --filter react-watchos build
 ```
 
+Every one of these plain-http fetches — the OTA manifest, the DEBUG
+dev-server poll, the inspector — goes to an IP address, which App Transport
+Security blocks on watchOS 10+ unless the watch target's Info.plist carries
+`NSAllowsLocalNetworking`. The plugin emits that exception only when its
+`localNetworking` option is `true` (the demo's `app.json` sets it), so a
+release build keeps full ATS. Set it for development builds only.
+
 > The generated `app/targets/*/assets/bundle.js` is **not** committed (it's
 > gitignored). `pnpm --filter ... build` regenerates it, and `app`'s `prebuild`
 > script runs that build first, so `pnpm prebuild` (and CI) always produce a

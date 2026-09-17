@@ -37,6 +37,7 @@ export interface ResolvedOptions {
   watchBundleSuffix: string;
   widgetBundleSuffix: string;
   independent: boolean;
+  localNetworking: boolean;
   bundleIdentifier: string;
   infoPlist: Record<string, unknown>;
 }
@@ -62,10 +63,10 @@ function watchTargetConfig(opts: ResolvedOptions) {
     entitlements["aps-environment"] = "development";
   }
 
-  // Standalone watch app + the reactwatch:// deep-link scheme + local-network
-  // OTA. HealthKit/CoreBluetooth/CoreMotion/location usage strings are only
-  // included when the matching capability is requested, so a consumer who turns
-  // HealthKit off doesn't ship an unused, App-Review-flagged usage string.
+  // Standalone watch app + the reactwatch:// deep-link scheme. HealthKit/
+  // CoreBluetooth/CoreMotion/location usage strings are only included when the
+  // matching capability is requested, so a consumer who turns HealthKit off
+  // doesn't ship an unused, App-Review-flagged usage string.
   //
   // WKRunsIndependentlyOfCompanionApp is set ONLY when `independent` (default
   // true) — for a companion-dependent watch app the key is omitted (Apple's
@@ -80,10 +81,20 @@ function watchTargetConfig(opts: ResolvedOptions) {
         CFBundleURLSchemes: [opts.scheme],
       },
     ],
-    // Development OTA: allow fetching a bundle from a Mac on the LAN.
-    NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
-    NSLocalNetworkUsageDescription:
-      "Fetch development OTA bundles from your Mac on the local network.",
+    // The plain-http dev flow — the DEBUG dev-server poll, the inspector, and
+    // OTA from a Mac on the LAN (the loopback/private-LAN scope
+    // UpdateURLPolicy allows) — needs ATS to permit IP-address and .local
+    // hosts, which watchOS 10+ blocks by default. That is a global ATS
+    // exception, so it is emitted ONLY on `localNetworking`: an Info.plist
+    // is per target, not per build configuration, and the exception used to
+    // ship in every consumer's release build with no way to turn it off.
+    ...(opts.localNetworking
+      ? {
+          NSAppTransportSecurity: { NSAllowsLocalNetworking: true },
+          NSLocalNetworkUsageDescription:
+            "Fetch development bundles from your Mac on the local network.",
+        }
+      : {}),
     ...opts.infoPlist,
   };
   if (opts.workouts) {

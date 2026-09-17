@@ -266,7 +266,11 @@ simulator shares the Mac's network, so localhost works out of the box. For a
 physical watch, run `dev --host 0.0.0.0` and set the **`ReactWatchDevServerURL`**
 Info.plist key on the watch target (via the plugin's `infoPlist` option) to
 `http://<your-mac-lan-ip>:8788/bundle.js`. Release builds compile the polling
-out entirely (`#if DEBUG`).
+out entirely (`#if DEBUG`). Either way the poll is plain http to an IP
+address, which App Transport Security blocks on watchOS 10+ — set the
+plugin's `localNetworking: true` for development builds so the watch
+target's Info.plist carries `NSAllowsLocalNetworking` (it is off by default,
+so a store build never ships the exception).
 
 `inspector` receives what a DEBUG build's `startInspector()` posts — the live
 committed tree, `console.log` tee, and captured errors (with componentStack) —
