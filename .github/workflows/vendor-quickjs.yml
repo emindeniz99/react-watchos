@@ -219,7 +219,13 @@ jobs:
           # $RUNNER_TEMP anyway — this is belt-and-braces against anything
           # else ever landing in the working tree.
           git add js/swift/Sources/CQuickJS
-          git commit -m "chore(deps): vendor quickjs-ng $TAG
+          # `fix`, not `chore`: release-please releases only the types its
+          # changelog shows (feat/fix/perf/revert), so a `chore(deps)` bump
+          # merged to main sat there until an unrelated commit cut a release —
+          # v0.16.2 stranded on main while npm still shipped v0.16.1, the
+          # exact lag this bot exists to end. An engine bump changes what runs
+          # on the watch; a patch release is the honest label.
+          git commit -m "fix(deps): vendor quickjs-ng $TAG
 
           Proposed by .github/workflows/vendor-quickjs.yml after the release
           soaked. The tarball digest still needs a human's out-of-band check —
@@ -303,7 +309,7 @@ jobs:
             echo "force-updated as upstream moves, so this PR always proposes the current"
             echo "soaked candidate.</sub>"
           } >> body.md
-          title="chore(deps): vendor quickjs-ng $TAG"
+          title="fix(deps): vendor quickjs-ng $TAG"
           if existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number') && [ -n "$existing" ]; then
             gh pr edit "$existing" --title "$title" --body-file body.md
             echo "updated #$existing"
