@@ -28,6 +28,11 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { parseArgs } = require("node:util");
 
+// Where a consumer can actually read the docs this CLI points at: `docs/` is
+// not in the tarball (package.json `files`), so a relative path printed from
+// node_modules leads nowhere.
+const DOCS = "https://github.com/emindeniz99/react-watchos/blob/main/docs";
+
 /**
  * Parse the shared build/dev flags.
  */
@@ -109,7 +114,7 @@ async function build(args: string[]) {
   if (f.debug) {
     console.error(
       "[react-watchos] --debug instruments every statement and must never " +
-        "ship: use `react-watchos dev --debug` (docs/design-dap-debugger.md).",
+        `ship: use \`react-watchos dev --debug\` (${DOCS}/design-dap-debugger.md).`,
     );
     process.exit(1);
   }
@@ -365,7 +370,7 @@ switch (command) {
         "      entry that only reads storage and publishes timelines.\n" +
         "      --symbols keeps the bundle + map under <dir>/<releaseId>/<target>/,\n" +
         "      so a field stack that carries only a releaseId still finds its\n" +
-        "      map weeks later (docs/debugging.md, 'Keep your symbols').\n\n" +
+        `      map weeks later (${DOCS}/debugging.md#keep-your-symbols).\n\n` +
         "  react-watchos dev --entry <file> [--outfile dist/bundle.js]\n" +
         "                    [--host 127.0.0.1] [--port 8788]\n" +
         "      Live-reload server. DEBUG watch builds poll /bundle.js every 2s\n" +
@@ -382,7 +387,7 @@ switch (command) {
         "      /debug/poll and blocks there while paused; an editor attaches\n" +
         '      to the DAP port ({"debugServer": 8791} in launch.json).\n' +
         "      Breakpoints, stepping and the top frame's ARGUMENTS — not a\n" +
-        "      scope walker; see docs/design-dap-debugger.md for the limits.\n",
+        `      scope walker; the limits: ${DOCS}/design-dap-debugger.md\n`,
     );
     process.exit(command ? 1 : 0);
 }
