@@ -29,6 +29,14 @@ watch.
 | `^19.2.0` (19.2.3 in lockfile) | `0.33.0` (exact) | `^0.32.0` (0.32.3) | ✅ tested 2026-07-17 — vitest suite (410) + `tools/embed-smoke/run.sh` (quickjs-ng: app + widget + bytecode boot, dispatch/nav transaction, heap + boot budgets) |
 | `^19.2.0` (19.2.3 in lockfile) | `0.33.0` (exact) | `^0.33.0` (0.33.0) | ✅ tested 2026-07-29 — vitest suite (646) + swift 374 + `tools/embed-smoke/run.sh` (quickjs-ng: app + widget + bytecode boot, dispatch/nav transaction, heap 2.1 MB, boot 33.3 ms source / 9.2 ms bytecode) + both examples' bundles built and booted |
 
+**Not taken (2026-09-17): react 19.3.0 + react-reconciler 0.34.0** (both
+published 2026-09-09, cooldown-clear). The pair itself is a routine row;
+the reason to wait is the consumer side. Expo SDK 57's `expo install`
+pins react 19.2.x, so a `^19.3` peer here hands every Expo 57 app a second
+React copy in its watch bundle — the boot failure described below. Revisit
+when the Expo SDK the examples track moves to react 19.3 (SDK 58), and take
+`app/`, both examples and this row in the same commit.
+
 `react` and `react-reconciler` are a lockstep pair (0.33.0 is cut from the
 React 19.2 tree and reports `reconcilerVersion: "19.2.0"` to DevTools);
 never bump one without the other.
