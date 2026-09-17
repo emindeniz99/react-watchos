@@ -244,3 +244,136 @@ jobs:
             const key = manifest.generateSigningKey();
             if (!key.keyId || !key.publicKeyBase64) throw new Error("react-watchos/manifest: generateSigningKey returned no key");
           '
+
+  # The declared PEER floors, walked the same way. js/package.json promises
+  # `expo >=56`, `@bacons/apple-targets ^4 || ^5`, `esbuild >=0.27`, the Babel
+  # trio and the React pair — and every job here installs whatever the
+  # workspace lockfile resolved, so the lowest version each range admits had
+  # never been loaded by anything. A floor nothing runs is a claim
+  # (playground graduation lesson 14). Two rows: `floor` installs the LOWEST
+  # version satisfying each range, `latest` the highest, both computed from
+  # package.json at run time (`npm view "pkg@range" version --json` lists the
+  # matches ascending) so there is no second version list to drift. Three of
+  # the literal floors — @babel/core 7.20.0, the two presets at 7.18.0 — were
+  # never published (7.20.2 / 7.18.6 are the first), which is why the leg
+  # resolves ranges instead of trusting the literals. Then the two surfaces
+  # that actually call into those peers run against them: the config plugin
+  # (createRunOncePlugin + apple-targets' app.plugin, invoked directly, which
+  # writes the target config files and registers the mods) and the build
+  # preset (esbuild + Babel + React Compiler, bundling a real entry with
+  # react + react-reconciler at the pinned pair). A red `floor` row means
+  # raise the floor honestly, not pin the leg.
+  peer-floors:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        peers: [floor, latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install (pnpm workspace)
+        run: pnpm install --frozen-lockfile
+      - name: Pack the tarball
+        working-directory: js
+        run: pnpm pack --pack-destination "$RUNNER_TEMP/pack"
+      - name: Resolve the ${{ matrix.peers }} version of every peer range
+        env:
+          PEERS_ROW: ${{ matrix.peers }}
+        run: |
+          set -euo pipefail
+          node --input-type=module - <<'JS'
+            import { readFileSync, appendFileSync } from "node:fs";
+            import { execFileSync } from "node:child_process";
+            const peers = JSON.parse(readFileSync("js/package.json", "utf8")).peerDependencies;
+            const row = process.env.PEERS_ROW;
+            const specs = [];
+            for (const [name, range] of Object.entries(peers)) {
+              const out = execFileSync("npm", ["view", `${name}@${range}`, "version", "--json"], { encoding: "utf8" }).trim();
+              const parsed = out ? JSON.parse(out) : [];
+              const versions = Array.isArray(parsed) ? parsed : [parsed];
+              if (versions.length === 0) throw new Error(`${name}@${range}: nothing on npm satisfies the declared range`);
+              const pick = row === "floor" ? versions[0] : versions[versions.length - 1];
+              console.log(`${name.padEnd(32)} ${range.padEnd(22)} -> ${pick}`);
+              specs.push(`${name}@${pick}`);
+            }
+            appendFileSync(process.env.GITHUB_ENV, `PEER_SPECS=${specs.join(" ")}\n`);
+          JS
+      # zizmor flags any install outside a lockfile; installing the tarball
+      # this job just packed next to the resolved peers IS the check.
+      - name: Install the tarball with npm next to those peers
+        working-directory: ${{ runner.temp }}
+        run: | # zizmor: ignore[adhoc-packages]
+          set -euo pipefail
+          mkdir consumer && cd consumer
+          npm init -y >/dev/null
+          # shellcheck disable=SC2086 # PEER_SPECS is a space-separated list by construction
+          npm install --no-audit --no-fund "$RUNNER_TEMP"/pack/react-watchos-*.tgz $PEER_SPECS
+          echo "--- installed ---"
+          npm ls --depth=0 2>/dev/null | sed -n '2,$p'
+      - name: Scaffold, then the config plugin registers against these peers
+        working-directory: ${{ runner.temp }}/consumer
+        run: |
+          set -euo pipefail
+          cat > app.json <<'JSON'
+          { "expo": { "name": "Floor", "slug": "floor",
+              "ios": { "bundleIdentifier": "com.example.floor", "appleTeamId": "ABCDE12345" },
+              "plugins": [["react-watchos", { "widget": true, "healthKit": true, "localNetworking": true }]] } }
+          JSON
+          # The documented order: scaffold writes the @main glue the plugin's
+          # guard insists on before it will register anything.
+          ./node_modules/.bin/react-watchos scaffold
+          node - <<'JS'
+            const m = require("react-watchos/app.plugin");
+            const withReactWatch = m.default ?? m;
+            const cfg = withReactWatch(
+              { name: "Floor", slug: "floor",
+                ios: { bundleIdentifier: "com.example.floor", appleTeamId: "ABCDE12345" },
+                _internal: { projectRoot: process.cwd() } },
+              { widget: true, healthKit: true, localNetworking: true },
+            );
+            const fs = require("node:fs");
+            for (const f of ["targets/watch/expo-target.config.js", "targets/widget/expo-target.config.js"]) {
+              if (!fs.existsSync(f)) throw new Error(`plugin did not write ${f}`);
+            }
+            const ext = cfg.extra?.eas?.build?.experimental?.ios?.appExtensions ?? [];
+            if (ext.length !== 2) throw new Error(`expected 2 EAS appExtensions, got ${ext.length}`);
+            const mods = Object.keys(cfg.mods?.ios ?? {});
+            if (mods.length === 0) throw new Error("plugin registered no ios mods");
+            console.log("ios mods registered:", mods.join(", "));
+          JS
+      - name: The build preset bundles against these peers
+        working-directory: ${{ runner.temp }}/consumer
+        run: |
+          set -euo pipefail
+          # The minimal example's App, verbatim in shape: package exports
+          # only, mounted with runApp, so this is what a consumer's first
+          # bundle looks like.
+          cat > App.tsx <<'TSX'
+          import { useState } from "react";
+          import { Button, HStack, Text, VStack, runApp } from "react-watchos";
+          function App() {
+            const [count, setCount] = useState(0);
+            return (
+              <VStack spacing={6}>
+                <Text bold size={20}>Count: {count}</Text>
+                <HStack spacing={8}>
+                  <Button onPress={() => setCount((c) => c - 1)}><Text size={20}>-</Text></Button>
+                  <Button onPress={() => setCount((c) => c + 1)}><Text size={20}>+</Text></Button>
+                </HStack>
+              </VStack>
+            );
+          }
+          runApp(<App />);
+          TSX
+          ./node_modules/.bin/react-watchos build --entry App.tsx --asset out/bundle.js
+          test -s out/bundle.js
+          echo "bundle: $(wc -c < out/bundle.js) bytes"
