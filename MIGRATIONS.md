@@ -10,7 +10,7 @@ first, and only versions with consumer-facing action items appear.
      `files` and (verified against a real `pnpm pack` tarball) from the npm
      package. Release reading happens on the repo; the tarball carries code. -->
 
-## 0.7.x → 0.8.0 (not yet released — on `main` as commit `7aca6ce`)
+## 0.7.x → next
 
 **Release builds no longer draw the developer diagnostic banner or the
 full-screen startup error text.** Both carried raw JS stack traces and Swift
