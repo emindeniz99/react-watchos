@@ -49,6 +49,10 @@ Action, only if a test asserts on the *old* default:
 - `expect(await someUnlistedMethod()).toBeNull()` → now resolves
   `undefined`; update the assertion (this also matches what native actually
   sends for a `Void` op).
+- A handler that returns `undefined` — including one that returns nothing
+  at all, e.g. `() => { sideEffect(); }` — now resolves the same void wire
+  instead of the old `result ?? null` fallback to JSON `null`; update an
+  assertion that expected `null` back.
 - A handler that `throw`s a plain `Error` to simulate a native rejection now
   surfaces that `Error`'s own `message` on the caught `{code, message}`
   instead of an opaque fallback; update an assertion that expected the old
