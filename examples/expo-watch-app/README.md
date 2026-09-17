@@ -69,7 +69,7 @@ npx react-watchos scaffold   # -> targets/watch/WatchApp.swift
 files. The generated `expo-target.config.js` / `Info.plist` / entitlements are
 not committed (see `.gitignore`).
 
-## Building the actual watch app (macOS 15+, Xcode 16+)
+## Building the actual watch app (macOS 15+, Xcode 26.x)
 
 ```bash
 pnpm --filter expo-watch-app prebuild   # build the watch bundle, then `expo prebuild`
