@@ -43,6 +43,59 @@ only when the file is untracked (the demo and the example gitignore
 `targets/*/Info.plist`); tracked, it keeps shipping the exception from
 every EAS build after the upgrade.
 
+## 0.7.x → next
+
+**Release builds no longer draw the developer diagnostic banner or the
+full-screen startup error text.** Both carried raw JS stack traces and Swift
+error descriptions with no way to turn them off — `ReactWatchRootView` had
+no knob. They are now `#if DEBUG`: a release build shows nothing for a
+recoverable diagnostic and a wordless ⚠︎ symbol for a boot failure.
+
+Action:
+- If your app relied on the banner/startup text as its user-facing error UI,
+  render your own — `<ErrorBoundary fallback={...}>` covers render throws;
+  for every other failure class (promise rejections, event-handler throws,
+  boot failures) there is no view slot to replace them with. Observe the
+  failure yourself — JS's `onDiagnostic`, or a native `DiagnosticsSink`
+  passed to the new `ReactWatchRootView(diagnosticsSink:)` parameter (see
+  the next item) — and render your own UI from that signal.
+- If your app relied on the banner to *notice* a failure at all — nothing
+  else surfaced it — implement `DiagnosticsSink` and pass it as
+  `diagnosticsSink`. This is the fleet-telemetry hook docs/debugging.md
+  already described; it was hardcoded to `LogDiagnosticsSink` before this
+  release.
+- Diagnostics recorded before the bundle finishes evaluating — including the
+  OTA rollback notice, `boot.*`, and `ota.updateRequired` — now replay into
+  JS's `onDiagnostic` once the bundle is ready, instead of being dropped. No
+  action needed to receive them; a handler that assumed only post-boot
+  diagnostics would arrive now also sees these.
+
+## 0.6.x → 0.7.0
+
+**`installInvokeHost` (from `react-watchos/testing`) changed two defaults.**
+An invoke method with no matching entry in the handlers you pass now
+resolves the void wire (`undefined`) instead of JSON `null`, and a thrown
+`Error` now rejects with its own `message` instead of degrading to a generic
+`{}`.
+
+Action, only if a test asserts on the *old* default:
+- `expect(await someUnlistedMethod()).toBeNull()` → now resolves
+  `undefined`; update the assertion (this also matches what native actually
+  sends for a `Void` op).
+- A handler that returns `undefined` — including one that returns nothing
+  at all, e.g. `() => { sideEffect(); }` — now resolves the same void wire
+  instead of the old `result ?? null` fallback to JSON `null`; update an
+  assertion that expected `null` back.
+- A handler that `throw`s a plain `Error` to simulate a native rejection now
+  surfaces that `Error`'s own `message` on the caught `{code, message}`
+  instead of an opaque fallback; update an assertion that expected the old
+  generic message, or throw `{ code, message }` directly to control it.
+
+New, optional: handlers now receive the method name as a second argument,
+and an entry keyed `"*"` handles any method with no entry of its own — throw
+`{ code: "UNKNOWN_METHOD", message }` from it to mirror native's reply for a
+method your handlers don't cover, instead of the lenient void default.
+
 ## 0.5.x → 0.6.0
 
 **Widget timeline views now render without the React reconciler.** The
@@ -219,8 +272,11 @@ monorepo workspace before the first npm release. The worked example is the
 `ctrl-a-remote` migration (playground commit `63e331e3`).
 
 1. **Identity**: dependency and imports rename `react-native-watchos` →
-   `react-watchos`; install from the registry (`"react-watchos": "^0.1.0"`),
-   drop the `../react-native-watchos/js` workspace member.
+   `react-watchos`; install from the registry, pinned to the current
+   version per [Versioning & stability](./README.md#versioning--stability)
+   (not `^0.1.0` — that range resolves only to 0.1.0, which shipped with
+   the pbxproj-quoting and JSX-runtime bugs fixed since), and drop the
+   `../react-native-watchos/js` workspace member.
 2. **BLE (and every fallible API) rides the invoke channel** (CX-022):
    `bleConnect`/`bleWrite`/`bleSubscribe` return promises settled by native.
    There is no `__host.ble` channel any more. If your app treats
