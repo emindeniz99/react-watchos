@@ -269,7 +269,7 @@ struct NodeView: View {
             let lo = node.double("min") ?? 0
             let hi = node.double("max") ?? 1
             let range = lo <= hi ? lo...hi : hi...lo
-            if let step = node.double("step") {
+            if let step = sliderStep {
                 Slider(value: doubleBinding, in: range, step: step)
             } else {
                 Slider(value: doubleBinding, in: range)
@@ -743,6 +743,19 @@ struct NodeView: View {
         case "page": tabView.tabViewStyle(.page)
         default: tabView
         }
+    }
+
+    /// SwiftUI's Slider traps on a step that is not > 0 (a precondition in its
+    /// init; NodeViewRenderTests hit it with step 0). An absent or unusable
+    /// step means a continuous slider, logged once like any other bad prop.
+    private var sliderStep: Double? {
+        guard let step = node.double("step") else { return nil }
+        guard step > 0 else {
+            logUnsupportedOnce(
+                "Slider.step", "Slider step \(step) is not > 0 — rendering a continuous slider")
+            return nil
+        }
+        return step
     }
 
     private func cgFloat(_ key: String) -> CGFloat? {
