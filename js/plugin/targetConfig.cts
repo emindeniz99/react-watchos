@@ -64,7 +64,7 @@ function watchTargetConfig(opts: ResolvedOptions) {
     // doc says Xcode sets the value from the profile in use, and a
     // distribution profile's allowlist only ever carries "production" —
     // which is why Expo's own expo-notifications plugin authors
-    // "development" unconditionally as well. Re-examined 2026-09-17 after
+    // "development" by default as well. Re-examined 2026-09-17 after
     // the 2026-09-04 audit read it as a production-push breaker.
     entitlements["aps-environment"] = "development";
   }
