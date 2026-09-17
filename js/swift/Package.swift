@@ -64,8 +64,9 @@ var targets: [Target] = [
     // modification dates (FileInbox, reason C617.1). Xcode copies a package
     // target's resource bundle into every product that links it, so the
     // watch app and the widget extension each ship the declaration without
-    // the config plugin or a hand-wired consumer doing anything. `.copy`,
-    // not `.process`: App Store Connect looks the file up by its exact name.
+    // the config plugin or a hand-wired consumer doing anything. `.copy`
+    // over `.process` is convention (Alamofire, Firebase), not a requirement:
+    // either rule ships the file verbatim under its own name.
     .target(
         name: "ReactWatchSupport",
         dependencies: ["ReactWatchCore"],
