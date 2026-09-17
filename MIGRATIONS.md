@@ -22,8 +22,10 @@ Action:
 - If your app relied on the banner/startup text as its user-facing error UI,
   render your own — `<ErrorBoundary fallback={...}>` covers render throws;
   for every other failure class (promise rejections, event-handler throws,
-  boot failures) pass your own view through the new
-  `ReactWatchRootView(diagnosticsSink:)` parameter.
+  boot failures) there is no view slot to replace them with. Observe the
+  failure yourself — JS's `onDiagnostic`, or a native `DiagnosticsSink`
+  passed to the new `ReactWatchRootView(diagnosticsSink:)` parameter (see
+  the next item) — and render your own UI from that signal.
 - If your app relied on the banner to *notice* a failure at all — nothing
   else surfaced it — implement `DiagnosticsSink` and pass it as
   `diagnosticsSink`. This is the fleet-telemetry hook docs/debugging.md
