@@ -244,16 +244,21 @@ module.exports = {
   preset: "jest-expo",
   transformIgnorePatterns: [
     "/node_modules/(?!(.pnpm|react-watchos|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|standard-navigation))",
+    "/node_modules/react-native-reanimated/plugin/",
+    "/node_modules/@react-native/babel-preset/",
   ],
 };
 ```
 
-That is jest-expo's own list (SDK 57) with `react-watchos` added. Setting the
-key in your config REPLACES the preset's array rather than extending it, so
-keep the rest. The bare `@react-native/jest-preset` list is shorter —
-`node_modules/(?!((jest-)?react-native|@react-native(-community)?)/)` — and
-takes `|react-watchos` inside the group the same way. vitest needs none of
-this: it transforms `node_modules` TypeScript by default.
+That is jest-expo's `transformIgnorePatterns` (SDK 57) with `react-watchos`
+added to the first entry. Setting the key in your config REPLACES the
+preset's array rather than extending it, so copy all three entries: the last
+two re-ignore the reanimated Babel plugin and `@react-native/babel-preset`,
+which the first entry's allowlist would otherwise transform even though they
+are part of the transformer itself. The bare `@react-native/jest-preset` list
+is one entry — `node_modules/(?!((jest-)?react-native|@react-native(-community)?)/)`
+— and takes `|react-watchos` inside the group the same way. vitest needs none
+of this: it transforms `node_modules` TypeScript by default.
 
 ## Dev loop (hot restart + inspector)
 
