@@ -96,10 +96,33 @@ final class NodeViewRenderTests: XCTestCase {
     }
 
     private func renderFixture(_ name: String) throws {
-        let tree = try RNTree(wireJSON: Self.fixture(name))
+        let tree = try RNTree(wireJSON: Self.pushedPathsAreOutOfReach(Self.fixture(name)))
         let root = try XCTUnwrap(tree.root, "\(name).json has no root")
         mark("fixture \(name)")
         render(root)
+    }
+
+    /// A NavigationStack whose controlled `path` is non-empty pushes on
+    /// creation, and in a hostless xctest process that push traps inside
+    /// watchOS's private SaltUICore (UINavigationBar `_setItems:` → a
+    /// `dispatch_once` callout, SIGTRAP — crash reports from the 2026-09-17
+    /// run) before any interpreter code is reached; only a windowed app
+    /// process can push. Not an interpreter defect — the demo app pushes these
+    /// same trees on the simulator — so the treediff fixtures render at their
+    /// root route here (their `path` emptied), the hostile table pushes
+    /// nothing, and the pushed-route code (`destination(for:)`,
+    /// MissingNavigationRoute, the in-flight placeholder) stays covered by
+    /// the simulator flows, not this file.
+    nonisolated private static func pushedPathsAreOutOfReach(_ fixture: Data) throws -> Data {
+        guard var tree = try JSONSerialization.jsonObject(with: fixture) as? [String: Any],
+            var root = tree["root"] as? [String: Any],
+            var props = root["props"] as? [String: Any],
+            props["path"] != nil
+        else { return fixture }
+        props["path"] = [String]()
+        root["props"] = props
+        tree["root"] = root
+        return try JSONSerialization.data(withJSONObject: tree)
     }
 
     func testEveryKitchenSinkNodeRendersAsRoot() throws {
@@ -315,7 +338,6 @@ final class NodeViewRenderTests: XCTestCase {
         let text = { (id: Int, s: String) in n("Text", id: id, #"{"text":"\#(s)"}"#) }
         let big = "1e308"
         let neg = "-1e308"
-        let deepPath = (1...50).map { "\"/r\($0)\"" }.joined(separator: ",")
 
         let vstack = leaf("VStack")
         let hstack = leaf("HStack")
@@ -919,10 +941,11 @@ final class NodeViewRenderTests: XCTestCase {
                 "Slider",
                 [
                     slider(
-                        "step", "0", "L273 Slider(value:in:step: 0)",
+                        "step", "0",
+                        "sliderStep: SwiftUI traps on step 0 (2026-09-17 run) → continuous",
                         #"{"min":0,"max":1,"step":0,"value":0.5,"onChange":true}"#),
                     slider(
-                        "step", "-1", "L273 negative step",
+                        "step", "-1", "sliderStep: negative step → continuous",
                         #"{"min":0,"max":1,"step":-1,"value":0.5,"onChange":true}"#),
                     slider(
                         "step", big, "L273 step wider than the range",
@@ -1055,16 +1078,13 @@ final class NodeViewRenderTests: XCTestCase {
                     nav(
                         "path", "\"not-an-array\"", "L810-811 present but non-array → []",
                         #"{"path":"not-an-array"}"#),
+                    // No row pushes a route: see `pushedPathsAreOutOfReach`.
                     row(
-                        "NavigationStack", "path", "[\"/nowhere\"]",
-                        "L799 MissingNavigationRoute for a confirmed unknown route (construction only)",
-                        n("NavigationStack", #"{"path":["/nowhere"]}"#, [text(2, "root")])),
-                    row(
-                        "NavigationStack", "path", "[42, null, \"x\", \"\"]",
-                        "L811 stringArray drops non-strings, L906 filters \"/\"",
+                        "NavigationStack", "path", "[42, null, \"\", \"/\"]",
+                        "L811 stringArray drops non-strings, L906 filters \"/\" — an empty path",
                         n(
-                            "NavigationStack", #"{"path":[42,null,"x",""]}"#,
-                            [n("NavigationRoute", id: 2, #"{"path":"/x"}"#, [text(3, "x")])])),
+                            "NavigationStack", #"{"path":[42,null,"","/"]}"#,
+                            [n("NavigationRoute", id: 2, #"{"path":"/"}"#, [text(3, "x")])])),
                     row(
                         "NavigationStack", "NavigationRoute.path", "no \"/\" route",
                         "L875-881 rootRoute nil → non-route children (none)",
@@ -1084,7 +1104,7 @@ final class NodeViewRenderTests: XCTestCase {
                         "NavigationStack", "NavigationRoute.path", "[ / [[...]] / [...] / [] / 42",
                         "L894-896 RouteMatcher.parse on unnamed/unbalanced patterns (construction only; the parser itself is pinned in SupportTests)",
                         n(
-                            "NavigationStack", #"{"path":["/a/b"]}"#,
+                            "NavigationStack", "{}",
                             [
                                 n("NavigationRoute", id: 2, #"{"path":"["}"#, [text(3, "1")]),
                                 n(
@@ -1097,12 +1117,6 @@ final class NodeViewRenderTests: XCTestCase {
                                     "NavigationRoute", id: 12, #"{"path":"/[...rest]"}"#,
                                     [text(13, "6")]),
                             ])),
-                    row(
-                        "NavigationStack", "path", "50 pushed routes",
-                        "L759 NavigationStack(path:) with a deep controlled path",
-                        n(
-                            "NavigationStack", #"{"path":[\#(deepPath)]}"#,
-                            [n("NavigationRoute", id: 2, #"{"path":"/[id]"}"#, [text(3, "x")])])),
                     row(
                         "NavigationStack", "title", "42",
                         "L884 non-string title → \"\"",
