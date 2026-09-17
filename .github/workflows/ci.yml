@@ -170,3 +170,77 @@ jobs:
       - name: swift-format lint
         working-directory: js
         run: swift format lint -s -r -p swift/Sources swift/Tests ../app/targets
+
+  # The declared engine floor, walked on the CONSUMER path. js/package.json
+  # says `node >=22.18`; every other job here pins 24 because the dev tooling
+  # is typed .ts run through native type stripping, so nothing had ever loaded
+  # the shipped artifact on the floor it claims — and the shipped artifact is
+  # a different thing from the workspace: Node refuses to type-strip under
+  # node_modules, which is how 0.1.0's entry points worked in-repo and crashed
+  # on every registry install. Pack on 24 (the `prepare` hook needs it), then
+  # `npm install` the tarball into a scratch project on 22.18.0 and load each
+  # Node-loaded surface: the bin, the Expo config plugin, the esbuild preset
+  # and the manifest signer. Not the vitest suite — that is 24-only by design
+  # (CONTRIBUTING.md, "Verifying changes"). Raise the floor and this pin
+  # together.
+  node-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      # No `version` input: pnpm/action-setup reads the exact pinned version
+      # from the root package.json "packageManager" field.
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install (pnpm workspace)
+        run: pnpm install --frozen-lockfile
+      - name: Pack the tarball (Node 24 — `prepare` compiles dist-node/)
+        working-directory: js
+        run: pnpm pack --pack-destination "$RUNNER_TEMP/pack"
+      # Second setup-node in the same job: from here on PATH is the floor.
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "22.18.0"
+      # zizmor flags any install outside a lockfile; installing the tarball
+      # this job just packed, the way a consumer would, IS the check.
+      - name: Install the tarball with npm on the floor
+        working-directory: ${{ runner.temp }}
+        run: | # zizmor: ignore[adhoc-packages]
+          set -euo pipefail
+          node --version
+          mkdir consumer && cd consumer
+          npm init -y >/dev/null
+          # npm resolves the required peers (react, react-reconciler) itself;
+          # the optional ones stay out, exactly as in a consumer that has not
+          # installed Expo. `--ignore-scripts` is NOT passed: the package has
+          # no install scripts, and a future one should run here.
+          npm install "$RUNNER_TEMP"/pack/react-watchos-*.tgz
+      - name: Node-loaded surfaces load on the floor
+        working-directory: ${{ runner.temp }}/consumer
+        run: |
+          set -euo pipefail
+          # The bin: no arguments prints usage and exits 0 (a flag is an
+          # unknown command and exits 1), so bare is the smoke.
+          ./node_modules/.bin/react-watchos
+          # The Expo config plugin, the way Expo's resolver loads it — a CJS
+          # require() of the ESM app.plugin.js, which is what needs >= 22.12.
+          node -e '
+            const m = require("react-watchos/app.plugin");
+            if (typeof (m.default ?? m) !== "function") throw new Error("app.plugin did not export a function");
+          '
+          # The esbuild preset and the OTA manifest signer, the two ESM
+          # entry points a consumer's build script imports.
+          node --input-type=module -e '
+            const build = await import("react-watchos/build");
+            if (typeof build.watchBuildOptions !== "function") throw new Error("react-watchos/build: no watchBuildOptions");
+            const manifest = await import("react-watchos/manifest");
+            const key = manifest.generateSigningKey();
+            if (!key.keyId || !key.publicKeyBase64) throw new Error("react-watchos/manifest: generateSigningKey returned no key");
+          '

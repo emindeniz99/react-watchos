@@ -1,7 +1,8 @@
 name: release
 
-# ONE run, TWO jobs: release-please cuts the release, then the npm publish
-# happens in the SAME run, gated on release-please's own output.
+# ONE run, three stages: release-please cuts the release, ci.yml, quality.yml
+# and build.yml re-run against THAT TAG as called workflows, then the npm
+# publish happens in the SAME run, gated on all of it.
 #
 # - The FILENAME release.yml is load-bearing — npm's trusted publisher config
 #   matches on organization/user + repository + WORKFLOW FILENAME (basename,
@@ -22,10 +23,18 @@ name: release
 #
 # RUNBOOK
 # - Normal release: merge the release-please PR. Nothing manual. That push runs
-#   job 1 (tags + creates the Release) and then job 2 (publishes THAT TAG).
+#   job 1 (tags + creates the Release), the called gates against the tag, and
+#   then job 2 (publishes THAT TAG).
 # - A publish that failed: re-run the failed job, push anything to main, or
 #   dispatch this workflow. All three converge on the same gate, which
 #   publishes only what is missing from the registry — re-runs are green no-ops.
+# - A red `gates`/`quality`/`watch-build` job: the tag's tree cannot change,
+#   so no re-run turns it green (a macOS runner or CocoaPods hiccup is the
+#   exception — re-run the failed jobs once before concluding). Otherwise
+#   fix on main and let the next release-please PR carry it —
+#   that version's tag is what gets verified and published. The red one stays
+#   a tagged Release with no npm version, which every later push re-reports
+#   until the next release moves the manifest past it.
 # - Refreshing a stale release PR (e.g. after a dropped push event — the
 #   2026-08-06 Actions outage left the PR stale with no way to refresh it but
 #   another push): dispatch this workflow. Job 1 refreshes the PR; job 2 sees
@@ -145,8 +154,67 @@ jobs:
           echo "publish=true" >>"$GITHUB_OUTPUT"
           echo "::notice::react-watchos@${VERSION} is not on npm — publishing ${TAG}."
 
-  publish:
+  # The gates main runs, re-run against the TAG. Until 2026-09 `publish`
+  # depended on `release_please` alone: it re-ran five of the checks a push
+  # to main runs (build, typecheck, lint, size, vitest) and RACED the rest —
+  # codegen drift, the examples' single-React build, the Linux `swift build`
+  # + `swift test` of the sources the tarball ships, publint/attw over the
+  # packed artifact — none of which could stop a publish. ci.yml, quality.yml
+  # and build.yml are called here as reusable workflows (the pattern
+  # vendor-quickjs.yml uses for the bot's branch) with the tag as `ref`, and
+  # `publish` needs all three. Only when there is something to publish: on an
+  # ordinary push to main the workflows already ran on their own triggers.
+  #
+  # build.yml is the expensive one — three macOS jobs, ~30-40 min wall clock
+  # per publish — and it is called anyway, because it is the ONLY place the
+  # `#if os(watchOS)` host compiles: the Linux `swift build` in ci.yml
+  # builds that target as an empty module. Without it a Swift compile break
+  # in ReactWatchHost or ReactWatchWidget publishes green and surfaces in a
+  # consumer's Xcode after they have installed the version. Its concurrency
+  # group carries `github.workflow`, so this called copy and a
+  # push-triggered run on the same ref never cancel each other.
+  #
+  # `permissions` is stated even though it looks redundant: a called
+  # workflow's token can only be equal to or narrower than the CALLER's, and
+  # this file declares `permissions: {}` at the top; ci.yml's jobs ask for
+  # `contents: read`, so without this the run is rejected before any job
+  # starts. The `./` form, not GitHub's `$/` self-repository form zizmor
+  # wants: actionlint 1.7.12 rejects `$/` for reusable-workflow calls, and a
+  # `uses:` GitHub refuses kills the whole file (see vendor-quickjs.yml).
+  gates:
     needs: release_please
+    if: needs.release_please.outputs.publish == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ needs.release_please.outputs.tag }}
+
+  quality:
+    needs: release_please
+    if: needs.release_please.outputs.publish == 'true'
+    # Same rule as `gates` above.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/quality.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ needs.release_please.outputs.tag }}
+
+  watch-build:
+    needs: release_please
+    if: needs.release_please.outputs.publish == 'true'
+    # Same rule as `gates` above.
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build.yml # zizmor: ignore[self-repository]
+    with:
+      ref: ${{ needs.release_please.outputs.tag }}
+
+  publish:
+    # `needs` on the three called workflows is the gate: a red or cancelled
+    # battery skips this job (no status-check function in the `if`, so
+    # `success()` is implied), and the RUNBOOK above says what happens next.
+    needs: [release_please, gates, quality, watch-build]
     if: needs.release_please.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -175,19 +243,25 @@ jobs:
       # Trusted publishing requires npm >= 11.5.1. Whichever npm the Node 24
       # image happens to bundle is an assumption, not a control: an image
       # refresh that ships an older npm would break OIDC auth at publish time,
-      # after the tag and the Release already exist. Pin it.
+      # after the tag and the Release already exist. Pin it — to an EXACT
+      # version, not a range: `^11.5.1` resolved to whatever the registry
+      # served on the day, so the one job that holds `id-token: write` ran a
+      # publisher nobody had chosen. Bump deliberately, with a look at the
+      # release notes; the OIDC floor is the reason for the pin, not its value.
       # (zizmor flags any un-lockfiled global install; that IS the point here —
       # the version we need is a control, not whatever the image ships.)
       - name: Pin npm (trusted publishing needs >= 11.5.1)
-        run: npm install -g npm@^11.5.1 # zizmor: ignore[adhoc-packages]
+        run: npm install -g npm@11.19.1 # zizmor: ignore[adhoc-packages]
       - name: Install (pnpm workspace)
         run: pnpm install --frozen-lockfile
-      # The quality gates run HERE, against the tagged tree, before the registry
-      # is contacted. js/package.json's prepublishOnly runs the same
-      # build/typecheck/lint/size chain, but only once `npm publish` is already
-      # underway — i.e. after the tag and the GitHub Release exist. It stays
-      # there as belt and braces; a red gate should fail on a named step, not
-      # strand a version that is already tagged and Released.
+      # The core gates run HERE too, against the tagged tree, before the
+      # registry is contacted — cold, in the one job that holds `id-token:
+      # write`, on the exact checkout that gets packed. The wider battery ran
+      # in `gates`/`quality` above. js/package.json's prepublishOnly runs the
+      # same build/typecheck/lint/size chain, but only once `npm publish` is
+      # already underway — i.e. after the tag and the GitHub Release exist. It
+      # stays there as belt and braces; a red gate should fail on a named
+      # step, not strand a version that is already tagged and Released.
       - name: Build (node target)
         working-directory: js
         run: pnpm run build:node

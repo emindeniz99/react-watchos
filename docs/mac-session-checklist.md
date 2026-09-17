@@ -203,7 +203,9 @@ assume the same of any new watchOS-only exhaustive `switch`.
 
 - Merge the release-please PR when you want the next npm release
 - Mark `engine attest / attested` a **required** check in branch protection
-  (the paths-ignore twin means this can no longer wedge non-engine PRs)
+  (the workflow has no paths filter and reports on every PR — green when
+  nothing under `js/swift/Sources/CQuickJS` changed — so it cannot wedge
+  non-engine PRs)
 - Attest the bump bot's engine PR out-of-band (~28 Aug), then add the
   `engine-digest-attested` label — the bot must never attest itself
 - File the two ready drafts:

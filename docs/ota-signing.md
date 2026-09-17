@@ -145,6 +145,16 @@ bundle can never run against a newer-schema db. With the **hard** gate, stale JS
 won't boot at all (it shows a native "update required" screen, recoverable via
 `OTAConfig.manifestURL`).
 
+"Older" means a lower `version` — nothing else in the signed bytes is ordered.
+`releaseId` is a content hash (it tells two bundles apart, not which came
+first), so at the **same** `version` the watch treats any validly signed bundle
+as acceptable: whoever controls the manifest URL can serve an earlier signed
+build in place of the current one, and the device will install it as a "fresh"
+release. That is not a rollback the high-water mark can see. The one bound is
+the signed expiry from §2 — set `OTA_SIGNING_EXPIRES_DAYS` (or `expiresAt` in
+`signManifest`) to the longest window you are prepared to have an old build
+re-served in, and re-sign to extend.
+
 ## 4. Health signal — when a bundle is trusted enough to keep (ARCH-04)
 
 A signature proves a bundle is *authentic*. It does not prove it *works*. So
@@ -265,7 +275,7 @@ already declares isn't the kind of change 2.5.2 is aimed at.
 | Purpose unchanged | An OTA update carries **JavaScript only** — one `bundle.js` plus a small manifest. No native code, no dylibs, no downloaded bytecode. Entitlements, `Info.plist`, the target set, and every native capability stay in the code-signed binary, so a bundle can only re-arrange behavior the reviewed app already had. |
 | Purpose unchanged (enforced, not promised) | **`CapabilityGate`** (ARCH-01) refuses any bundle whose required feature set isn't a subset of the binary's — the answer is "update the app from the App Store", not "download more". **`HostPolicy`** (ARCH-07) lets the consumer narrow that further; a feature the app didn't authorize is absent from `__host` and rejects with `POLICY_DENIED`. Turning a sensitive feature (health, BLE, network, notifications, AI) on is **always a native release**. |
 | No store-within-a-store | One app, one bundle, one publisher: the update channel is a manifest URL **you** control, resolved against **your** trusted signer keys. There is no bundle marketplace, no third-party code distribution, and no purchase surface outside StoreKit (the `iap` capability is native). |
-| Security not compromised | Every bundle is **Ed25519-signed** over `v2:<keyId>:<version>:<expiresAt>:<bundle-js>`, with the `keyId` bound **inside** the signed bytes and the trust anchor (`signerPublicKeys`) shipping in the code-signed binary; an unknown `keyId` fails closed, empty keys refuse saves entirely, records are **re-verified at every boot** (app and widget), and the anti-rollback high-water mark plus the optional signed expiry stop replays. The bundle runs inside the app's own sandbox in an interpreter — it cannot reach anything the binary doesn't hand it. |
+| Security not compromised | Every bundle is **Ed25519-signed** over `v2:<keyId>:<version>:<expiresAt>:<bundle-js>`, with the `keyId` bound **inside** the signed bytes and the trust anchor (`signerPublicKeys`) shipping in the code-signed binary; an unknown `keyId` fails closed, empty keys refuse saves entirely, records are **re-verified at every boot** (app and widget), and the anti-rollback high-water mark refuses any bundle whose `version` is below the newest applied. What the high-water mark does **not** stop is a replay at the **same** `version` — any bundle you ever signed at the current compatibility version is still acceptable to the watch until its signed `expiresAt` lapses, so the expiry is the only bound on that window (§2, §3). The bundle runs inside the app's own sandbox in an interpreter — it cannot reach anything the binary doesn't hand it. |
 | Security not compromised (availability side) | The **health gate**: `otaBootAttempts` rolls a bundle back to the last known-good after 3 un-blessed launches, and `OTAConfig.healthSignal = .explicit` makes the bundle prove itself with `markUpdateHealthy()` after your own checks. A bad update degrades to the reviewed, shipped bundle instead of stranding the user. |
 
 **On the bytecode.** The `.qbc` blob is **compiled on the device**, by the

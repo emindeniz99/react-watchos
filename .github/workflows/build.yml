@@ -18,7 +18,9 @@ on:
   # Callable from another workflow — see the same block in ci.yml for why. An
   # engine bump is exactly the change this macOS job exists for: CQuickJS is
   # compiled for arm64_32 here and nowhere else, so the bot runs it on the
-  # vendor branch before asking anyone to look at the PR.
+  # vendor branch before asking anyone to look at the PR. release.yml calls
+  # it against the tag it is about to publish, for the same reason: the
+  # `#if os(watchOS)` host the tarball ships compiles here and nowhere else.
   workflow_call:
     inputs:
       ref:
@@ -64,7 +66,14 @@ on:
     - cron: "23 3 * * *"
 
 concurrency:
-  group: rnwatchos-build-${{ github.ref }}
+  # `github.workflow` is in the key because a CALLED workflow sees its
+  # caller's name there: release.yml's copy of this build lands in
+  # `rnwatchos-build-release-<ref>`, the push-triggered run on the same ref
+  # in `rnwatchos-build-watch build-<ref>`, and neither cancels the other.
+  # Keyed on the ref alone they shared one group, and cancel-in-progress
+  # would have killed whichever started first — the publish gate, or
+  # main's own run (same fix as quality.yml's).
+  group: rnwatchos-build-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 defaults:

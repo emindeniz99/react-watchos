@@ -15,14 +15,28 @@ name: engine attest
 # upstream release page on a different machine/network, a colleague, a mirror)
 # and adds the `engine-digest-attested` label. Bot or human authored, same rule.
 #
+# It runs on EVERY pull request, with no paths filter, and decides for itself
+# whether the engine changed. Until 2026-09 this was a pair: this file with
+# `paths: js/swift/Sources/CQuickJS/**` and a twin with the complementary
+# `paths-ignore`, whose same-named job always passed — GitHub's documented
+# answer to a required check that would otherwise sit at "Expected — waiting
+# for status" on every PR it does not apply to. The pair was not
+# complementary: a paths filter fires when ANY changed file matches, so a PR
+# touching the engine plus one unrelated file ran both, and `attested`
+# reported twice, red and green, under the one name branch protection looks
+# at. Made required, the gate could be waved through by bundling any other
+# file with the engine change. One workflow, one job, one verdict — and no
+# filter means it always reports, so the wedge the twin existed for is gone.
+#
 # It runs on `labeled`/`unlabeled` too, so adding the label re-runs the check
-# and turns it green without a push.
+# and turns it green without a push. `labeled` is also what makes it report
+# at all on a PR opened with GITHUB_TOKEN (release-please, the vendor bot):
+# those raise no pull_request events at open time, and a human adding any
+# label fires one with THEIR token.
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-    paths:
-      - "js/swift/Sources/CQuickJS/**"
 
 permissions: {}
 
@@ -30,9 +44,29 @@ jobs:
   attested:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      pull-requests: read
     steps:
+      - name: Does this PR touch the vendored engine?
+        id: engine
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          # The PR's file list from the API rather than a checkout and a diff:
+          # no clone, and it is the merge-base diff GitHub itself shows. The
+          # names arrive as data in a shell variable, never through a template
+          # expansion; an odd name can only add a matching line, never hide
+          # one, so the check fails closed.
+          files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
+          if printf '%s\n' "$files" | grep -q '^js/swift/Sources/CQuickJS/'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "nothing under js/swift/Sources/CQuickJS changed; no tarball digest to attest"
+          fi
       - name: The vendored engine needs an out-of-band digest check
+        if: steps.engine.outputs.changed == 'true'
         env:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |

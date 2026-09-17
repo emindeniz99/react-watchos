@@ -44,6 +44,59 @@ minimumReleaseAgeStrict: true
 overrides:
   '@xmldom/xmldom@~0.7.0': ^0.8.12
 
+# Advisory baseline for the `pnpm audit --audit-level=high` gate in
+# security.yml. Every GHSA here was already open against this lockfile when
+# the gate went in (2026-09-17: 34 high findings, 24 advisories, all
+# transitive through the Expo 57 / react-native toolchain); listing them is
+# what lets the NEXT advisory fail the run instead of drowning in a red
+# baseline. This file, not `pnpm audit --ignore`: under pnpm 11 that flag
+# WRITES the id into this list and exits 0 — it is an editor, not a filter —
+# so a workflow that passed it would never gate anything. The key is read
+# from pnpm 11.16 on (the pinned packageManager is 11.18); an older pnpm
+# ignores it and prints the full list.
+#
+# Removal: the fix is a lockfile refresh, not a longer list. Each package
+# below has a patched release older than the 7-day cooldown (so the refresh
+# is not blocked), except image-size 1.x, for which the advisory names no
+# patched version. When the bump lands, DELETE the entries it fixes — pnpm 11
+# does not report a stale ignore, so a forgotten one silently hides a real
+# recurrence. `pnpm audit --audit-level=high` with the entries removed is
+# the proof that the bump took.
+audit:
+  ignore:
+    # @xmldom/xmldom 0.8.13 (under @expo/plist) and 0.9.10 (under plist);
+    # patched in 0.8.15 / 0.9.12.
+    - GHSA-27p8-2357-5qqv
+    - GHSA-3px3-54cx-rmw9
+    - GHSA-4w3w-2rp5-g8jm
+    - GHSA-6mj3-qw4j-hgrw
+    - GHSA-8344-3jmq-59r6
+    - GHSA-93r5-fhx6-vmg9
+    - GHSA-965w-775f-mr7g
+    - GHSA-c7q8-3ch8-vqpv
+    - GHSA-g53g-w8rj-fmg7
+    - GHSA-vr34-hp96-76pp
+    - GHSA-w2rr-34g9-rvrj
+    - GHSA-x4fp-j954-r2f4
+    # js-yaml 4.2.0 (under @expo/xcpretty); patched in 4.3.2.
+    - GHSA-2883-xcg3-v3hh
+    - GHSA-52cp-r559-cp3m
+    - GHSA-5p4m-2wfm-xmqj
+    # nanoid 3.3.16; patched in 3.3.18.
+    - GHSA-2v37-7h3g-55p8
+    # shell-quote 1.8.4; patched in 1.9.0.
+    - GHSA-395f-4hp3-45gv
+    # brace-expansion 2.1.1 / 5.0.6; patched in 2.1.4 / 5.0.9.
+    - GHSA-3jxr-9vmj-r5cp
+    - GHSA-mh99-v99m-4gvg
+    - GHSA-rgw5-rvv9-x895
+    # browserslist 4.28.2; patched in 4.28.7.
+    - GHSA-73wf-gq98-2v4g
+    - GHSA-c83g-rgw3-j3cx
+    # image-size 1.2.1 (under react-native); no patched version listed.
+    - GHSA-5p2g-fcmc-qvqq
+    - GHSA-w3rx-r6r6-pgpr
+
 # Lifecycle-script allowlist (pnpm 11 home of package.json's former
 # pnpm.onlyBuiltDependencies): only the toolchain binaries we actually
 # execute during build/test; everything else stays sandboxed.
