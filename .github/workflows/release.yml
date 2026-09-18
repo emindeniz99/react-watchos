@@ -39,6 +39,13 @@ name: release
 #   2026-08-06 Actions outage left the PR stale with no way to refresh it but
 #   another push): dispatch this workflow. Job 1 refreshes the PR; job 2 sees
 #   the manifest version already on npm and skips green.
+# - HAZARD: merge release-adjacent PRs ONE AT A TIME and let job 1 finish in
+#   between. On 2026-09-18 two merges eight seconds apart had the second job 1
+#   bump the version from a fresh commit list but write js/package.json from
+#   a tree that predated the first merge — the release commit (0663c60)
+#   quietly reverted a peer range. The gates caught it (frozen-lockfile
+#   mismatch), v0.9.0 became a tagged Release with no npm version, and the
+#   range was restored on main for 0.9.1.
 # - HAZARD: npm refuses to republish a version that was ever `npm unpublish`ed.
 #   The self-heal branch below would then fail red on every push to main until
 #   the next release bumps the manifest past that version.
