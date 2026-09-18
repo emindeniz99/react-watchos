@@ -1,19 +1,32 @@
 name: engine attest
 
-# A required check that fails while the engine's tarball digest is unattested.
+# A required check that fails while the engine's tag→commit binding is
+# unattested.
 #
-# tools/vendor-quickjs/run.sh demands a SHA-256 obtained out-of-band, because
-# the vendored engine executes every signed OTA bundle: a `curl | tar` would
-# graft whatever the network handed back straight into the trust base. That
-# rule survives a human running the script by hand — they had to type a digest
-# they got somewhere else — but it does NOT survive automation, because the
-# bump bot hashes the very file it just downloaded. Self-consistent, and
-# therefore worthless as evidence.
+# The vendored engine executes every signed OTA bundle. What is vendored is an
+# upstream COMMIT — VERSION.md's second line, `Upstream commit:` — found by
+# resolving a release tag that is a mutable pointer. The machine can prove one
+# half: this job runs tools/vendor-quickjs/verify-upstream.sh, which fetches
+# quickjs-ng's git objects by that SHA and compares every vendored file
+# (bytes == commit), then checks that upstream's tag still names the commit.
+# It cannot prove the other half: that the binding is the one upstream meant.
+# The bump bot resolved the tag and downloaded the commit on one runner, and a
+# runner cannot vouch for itself. So any PR touching the vendored engine stays
+# red until a human resolves the tag from a machine that is not the runner
+# (`git ls-remote`, the line is in the PR body, or
+# `sh tools/vendor-quickjs/resolve-tag.sh <tag>`), sees the same commit, and
+# adds the `engine-digest-attested` label. Bot or human authored, same rule.
 #
-# So the check moves to where a human is: any PR touching the vendored engine
-# stays red until someone confirms the digest through a second channel (the
-# upstream release page on a different machine/network, a colleague, a mirror)
-# and adds the `engine-digest-attested` label. Bot or human authored, same rule.
+# The label is not sticky. This file strips it on `synchronize` (any human
+# push) and on `reopened`: a push to a CLOSED PR raises no event at all, so a
+# label that survived the close cannot be trusted to describe the head that
+# comes back. The bot strips it itself when its own push changed the engine
+# tree (its PR raises no pull_request event, so this file cannot); a bot push
+# that only moved the base keeps it. `pull-requests: write`
+# is what the strip costs, and it grants nothing an author lacks: a same-repo
+# author with write access could add the label by hand anyway, and a fork
+# PR's token is read-only, so there the strip fails red and a maintainer
+# re-checks and re-labels.
 #
 # It runs on EVERY pull request, with no paths filter, and decides for itself
 # whether the engine changed. Until 2026-09 this was a pair: this file with
@@ -32,7 +45,9 @@ name: engine attest
 # and turns it green without a push. `labeled` is also what makes it report
 # at all on a PR opened with GITHUB_TOKEN (release-please, the vendor bot):
 # those raise no pull_request events at open time, and a human adding any
-# label fires one with THEIR token.
+# label fires one with THEIR token — which is also why security.yml's
+# vendor-upstream job never runs on the bot's PR before merge, and why this
+# file runs verify-upstream.sh itself.
 
 on:
   pull_request:
@@ -44,7 +59,8 @@ jobs:
   attested:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: read
+      pull-requests: write # strips the label a push invalidates
+      contents: read # checkout for verify-upstream.sh
     steps:
       - name: Does this PR touch the vendored engine?
         id: engine
@@ -68,19 +84,55 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "nothing under js/swift/Sources/CQuickJS changed; no tarball digest to attest"
+            echo "nothing under js/swift/Sources/CQuickJS changed; no engine binding to attest"
           fi
-      - name: The vendored engine needs an out-of-band digest check
+      # A push to the head invalidates whatever a human checked before it. The
+      # label is removed here, visibly, rather than reasoned about from the
+      # timeline — and on reopen too, since a push while the PR was closed
+      # left no event to strip on.
+      - name: Strip the attestation this push (or reopen) invalidated
+        id: strip
+        if: steps.engine.outputs.changed == 'true' && (github.event.action == 'synchronize' || github.event.action == 'reopened') && contains(github.event.pull_request.labels.*.name, 'engine-digest-attested')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          EVENT: ${{ github.event.action }}
+        run: |
+          if gh api -X DELETE "repos/$REPO/issues/$PR/labels/engine-digest-attested"; then
+            echo "stripped=true" >> "$GITHUB_OUTPUT"
+            echo "removed engine-digest-attested: the head the label was added to may have changed (${EVENT})"
+          else
+            echo "::error::could not remove the label (a fork PR's token is read-only) — a maintainer removes and re-adds engine-digest-attested after re-checking VERSION.md at this head"
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.engine.outputs.changed == 'true'
+        with:
+          persist-credentials: false
+      # bytes == commit, and the tag still names the commit — a fetch by SHA
+      # plus shasum, executing nothing from upstream. Fails on a missing
+      # `Upstream commit:` line, a byte mismatch, or tag drift.
+      - name: Vendored bytes are the recorded commit's, and upstream's tag still names it
+        if: steps.engine.outputs.changed == 'true'
+        run: sh tools/vendor-quickjs/verify-upstream.sh
+      - name: The tag→commit binding needs a human's check off this runner
         if: steps.engine.outputs.changed == 'true'
         env:
           LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          STRIPPED: ${{ steps.strip.outputs.stripped }}
         run: |
-          case ",$LABELS," in
-            *,engine-digest-attested,*)
-              echo "attested — a human confirmed the tarball digest out-of-band"
-              ;;
-            *)
-              echo "::error::This PR changes js/swift/Sources/CQuickJS. Verify the upstream tarball's SHA-256 through a channel that is not this PR, then add the 'engine-digest-attested' label. The command is in the PR body for bot-opened bumps; for a hand bump it is the one tools/vendor-quickjs/run.sh printed."
-              exit 1
-              ;;
-          esac
+          tag=$(sed -n '1s/^# Vendored: quickjs-ng \(v[0-9][0-9.]*\).*/\1/p' js/swift/Sources/CQuickJS/VERSION.md)
+          commit=$(sed -n 's/^Upstream commit: \([0-9a-f]\{40\}\).*/\1/p' js/swift/Sources/CQuickJS/VERSION.md)
+          # The event payload's label list predates a strip made in this run,
+          # so a stripped label is not an attestation.
+          if [ "$STRIPPED" != true ]; then
+            case ",$LABELS," in
+              *,engine-digest-attested,*)
+                echo "attested — a human confirmed $tag → $commit from a machine that is not this runner"
+                exit 0
+                ;;
+            esac
+          fi
+          echo "::error::This PR changes js/swift/Sources/CQuickJS. From a machine that is not this runner, confirm that upstream tag $tag resolves to commit $commit (VERSION.md lines 1-2; the ls-remote line is in the PR body, or run \`sh tools/vendor-quickjs/resolve-tag.sh $tag\`), then add the engine-digest-attested label. A push to this PR, or a reopen, removes the label; re-check and re-add."
+          exit 1
