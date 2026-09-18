@@ -3,12 +3,15 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
+  bindCandidate,
   formatAge,
   pickRelease,
   renderProposal,
   renderReport,
+  resolveTag,
+  tagBindingProblem,
   type UpstreamRelease,
   vendoredTagFromHeader,
 } from "../scripts/pick-quickjs-release.ts";
@@ -57,11 +60,15 @@ describe("pickRelease", () => {
     expect(pick.candidate?.tag_name).toBe("v0.17.0");
     expect(pick.soaking.map((r) => r.tag_name)).toEqual(["v0.17.1"]);
 
+    // The body cannot render without a commit any more — that is the point:
+    // what the PR proposes is a commit, and the tag is only how it was found.
     const body = renderProposal(pick, {
       vendoredTag: "v0.16.1",
       soakDays: 7,
       sha256: "abc",
       now: NOW,
+      commit: "a".repeat(40),
+      committedAt: daysAgo(12),
     });
     expect(body).toContain("[!WARNING]");
     expect(body).toContain("v0.17.1");
@@ -252,9 +259,32 @@ describe("the decision report", () => {
       soakDays: 7,
       sha256: "abc",
       now: NOW,
+      commit: "a".repeat(40),
+      committedAt: daysAgo(12),
     });
     expect(body).toContain("Every release considered");
     expect(body).toContain("v0.17.0");
+  });
+
+  it("names the resolved commit under the decision when there is one", () => {
+    const pick = pickRelease([release("v0.17.0", 10), release("v0.16.1", 60)], {
+      vendoredTag: "v0.16.1",
+      now: NOW,
+    });
+    const report = renderReport(pick, {
+      vendoredTag: "v0.16.1",
+      soakDays: 7,
+      now: NOW,
+      resolved: {
+        tag: "v0.17.0",
+        commit: "c".repeat(40),
+        committedAt: daysAgo(12),
+      },
+    });
+    // The step summary is where "what did the bot pin?" gets answered without
+    // opening the PR.
+    expect(report).toContain(`\`v0.17.0\` → \`${"c".repeat(40)}\``);
+    expect(report).toContain("committed 2026-08-09");
   });
 
   it("names a skipped tag as skipped rather than dropping it", () => {
@@ -408,5 +438,185 @@ describe("the CLI", () => {
     // The decision instant is persisted so the PR body, rendered minutes later
     // after the tarball download, cannot report ages from a different clock.
     expect(pick.checkedAt).toBe("2026-08-21T08:00:00.000Z");
+    // The RELEASES_JSON seam never resolves the tag, so a replay is offline by
+    // construction.
+    expect(pick.commit).toBe("");
   }, 30_000);
+});
+
+// The tag is a mutable pointer; the commit is what gets vendored. Every
+// network path is mocked. The URL is asserted because the endpoint's shape is
+// the trap: `commits/tags/<tag>` answers 422 for an annotated tag (verified
+// live 2026-09-18 on git/git and nodejs/node), and quickjs-ng's tags are
+// lightweight today, so only the bare `commits/<tag>` form stays right the
+// day upstream annotates a release.
+describe("resolveTag", () => {
+  // The real answer for v0.16.2 on 2026-09-18 (ls-remote and the API agreed).
+  it("resolves a tag to its commit and committer date with one bare commits call", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            sha: "1ab8676f4b6d6d669baeb5f21790fb9734636a20",
+            commit: { committer: { date: "2026-08-20T12:21:19Z" } },
+          }),
+          { status: 200 },
+        ),
+    );
+    await expect(resolveTag("v0.16.2", fetchImpl)).resolves.toEqual({
+      tag: "v0.16.2",
+      commit: "1ab8676f4b6d6d669baeb5f21790fb9734636a20",
+      committedAt: "2026-08-20T12:21:19Z",
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+      "https://api.github.com/repos/quickjs-ng/quickjs/commits/v0.16.2",
+    );
+  });
+
+  // A transient API failure must never become `commit: ""` + propose; the
+  // workflow's decide step is the second guard.
+  it("throws with the status when upstream has no such tag", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response("", { status: 404, statusText: "Not Found" }),
+    );
+    await expect(resolveTag("v9.9.9", fetchImpl)).rejects.toThrow(/404/);
+  });
+
+  // The value goes into a download URL and VERSION.md; anything but a full
+  // sha would pin nothing.
+  it("refuses a sha that is not 40 hex", async () => {
+    const fetchImpl = vi.fn(
+      async () => new Response(JSON.stringify({ sha: "abc" }), { status: 200 }),
+    );
+    await expect(resolveTag("v0.16.2", fetchImpl)).rejects.toThrow(/40 hex/);
+  });
+});
+
+describe("tagBindingProblem", () => {
+  const res = (committedAt: string | null) => ({
+    tag: "v0.17.0",
+    commit: "a".repeat(40),
+    committedAt,
+  });
+
+  it("accepts a commit made before the release that names it", () => {
+    expect(tagBindingProblem(release("v0.17.0", 10), res(daysAgo(30)))).toBe(
+      null,
+    );
+  });
+
+  // For any honest release, commit ≤ tag ≤ publish. The 7-day soak reads
+  // published_at, which a retag keeps, so this is the one date rule that sees
+  // a retag to a fresh commit. Client-supplied dates: this catches a retag
+  // done with normal git, not a backdater — that is what the human's
+  // ls-remote check is for.
+  it("rejects a commit newer than its release — the retag signature", () => {
+    const problem = tagBindingProblem(release("v0.17.0", 10), res(daysAgo(2)));
+    expect(problem).toContain("moved");
+    expect(problem).toContain("v0.17.0");
+  });
+
+  // v0.16.2's commit preceded its release by 93 s; the hour is slack for a
+  // maintainer clock ahead of GitHub's — a guess, to revisit if an honest
+  // release is ever refused.
+  it("tolerates up to an hour of clock skew and no more", () => {
+    const published = release("v0.17.0", 10);
+    const at = Date.parse(published.published_at as string);
+    const plus = (minutes: number) =>
+      new Date(at + minutes * 60_000).toISOString();
+    expect(tagBindingProblem(published, res(plus(30)))).toBe(null);
+    expect(tagBindingProblem(published, res(plus(120)))).not.toBe(null);
+  });
+
+  // A release with no publish time never reaches here (pickRelease drops it),
+  // so the missing half can only be the commit's.
+  it("fails closed when the commit carries no committer date", () => {
+    expect(tagBindingProblem(release("v0.17.0", 10), res(null))).toContain(
+      "cannot check",
+    );
+  });
+});
+
+// The wiring the live CLI runs and no test could reach through the
+// RELEASES_JSON seam (which never resolves): a propose either carries the
+// commit it resolved, or is downgraded to none — the workflow's decide step
+// refuses a propose with an empty commit, so these two shapes are the
+// contract.
+describe("bindCandidate", () => {
+  const commitsApi = (committedAt: string) =>
+    vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            sha: "c".repeat(40),
+            commit: { committer: { date: committedAt } },
+          }),
+          { status: 200 },
+        ),
+    );
+  const proposal = () =>
+    pickRelease([release("v0.17.0", 10), release("v0.16.1", 60)], {
+      vendoredTag: "v0.16.1",
+      now: NOW,
+    });
+
+  it("keeps an honest proposal and hands back the commit it resolved", async () => {
+    const { pick, resolved } = await bindCandidate(
+      proposal(),
+      commitsApi(daysAgo(12)),
+    );
+    expect(pick.action).toBe("propose");
+    expect(resolved?.commit).toBe("c".repeat(40));
+  });
+
+  it("downgrades a moved tag to none with the reason, and resolves nothing", async () => {
+    const { pick, resolved } = await bindCandidate(
+      proposal(),
+      commitsApi(daysAgo(2)),
+    );
+    expect(pick.action).toBe("none");
+    expect(pick.reason).toContain("tag binding rejected");
+    expect(pick.reason).toContain("v0.17.0");
+    expect(resolved).toBeUndefined();
+  });
+
+  it("never calls the API when nothing is proposed", async () => {
+    const fetchImpl = commitsApi(daysAgo(12));
+    const none = pickRelease([release("v0.16.1", 60)], {
+      vendoredTag: "v0.16.1",
+      now: NOW,
+    });
+    const { pick, resolved } = await bindCandidate(none, fetchImpl);
+    expect(pick).toBe(none);
+    expect(resolved).toBeUndefined();
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+// The reviewer must be told what to check and what NOT to treat as evidence;
+// the old body asked them to re-hash the same moved tag.
+describe("the PR body", () => {
+  it("names the commit, the ls-remote check, and demotes the tarball digest", () => {
+    const pick = pickRelease([release("v0.17.0", 10), release("v0.16.1", 60)], {
+      vendoredTag: "v0.16.1",
+      now: NOW,
+    });
+    const body = renderProposal(pick, {
+      vendoredTag: "v0.16.1",
+      soakDays: 7,
+      sha256: "abc",
+      now: NOW,
+      commit: "b".repeat(40),
+      committedAt: daysAgo(12),
+    });
+    expect(body).toContain("b".repeat(40));
+    expect(body).toContain(
+      "git ls-remote --tags https://github.com/quickjs-ng/quickjs.git refs/tags/v0.17.0",
+    );
+    expect(body).toContain("refs/tags/v0.17.0^{}");
+    expect(body).toContain("verify-upstream.sh");
+    expect(body).toContain("not a durable claim");
+    expect(body).not.toContain("curl -fsSL");
+  });
 });

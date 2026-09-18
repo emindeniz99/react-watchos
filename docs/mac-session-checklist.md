@@ -209,9 +209,14 @@ assume the same of any new watchOS-only exhaustive `switch`.
   with `GITHUB_TOKEN` — release-please's release PR, the vendor bot's PR —
   raises no `pull_request` event, so the check never reports there until a
   human adds any label; required, every release PR would sit at "Expected —
-  waiting for status" until you label it.
-- Attest the bump bot's engine PR out-of-band (~28 Aug), then add the
-  `engine-digest-attested` label — the bot must never attest itself
+  waiting for status" until you label it. And a bot push that changes the
+  engine tree strips the label — re-attest the new head.
+- Attest the bump bot's engine PR: run the `git ls-remote` line in the PR
+  body from a machine and network that are not the runner (it checks the
+  tag→commit binding; the bytes are machine-checked), then add the
+  `engine-digest-attested` label — the bot must never attest itself. A bot
+  push that changes the engine tree, any human push, and a reopen strip the
+  label.
 - File the two ready drafts:
   [react-native-worklets](./upstream-issues/react-native-worklets-numericliteral.md)
   (file it on the reanimated monorepo — the worklets repo redirects) and

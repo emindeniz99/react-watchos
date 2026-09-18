@@ -71,31 +71,34 @@ and a foreign repo calling the file runs it in its own cache scope. So the
 alert's literal claim — an outsider chooses the code these jobs run — is
 untrue.
 
-They are still dismissed as **won't fix, not false positive**, because an
-adversarial pass over the claim (2026-09-18, three independent refuters, one
-judge) found the shape CodeQL describes with a different untrusted party.
-`vendor-quickjs.yml` runs on `schedule`, so its `github.ref` is `main` and its
-cache scope is main's; its `propose` job downloads quickjs-ng at a **mutable
-tag**, hashes what it downloaded, and compiles and runs it; the `gates` and
-`watch-build` calls then run that engine again on the bot branch, with
-`actions/cache` keyed on `hashFiles('js/swift/Sources/CQuickJS/**')` — the
-tree the bot just replaced — and `setup-node`'s pnpm cache saving afterwards.
-Whoever controls upstream's tags (or retags an already-soaked release: the
-7-day soak reads `published_at`, which a retag keeps) therefore runs code in
-main's cache scope before a human sees the PR, and `pnpm install
---frozen-lockfile` trusts a restored store's index, so a poisoned store
-installs green. What bounds it: every cache-restoring job is `contents:
-read` with `persist-credentials: false` and no `id-token`; `release.yml`'s
-`publish` restores nothing and cold-builds from an immutable tag; the write-
-capable jobs cache nothing. The worst case is a forged CI verdict, not
-attacker bytes on npm — and the same upstream already ships to consumers as
-C source through the normal vendor path, so vendoring is the risk being
-accepted; the pre-review window is the increment. The real reduction is
-listed in [roadmap.md](./roadmap.md)'s engine row: pin the vendoring input to
-an upstream **commit SHA** and verify the tag→commit binding through a second
-channel before anything runs. A GitHub App token for the bot's PR would move
-the gates into the PR's scope but leaves `propose` and `release.yml`'s call
-as they are, so it is not the fix.
+They are still dismissed as **won't fix, not false positive**, because
+`release.yml` still passes `ref: <tag>` (the run's own commit) into the three
+reusable files, and that is the shape the query names. The bot-side shape an
+adversarial pass over the claim found (2026-09-18, three independent
+refuters, one judge) — `vendor-quickjs.yml` runs on `schedule`, so its
+`github.ref` is `main` and its cache scope is main's; its `propose` job
+downloaded quickjs-ng at a **mutable tag**, hashed what it downloaded, and
+compiled and ran it; `ci.yml` and `build.yml` were then CALLED inside that
+same run, with `actions/cache` keyed on
+`hashFiles('js/swift/Sources/CQuickJS/**')` — the tree the bot just replaced
+— so whoever controlled upstream's tags (or retagged an already-soaked
+release: the 7-day soak reads `published_at`, which a retag keeps) ran code
+in main's cache scope before a human saw the PR — was closed on 2026-09-18
+by three changes. (i) The vendoring input is pinned to an upstream
+**commit**: resolved before the download, re-resolved over the git protocol
+in the push job, remembered in the bot branch, recorded in `VERSION.md`, and
+checked by `verify-upstream.sh` on main and before publish. (ii) Every
+execution of the download was removed from the bot's run. (iii) `ci.yml` and
+`build.yml` are dispatched on the bot branch, so their runs — and anything
+the engine does with the runtime token — are scoped to
+`refs/heads/chore/vendor-quickjs-ng`, which main, tags and PR merge refs
+never restore from. What bounds what remains: every cache-restoring job is
+`contents: read` with `persist-credentials: false` and no `id-token`;
+`release.yml`'s `publish` restores nothing and cold-builds from an immutable
+tag; the write-capable jobs cache nothing. The worst case is a forged CI
+verdict on the bot's own branch, not attacker bytes on npm — and the same
+upstream already ships to consumers as C source through the normal vendor
+path, so vendoring is the risk being accepted.
 
 A new job on the same checkout raises the alert again — dismiss again, same
 reason. Don't exclude the query in `codeql.yml`: it is the one that would

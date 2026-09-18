@@ -345,7 +345,13 @@ jobs:
       # is the last moment before bytes leave for npm: main can be pushed to
       # directly, so "it was verified when it landed" is not the same statement
       # as "it is verified now, in the run that publishes".
-      - name: Vendored engine matches upstream at its tag
+      - name: Vendored engine is the recorded upstream commit
+        # The bytes are proved against the commit; a tag upstream has since
+        # moved is security.yml's alarm on main, not a reason to strand this
+        # release on a tag that cannot change (a red gate here is a dead
+        # version).
+        env:
+          VERIFY_TAG_BINDING: warn
         run: sh tools/vendor-quickjs/verify-upstream.sh
       - name: Publish to npm (trusted publishing)
         working-directory: js

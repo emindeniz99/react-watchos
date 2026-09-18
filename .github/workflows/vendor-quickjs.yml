@@ -1,7 +1,8 @@
 name: vendor quickjs-ng
 
-# Watches quickjs-ng for releases and proposes the bump as a PR that has
-# already proved itself.
+# Watches quickjs-ng for releases and proposes the bump as a PR pinned to the
+# upstream commit the release tag resolved to, with the gates dispatched on
+# the bot's own branch.
 #
 # Why a bot at all: the engine is the runtime AND the trust base — it executes
 # every signed OTA bundle — so falling silently behind upstream is how a fixed
@@ -16,16 +17,47 @@ name: vendor quickjs-ng
 # newer has since appeared, say so at the top of the PR in a warning block
 # instead of quietly proposing the older one.
 #
-# Why it runs the gates itself: a PR opened with the built-in GITHUB_TOKEN
-# raises no `pull_request` event, so CI would never run on it. ci.yml and
-# build.yml are therefore CALLED as reusable workflows from this run, against
-# the pushed branch — including the macOS watch build, which is the only place
-# CQuickJS is compiled for arm64_32.
+# Why it vendors a COMMIT, not the tag: a release tag is a mutable pointer, so
+# the same tag downloaded on two days can be two trees, and a digest the bot
+# computes over its own download cannot tell. The picker resolves the candidate
+# tag to a commit through the GitHub API before anything is fetched, refuses a
+# commit newer than the release that names it (the retag signature — the soak
+# reads published_at, which a retag keeps), and from there the download URL,
+# VERSION.md, tools/vendor-quickjs/verify-upstream.sh and the PR body all carry
+# the commit. The push job re-resolves the tag over the git protocol and
+# refuses to push if the answer moved, and refuses when the bot branch already
+# pinned the same tag to a different commit: our own history is the one memory
+# an upstream retag cannot refresh.
 #
-# What it deliberately does NOT do: attest the tarball. The bot hashes the file
-# it just downloaded, which proves nothing about that file (M9 wants a second
-# channel). A human confirms the digest and adds the `engine-digest-attested`
-# label; engine-attest.yml fails the PR until they do.
+# Why nothing from the download runs in this file: the run is scheduled, so
+# its github.ref is main and its cache scope is main's. Until 2026-09 `propose`
+# compiled and ran the engine it had just downloaded, then CALLED ci.yml and
+# build.yml as reusable workflows — inside this run, main's ref, main's scope —
+# so a hijacked upstream tag was code running in main's cache scope before any
+# human looked (`gh cache list` showed a bot run saving qjs-macOS-ARM64-<hash>
+# into refs/heads/main on 2026-08-27, a week before that engine merged). Now
+# `propose` only downloads, verifies, copies and compares against upstream's
+# git objects; `push` only pushes; and the gates are DISPATCHED
+# (workflow_dispatch is one of the two events GITHUB_TOKEN may raise) with
+# ref = the bot branch, so they run under that branch's ref and cache scope,
+# which main, tags and PR merge refs never restore from. The first place the
+# new engine executes is that branch-scoped run. The cost is `actions: write`
+# on the dispatch job — a scope the push job does not hold, kept apart from
+# its `contents: write`: held alone, in a job with no checkout, for one API
+# call (what it reaches beyond that call is listed on the job).
+#
+# Why dispatch rather than a `pull_request` run: a PR opened with the built-in
+# GITHUB_TOKEN raises no `pull_request` event, so CI would never run on it.
+# build.yml is dispatched too because its macOS job is the only place CQuickJS
+# is compiled for arm64_32.
+#
+# What it deliberately does NOT do: vouch for the tag→commit binding. The bot
+# resolved the tag and downloaded the commit on one runner, which proves
+# nothing about upstream. A human checks `git ls-remote` from a machine that is
+# not this runner and adds the `engine-digest-attested` label; engine-attest.yml
+# fails the PR until they do. A later push that changes the engine tree strips
+# the label (this file, for its own push; engine-attest.yml, for any human push
+# and for a reopen). A bot push that only moved the base keeps it.
 
 on:
   schedule:
@@ -53,11 +85,12 @@ env:
 
 jobs:
   # ── 1. Decide, vendor, prove — with a read-only token ──────────────────────
-  # This job compiles and RUNS the engine it just downloaded (embed-smoke, the
-  # bytecode compiler). A hijacked upstream tag is therefore arbitrary code on
-  # this runner, so the runner must hold nothing worth taking: `contents: read`
-  # and no persisted credentials. Pushing is the next job's, which executes
-  # nothing from the tarball.
+  # Downloads the archive at the resolved commit, verifies the digest, copies
+  # the files and proves the tree against upstream's git objects. Nothing from
+  # the tarball executes here (curl, shasum, tar, cp, sed, git fetch), so a
+  # hijacked upstream cannot run code in main's cache scope from this run.
+  # `contents: read` and no persisted credentials all the same: the runner
+  # holds nothing worth taking. Pushing is the next job's.
   propose:
     runs-on: ubuntu-latest
     permissions:
@@ -65,6 +98,7 @@ jobs:
     outputs:
       propose: ${{ steps.decide.outputs.propose }}
       tag: ${{ steps.decide.outputs.tag }}
+      commit: ${{ steps.decide.outputs.commit }}
       branch: ${{ steps.decide.outputs.branch }}
       sha256: ${{ steps.vendor.outputs.sha256 }}
       body: ${{ steps.body.outputs.b64 }}
@@ -94,9 +128,17 @@ jobs:
             | tee "$RUNNER_TEMP/report.md"
           action=$(jq -r .action "$PICK_OUT")
           tag=$(jq -r .tag "$PICK_OUT")
+          commit=$(jq -r .commit "$PICK_OUT")
+          # The picker resolved the tag before deciding; an empty commit on a
+          # propose means the resolution was lost, and nothing downloads.
+          if [ "$action" = propose ] && [ -z "$commit" ]; then
+            echo "::error::candidate has no resolved commit"
+            exit 1
+          fi
           {
             echo "propose=$([ "$action" = propose ] && echo true || echo false)"
             echo "tag=$tag"
+            echo "commit=$commit"
             echo "branch=chore/vendor-quickjs-ng"
           } >> "$GITHUB_OUTPUT"
           {
@@ -105,9 +147,10 @@ jobs:
             cat "$RUNNER_TEMP/report.md"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # The engine numbers BEFORE the bump, so the PR can state the delta rather
-      # than an absolute nobody can calibrate. Cheap: the objects are cached
-      # per stamp, and this is the last time they exist for the old engine.
+      # The engine numbers BEFORE the bump — main's own engine, measured before
+      # anything is downloaded. The after-bump numbers live in the step summary
+      # of the ci.yml run dispatched on the bump branch (its "C-embed smoke"
+      # step), which is the first place the new engine executes.
       - name: Measure the current engine
         if: steps.decide.outputs.propose == 'true'
         run: |
@@ -122,15 +165,16 @@ jobs:
         if: steps.decide.outputs.propose == 'true'
         env:
           TAG: ${{ steps.decide.outputs.tag }}
+          COMMIT: ${{ steps.decide.outputs.commit }}
         run: |
-          url="https://github.com/quickjs-ng/quickjs/archive/refs/tags/$TAG.tar.gz"
+          url="https://github.com/quickjs-ng/quickjs/archive/$COMMIT.tar.gz"
           curl -fsSL "$url" -o upstream.tar.gz
           sha=$(sha256sum upstream.tar.gz | cut -d' ' -f1)
           echo "sha256=$sha" >> "$GITHUB_OUTPUT"
-          # The vendoring script is the same one a human runs by hand, digest
-          # and all — the bot is not allowed a shortcut the maintainer does not
-          # have.
-          sh tools/vendor-quickjs/run.sh "$TAG" "$sha"
+          # The vendoring script is the same one a human runs by hand, commit
+          # and digest and all — the bot is not allowed a shortcut the
+          # maintainer does not have.
+          sh tools/vendor-quickjs/run.sh "$TAG" "$COMMIT" "$sha"
 
       # Our build compiles exactly four upstream .c files. If upstream splits
       # the engine into a fifth, the vendored tree still COMPILES and silently
@@ -153,11 +197,11 @@ jobs:
           fi
           rm -rf "$root" upstream.tar.gz
 
-      - name: Measure the proposed engine
+      # The archive is a generated representation; the git objects are the
+      # authority. A fetch by SHA plus shasum — executes nothing from upstream.
+      - name: Vendored bytes are that commit's git objects
         if: steps.decide.outputs.propose == 'true'
-        run: |
-          pnpm --filter react-watchos build:bytecode
-          sh tools/embed-smoke/run.sh 2>&1 | tee "$RUNNER_TEMP/after.txt"
+        run: sh tools/vendor-quickjs/verify-upstream.sh
 
       - name: Render the PR body
         id: body
@@ -175,12 +219,12 @@ jobs:
             --render "$RUNNER_TEMP/pick.json" "$TARBALL_SHA256" > "$RUNNER_TEMP/body.md"
           {
             echo
-            echo "### Engine measurements (this run, Linux x86_64 — not a watch)"
+            echo "### Engine before the bump (this run, Linux x86_64 — not a watch)"
             echo
-            echo "| | before | after |"
-            echo "|---|---|---|"
-            echo "| heap / boot | $(grep -h '\[mem\]\|\[boot\]' "$RUNNER_TEMP/before.txt" | tr '\n' ' ') | $(grep -h '\[mem\]\|\[boot\]' "$RUNNER_TEMP/after.txt" | tr '\n' ' ') |"
+            grep -h '\[mem\]\|\[boot\]' "$RUNNER_TEMP/before.txt"
             echo
+            echo "After the bump: the \"C-embed smoke\" summary of the ci.yml run dispatched on"
+            echo "this branch — the bump branch is the first place the new engine runs."
             echo "Numbers are from \`tools/embed-smoke/run.sh\` — the vendored engine plus the"
             echo "reference C host, i.e. the embedding sequence JSRuntime.swift uses. Boot time"
             echo "on a shared runner is noisy; treat a <10% move as noise and the heap figure as"
@@ -190,11 +234,13 @@ jobs:
           echo "b64=$(base64 -w0 "$RUNNER_TEMP/body.md")" >> "$GITHUB_OUTPUT"
 
   # ── 2. Push — the one job that can write, and it runs nothing new ──────────
-  # Re-vendors from the DIGEST job 1 produced rather than receiving its tree:
-  # tools/vendor-quickjs/run.sh refuses a tarball whose SHA-256 differs and
-  # only copies files out of it, so what lands here is byte-for-byte the tree
-  # that compiled and passed above — or a loud mismatch and no push. No Node,
-  # no pnpm, no compiler: nothing in this job executes anything from the
+  # Re-vendors from the COMMIT and DIGEST job 1 produced rather than receiving
+  # its tree: tools/vendor-quickjs/run.sh downloads by commit, refuses a
+  # tarball whose SHA-256 differs and only copies files out of it, so what
+  # lands here is byte-for-byte the tree that was proved above — or a loud
+  # mismatch and no push. Before that, the tag is re-resolved over the git
+  # protocol (no token, no API) and must still name the commit. No Node, no
+  # pnpm, no compiler: nothing in this job executes anything from the
   # download, which is the whole point of holding `contents: write` here and
   # nowhere else.
   push:
@@ -203,26 +249,44 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # pushes the vendor branch; nothing from the download executes here
+    outputs:
+      pushed: ${{ steps.push.outputs.pushed }}
+      engine_changed: ${{ steps.push.outputs.engine_changed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: true
-      - name: Re-vendor from the digest job 1 verified against
+      - name: Upstream still binds the tag to that commit
         env:
           TAG: ${{ needs.propose.outputs.tag }}
+          COMMIT: ${{ needs.propose.outputs.commit }}
+        run: |
+          resolved=$(sh tools/vendor-quickjs/resolve-tag.sh "$TAG")
+          if [ "$resolved" != "$COMMIT" ]; then
+            echo "::error::$TAG resolved to $COMMIT when proposed and to $resolved now — the tag moved between propose and push; not pushing"
+            exit 1
+          fi
+      - name: Re-vendor from the commit and digest job 1 verified against
+        env:
+          TAG: ${{ needs.propose.outputs.tag }}
+          COMMIT: ${{ needs.propose.outputs.commit }}
           TARBALL_SHA256: ${{ needs.propose.outputs.sha256 }}
-        run: sh tools/vendor-quickjs/run.sh "$TAG" "$TARBALL_SHA256"
+        run: sh tools/vendor-quickjs/run.sh "$TAG" "$COMMIT" "$TARBALL_SHA256"
 
       # One long-lived branch, force-updated: the PR is a standing proposal that
       # retargets itself as upstream moves, rather than a graveyard of stale
       # per-version PRs. Guarded — if a human has pushed onto the branch, the
       # bot backs off rather than discarding their work.
       - name: Push the branch
+        id: push
         env:
           BRANCH: ${{ needs.propose.outputs.branch }}
           TAG: ${{ needs.propose.outputs.tag }}
+          COMMIT: ${{ needs.propose.outputs.commit }}
         run: |
+          exists=false
           if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            exists=true
             # Fetch the branch before reading or overwriting it. actions/checkout
             # brings down only the ref that triggered the run, so without this
             # there is no refs/remotes/origin/$BRANCH — which broke BOTH things
@@ -236,6 +300,16 @@ jobs:
             author=$(git log -1 --format='%an' "origin/$BRANCH" 2>/dev/null || echo "")
             if [ -n "$author" ] && [ "$author" != "github-actions[bot]" ]; then
               echo "::error::$BRANCH carries a commit by $author — refusing to force-update someone else's work"
+              exit 1
+            fi
+            # The bot branch is the one memory an upstream retag cannot
+            # refresh: if it already pinned this tag to a different commit, the
+            # tag moved since the last proposal, and a human decides.
+            prev=$(git show "origin/$BRANCH:js/swift/Sources/CQuickJS/VERSION.md" 2>/dev/null || true)
+            prev_tag=$(printf '%s\n' "$prev" | sed -n '1s/^# Vendored: quickjs-ng \(v[0-9][0-9.]*\).*/\1/p')
+            prev_commit=$(printf '%s\n' "$prev" | sed -n 's/^Upstream commit: \([0-9a-f]\{40\}\).*/\1/p')
+            if [ "$prev_tag" = "$TAG" ] && [ -n "$prev_commit" ] && [ "$prev_commit" != "$COMMIT" ]; then
+              echo "::error::$TAG moved since the last proposal (was $prev_commit, now $COMMIT) — a human decides: SKIP_TAGS, or close the PR and delete the branch to re-propose"
               exit 1
             fi
           fi
@@ -254,64 +328,49 @@ jobs:
           # on the watch; a patch release is the honest label.
           git commit -m "fix(deps): vendor quickjs-ng $TAG
 
+          Upstream commit: $COMMIT
+
           Proposed by .github/workflows/vendor-quickjs.yml after the release
-          soaked. The tarball digest still needs a human's out-of-band check —
-          see the PR body."
-          git push --force-with-lease -u origin "$BRANCH"
+          soaked. The tag→commit binding, not the digest, still needs a
+          human's check from a machine that is not the runner — see the PR
+          body."
+          # Push only when the tree changed. An unchanged tree re-pushed daily
+          # re-ran the macOS build every day a PR sat open and would strip a
+          # fresh attestation every morning. The commit message carries no
+          # date, so a re-vendor of the same commit on the same main is the
+          # same tree. `engine_changed` is narrower — the CQuickJS subtree —
+          # so a main-only move re-runs the gates without invalidating the
+          # attestation.
+          pushed=true
+          engine_changed=true
+          if [ "$exists" = true ]; then
+            if [ "$(git rev-parse 'HEAD^{tree}')" = "$(git rev-parse "origin/$BRANCH^{tree}")" ]; then
+              pushed=false
+            fi
+            if git diff --quiet "origin/$BRANCH" HEAD -- js/swift/Sources/CQuickJS; then
+              engine_changed=false
+            fi
+          fi
+          {
+            echo "pushed=$pushed"
+            echo "engine_changed=$engine_changed"
+          } >> "$GITHUB_OUTPUT"
+          if [ "$pushed" = true ]; then
+            git push --force-with-lease -u origin "$BRANCH"
+          else
+            echo "tree unchanged since the last push of $BRANCH; not pushing"
+          fi
 
-  # ── 3. Prove it, using the SAME gates main uses ────────────────────────────
-  # `needs` on both: `push` is what makes the branch exist, `propose` is where
-  # its name comes from. A skipped push (nothing soaked) skips these too.
-  gates:
-    needs: [propose, push]
-    # Stated even though it looks redundant: a called workflow's token can only
-    # be equal to or narrower than the CALLER's, and this file declares
-    # `permissions: {}` at the top. ci.yml's jobs ask for `contents: read`, so
-    # without this the whole run is rejected before any job starts
-    # (conclusion: startup_failure, "No jobs were run").
-    permissions:
-      contents: read
-    # GitHub's `$/` self-repository form
-    # (shipped 2026-07-30) is what zizmor wants here, and it resolves to the
-    # same running commit `./` does. It is NOT taken because actionlint
-    # 1.7.12 — the newest release as of 2026-09-03 — rejects `$/` for
-    # reusable-workflow calls outright, and actionlint is the gate that
-    # models what GitHub will actually parse; a `uses:` GitHub refuses kills
-    # the entire file before any job starts. Revisit when actionlint learns
-    # the syntax.
-    uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
-    with:
-      ref: ${{ needs.propose.outputs.branch }}
-
-  watch-build:
-    needs: [propose, push]
-    # Same rule as `gates` above.
-    permissions:
-      contents: read
-    # GitHub's `$/` self-repository form
-    # (shipped 2026-07-30) is what zizmor wants here, and it resolves to the
-    # same running commit `./` does. It is NOT taken because actionlint
-    # 1.7.12 — the newest release as of 2026-09-03 — rejects `$/` for
-    # reusable-workflow calls outright, and actionlint is the gate that
-    # models what GitHub will actually parse; a `uses:` GitHub refuses kills
-    # the entire file before any job starts. Revisit when actionlint learns
-    # the syntax.
-    uses: ./.github/workflows/build.yml # zizmor: ignore[self-repository]
-    with:
-      ref: ${{ needs.propose.outputs.branch }}
-
-  # ── 4. Open or update the PR, with the gate results in it ──────────────────
+  # ── 3. Open or update the PR ───────────────────────────────────────────────
+  # A skipped push (nothing soaked) skips this too; a failed push has no branch
+  # to open a PR for. The gates report on the PR's head from their own runs,
+  # dispatched in job 4 after the PR exists, so the check suites attach to it.
   pull-request:
-    needs: [propose, push, gates, watch-build]
-    # `always()` so a RED gate still produces the PR — a bump that breaks the
-    # build is exactly the thing worth seeing, and hiding it would make the bot
-    # look like upstream had published nothing. A failed PUSH is different:
-    # there is no branch to open a PR for, so that one gates.
-    if: always() && needs.push.result == 'success'
+    needs: [propose, push]
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
+      pull-requests: write # opens/edits the PR; strips the attestation a changed engine tree invalidates
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -319,19 +378,21 @@ jobs:
       - name: Open or update
         env:
           GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
           BRANCH: ${{ needs.propose.outputs.branch }}
           TAG: ${{ needs.propose.outputs.tag }}
           BODY_B64: ${{ needs.propose.outputs.body }}
-          GATES: ${{ needs.gates.result }}
-          WATCH: ${{ needs.watch-build.result }}
+          PUSHED: ${{ needs.push.outputs.pushed }}
+          ENGINE_CHANGED: ${{ needs.push.outputs.engine_changed }}
         run: |
           echo "$BODY_B64" | base64 -d > body.md
           {
             echo
-            echo "### Gates (run against this branch, in the bot's own run)"
+            echo "### Gates — dispatched on this branch, in the branch's own cache scope"
             echo
-            echo "- Linux CI (\`ci.yml\`): **$GATES**"
-            echo "- watchOS build (\`build.yml\`): **$WATCH**"
+            echo "https://github.com/$REPO/actions?query=branch%3Achore%2Fvendor-quickjs-ng"
+            echo
+            echo "The \`ci.yml\` and \`build.yml\` check runs attach to this PR's head commit."
             echo
             echo "<sub>Opened by \`.github/workflows/vendor-quickjs.yml\`. The branch is"
             echo "force-updated as upstream moves, so this PR always proposes the current"
@@ -341,6 +402,49 @@ jobs:
           if existing=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number') && [ -n "$existing" ]; then
             gh pr edit "$existing" --title "$title" --body-file body.md
             echo "updated #$existing"
+            # The engine tree changed under the PR, so the attestation on the
+            # old tree no longer applies. engine-attest.yml does the same on
+            # `synchronize`; this covers the push the bot itself just made,
+            # which raises no pull_request event.
+            if [ "$PUSHED" = true ] && [ "$ENGINE_CHANGED" = true ] \
+              && gh pr view "$existing" --json labels --jq '.labels[].name' | grep -qx engine-digest-attested; then
+              gh api -X DELETE "repos/$REPO/issues/$existing/labels/engine-digest-attested"
+              echo "stripped engine-digest-attested from #$existing — the engine tree changed"
+            fi
           else
             gh pr create --head "$BRANCH" --base main --title "$title" --body-file body.md
           fi
+
+  # ── 4. Dispatch the gates on the bot branch ────────────────────────────────
+  # Called workflows run inside the caller's run — main's ref, main's cache
+  # scope, the caller's runtime token. Dispatched ones run under the branch's
+  # own ref and cache scope, which main, tags and PR merge refs never restore
+  # from. Runs only when the tree changed (a re-dispatch on an unchanged tree
+  # would re-run the macOS build daily).
+  #
+  # `actions: write` is the dispatches endpoint's one requirement. Beyond this
+  # call it could dispatch any workflow_dispatch file on any ref (release.yml's
+  # is a documented green no-op), cancel/re-run/delete runs, delete caches and
+  # approve held fork runs — not read secrets or variables, not change
+  # settings. It is unreachable from the tarball: this job has no checkout and
+  # nothing from the download executes in it, and the scope is held here alone.
+  dispatch:
+    needs: [propose, push, pull-request]
+    if: always() && needs.push.result == 'success' && needs.push.outputs.pushed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write # the dispatches endpoint's one requirement; no checkout, one gh call, held apart from contents: write
+    steps:
+      - name: Dispatch ci.yml and build.yml on the branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ needs.propose.outputs.branch }}
+        run: |
+          # Both are dispatched even if the first fails; the job is red if
+          # either did.
+          rc=0
+          for wf in ci.yml build.yml; do
+            gh api -X POST "repos/$REPO/actions/workflows/$wf/dispatches" -f "ref=$BRANCH" || rc=1
+          done
+          exit "$rc"
