@@ -23,7 +23,7 @@ packed tarball installed with npm into a clean project). 79 commits on
 | **Blocker** — diagnostic UI in release | **fixed** | `7aca6ce` — `#if DEBUG`; `ReactWatchRootView(diagnosticsSink:)` is the release hook |
 | Major 1 / 21 — symbolication not in the package | **fixed** | `55e443a` — `react-watchos symbolicate` subcommand, bundled into the compiled bin |
 | Major 2 — ota-signing.md documents repo-only scripts | **fixed** | `b4ed6b4`, `76e008b` |
-| Major 3 — same-`version` OTA replay | **fixed** | `feat/ota-v3-ordinal` — scheme `v3` binds a signed publish `sequence`; `OTABootSequencer.stage` refuses anything below the device's stage-accepted mark (docs stopped claiming coverage earlier, `32743e1`) |
+| Major 3 — same-`version` OTA replay | **fixed** | `ad96697` — scheme `v3` binds a signed publish `sequence`; `OTABootSequencer.stage` refuses anything below the device's stage-accepted mark (docs stopped claiming coverage earlier, `32743e1`) |
 | Major 4 — QuickJS stack guard unsized | **fixed** | `2cf35df` |
 | Major 5 — TimerText `since` trap | **fixed** | `61062e6` |
 | Major 6 / 22 — JS text logged `.public` in release | **fixed** | `63a5b7d` |
@@ -75,7 +75,7 @@ Two owner-side items remain from the table: enabling Dependabot alerts,
 and deciding whether any check becomes required. One engineering item
 remains open by size, not by choice: a behavioural test for the SwiftUI
 interpreter. The `v3` signed ordinal for OTA replay landed on
-`feat/ota-v3-ordinal` (2026-09-18).
+`ad96697` (2026-09-18).
 
 ---
 
@@ -166,7 +166,7 @@ Anyone who can answer the manifest URL — a compromised CDN/S3 bucket, a stolen
 
 *Fix:* Bind a monotonic, signed sequence number (or the publish timestamp) into `signedMessage` alongside `version`, persist the highest seen in the same counter store as `otaHighWater`, and refuse anything below it in `OTABootSequencer.stage`. Failing that, stop claiming replays are stopped in SECURITY.md/ota-signing.md, make `OTA_SIGNING_EXPIRES_DAYS` mandatory in `ota:sign`, and document that `expiresAt` is the only replay defence.
 
-*Status (2026-09-18):* fixed on `feat/ota-v3-ordinal` — scheme `v3` signs `sequence` (default: signing time), `react.ota.sequenceHighWater` is raised at stage-accept, `stage` refuses lower values (`replay blocked`); boot stays sequence-blind so the known-good rollback survives. JS still downloads a refused replay before native refuses it (radio, not security) — a follow-up in roadmap.md.
+*Status (2026-09-18):* fixed on `ad96697` — scheme `v3` signs `sequence` (default: signing time), `react.ota.sequenceHighWater` is raised at stage-accept, `stage` refuses lower values (`replay blocked`); boot stays sequence-blind so the known-good rollback survives. JS still downloads a refused replay before native refuses it (radio, not security) — a follow-up in roadmap.md.
 
 **4. QuickJS stack guard is never sized to the hosting thread — deep JS recursion is a SIGSEGV, not a catchable error, and it defeats OTA validate()**
 
