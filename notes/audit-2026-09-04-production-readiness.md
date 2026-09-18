@@ -35,7 +35,7 @@ packed tarball installed with npm into a clean project). 79 commits on
 | Major 12 / 17 — false Xcode 16 floor | **fixed** | `c515d50`, `19944fd` |
 | Major 13 / 18 — README says unpublished | **fixed** | `339296f`, `525605b` |
 | Major 14 — launch-checklist stale | **fixed** | `9600eef`, `8677ee4` |
-| Major 15 — NodeView has no behavioural test | **fixed 2026-09-18** | `NodeViewRenderTests.swift` on the watchOS-simulator leg: every fixture and every kitchen-sink node rendered as a root, 220 hostile-prop rows decoded by the production decoder; writing it found three trap paths (DatePicker/TimerText dates past distantFuture, invalid Map regions), fixed in the same PR |
+| Major 15 — NodeView has no behavioural test | **fixed 2026-09-18** | `NodeViewRenderTests.swift` on the watchOS-simulator leg: every fixture and every kitchen-sink node rendered as a root, 220 hostile-prop rows decoded by the production decoder; writing it found three trap paths by reading (DatePicker/TimerText dates past distantFuture, invalid Map regions) and its first CI runs two more (Chart coordinates past ±1e15 abort Swift Charts' tick layout; Slider steps of 0, negative, or wider than the range trip Slider's preconditions), all fixed in the same PR (#22) |
 | Major 16 — no required checks, docs claim otherwise | **docs fixed; checks still advisory** | `1665846`, `50e9397` — the ruleset stays as the owner set it (deletion + force-push blocked, nothing required) |
 | Major 19 — js/README tsconfig contract obsolete | **fixed** | `0024d00` |
 | Major 20 — example OTA URL is an origin | **fixed** | `3a75c9c`, `6ea01c9` |
