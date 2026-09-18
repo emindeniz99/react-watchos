@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.8.0...react-watchos-v0.9.0) (2026-09-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **plugin:** consumers pinned to @bacons/apple-targets 4.0.0 get a peer-resolution error on install instead of a prebuild crash. Upgrade to 4.0.1 or later; nothing else changes.
+
+### Bug Fixes
+
+* **js:** resolve the OTA bundle URL without a backtracking regex ([330b701](https://github.com/emindeniz99/react-watchos/commit/330b701991708f91e66b80a807437d035c139f4c))
+* **js:** resolve the OTA bundle URL without a backtracking regex ([496b1d5](https://github.com/emindeniz99/react-watchos/commit/496b1d59f1ea699accf354eec07977a03aad064b))
+* **plugin:** raise the @bacons/apple-targets floor to 4.0.1 ([f115fcc](https://github.com/emindeniz99/react-watchos/commit/f115fcc1bb2aee280621ff964cd3f8650d6b80ae))
+* **swift:** bound the Slider step to its range and a sane stop count ([3da2165](https://github.com/emindeniz99/react-watchos/commit/3da216575aa95dcc758b5e36d68950022ea1bea5))
+* **swift:** degrade on out-of-range dates and Map regions instead of trapping ([50e4f39](https://github.com/emindeniz99/react-watchos/commit/50e4f397fb653d4197e88f218008d733f3a25235))
+* **swift:** drop chart points beyond ±1e15 before Swift Charts sees them ([4f40ba9](https://github.com/emindeniz99/react-watchos/commit/4f40ba9eba2a8c6593ee109a03ab2059bf98b3c3))
+* **swift:** render a continuous Slider when the step is not positive ([da7f790](https://github.com/emindeniz99/react-watchos/commit/da7f79016ab31bd556fe54f68d8e840205d32b55))
+
 ## [0.8.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.7.0...react-watchos-v0.8.0) (2026-09-17)
 
 
