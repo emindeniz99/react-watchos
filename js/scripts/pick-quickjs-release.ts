@@ -17,7 +17,9 @@
 //
 // Nothing here talks to the network; `pickRelease` is a pure function over the
 // release list so the policy is testable, and the CLI at the bottom is the thin
-// shell that fetches, calls it, and writes GITHUB_OUTPUT.
+// shell that fetches, calls it, and writes GITHUB_OUTPUT. The CLI additionally
+// resolves the chosen tag to a commit (`resolveTag`) — the tag is a mutable
+// pointer, the commit is what gets vendored — and `pickRelease` stays pure.
 
 import { readFileSync, writeFileSync } from "node:fs";
 
@@ -318,6 +320,125 @@ export function pickRelease(
   };
 }
 
+/** What a tag named when the bot looked, and when that commit was made. */
+export interface TagResolution {
+  tag: string;
+  commit: string;
+  committedAt: string | null;
+}
+
+/**
+ * Resolve a tag to the commit it names, with one API call.
+ *
+ * The releases API returns `tag_name` and a branch-ish `target_commitish`,
+ * never a commit; `commits/<tag>` — the bare ref, NOT `commits/tags/<tag>` —
+ * peels the tag to its commit. Verified live 2026-09-18: the bare form gives
+ * v0.16.2 → 1ab8676… (lightweight) and git/git's annotated v2.50.0 →
+ * 16bd9f2…, both agreeing with `git ls-remote`'s `^{}` line, while the
+ * `tags/` form answers 422 for every annotated tag. The bare ref would also
+ * accept a branch of the same name; the push job's ls-remote cross-check
+ * (tools/vendor-quickjs/resolve-tag.sh) reads refs/tags only and fails
+ * closed if the two ever disagree.
+ */
+export async function resolveTag(
+  tag: string,
+  fetchImpl: typeof fetch = fetch,
+  headers: Record<string, string> = {},
+): Promise<TagResolution> {
+  const response = await fetchImpl(
+    `https://api.github.com/repos/quickjs-ng/quickjs/commits/${encodeURIComponent(tag)}`,
+    { headers },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `GitHub commits API for ${tag}: ${response.status} ${response.statusText}`,
+    );
+  }
+  const json = (await response.json()) as {
+    sha?: unknown;
+    commit?: { committer?: { date?: unknown } | null };
+  };
+  const sha = json.sha;
+  if (typeof sha !== "string" || !/^[0-9a-f]{40}$/.test(sha)) {
+    throw new Error(
+      `GitHub commits API for ${tag}: sha is not 40 hex (${String(sha)})`,
+    );
+  }
+  const date = json.commit?.committer?.date;
+  return {
+    tag,
+    commit: sha,
+    committedAt: typeof date === "string" ? date : null,
+  };
+}
+
+/**
+ * Is the tag→commit binding one an honest release could have produced?
+ *
+ * For any honest release, commit ≤ tag ≤ publish, so a commit NEWER than the
+ * release that names it IS a moved tag — and it is the one date rule sharper
+ * than the soak, which reads `published_at`, a value a retag keeps. Committer
+ * dates are client-supplied, so this catches a retag done with normal git,
+ * not a forger who backdates; the human's ls-remote check is for that.
+ *
+ * Returns `null` when the binding is fine, else the reason to refuse. A
+ * missing date on either side is a refusal too: fail closed.
+ */
+export function tagBindingProblem(
+  release: UpstreamRelease,
+  res: TagResolution,
+  skewMs = 3_600_000,
+): string | null {
+  if (!release.published_at || !res.committedAt) {
+    return `${res.tag} → ${res.commit}: cannot check the binding (published ${release.published_at ?? "unknown"}, committed ${res.committedAt ?? "unknown"})`;
+  }
+  const published = Date.parse(release.published_at);
+  const committed = Date.parse(res.committedAt);
+  if (Number.isNaN(published) || Number.isNaN(committed)) {
+    return `${res.tag} → ${res.commit}: cannot check the binding (unparseable dates)`;
+  }
+  if (committed <= published + skewMs) return null;
+  const after = ((committed - published) / DAY_MS).toFixed(1);
+  return (
+    `${res.tag} now names ${res.commit}, committed ${res.committedAt}, ` +
+    `${after}d after the release was published — a release cannot honestly ` +
+    "name a commit made after it; the tag moved"
+  );
+}
+
+/**
+ * Pin the candidate to a commit before anything is downloaded. A binding an
+ * honest release could not have produced turns the decision into `none` with
+ * the reason, rather than vendoring whatever the tag names today. `resolved`
+ * is set exactly when the pick still proposes, so pick.json's `commit` is ""
+ * whenever nothing downloads. Lives apart from the CLI so it can run against
+ * a mocked fetch: the live path cannot be exercised in a test.
+ */
+export async function bindCandidate(
+  pick: Pick,
+  fetchImpl: typeof fetch = fetch,
+  headers: Record<string, string> = {},
+): Promise<{ pick: Pick; resolved?: TagResolution }> {
+  if (pick.action !== "propose" || !pick.candidate) return { pick };
+  const resolved = await resolveTag(
+    pick.candidate.tag_name,
+    fetchImpl,
+    headers,
+  );
+  const problem = tagBindingProblem(pick.candidate, resolved);
+  if (!problem) return { pick, resolved };
+  return {
+    pick: {
+      ...pick,
+      action: "none",
+      reason:
+        `tag binding rejected: ${problem}; nothing proposed — a human who ` +
+        "still trusts it hand-vendors with tools/vendor-quickjs/run.sh " +
+        "<tag> <commit> <sha256>",
+    },
+  };
+}
+
 /** Reads the vendored tag from the engine header — the source of truth. */
 export function vendoredTagFromHeader(header: string): string {
   const read = (name: string): string => {
@@ -363,6 +484,8 @@ export function renderReport(
     olderExamples?: number;
     /** `older` releases this fresh are always shown in full. */
     olderWindowDays?: number;
+    /** What the candidate tag resolved to, when the CLI resolved it. */
+    resolved?: TagResolution;
   },
 ): string {
   const olderExamples = opts.olderExamples ?? 3;
@@ -373,10 +496,21 @@ export function renderReport(
     `Vendored \`${opts.vendoredTag}\` · soak window ${opts.soakDays}d · ` +
       `${pick.considered.length} release(s) fetched · ` +
       `checked ${opts.now.toISOString().replace("T", " ").slice(0, 16)} UTC`,
+  ];
+  // The step summary is where "what did the bot pin?" gets answered without
+  // opening the PR.
+  if (opts.resolved) {
+    lines.push(
+      "",
+      `Candidate \`${opts.resolved.tag}\` → \`${opts.resolved.commit}\`` +
+        ` (committed ${opts.resolved.committedAt?.slice(0, 10) ?? "unknown"})`,
+    );
+  }
+  lines.push(
     "",
     "| | release | published | age | verdict |",
     "|---|---|---|---|---|",
-  ];
+  );
   // The API hands back 30 releases and most of them predate the vendored
   // engine, so printing all of them buries the three rows that carry the
   // decision. Only the `older` tail is thinned — every verdict that could
@@ -425,7 +559,15 @@ export function renderReport(
  */
 export function renderProposal(
   pick: Pick,
-  opts: { vendoredTag: string; soakDays: number; sha256: string; now: Date },
+  opts: {
+    vendoredTag: string;
+    soakDays: number;
+    sha256: string;
+    now: Date;
+    /** The commit the candidate tag resolved to — what is actually vendored. */
+    commit: string;
+    committedAt: string | null;
+  },
 ): string {
   const candidate = pick.candidate;
   if (!candidate) return `No candidate. ${pick.reason}`;
@@ -486,17 +628,29 @@ export function renderProposal(
     "",
     "### Trust (M9)",
     "",
-    "The engine executes every signed OTA bundle, so its tarball digest must be",
-    "confirmed through a channel that is not this bot — the bot downloaded and",
-    "hashed the same file it is proposing, which proves nothing on its own.",
+    `What is vendored is upstream commit \`${opts.commit}\` — what`,
+    `\`${candidate.tag_name}\` resolved to at ${opts.now.toISOString().replace("T", " ").slice(0, 16)} UTC` +
+      (opts.committedAt
+        ? ` (committed ${opts.committedAt.slice(0, 10)}).`
+        : "."),
+    "The bot proved the vendored bytes are that commit's git objects",
+    "(`tools/vendor-quickjs/verify-upstream.sh`, re-run by engine attest). What it",
+    "cannot prove is that upstream's tag names this commit: a bot that resolves",
+    "and downloads on one runner cannot check itself. The engine executes every",
+    "signed OTA bundle, so that binding is the human's check:",
     "",
     "```",
-    `curl -fsSL https://github.com/quickjs-ng/quickjs/archive/refs/tags/${candidate.tag_name}.tar.gz | shasum -a 256`,
-    `# expected: ${opts.sha256}`,
+    `git ls-remote --tags https://github.com/quickjs-ng/quickjs.git refs/tags/${candidate.tag_name} 'refs/tags/${candidate.tag_name}^{}'`,
+    `# expected: ${opts.commit}  (on the ^{} line if the tag is annotated, else the plain line)`,
+    "# run it from a machine and network that are not this runner",
     "```",
     "",
-    "Match it against the digest above, then add the **`engine-digest-attested`**",
-    "label — the required check on this PR fails until that label is present.",
+    "If it matches, add the **`engine-digest-attested`** label — the check on this",
+    "PR fails until it is present. A later push that changes the engine tree",
+    "removes it (any human push does), and so does a reopen.",
+    "",
+    `Tarball SHA-256 as downloaded by this run: \`${opts.sha256}\` — the`,
+    "propose→push handoff, not a durable claim (GitHub archives are not byte-stable).",
   );
   return lines.join("\n");
 }
@@ -519,6 +673,8 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
       vendoredTag: string;
       soakDays: number;
       checkedAt?: string;
+      commit?: string;
+      committedAt?: string | null;
     };
     console.log(
       renderProposal(saved.pick, {
@@ -526,6 +682,8 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
         soakDays: saved.soakDays,
         sha256,
         now: saved.checkedAt ? new Date(saved.checkedAt) : new Date(),
+        commit: saved.commit ?? "",
+        committedAt: saved.committedAt ?? null,
       }),
     );
     process.exit(0);
@@ -552,7 +710,8 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
   // A dry-run seam. The workflow never sets this; it exists so the decision can
   // be reproduced offline against a saved release list — which is how you debug
   // "why did the bot do that?" without waiting a day for the next schedule, and
-  // how the output below was checked against upstream's real tags.
+  // how the output below was checked against upstream's real tags. It never
+  // resolves the tag (commit stays ""), so a replay is offline by construction.
   //   RELEASES_JSON=fixture.json node --experimental-strip-types <this file>
   if (process.env.RELEASES_JSON) {
     const releases = JSON.parse(
@@ -560,7 +719,13 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
     ) as UpstreamRelease[];
     const now = process.env.NOW ? new Date(process.env.NOW) : new Date();
     const pick = pickRelease(releases, { vendoredTag, now, soakDays, skip });
-    writePick(pick, { vendoredTag, soakDays, checkedAt: now });
+    writePick(pick, {
+      vendoredTag,
+      soakDays,
+      checkedAt: now,
+      commit: "",
+      committedAt: null,
+    });
     console.log(renderReport(pick, { vendoredTag, soakDays, now }));
     process.exit(0);
   }
@@ -583,22 +748,39 @@ if (process.argv[1]?.endsWith("pick-quickjs-release.ts")) {
   }
   const releases = (await response.json()) as UpstreamRelease[];
   const now = new Date();
-  const pick = pickRelease(releases, { vendoredTag, now, soakDays, skip });
+  const { pick, resolved } = await bindCandidate(
+    pickRelease(releases, { vendoredTag, now, soakDays, skip }),
+    fetch,
+    headers,
+  );
 
   // Two outputs, on purpose. The machine-readable one goes to a FILE (the
-  // workflow reads `.action`/`.tag` from it with jq), and stdout carries the
-  // human decision table — so the log of a run that decides to do nothing still
-  // states what it saw and why, instead of a row of "skipped" steps.
-  writePick(pick, { vendoredTag, soakDays, checkedAt: now });
-  console.log(renderReport(pick, { vendoredTag, soakDays, now }));
+  // workflow reads `.action`/`.tag`/`.commit` from it with jq), and stdout
+  // carries the human decision table — so the log of a run that decides to do
+  // nothing still states what it saw and why, instead of a row of "skipped"
+  // steps.
+  writePick(pick, {
+    vendoredTag,
+    soakDays,
+    checkedAt: now,
+    commit: resolved?.commit ?? "",
+    committedAt: resolved?.committedAt ?? null,
+  });
+  console.log(renderReport(pick, { vendoredTag, soakDays, now, resolved }));
 }
 
 /** The machine-readable half: what the workflow reads back with jq. */
 function writePick(
   pick: Pick,
-  meta: { vendoredTag: string; soakDays: number; checkedAt: Date },
+  meta: {
+    vendoredTag: string;
+    soakDays: number;
+    checkedAt: Date;
+    commit: string;
+    committedAt: string | null;
+  },
 ): void {
-  const { vendoredTag, soakDays, checkedAt } = meta;
+  const { vendoredTag, soakDays, checkedAt, commit, committedAt } = meta;
   writeFileSync(
     process.env.PICK_OUT ?? "pick.json",
     JSON.stringify(
@@ -614,6 +796,11 @@ function writePick(
         // is worse than no report.
         checkedAt: checkedAt.toISOString(),
         tag: pick.candidate?.tag_name ?? "",
+        // What `tag` resolved to at checkedAt; "" when nothing is proposed or
+        // on the RELEASES_JSON dry run. The download URL, VERSION.md and the
+        // PR body all carry this, never the tag.
+        commit,
+        committedAt,
         soakingCount: pick.soaking.length,
         behindCount: pick.behind.length,
         // The body still needs the tarball digest, which the workflow computes

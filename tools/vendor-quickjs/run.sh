@@ -3,24 +3,34 @@
 # release. Maintenance helper — run by hand when bumping the engine, not part
 # of the build.
 #
-# Usage:  ./run.sh v0.16.0 <tarball-sha256>
+# Usage:  ./run.sh v0.16.0 <commit> <tarball-sha256>
 #
-# The SHA-256 is REQUIRED (M9): the vendored engine is the app's entire trust
-# base — it executes every signed OTA bundle — so a bare `curl | tar` would
-# graft a compromised release asset or a MITM'd tarball straight into it. Get
-# the digest through a second channel (the upstream release page, or hashing
-# the tarball on a machine/network you trust) and pass it here; the download
-# fails loudly on any mismatch.
+# The COMMIT is the durable identity: a release tag is a mutable pointer, so
+# the same tag downloaded on two days can be two trees. Resolve it from a
+# machine that is not the one downloading (`sh tools/vendor-quickjs/resolve-tag.sh
+# <tag>`), and the archive is fetched by that commit — GitHub's
+# `archive/<sha>.tar.gz` — which nobody can move. verify-upstream.sh later
+# proves the vendored bytes are that commit's git objects and that upstream's
+# tag still names it.
+#
+# The SHA-256 is REQUIRED too (M9): the vendored engine is the app's entire
+# trust base — it executes every signed OTA bundle — so a bare `curl | tar`
+# would graft a MITM'd tarball straight into it. It is the same-download
+# integrity check, not a claim about upstream: GitHub does not promise archive
+# bytes are stable across generator changes, so hash the archive on the day
+# you vendor and pass it here; the download fails loudly on any mismatch.
 #
 # What it does, and only this:
-#   1. downloads the upstream source tarball and VERIFIES its SHA-256
+#   1. downloads the upstream source archive at the commit and VERIFIES its
+#      SHA-256
 #   2. overwrites the four compiled sources — the upstream `qjs_sources` set
 #      (quickjs.c libregexp.c libunicode.c dtoa.c) — at the CQuickJS root
 #   3. refreshes every header we already vendor under include/, by name, so the
 #      curated set is preserved and nothing new (quickjs-libc.h, xsum.*, …)
 #      sneaks in
 #   4. refreshes the upstream LICENSE
-#   5. bumps the version line + source URL + tarball digest in VERSION.md
+#   5. bumps the version line + upstream commit + source URL + tarball digest
+#      in VERSION.md
 #   6. regenerates CHECKSUMS.sha256 — the per-file manifest that
 #      js/test/vendor-integrity.test.ts pins on every `pnpm test`, so the
 #      vendored tree can't drift silently BETWEEN re-vendors either
@@ -34,18 +44,29 @@ set -e
 cd "$(dirname "$0")"
 
 TAG="$1"
-EXPECTED_SHA="$2"
-[ -n "$TAG" ] || { echo "usage: $0 <tag> <tarball-sha256>   e.g. $0 v0.16.0 abc123…" >&2; exit 1; }
+COMMIT="$2"
+EXPECTED_SHA="$3"
+[ -n "$TAG" ] || { echo "usage: $0 <tag> <commit> <tarball-sha256>   e.g. $0 v0.16.0 1ab8676… abc123…" >&2; exit 1; }
+case "$COMMIT" in
+  *[!0-9a-f]* | "") COMMIT="" ;;
+esac
+if [ "${#COMMIT}" -ne 40 ]; then
+  echo "error: the upstream commit (40 hex) is required — the tag is a mutable pointer." >&2
+  echo "Resolve it from a machine that is not the one downloading:" >&2
+  echo "  sh tools/vendor-quickjs/resolve-tag.sh $TAG" >&2
+  echo "then re-run:  $0 $TAG <commit> <sha256>" >&2
+  exit 1
+fi
 [ -n "$EXPECTED_SHA" ] || {
   echo "error: the tarball SHA-256 is required (M9 — no unverified engine)." >&2
-  echo "Obtain it out-of-band, e.g.:" >&2
-  echo "  curl -fsSL https://github.com/quickjs-ng/quickjs/archive/refs/tags/$TAG.tar.gz | shasum -a 256" >&2
-  echo "then re-run:  $0 $TAG <sha256>" >&2
+  echo "Hash the archive at the commit, e.g.:" >&2
+  echo "  curl -fsSL https://github.com/quickjs-ng/quickjs/archive/$COMMIT.tar.gz | shasum -a 256" >&2
+  echo "then re-run:  $0 $TAG $COMMIT <sha256>" >&2
   exit 1
 }
 
 VENDOR=../../js/swift/Sources/CQuickJS
-URL="https://github.com/quickjs-ng/quickjs/archive/refs/tags/$TAG.tar.gz"
+URL="https://github.com/quickjs-ng/quickjs/archive/$COMMIT.tar.gz"
 
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
@@ -62,6 +83,7 @@ if [ "$ACTUAL_SHA" != "$EXPECTED_SHA" ]; then
 fi
 echo "tarball SHA-256 verified: $ACTUAL_SHA"
 tar -xz -C "$TMP" -f "$TMP/src.tar.gz"
+# The commit-form archive extracts to quickjs-<sha>; the glob tolerates either naming.
 SRC=$(echo "$TMP"/quickjs-*)
 [ -d "$SRC" ] || { echo "extracted source dir not found in $TMP" >&2; exit 1; }
 
@@ -85,12 +107,26 @@ done
 
 cp "$SRC/LICENSE" "$VENDOR/LICENSE"
 
-echo "bumping VERSION.md to $TAG"
+echo "bumping VERSION.md to $TAG @ $COMMIT"
+# Fail, don't insert: verify-upstream.sh and engine attest parse the commit
+# line and fail closed without it, so its absence is a hand edit to surface.
+if ! grep -q "^Upstream commit: " "$VENDOR/VERSION.md"; then
+  echo "FATAL: VERSION.md carries no \`Upstream commit:\` line — add one; verify-upstream.sh and engine attest fail without it" >&2
+  exit 1
+fi
+# Every expression is anchored to its provenance line: the update steps
+# further down quote the same `archive/<commit>.tar.gz` shape as a
+# placeholder, and an unanchored sed baked the commit into it.
 sed -i.bak \
   -e "1s|.*|# Vendored: quickjs-ng $TAG|" \
-  -e "s|archive/refs/tags/v[0-9.]*\.tar\.gz|archive/refs/tags/$TAG.tar.gz|" \
+  -e "s|^Upstream commit: .*|Upstream commit: $COMMIT|" \
+  -e "s|^Source: .*|Source: https://github.com/quickjs-ng/quickjs/archive/$COMMIT.tar.gz|" \
   "$VENDOR/VERSION.md"
 rm -f "$VENDOR/VERSION.md.bak"
+grep -q "^Source: .*archive/$COMMIT.tar.gz" "$VENDOR/VERSION.md" || {
+  echo "FATAL: VERSION.md's Source line did not take the commit URL — fix the line by hand" >&2
+  exit 1
+}
 # Record (or refresh) the verified tarball digest in VERSION.md.
 if grep -q "^Tarball SHA-256:" "$VENDOR/VERSION.md"; then
   sed -i.bak "s|^Tarball SHA-256:.*|Tarball SHA-256: $ACTUAL_SHA|" "$VENDOR/VERSION.md"
@@ -110,11 +146,13 @@ echo "regenerating CHECKSUMS.sha256 (pinned by vendor-integrity.test.ts)"
 
 cat <<EOF
 
-Done — vendored quickjs-ng $TAG (tarball $ACTUAL_SHA).
+Done — vendored quickjs-ng $TAG @ $COMMIT (tarball $ACTUAL_SHA).
 Next:
   1. Review the prose in $VENDOR/VERSION.md (the qjs_sources note may need an
      update if upstream changed which files compile; js/swift/README.md
      links here and needs no edit).
   2. Verify it still embeds:  tools/embed-smoke/run.sh
   3. Run the manifest gate:   cd js && pnpm vitest run test/vendor-integrity
+  4. Prove the tree is that commit's, and that the tag still names it:
+     sh tools/vendor-quickjs/verify-upstream.sh
 EOF

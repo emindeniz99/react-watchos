@@ -1,4 +1,5 @@
 # Vendored: quickjs-ng v0.16.2
+Upstream commit: 1ab8676f4b6d6d669baeb5f21790fb9734636a20
 
 Source: https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.16.2.tar.gz
 License: MIT (see LICENSE in this directory)
@@ -19,13 +20,25 @@ sequence JSRuntime.swift uses.
 
 ## Updating to a new release
 
-Run `tools/vendor-quickjs/run.sh <tag>` (e.g. `v0.16.0`). It downloads the
-upstream tarball, overwrites the four `qjs_sources` files, refreshes the
-headers we vendor (leaving our `quickjs-swift-shim.h` alone) and the LICENSE,
-and bumps the version line + source URL above. Then review the prose in this
-file (`js/swift/README.md`'s table links here, so it needs no edit) and run
-`tools/embed-smoke/run.sh` to prove the new engine still embeds.
+1. Resolve the tag to a commit from a machine that is not the one that will
+   download: `sh tools/vendor-quickjs/resolve-tag.sh <tag>` (or the
+   `git ls-remote --tags` line it wraps). The tag is a mutable pointer; the
+   commit is what gets vendored.
+2. Hash the archive at that commit:
+   `curl -fsSL https://github.com/quickjs-ng/quickjs/archive/<commit>.tar.gz | shasum -a 256`
+3. `tools/vendor-quickjs/run.sh <tag> <commit> <sha256>` — downloads by
+   commit, verifies the digest, overwrites the four `qjs_sources` files,
+   refreshes the headers we vendor (leaving our `quickjs-swift-shim.h` alone)
+   and the LICENSE, and rewrites the version line, the commit line, the source
+   URL and the digest below.
+4. `sh tools/vendor-quickjs/verify-upstream.sh` — proves the tree is that
+   commit's git objects and that upstream's tag still names it.
+5. Review the prose in this file (`js/swift/README.md`'s table links here, so
+   it needs no edit) and run `tools/embed-smoke/run.sh` to prove the new
+   engine still embeds.
 
 Tarball SHA-256: 97c80625b26775a4c7ca618c004d4ea24cf99cbf867e4eba78bd927a8b23d106
-(recorded 2026-07-04; verified by re-downloading the tagged tarball — future
-re-vendors verify BEFORE extraction via tools/vendor-quickjs/run.sh)
+(the archive as downloaded on the bump day; in the bot it is the propose→push
+handoff. GitHub does not promise archive bytes are stable, so a stale digest
+is not evidence of tampering — the `Upstream commit:` line is the identity,
+and verify-upstream.sh checks the tree and the tag binding against it)

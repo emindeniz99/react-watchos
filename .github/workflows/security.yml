@@ -22,16 +22,17 @@ jobs:
   # answer that — it is self-referential, so regenerating it after an edit goes
   # green over the same bytes — and `engine attest` only fires on
   # `pull_request`, so a direct push to main never meets it. This compares our
-  # files against quickjs-ng's own git objects at the tag VERSION.md names, on
-  # every push and PR. The publish job runs the same script before npm sees the
-  # tarball, so a tampered engine cannot ship even if it reached main.
+  # files against quickjs-ng's own git objects at the commit VERSION.md records,
+  # then checks that upstream's tag still names that commit, on every push and
+  # PR. The publish job runs the same script before npm sees the tarball, so a
+  # tampered engine cannot ship even if it reached main.
   vendor-upstream:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Vendored engine matches upstream at its tag
+      - name: Vendored engine is the recorded upstream commit, and the tag still names it
         run: sh tools/vendor-quickjs/verify-upstream.sh
 
   gitleaks:

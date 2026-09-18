@@ -60,4 +60,16 @@ describe("vendored quickjs-ng integrity (M9)", () => {
     const unmanifested = actual.filter((f) => !manifest.has(f));
     expect(unmanifested).toEqual([]);
   });
+
+  // verify-upstream.sh (run by security.yml on main, by release.yml before
+  // publish, and by engine attest on a PR) parses this line and fails closed
+  // without it. The manifest omits VERSION.md on purpose (roadmap), so this is
+  // the only local guard on the line's shape: a hand edit that breaks it must
+  // fail on `pnpm test`, not in CI's attestation step.
+  it("VERSION.md records the upstream commit the engine was vendored from", () => {
+    const text = readFileSync(join(VENDOR, "VERSION.md"), "utf8");
+    expect(
+      text.split("\n").filter((l) => /^Upstream commit: [0-9a-f]{40}$/.test(l)),
+    ).toHaveLength(1);
+  });
 });
