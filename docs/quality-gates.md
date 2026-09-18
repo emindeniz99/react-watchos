@@ -28,7 +28,7 @@ has to stay fast.
 | **shellcheck** | 0.11.0 | every tracked `.sh` + `.githooks/pre-push` | — (`-x`) |
 | **typos** | 1.45.0 | spelling in source, comments, docs | [`_typos.toml`](../_typos.toml) |
 | **lychee** | 0.23.0 | internal links + `#anchors`, **offline** | [`lychee.toml`](../lychee.toml) |
-| **CodeQL** | action v4.37.8 | TS/JS + the workflow files, default suite | [`codeql.yml`](../.github/workflows/codeql.yml) |
+| **CodeQL** | action v4.38.0 | TS/JS + the workflow files, default suite | [`codeql.yml`](../.github/workflows/codeql.yml) |
 
 Report-only, never a gate:
 
@@ -56,6 +56,56 @@ Two things the audit found that are worth remembering:
   had one hyphen where the em-dash heading slugs to two. Exactly the class
   `lychee --include-fragments` exists for.
 
+### CodeQL alerts that are dismissed, and why
+
+`actions/cache-poisoning/poisonable-step` fires on every step that executes
+code in a job whose checkout is `ref: ${{ inputs.ref }}` — which is every job
+in `ci.yml`, `quality.yml` and `build.yml`, because they are reusable
+(`workflow_call`) and a caller has to name the ref. CodeQL reads the input as
+untrusted; it cannot see who the callers are. Here they are two workflows in
+this repo: `release.yml` passes the tag release-please just cut (the run's own
+commit), and `vendor-quickjs.yml` passes the branch its own bot just pushed. A
+direct `workflow_dispatch` leaves the input empty (none of the three files
+declares a `ref` input), a fork PR's run writes only to the PR's cache scope,
+and a foreign repo calling the file runs it in its own cache scope. So the
+alert's literal claim — an outsider chooses the code these jobs run — is
+untrue.
+
+They are still dismissed as **won't fix, not false positive**, because an
+adversarial pass over the claim (2026-09-18, three independent refuters, one
+judge) found the shape CodeQL describes with a different untrusted party.
+`vendor-quickjs.yml` runs on `schedule`, so its `github.ref` is `main` and its
+cache scope is main's; its `propose` job downloads quickjs-ng at a **mutable
+tag**, hashes what it downloaded, and compiles and runs it; the `gates` and
+`watch-build` calls then run that engine again on the bot branch, with
+`actions/cache` keyed on `hashFiles('js/swift/Sources/CQuickJS/**')` — the
+tree the bot just replaced — and `setup-node`'s pnpm cache saving afterwards.
+Whoever controls upstream's tags (or retags an already-soaked release: the
+7-day soak reads `published_at`, which a retag keeps) therefore runs code in
+main's cache scope before a human sees the PR, and `pnpm install
+--frozen-lockfile` trusts a restored store's index, so a poisoned store
+installs green. What bounds it: every cache-restoring job is `contents:
+read` with `persist-credentials: false` and no `id-token`; `release.yml`'s
+`publish` restores nothing and cold-builds from an immutable tag; the write-
+capable jobs cache nothing. The worst case is a forged CI verdict, not
+attacker bytes on npm — and the same upstream already ships to consumers as
+C source through the normal vendor path, so vendoring is the risk being
+accepted; the pre-review window is the increment. The real reduction is
+listed in [roadmap.md](./roadmap.md)'s engine row: pin the vendoring input to
+an upstream **commit SHA** and verify the tag→commit binding through a second
+channel before anything runs. A GitHub App token for the bot's PR would move
+the gates into the PR's scope but leaves `propose` and `release.yml`'s call
+as they are, so it is not the fix.
+
+A new job on the same checkout raises the alert again — dismiss again, same
+reason. Don't exclude the query in `codeql.yml`: it is the one that would
+fire if some future job checked out a pull request's head in a
+default-branch context, which is the defect it exists for.
+
+`js/polynomial-redos` on `update.ts`'s `/[^/]*$/` (the sonarjs row below had
+already weighed it) was fixed rather than dismissed — a one-line string scan is
+cheaper than an argument.
+
 ### Rejected after measuring: eslint-plugin-sonarjs
 
 Audited at 4.2.0 over `src/`, `esbuild/`, `plugin/`, `bin/`, `scripts/`,
@@ -70,7 +120,7 @@ wired**. The breakdown is the argument:
 | `redundant-type-aliases` | 3 | `BleState = string`, `EventPriority = number`, `InvokeShapeRef = string` — deliberate documentation aliases, each with a doc block saying so. |
 | `no-os-command-from-path` | 2 | `execFileSync("swift", …)` in dev-only codegen. |
 | `no-nested-conditional` | 2 | Style. |
-| `super-linear-regex` | 2 | The only class with teeth. `update.ts`'s `/[^/]*$/` runs on the developer-configured manifest URL (the remote-supplied `bundle` field goes through a linear test). `bin/symbolicate-core.mts`'s `STACK_FRAME_RE` does see field input — `react-watchos symbolicate` ingests stacks and `--diagnostics` rings that originate on users' watches — but it is a per-line regex over a stack you are already reading: the worst case is one slow line on the operator's Mac, not a service. |
+| `super-linear-regex` | 2 | The only class with teeth. `update.ts`'s `/[^/]*$/` ran on the developer-configured manifest URL (the remote-supplied `bundle` field goes through a linear test); replaced by a string scan (PR #19) once CodeQL raised the same finding. `bin/symbolicate-core.mts`'s `STACK_FRAME_RE` does see field input — `react-watchos symbolicate` ingests stacks and `--diagnostics` rings that originate on users' watches — but it is a per-line regex over a stack you are already reading: the worst case is one slow line on the operator's Mac, not a service. |
 | `todo-tag` | 2 | The repo's TODOs carry context on purpose. |
 | `concise-regex`, `no-inverted-boolean-check` | 2 | Style. |
 
