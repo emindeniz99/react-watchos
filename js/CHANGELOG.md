@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.9.0...react-watchos-v0.9.1) (2026-09-18)
+
+
+### Bug Fixes
+
+* **plugin:** restore the apple-targets floor the release commit reverted ([0c26b56](https://github.com/emindeniz99/react-watchos/commit/0c26b5638f5297dc396e79471a91f79e2dddb820))
+
 ## [0.9.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.8.0...react-watchos-v0.9.0) (2026-09-18)
 
 
