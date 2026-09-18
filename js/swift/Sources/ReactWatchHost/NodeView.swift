@@ -269,7 +269,7 @@ struct NodeView: View {
             let lo = node.double("min") ?? 0
             let hi = node.double("max") ?? 1
             let range = lo <= hi ? lo...hi : hi...lo
-            if let step = sliderStep {
+            if let step = sliderStep(in: range) {
                 Slider(value: doubleBinding, in: range, step: step)
             } else {
                 Slider(value: doubleBinding, in: range)
@@ -745,17 +745,24 @@ struct NodeView: View {
         }
     }
 
-    /// SwiftUI's Slider traps on a step that is not > 0 (a precondition in its
-    /// init; NodeViewRenderTests hit it with step 0). An absent or unusable
-    /// step means a continuous slider, logged once like any other bad prop.
-    private var sliderStep: Double? {
+    /// SwiftUI's Slider has preconditions on `step` that NodeViewRenderTests
+    /// hit one by one: 0 and negative trap in its init, and a step wider than
+    /// the range trips "max stride must be positive" (Slider.swift:638 — it
+    /// converts range/step to an Int stop count, so a step that yields no
+    /// stop, or more stops than an Int holds, is a trap). A step wider than
+    /// the range snaps to the endpoints (one stop, the honest reading of it);
+    /// anything else unusable — and a range with a million-plus stops, which
+    /// IS a continuous slider — degrades to no step, logged once.
+    private func sliderStep(in range: ClosedRange<Double>) -> Double? {
         guard let step = node.double("step") else { return nil }
-        guard step > 0 else {
+        let width = range.upperBound - range.lowerBound
+        guard step > 0, width > 0, width / step <= 1_000_000 else {
             logUnsupportedOnce(
-                "Slider.step", "Slider step \(step) is not > 0 — rendering a continuous slider")
+                "Slider.step",
+                "Slider step \(step) over \(range) is unusable — rendering a continuous slider")
             return nil
         }
-        return step
+        return Swift.min(step, width)
     }
 
     private func cgFloat(_ key: String) -> CGFloat? {

@@ -948,8 +948,24 @@ final class NodeViewRenderTests: XCTestCase {
                         "step", "-1", "sliderStep: negative step → continuous",
                         #"{"min":0,"max":1,"step":-1,"value":0.5,"onChange":true}"#),
                     slider(
-                        "step", big, "L273 step wider than the range",
+                        "step", big,
+                        "sliderStep: wider than the range → one stop (trapped Slider.swift:638)",
                         #"{"min":0,"max":1,"step":1e308,"value":0.5,"onChange":true}"#),
+                    slider(
+                        "step", "1.5 over 0...1",
+                        "sliderStep: just wider than the range → one stop",
+                        #"{"min":0,"max":1,"step":1.5,"value":0.5,"onChange":true}"#),
+                    slider(
+                        "step", "1e-300", "sliderStep: 1e300 stops → continuous, not an Int trap",
+                        #"{"min":0,"max":1,"step":1e-300,"value":0.5,"onChange":true}"#),
+                    slider(
+                        "step", "1e-6 over 0...1",
+                        "sliderStep: about a million stops, the guard's boundary",
+                        #"{"min":0,"max":1,"step":0.000001,"value":0.5,"onChange":true}"#),
+                    slider(
+                        "step", "1 over 5...5",
+                        "sliderStep: zero-width range with a step → continuous",
+                        #"{"min":5,"max":5,"step":1,"value":5,"onChange":true}"#),
                     slider(
                         "step", "\"1\"", "L272 type mismatch → no-step Slider",
                         #"{"min":0,"max":1,"step":"1","value":0.5,"onChange":true}"#),
