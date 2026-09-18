@@ -11,6 +11,20 @@ first, and only versions with consumer-facing action items appear.
      package); the npm-page README links here by absolute GitHub URL so a
      registry consumer can still find it. -->
 
+## 0.8.x → 0.9.0
+
+**The `@bacons/apple-targets` peer floor is 4.0.1.** The range was
+`^4.0.0`, and 4.0.0 cannot register this package's widget target: it has
+no `watch-widget` type, so `expo prebuild` dies in `getFrameworksForType`
+with `Cannot read properties of undefined (reading 'frameworks')`. 4.0.1
+is the first release that carries the type. Found by the CI leg that now
+installs the packed tarball next to the lowest version every peer range
+admits; 4.0.0 had never been run against, only declared.
+
+Action: `pnpm update @bacons/apple-targets` (or `npm`/`yarn` equivalent)
+if your lockfile holds 4.0.0 — the range `^4.0.1 || ^5.0.0` is what the
+package now asks for. Nothing else changes.
+
 ## 0.7.x → 0.8.0
 
 **The watch target no longer ships an App Transport Security exception by
