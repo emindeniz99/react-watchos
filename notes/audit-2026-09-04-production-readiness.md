@@ -52,7 +52,7 @@ packed tarball installed with npm into a clean project). 79 commits on
 | Minor — README "CI has never run" | **fixed** | `339296f`, `50e9397` |
 | Minor — roadmap queue lists shipped items | **fixed** | `e4c9e6b`, `181f184` |
 | Minor — Node 22.18 floor exercised by no CI leg | **fixed** | `e47bb50` — consumer-path leg installs the tarball with npm on 22.18 |
-| Minor — peer-dependency floors exercised by no CI leg | **open** | structural; a matrix over Expo/apple-targets floors is its own task |
+| Minor — peer-dependency floors exercised by no CI leg | **fixed 2026-09-18** | ci.yml `peer-floors` (PR #18): installs the packed tarball with npm next to the lowest and the newest version every peer range admits, scaffolds, registers the plugin, bundles; its first run found `@bacons/apple-targets` 4.0.0 crashing the plugin, so the floor is 4.0.1 (0.9.0, `!`) |
 | Minor — swift/README misstates the engine version | **fixed** | `0c5fabb` — no literal, points at VERSION.md |
 | Minor — Quick start omits the bundle build | **fixed** | `525605b`, `181f184` (widget line) |
 | Minor — 0.7.0 `testing` change has no MIGRATIONS entry | **fixed** | `b6a6bce` |
