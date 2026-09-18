@@ -239,19 +239,39 @@ extension RNStyle {
         }
     }
 
+    /// The largest |x| or |y| a chart point may carry. Swift Charts converts
+    /// its axis arithmetic through Int: a series with y at ±1e308 aborted the
+    /// watchOS test host in the framework's tick layout ("Double value cannot
+    /// be converted to Int", Integers.swift:3011 — the domain width had
+    /// overflowed to inf), and the wire lets a bundle send exactly that. Int64
+    /// tops out near 9.2e18; 1e15 leaves three orders of magnitude for the
+    /// framework's own scaling and is past anything a watch chart plots
+    /// (millisecond epochs are ~1.7e12).
+    public static let chartMagnitudeLimit = 1e15
+
     /// Parses a <Chart> `points` prop; malformed entries are dropped (a chart
     /// with a bad point renders the rest, matching Map's annotation policy).
+    /// A coordinate beyond `chartMagnitudeLimit` is malformed for the same
+    /// reason a missing `y` is: the framework cannot draw it.
     public static func chartPoints(from value: JSONValue?) -> [ChartPoint] {
         guard case .array(let entries)? = value else { return [] }
         return entries.compactMap { entry in
             guard case .object(let fields) = entry,
-                let y = fields["y"].flatMap(Self.number)
+                let y = fields["y"].flatMap(Self.chartCoordinate)
             else { return nil }
             if case .string(let label)? = fields["x"] {
                 return ChartPoint(label: label, y: y)
             }
-            return ChartPoint(x: fields["x"].flatMap(Self.number), y: y)
+            let x = fields["x"].flatMap(Self.number)
+            if let x, Self.chartCoordinate(.number(x)) == nil { return nil }
+            return ChartPoint(x: x, y: y)
         }
+    }
+
+    private static func chartCoordinate(_ value: JSONValue) -> Double? {
+        guard let n = number(value), n.isFinite, n.magnitude <= chartMagnitudeLimit
+        else { return nil }
+        return n
     }
 
     private static func number(_ value: JSONValue) -> Double? {
