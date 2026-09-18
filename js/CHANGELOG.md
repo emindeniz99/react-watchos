@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.10.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.9.1...react-watchos-v0.10.0) (2026-09-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **repo:** every served OTA bundle must be re-signed with the 0.10.0 signer. A 0.10.0 binary refuses a v2-signed bundle ("no publish sequence") and keeps whatever it is running; a 0.9.x binary refuses a v3-signed bundle. Publish the re-signed manifest with the app release that carries 0.10.0. `sequence` must be an integer in 1..2^31-1 (use a CI `run_number`, not `run_id`); pick timestamps OR a build counter per fleet, never both. `getUpdateState()` gains `sequence` and `sequenceHighWater`; exact-shape assertions need the new fields. See MIGRATIONS.md "0.9.x → 0.10.0".
+
+### Features
+
+* **repo:** bind a signed publish sequence into OTA bundles (scheme v3) ([ad96697](https://github.com/emindeniz99/react-watchos/commit/ad96697f511191f09932ed55d2a5b7ee0636b0a4))
+
 ## [0.9.1](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.9.0...react-watchos-v0.9.1) (2026-09-18)
 
 
