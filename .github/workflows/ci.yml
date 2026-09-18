@@ -7,12 +7,12 @@ name: CI
 
 on:
   workflow_dispatch:
-  # Callable from another workflow, because of a GitHub rule that would
-  # otherwise leave the engine-bump bot's PR ungated: events raised with the
-  # built-in GITHUB_TOKEN do not start workflows, so a PR the bot opens gets no
-  # `pull_request` run. Rather than copy these steps into that workflow (a copy
-  # rots the day someone adds a gate here), the bot CALLS this file and the
-  # gates run inside its own run, against the branch it just pushed.
+  # Callable from another workflow: release.yml calls this file against the
+  # tag it is publishing, so the gates run in its run rather than as a copy
+  # that rots the day someone adds a gate here. The engine-bump bot used to
+  # call it too and now DISPATCHES it on its branch (see vendor-quickjs.yml):
+  # a called run inherits the caller's ref and cache scope, and the bot's
+  # caller is a schedule run on main.
   workflow_call:
     inputs:
       ref:
@@ -105,9 +105,22 @@ jobs:
           pnpm --filter expo-watch-app typecheck
           pnpm --filter expo-watch-app build:targets
           pnpm --filter expo-watch-app test
+      # The `[mem]`/`[boot]` lines go to the step summary: the vendor bot's PR
+      # points here for the after-bump numbers (its own run measures only the
+      # engine before the bump). `set -o pipefail` because GitHub's default
+      # `run:` shell is `bash -e {0}` — no pipefail — and `tee` would otherwise
+      # turn a failed smoke green (build.yml's xcodebuild step sets it the
+      # same way).
       - name: C-embed smoke (vendored quickjs-ng)
         working-directory: js
-        run: ../tools/embed-smoke/run.sh
+        run: |
+          set -o pipefail
+          ../tools/embed-smoke/run.sh 2>&1 | tee "$RUNNER_TEMP/smoke.txt"
+          {
+            echo "### C-embed smoke (Linux x86_64)"
+            echo
+            grep -h '\[mem\]\|\[boot\]' "$RUNNER_TEMP/smoke.txt"
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Tree-commit bench in the vendored engine (NF-20)
         working-directory: js
         run: ../tools/embed-smoke/bench.sh

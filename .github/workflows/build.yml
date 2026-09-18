@@ -15,12 +15,15 @@ on:
         description: "Xcode version (e.g. 16.2, 26.0, latest-stable)"
         default: "latest-stable"
         required: false
-  # Callable from another workflow — see the same block in ci.yml for why. An
-  # engine bump is exactly the change this macOS job exists for: CQuickJS is
-  # compiled for arm64_32 here and nowhere else, so the bot runs it on the
-  # vendor branch before asking anyone to look at the PR. release.yml calls
-  # it against the tag it is about to publish, for the same reason: the
+  # Callable from another workflow — see the same block in ci.yml for why.
+  # release.yml calls it against the tag it is about to publish: the
   # `#if os(watchOS)` host the tarball ships compiles here and nowhere else.
+  # An engine bump is exactly the change this macOS job exists for (CQuickJS
+  # is compiled for arm64_32 here alone), and the vendor bot DISPATCHES it on
+  # its branch — the `workflow_dispatch` above, `xcode` at its latest-stable
+  # default, is the same build — so the run is scoped to that branch rather
+  # than to the bot's own main-scoped run. The `concurrency` group below is
+  # what cancels a superseded bot dispatch on the same branch.
   workflow_call:
     inputs:
       ref:
