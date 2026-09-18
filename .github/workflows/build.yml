@@ -183,6 +183,7 @@ jobs:
           echo "watch sim: $WATCH_ID"
           xcodebuild test -scheme ReactWatchHost-Package \
             -destination "platform=watchOS Simulator,id=$WATCH_ID" \
+            -resultBundlePath test-watchos.xcresult \
             2>&1 | tee test-watchos.log
       - name: Upload test log
         if: always()
@@ -190,6 +191,20 @@ jobs:
         with:
           name: watchos-test-log
           path: js/swift/test-watchos.log
+          if-no-files-found: ignore
+      # A test that TRAPS (as opposed to fails) leaves nothing in the log but
+      # "Restarting after unexpected exit"; the backtrace is in the crash
+      # report and the result bundle. NodeViewRenderTests' first run hit two
+      # such traps and one of them was undiagnosable from the log alone.
+      - name: Upload crash reports + result bundle
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: watchos-test-diagnostics
+          path: |
+            js/swift/test-watchos.xcresult
+            ~/Library/Logs/DiagnosticReports/xctest*.ips
+            ~/Library/Logs/DiagnosticReports/xctest*.crash
           if-no-files-found: ignore
 
   build:
