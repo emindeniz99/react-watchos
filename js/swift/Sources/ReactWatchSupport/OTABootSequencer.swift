@@ -64,12 +64,14 @@ public struct FileOTASlotStore: OTASlotStore {
     }
 }
 
-/// The anti-rollback high-water mark and the crash-loop boot-attempt counter.
-/// `SharedWidgetStore` already exposes exactly these four (App Group
-/// UserDefaults); tests use an in-memory double.
+/// The anti-rollback high-water mark, the publish-sequence mark and the
+/// crash-loop boot-attempt counter. `SharedWidgetStore` already exposes
+/// exactly these six (App Group UserDefaults); tests use an in-memory double.
 public protocol OTACounterStore: Sendable {
     func otaHighWater() -> Int
     func setOTAHighWater(_ version: Int)
+    func otaSequenceHighWater() -> Int
+    func setOTASequenceHighWater(_ sequence: Int)
     func otaBootAttempts() -> Int
     func setOTABootAttempts(_ count: Int)
 }
@@ -196,11 +198,13 @@ public struct OTABootSequencer: Sendable {
 
     /// Persists an OTA bundle (CR-4 / CR-17). An OTA bundle is arbitrary JS with
     /// the full host surface, so with a key configured the signature is verified
-    /// over `scheme:keyId:version:js` *before* it's written — the version is
-    /// inside the signed bytes, so it can't be relabelled (anti-rollback in
-    /// `boot` can trust it). An unsigned or bad bundle is refused; fail-open
-    /// exists only under the explicit `allowUnsignedUpdates` dev opt-in.
-    /// Pure of main-thread state, so the host runs it off main (M5).
+    /// over `scheme:keyId:version:sequence:expiresAt:js` *before* it's written —
+    /// the version and the publish sequence are inside the signed bytes, so
+    /// neither can be relabelled (anti-rollback in `boot` can trust the version;
+    /// the same-version replay gate below can trust the sequence). An unsigned
+    /// or bad bundle is refused; fail-open exists only under the explicit
+    /// `allowUnsignedUpdates` dev opt-in. Pure of main-thread state, so the
+    /// host runs it off main (M5).
     public func stage(_ payload: String) -> StageOutcome {
         let plan = UpdatePlan(payload: payload)
         let size = plan.js.utf8.count
@@ -259,6 +263,15 @@ public struct OTABootSequencer: Sendable {
             guard let keyId = plan.keyId, hasKey(keyId) else {
                 return .rejected("OTA update rejected: unknown or missing signing key id")
             }
+            // A payload without a publish sequence was signed under an older
+            // scheme; `signedMessage()` would refuse it below anyway, but this
+            // distinct reason lets `ota.saveRejected` explain a v2 bundle
+            // instead of reading as a corrupt signature.
+            guard let sequence = plan.sequence else {
+                return .rejected(
+                    "OTA update rejected: no publish sequence — the bundle was signed "
+                        + "with an older scheme; re-sign it with the current react-watchos signer")
+            }
             guard let signature = plan.signature, let version = plan.version,
                 let message = plan.signedMessage(),
                 verify(keyId, message, signature)
@@ -266,7 +279,7 @@ public struct OTABootSequencer: Sendable {
                 return .rejected("OTA update rejected: signature/version missing or invalid")
             }
             // The revocation lever: the expiry is inside the verified bytes
-            // (scheme v2), so it can't be stripped — refuse a lapsed bundle
+            // (scheme v2+), so it can't be stripped — refuse a lapsed bundle
             // even though its signature is valid.
             if isExpired(plan.expiresAt) {
                 return .rejected(
@@ -279,21 +292,42 @@ public struct OTABootSequencer: Sendable {
                     "OTA update rejected: version \(version) is older than the "
                         + "installed \(highWater) (downgrade blocked)")
             }
-            return persist(
+            // Same-version replay (scheme v3): the sequence is inside the
+            // verified bytes, so whoever answers the manifest URL can't re-serve
+            // an earlier signed build once a later one was accepted here. Equal
+            // is accepted (re-staging identical bytes; same-second publishes are
+            // interchangeable — a sequence can't be minted without the key).
+            // The mark is raised at ACCEPT, not at boot, so the window between
+            // staging B and relaunching can't be used to overwrite B with A.
+            // `boot` and the crash-loop known-good restore stay sequence-blind:
+            // the rollback target is older by construction.
+            let sequenceMark = counters.otaSequenceHighWater()
+            guard VersionPolicy.accepts(incoming: sequence, highWater: sequenceMark) else {
+                return .rejected(
+                    "OTA update rejected: publish sequence \(sequence) is older than the "
+                        + "last accepted \(sequenceMark) (replay blocked)")
+            }
+            let outcome = persist(
                 js: plan.js, keyId: keyId, version: version,
                 signature: signature.base64EncodedString(),
-                expiresAt: plan.expiresAt)
+                expiresAt: plan.expiresAt, sequence: sequence)
+            if case .accepted = outcome {
+                counters.setOTASequenceHighWater(
+                    VersionPolicy.bumpedHighWater(sequenceMark, booted: sequence))
+            }
+            return outcome
         case .disabled:
             // The explicit dev fail-open: persisted unverified (the host warns).
+            // No sequence gate and no mark, the same exemption `version` has.
             return persist(
                 js: plan.js, keyId: plan.keyId, version: plan.version,
-                signature: nil, expiresAt: nil)
+                signature: nil, expiresAt: nil, sequence: nil)
         }
     }
 
     private func persist(
         js: String, keyId: String?, version: Int?, signature: String?,
-        expiresAt: Int?
+        expiresAt: Int?, sequence: Int?
     ) -> StageOutcome {
         // Read-only validation (ARCH-04): eval the candidate in a throwaway
         // runtime with no host callbacks, so a bundle that throws on load is
@@ -319,7 +353,7 @@ public struct OTABootSequencer: Sendable {
         }
         let record = OTARecord(
             js: js, keyId: keyId, version: version, signature: signature,
-            bytecodeHash: bytecodeHash, expiresAt: expiresAt
+            bytecodeHash: bytecodeHash, expiresAt: expiresAt, sequence: sequence
         )
         let replacesADifferentBundle = loadRecord(from: active) != record
         // ONE atomic write is the commit point (ARCH-04): a crash before it

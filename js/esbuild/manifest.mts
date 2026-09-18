@@ -47,6 +47,9 @@ export interface OTAManifest {
   minBridgeProtocol: number;
   expiresAt: number;
   keyId?: string;
+  /** Publish sequence bound into the signed bytes; present only once signed
+   *  (set by {@link signManifest}, never by the build). */
+  sequence?: number;
 }
 
 /** Options for {@link writeOTAManifest}. */
@@ -98,14 +101,22 @@ export function writeOTAManifest({
 }
 
 // The signing scheme prefix, in lockstep with Swift's UpdatePlan.scheme. The
-// signed message is `<scheme>:<keyId>:<version>:<expiresAt>:<bundle.js>` —
-// exactly the bytes ReactWatchSupport.UpdatePlan.signedMessage rebuilds and
-// CryptoKit verifies (pinned by OTASigningInteropTests). Single-sourced here
-// so the published signer and the watch's verifier can't drift. v2 binds an
-// expiry (epoch seconds, 0 = never) into the signature — the revocation
-// lever: an old signed bundle stops verifying after it lapses, so a leaked
-// or superseded artifact can't be replayed forever.
-const SIGN_SCHEME = "v2";
+// signed message is
+// `<scheme>:<keyId>:<version>:<sequence>:<expiresAt>:<bundle.js>` — exactly
+// the bytes ReactWatchSupport.UpdatePlan.signedMessage rebuilds and CryptoKit
+// verifies (pinned by OTASigningInteropTests). Single-sourced here so the
+// published signer and the watch's verifier can't drift. v2 bound an expiry
+// (epoch seconds, 0 = never) — the revocation lever. v3 adds the publish
+// `sequence` between version and expiresAt: at the same compatibility
+// `version` nothing in the v2 bytes was ordered, so whoever answered the
+// manifest URL could re-serve an earlier signed build; the watch now keeps
+// the highest sequence it has accepted and refuses anything lower.
+const SIGN_SCHEME = "v3";
+
+/** Largest publish `sequence` the signer accepts: Int32.max, the width of
+ *  Swift `Int` on arm64_32 (every supported watch before S9). Epoch-second
+ *  defaults fit until 2038, the same bound `expiresAt` already carries. */
+export const MAX_SEQUENCE = 0x7fff_ffff;
 
 // A raw 32-byte Ed25519 seed wrapped in the fixed PKCS#8 prefix (RFC 8410), so
 // Node imports it without the public half.
@@ -166,6 +177,12 @@ export interface SignManifestOptions {
   privateKeySeedBase64: string;
   manifestFileName?: string;
   expiresAt?: number;
+  /** Publish sequence to bind: a positive integer up to 2^31-1 (Swift `Int`
+   *  is 32-bit on arm64_32 watches), e.g. a CI build number — GitHub's
+   *  `run_number`, not `run_id`. Default: the signing time in epoch seconds.
+   *  Pick one of the two per fleet: a timestamp publish outranks every build
+   *  number that could follow it. */
+  sequence?: number;
 }
 
 /** What {@link signManifest} committed to the signed bytes. */
@@ -173,6 +190,7 @@ export interface SignManifestResult {
   signature: string;
   keyId: string;
   version: number;
+  sequence: number;
   expiresAt: number;
 }
 
@@ -180,12 +198,17 @@ export interface SignManifestResult {
  * Sign a built OTA `manifest.json` in place (Ed25519), so the watch will accept
  * the bundle. Reads the manifest's OWN `version` and `bundle` (so the signed
  * bytes can't disagree with what's served), signs
- * `v2:<keyId>:<version>:<expiresAt>:<bundle.js>`, and writes `signature` +
- * `keyId` (+ `expiresAt` when given here) back. Run at PUBLISH time, never in
- * a dev build — the private key must never touch one. `keyId` must match a key
- * in the app's `signerPublicKeys` and is bound into the signed bytes (CX-007)
- * so it can't be swapped; `expiresAt` (epoch seconds, 0 = never) is bound too,
- * so an expiry can't be stripped off a signed bundle.
+ * `v3:<keyId>:<version>:<sequence>:<expiresAt>:<bundle.js>`, and writes
+ * `signature` + `keyId` + `sequence` (+ `expiresAt` when given here) back.
+ * Run at PUBLISH time, never in a dev build — the private key must never
+ * touch one. `keyId` must match a key in the app's `signerPublicKeys` and is
+ * bound into the signed bytes (CX-007) so it can't be swapped; `expiresAt`
+ * (epoch seconds, 0 = never) is bound too, so an expiry can't be stripped
+ * off a signed bundle. `sequence` orders publishes at the same `version`:
+ * the watch persists the highest it has accepted and refuses a lower one, so
+ * a re-served earlier build is not installed. It defaults to the signing
+ * time (epoch seconds); every signing is a new publish, so re-signing an
+ * older bundle is how you roll back — re-serving its old manifest is not.
  */
 export function signManifest({
   distDir,
@@ -193,6 +216,7 @@ export function signManifest({
   privateKeySeedBase64,
   manifestFileName = "manifest.json",
   expiresAt,
+  sequence,
 }: SignManifestOptions): SignManifestResult {
   if (!/^[A-Za-z0-9_-]{1,64}$/.test(keyId ?? "")) {
     throw new Error(
@@ -210,19 +234,38 @@ export function signManifest({
   // manifest's own value, else "never". Integer-coerced so the signed string
   // is canonical.
   const boundExpiresAt = Math.trunc(expiresAt ?? manifest.expiresAt ?? 0);
+  // Deliberately `?? now`, never `?? manifest.sequence`: re-signing is a new
+  // publish and must take a fresh place in the order. Validated, not
+  // truncated — a fractional or non-positive value is a caller bug. Capped at
+  // Int32.max: pre-S9 watches are arm64_32, where Swift `Int` is 32-bit and a
+  // larger value fails the whole payload decode with a misleading reason.
+  const boundSequence = sequence ?? Math.trunc(Date.now() / 1000);
+  if (
+    !Number.isSafeInteger(boundSequence) ||
+    boundSequence < 1 ||
+    boundSequence > MAX_SEQUENCE
+  ) {
+    throw new Error(
+      `sequence must be an integer in 1..${MAX_SEQUENCE} (default: signing ` +
+        "time in epoch seconds) — it is bound into the signed bytes and the " +
+        "watch refuses anything below the highest it has accepted",
+    );
+  }
   const message = Buffer.from(
-    `${SIGN_SCHEME}:${keyId}:${manifest.version}:${boundExpiresAt}:${bundle}`,
+    `${SIGN_SCHEME}:${keyId}:${manifest.version}:${boundSequence}:${boundExpiresAt}:${bundle}`,
     "utf8",
   );
   const signature = sign(null, message, privateKey).toString("base64"); // Ed25519
   manifest.signature = signature;
   manifest.keyId = keyId;
+  manifest.sequence = boundSequence;
   manifest.expiresAt = boundExpiresAt;
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   return {
     signature,
     keyId,
     version: manifest.version,
+    sequence: boundSequence,
     expiresAt: boundExpiresAt,
   };
 }

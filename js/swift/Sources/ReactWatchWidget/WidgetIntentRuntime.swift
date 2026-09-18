@@ -417,9 +417,10 @@ public final class WidgetIntentRuntime {
     private func logBundleIdentity(_ record: OTARecord) {
         let version = record.version.map(String.init) ?? "unsigned"
         let keyId = record.keyId ?? "-"
+        let sequence = record.sequence.map(String.init) ?? "-"
         print(
             "[react-watch-widget] bundle: known-good OTA "
-                + "version=\(version) keyId=\(keyId)")
+                + "version=\(version) keyId=\(keyId) sequence=\(sequence)")
     }
 
     /// Decodes a base64 raw Ed25519 public key, or nil if malformed (matching the

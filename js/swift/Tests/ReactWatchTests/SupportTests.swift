@@ -458,12 +458,14 @@ final class UpdatePlanTests: XCTestCase {
     func testParsesSignedPayload() {
         let sig = Data([1, 2, 3, 4])
         let payload =
-            #"{"js":"globalThis.x=1","keyId":"abc123","version":4,"signature":"\#(sig.base64EncodedString())"}"#
+            #"{"js":"globalThis.x=1","keyId":"abc123","version":4,"signature":"\#(sig.base64EncodedString())","sequence":11}"#
         let plan = UpdatePlan(payload: payload)
         XCTAssertEqual(plan.js, "globalThis.x=1")
         XCTAssertEqual(plan.keyId, "abc123")
         XCTAssertEqual(plan.version, 4)
         XCTAssertEqual(plan.signature, sig)
+        XCTAssertEqual(plan.sequence, 11)
+        XCTAssertNotNil(plan.signedMessage())
     }
 
     func testUnsignedObjectHasNoVersionOrSignature() {
@@ -472,6 +474,7 @@ final class UpdatePlanTests: XCTestCase {
         XCTAssertNil(plan.keyId)
         XCTAssertNil(plan.version)
         XCTAssertNil(plan.signature)
+        XCTAssertNil(plan.sequence)
     }
 
     func testBarePayloadIsTreatedAsUnsignedBundle() {
@@ -480,6 +483,7 @@ final class UpdatePlanTests: XCTestCase {
         XCTAssertEqual(plan.js, "globalThis.x=1")
         XCTAssertNil(plan.version)
         XCTAssertNil(plan.signature)
+        XCTAssertNil(plan.sequence)
     }
 
     func testParsesCapabilityRequirements() {
@@ -496,22 +500,30 @@ final class UpdatePlanTests: XCTestCase {
         XCTAssertEqual(plan.minBridgeProtocol, 0)
     }
 
-    func testSignedMessageBindsSchemeKeyIdVersionAndBundle() {
-        // The keyId and version are inside the signed bytes (CX-007), so neither
-        // can be relabelled.
-        let plan = UpdatePlan(js: "code", keyId: "abc123", version: 7, signature: nil)
-        XCTAssertEqual(plan.signedMessage(), Data("v2:abc123:7:0:code".utf8))
+    func testSignedMessageBindsSchemeKeyIdVersionSequenceAndBundle() {
+        // The keyId, version and publish sequence are inside the signed bytes
+        // (CX-007 / scheme v3), so none can be relabelled.
+        let plan = UpdatePlan(
+            js: "code", keyId: "abc123", version: 7, signature: nil, sequence: 11)
+        XCTAssertEqual(plan.signedMessage(), Data("v3:abc123:7:11:0:code".utf8))
         // No version -> nothing to verify.
         XCTAssertNil(
-            UpdatePlan(js: "code", keyId: "abc123", version: nil, signature: nil)
+            UpdatePlan(js: "code", keyId: "abc123", version: nil, signature: nil, sequence: 11)
                 .signedMessage())
         // No keyId -> nothing to verify (host fails closed when keys configured).
         XCTAssertNil(
-            UpdatePlan(js: "code", keyId: nil, version: 7, signature: nil).signedMessage())
+            UpdatePlan(js: "code", keyId: nil, version: 7, signature: nil, sequence: 11)
+                .signedMessage())
+        // No sequence (a pre-v3 payload) -> nothing verifiable either: there is
+        // no compatibility branch, the old scheme reads as unsigned.
+        XCTAssertNil(
+            UpdatePlan(js: "code", keyId: "abc123", version: 7, signature: nil)
+                .signedMessage())
         // A keyId with a colon would make the `:`-delimited message ambiguous —
         // rejected, so the concatenation stays injective.
         XCTAssertNil(
-            UpdatePlan(js: "code", keyId: "a:1", version: 7, signature: nil).signedMessage())
+            UpdatePlan(js: "code", keyId: "a:1", version: 7, signature: nil, sequence: 11)
+                .signedMessage())
     }
 
     func testIsValidKeyId() {
@@ -1894,12 +1906,22 @@ final class OTARecordTests: XCTestCase {
     func testRoundTripsAllFields() throws {
         let record = OTARecord(
             js: "globalThis.x=1", keyId: "abc123", version: 7, signature: "sig==",
-            bytecodeHash: "abcd"
+            bytecodeHash: "abcd", expiresAt: 4_102_444_800, sequence: 1_700_000_000
         )
         let data = try JSONEncoder().encode(record)
         let back = try JSONDecoder().decode(OTARecord.self, from: data)
         XCTAssertEqual(back, record)
         XCTAssertEqual(back.keyId, "abc123")  // CX-007 audit field
+        XCTAssertEqual(back.sequence, 1_700_000_000)
+    }
+
+    func testRecordWithoutSequenceDecodesWithNil() throws {
+        // A record written by a pre-v3 binary: decodes (no migration code),
+        // and then has no signed message, so boot re-verification drops it.
+        let json = #"{"js":"x","keyId":"abc123","version":7,"signature":"sig=="}"#
+        let back = try JSONDecoder().decode(OTARecord.self, from: Data(json.utf8))
+        XCTAssertNil(back.sequence)
+        XCTAssertNil(back.signedMessage())
     }
 
     func testRoundTripsUnsignedFailOpen() throws {
@@ -1951,10 +1973,20 @@ final class SharedWidgetStoreTests: XCTestCase {
         XCTAssertEqual(store.otaHighWater(), 7)
     }
 
+    func testSequenceHighWaterDefaultZeroAndRoundTrip() {
+        // 0 on a fresh install: the first validly signed bundle sets it.
+        XCTAssertEqual(store.otaSequenceHighWater(), 0)
+        store.setOTASequenceHighWater(1_700_000_000)
+        XCTAssertEqual(store.otaSequenceHighWater(), 1_700_000_000)
+        XCTAssertEqual(store.otaHighWater(), 0, "a separate key from the version mark")
+    }
+
     func testNilAppGroupIsInertNotCrashing() {
         let none = SharedWidgetStore(appGroupId: nil)
         none.setOTABootAttempts(5)  // no-op without a group
         XCTAssertEqual(none.otaBootAttempts(), 0)
+        none.setOTASequenceHighWater(5)
+        XCTAssertEqual(none.otaSequenceHighWater(), 0)
     }
 
     // The save↔load contract the widget extension depends on: the watch app
@@ -2332,24 +2364,28 @@ final class RNStyleAnimationTests: XCTestCase {
 final class OTARecordSignedMessageTests: XCTestCase {
     func testMatchesUpdatePlanFormat() {
         let record = OTARecord(
-            js: "globalThis.x=1", keyId: "abc123", version: 4, signature: "s")
+            js: "globalThis.x=1", keyId: "abc123", version: 4, signature: "s", sequence: 11)
         let plan = UpdatePlan(
-            payload: #"{"js":"globalThis.x=1","keyId":"abc123","version":4}"#)
+            payload: #"{"js":"globalThis.x=1","keyId":"abc123","version":4,"sequence":11}"#)
         XCTAssertEqual(record.signedMessage(), plan.signedMessage())
         XCTAssertEqual(
             record.signedMessage(),
-            Data("v2:abc123:4:0:globalThis.x=1".utf8))
+            Data("v3:abc123:4:11:0:globalThis.x=1".utf8))
     }
 
     func testUnsignedOrInvalidRecordsHaveNoMessage() {
         XCTAssertNil(
-            OTARecord(js: "x", keyId: nil, version: 1, signature: nil)
+            OTARecord(js: "x", keyId: nil, version: 1, signature: nil, sequence: 1)
                 .signedMessage())
         XCTAssertNil(
-            OTARecord(js: "x", keyId: "abc123", version: nil, signature: nil)
+            OTARecord(js: "x", keyId: "abc123", version: nil, signature: nil, sequence: 1)
                 .signedMessage())
         XCTAssertNil(
-            OTARecord(js: "x", keyId: "bad:colon", version: 1, signature: nil)
+            OTARecord(js: "x", keyId: "bad:colon", version: 1, signature: nil, sequence: 1)
+                .signedMessage())
+        // A pre-v3 record (no sequence) has nothing verifiable under v3.
+        XCTAssertNil(
+            OTARecord(js: "x", keyId: "abc123", version: 1, signature: nil)
                 .signedMessage())
     }
 }

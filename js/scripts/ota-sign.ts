@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { signManifest } from "../esbuild/manifest.mts";
+import { MAX_SEQUENCE, signManifest } from "../esbuild/manifest.mts";
 import { root } from "./config.ts";
 
 /**
@@ -11,11 +11,21 @@ import { root } from "./config.ts";
  *   OTA_SIGNING_KEY=<base64> OTA_SIGNING_KEY_ID=<kid> npm run ota:sign
  *
  * `signManifest` signs the exact bytes the watch verifies —
- * "v2:<kid>:<version>:<expiresAt>:<bundle.js>", matching Swift's
+ * "v3:<kid>:<version>:<sequence>:<expiresAt>:<bundle.js>", matching Swift's
  * UpdatePlan.signedMessage — reading the version + bundle from
  * dist/manifest.json so the signed bytes can't disagree with what's served.
  * The build emits the manifest with `signature: null`; signing is a separate
  * step so the key never touches a dev build.
+ *
+ * `sequence` orders publishes at the same `version`: the watch keeps the
+ * highest it has accepted and refuses a lower one, so a re-served earlier
+ * build is not installed. Default = the signing time in epoch seconds; set
+ * OTA_SIGNING_SEQUENCE=<1..2^31-1> (a CI build number — GitHub's
+ * `run_number`, not `run_id`; Swift `Int` is 32-bit on arm64_32 watches) to
+ * bind an explicit one — also the remedy when the signing clock ran
+ * backwards. Use timestamps OR build numbers per fleet, never both: one
+ * timestamp publish outranks every build number that could follow it. The
+ * bound value is printed so the CI log shows what the fleet will compare.
  *
  * Optional revocation lever: set OTA_SIGNING_EXPIRES_DAYS=<n> to bind an
  * expiry into the signature — the watch refuses the bundle (at save AND at
@@ -46,19 +56,37 @@ if (expiresDays && !(Number(expiresDays) > 0)) {
   process.exit(1);
 }
 
+const sequenceEnv = process.env.OTA_SIGNING_SEQUENCE;
+const sequence = sequenceEnv ? Number(sequenceEnv) : undefined;
+if (
+  sequenceEnv &&
+  !(
+    Number.isSafeInteger(sequence) &&
+    Number(sequence) > 0 &&
+    Number(sequence) <= MAX_SEQUENCE
+  )
+) {
+  console.error(
+    `OTA_SIGNING_SEQUENCE must be an integer in 1..${MAX_SEQUENCE}.`,
+  );
+  process.exit(1);
+}
+
 try {
   const {
     signature,
     version,
+    sequence: boundSequence,
     expiresAt: bound,
   } = signManifest({
     distDir: join(root, "dist"),
     keyId,
     privateKeySeedBase64: seedB64,
     ...(expiresAt !== undefined ? { expiresAt } : {}),
+    ...(sequence !== undefined ? { sequence } : {}),
   });
   console.log(
-    `signed manifest v${version} with key '${keyId}' ` +
+    `signed manifest v${version} sequence ${boundSequence} with key '${keyId}' ` +
       `(${signature.length}-char base64 signature; ` +
       `${bound ? `expires ${new Date(bound * 1000).toISOString()}` : "no expiry"})`,
   );

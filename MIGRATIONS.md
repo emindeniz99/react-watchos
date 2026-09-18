@@ -11,6 +11,51 @@ first, and only versions with consumer-facing action items appear.
      package); the npm-page README links here by absolute GitHub URL so a
      registry consumer can still find it. -->
 
+## 0.9.x → 0.10.0
+
+**Every OTA bundle you serve must be re-signed: the signing scheme is now
+`v3` and binds a publish `sequence`.** At the same compatibility `version`
+nothing in the `v2` signed bytes was ordered, so whoever answered the
+manifest URL could re-serve an earlier signed build and the watch installed
+it as a fresh release; only the signed expiry bounded that window (audit
+2026-09-04, Major #3). The signed message is now
+`v3:<keyId>:<version>:<sequence>:<expiresAt>:<bundle-js>`. `signManifest`
+fills `sequence` in (the signing time in epoch seconds; pass
+`sequence: <integer>` for a CI build number) and writes it into
+`manifest.json`; the watch keeps the highest value it has accepted at save
+next to the anti-rollback mark and refuses anything lower. The signature
+covers the scheme prefix, so a 0.10.0 binary rejects a `v2`-signed bundle as
+unsigned (`OTA update rejected: no publish sequence …`) and keeps whatever it
+is running (the shipped bundle right after the binary upgrade, or the last
+`v3` bundle it accepted); a 0.9.x binary rejects a `v3`-signed bundle the
+same way and keeps its last accepted one. There is no compatibility branch
+on either side. A `v2` record already on a device is dropped at the new
+binary's first boot re-verification; the shipped bundle runs until the next
+check installs a `v3` bundle.
+
+Action: upgrade the package, rebuild, and sign with the 0.10.0
+`signManifest` (or this repo's `pnpm ota:sign`) — the call shape is
+unchanged. Publish the re-signed manifest with the app-binary release that
+carries 0.10.0, not before: a fleet on the old binary stops taking updates
+from a `v3` manifest until the app updates. Raise `OTAConfig.shippedVersion`
+in lockstep, as docs/ota-signing.md §3 already requires, so the one shipped
+boot after the upgrade is not blocked by the hard gate. Rolling back a bad
+release is now a re-sign, not a re-serve: sign the older bundle again (it
+gets a fresh `sequence`); re-serving its old manifest is refused by every
+device that took the newer one. Keep the signing machine's clock on NTP or
+pass an explicit `sequence`; a clock that jumps backwards produces a bundle
+the fleet refuses, and `ota:sign` prints the bound value so the log shows
+it. Use timestamps OR a build counter per fleet, never both: one default
+signing raises the mark to ~1.7e9 and every later build-number publish is
+refused until you pass a sequence above it. The value must fit in
+1..2^31-1 (Swift `Int` is 32-bit on `arm64_32` watches; use GitHub's
+`run_number`, not `run_id`) — `signManifest` refuses anything larger. If
+you hand-write manifests, add the integer `sequence`.
+`getUpdateState()` gains `sequence` (the running record's) and
+`sequenceHighWater` (the device's mark) — exact-shape assertions need the
+new fields. `applyUpdate` takes `sequence` as a new eighth argument;
+`fetchAndApplyUpdate` forwards it from the manifest.
+
 ## 0.8.x → 0.9.0
 
 **The `@bacons/apple-targets` peer floor is 4.0.1.** The range was

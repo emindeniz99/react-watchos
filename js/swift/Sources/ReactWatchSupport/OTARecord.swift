@@ -27,22 +27,31 @@ public struct OTARecord: Codable, Sendable, Equatable {
     /// Epoch seconds after which the signature stops verifying (bound into the
     /// signed bytes — the revocation lever). nil/0 = never expires.
     public let expiresAt: Int?
+    /// Publish sequence bound into the signed bytes (scheme v3). nil for
+    /// unsigned/dev records and for records written by a pre-v3 binary — those
+    /// then fail boot re-verification and are dropped to shipped. Part of
+    /// `Equatable`, so the same js re-signed at a new sequence is a different
+    /// artifact: it gets a fresh boot budget and no longer matches a promoted
+    /// known-good (the same consequence `expiresAt` already has).
+    public let sequence: Int?
 
     /// The exact bytes this record's `signature` covers — the SAME format as
-    /// `UpdatePlan.signedMessage` (scheme:keyId:version:expiresAt:js), so
-    /// save-time and boot-time verification can never diverge. nil when the
-    /// record has no verifiable identity (unsigned/dev records).
+    /// `UpdatePlan.signedMessage` (scheme:keyId:version:sequence:expiresAt:js),
+    /// so save-time and boot-time verification can never diverge. nil when the
+    /// record has no verifiable identity (unsigned/dev/pre-v3 records).
     public func signedMessage() -> Data? {
-        guard let version, let keyId, UpdatePlan.isValidKeyId(keyId) else {
+        guard let version, let keyId, let sequence, UpdatePlan.isValidKeyId(keyId)
+        else {
             return nil
         }
         return Data(
-            "\(UpdatePlan.scheme):\(keyId):\(version):\(expiresAt ?? 0):\(js)".utf8)
+            "\(UpdatePlan.scheme):\(keyId):\(version):\(sequence):\(expiresAt ?? 0):\(js)"
+                .utf8)
     }
 
     public init(
         js: String, keyId: String? = nil, version: Int?, signature: String?,
-        bytecodeHash: String? = nil, expiresAt: Int? = nil
+        bytecodeHash: String? = nil, expiresAt: Int? = nil, sequence: Int? = nil
     ) {
         self.js = js
         self.keyId = keyId
@@ -50,5 +59,6 @@ public struct OTARecord: Codable, Sendable, Equatable {
         self.signature = signature
         self.bytecodeHash = bytecodeHash
         self.expiresAt = expiresAt
+        self.sequence = sequence
     }
 }

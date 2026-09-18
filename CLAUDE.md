@@ -27,7 +27,7 @@ Three project rules that bite if you miss them:
    the commit header (release-please turns it into the next 0.x minor) and an
    entry in MIGRATIONS.md saying what a consumer does about it. Signed OTA
    messages are the one wire format with a built-in story: the signature
-   covers the scheme prefix (`v2:` today), so a binary that verifies a newer
+   covers the scheme prefix (`v3:` today), so a binary that verifies a newer
    scheme rejects an old-scheme bundle as unsigned and keeps its shipped
    bundle — no compatibility branch needed (see docs/ota-signing.md).
 

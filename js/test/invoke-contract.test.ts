@@ -185,7 +185,9 @@ const updateState: UpdateState = {
   version: 7,
   keyId: "k1",
   expiresAt: 1_800_000_000,
+  sequence: 1_700_000_000,
   highWater: 7,
+  sequenceHighWater: 1_700_000_000,
   healthSignal: "explicit",
   bootAttempts: 1,
 };
@@ -592,6 +594,7 @@ describe("invoke contract fixtures (ARCH-11)", () => {
       ["storage", "widgets"],
       1,
       1_800_000_000,
+      1_700_000_000,
     );
     await scheduleBackgroundRefresh(900_000, { reason: "hourly-refresh" });
     await Keychain.set("auth.token", "s3cret");

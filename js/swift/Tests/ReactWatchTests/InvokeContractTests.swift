@@ -176,6 +176,9 @@ final class InvokeContractTests: XCTestCase {
         XCTAssertEqual(plan.expiresAt, 1_800_000_000)
         XCTAssertEqual(plan.requiredFeatures, ["storage", "widgets"])
         XCTAssertEqual(plan.minBridgeProtocol, 1)
+        XCTAssertEqual(plan.sequence, 1_700_000_000)
         XCTAssertNotNil(plan.signature, "the base64 signature no longer decodes")
+        // A JS-produced v3 payload is verifiable-shaped: every bound field rides.
+        XCTAssertNotNil(plan.signedMessage())
     }
 }

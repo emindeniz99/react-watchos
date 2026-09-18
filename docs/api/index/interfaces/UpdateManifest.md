@@ -6,7 +6,7 @@
 
 # Interface: UpdateManifest
 
-Defined in: [js/src/update.ts:207](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L207)
+Defined in: [js/src/update.ts:220](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L220)
 
 The update manifest served by your update endpoint (dist/manifest.json).
 
@@ -16,7 +16,7 @@ The update manifest served by your update endpoint (dist/manifest.json).
 
 > **bundle**: `string`
 
-Defined in: [js/src/update.ts:217](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L217)
+Defined in: [js/src/update.ts:230](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L230)
 
 Bundle URL — absolute (https), or relative to the manifest URL.
 
@@ -26,7 +26,7 @@ Bundle URL — absolute (https), or relative to the manifest URL.
 
 > `optional` **expiresAt?**: `number`
 
-Defined in: [js/src/update.ts:227](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L227)
+Defined in: [js/src/update.ts:240](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L240)
 
 Epoch seconds after which the signature stops verifying on the watch
  (bound into the signed bytes — the revocation lever). 0/omitted = never
@@ -38,7 +38,7 @@ Epoch seconds after which the signature stops verifying on the watch
 
 > `optional` **keyId?**: `string`
 
-Defined in: [js/src/update.ts:223](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L223)
+Defined in: [js/src/update.ts:236](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L236)
 
 Opaque id of the signing key (CX-007). Selects the watch's trusted public
  key and is bound into the signed bytes; an unknown id fails closed.
@@ -49,7 +49,7 @@ Opaque id of the signing key (CX-007). Selects the watch's trusted public
 
 > `optional` **minBridgeProtocol?**: `number`
 
-Defined in: [js/src/update.ts:236](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L236)
+Defined in: [js/src/update.ts:254](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L254)
 
 Minimum host bridge-protocol version the bundle needs (ARCH-01).
 
@@ -59,7 +59,7 @@ Minimum host bridge-protocol version the bundle needs (ARCH-01).
 
 > `optional` **releaseId?**: `string`
 
-Defined in: [js/src/update.ts:215](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L215)
+Defined in: [js/src/update.ts:228](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L228)
 
 Content id of the bundle (CX-025): the FRESHNESS signal, distinct from
  `version`. Lets a non-breaking fix (same version, new content) be detected
@@ -72,7 +72,7 @@ Content id of the bundle (CX-025): the FRESHNESS signal, distinct from
 
 > `optional` **requiredFeatures?**: `string`[]
 
-Defined in: [js/src/update.ts:234](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L234)
+Defined in: [js/src/update.ts:252](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L252)
 
 Capability features the bundle requires (ARCH-01), e.g. ["network",
 "bluetooth"]. The watch refuses to apply a bundle whose features its binary
@@ -81,14 +81,27 @@ the app. Omitted = no capability requirement declared.
 
 ***
 
+### sequence?
+
+> `optional` **sequence?**: `number`
+
+Defined in: [js/src/update.ts:245](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L245)
+
+Publish sequence (bound into the signed bytes): orders releases at the
+ same `version`. The watch keeps the highest it has accepted and refuses
+ a lower one, so a re-served earlier build is not installed. Set at
+ signing time (`signManifest`; default = signing time in epoch seconds).
+
+***
+
 ### signature?
 
 > `optional` **signature?**: `string`
 
-Defined in: [js/src/update.ts:220](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L220)
+Defined in: [js/src/update.ts:233](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L233)
 
 base64 Ed25519 signature over
- "v2:<keyId>:<version>:<expiresAt>:<bundle-js>".
+ "v3:<keyId>:<version>:<sequence>:<expiresAt>:<bundle-js>".
 
 ***
 
@@ -96,7 +109,7 @@ base64 Ed25519 signature over
 
 > **version**: `number`
 
-Defined in: [js/src/update.ts:210](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L210)
+Defined in: [js/src/update.ts:223](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L223)
 
 Monotonic compatibility version — the anti-rollback GATE (bumped only on a
  breaking change), not the freshness signal.

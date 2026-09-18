@@ -8,4 +8,4 @@
 
 > `const` **BUNDLE\_VERSION**: `number`
 
-Defined in: [js/src/update.ts:201](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L201)
+Defined in: [js/src/update.ts:214](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L214)

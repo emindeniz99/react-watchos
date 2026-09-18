@@ -8,5 +8,6 @@
     "widgets"
   ],
   "minBridgeProtocol": 1,
-  "expiresAt": 1800000000
+  "expiresAt": 1800000000,
+  "sequence": 1700000000
 }

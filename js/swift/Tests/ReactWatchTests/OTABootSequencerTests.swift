@@ -40,10 +40,13 @@ private final class MemorySlot: OTASlotStore, @unchecked Sendable {
 
 private final class MemoryCounters: OTACounterStore, @unchecked Sendable {
     var highWater = 0
+    var sequenceHighWater = 0
     var attempts = 0
 
     func otaHighWater() -> Int { highWater }
     func setOTAHighWater(_ version: Int) { highWater = version }
+    func otaSequenceHighWater() -> Int { sequenceHighWater }
+    func setOTASequenceHighWater(_ sequence: Int) { sequenceHighWater = sequence }
     func otaBootAttempts() -> Int { attempts }
     func setOTABootAttempts(_ count: Int) { attempts = count }
 }
@@ -98,12 +101,16 @@ final class OTABootSequencerTests: XCTestCase {
         )
     }
 
+    /// `sequence` defaults to 1 (>= the fresh mark of 0) so the enforced-path
+    /// tests stage as before; nil builds a v2-shaped payload.
     private func signedPayload(
-        js: String = "app()", version: Int = 2, expiresAt: Int? = nil
+        js: String = "app()", version: Int = 2, expiresAt: Int? = nil,
+        sequence: Int? = 1
     ) -> String {
         let expiry = expiresAt.map { #","expiresAt":\#($0)"# } ?? ""
+        let seq = sequence.map { #","sequence":\#($0)"# } ?? ""
         return
-            #"{"js":"\#(js)","keyId":"k1","version":\#(version),"signature":"\#(Self.goodSignatureB64)"\#(expiry)}"#
+            #"{"js":"\#(js)","keyId":"k1","version":\#(version),"signature":"\#(Self.goodSignatureB64)"\#(expiry)\#(seq)}"#
     }
 
     private func storeRecord(
@@ -115,12 +122,12 @@ final class OTABootSequencerTests: XCTestCase {
 
     private func signedRecord(
         js: String = "app()", version: Int = 2, bytecodeHash: String? = nil,
-        expiresAt: Int? = nil
+        expiresAt: Int? = nil, sequence: Int? = 1
     ) -> OTARecord {
         OTARecord(
             js: js, keyId: "k1", version: version,
             signature: Self.goodSignatureB64, bytecodeHash: bytecodeHash,
-            expiresAt: expiresAt)
+            expiresAt: expiresAt, sequence: sequence)
     }
 
     private func decodeActiveRecord() -> OTARecord? {
@@ -213,7 +220,9 @@ final class OTABootSequencerTests: XCTestCase {
     func testStageEnforcedRejectsBadSignature() {
         let seq = makeSequencer()
         let bad = Data("evil".utf8).base64EncodedString()
-        let payload = #"{"js":"app()","keyId":"k1","version":2,"signature":"\#(bad)"}"#
+        // `sequence` present so the refusal comes from the signature guard, not
+        // the "no publish sequence" guard that precedes it.
+        let payload = #"{"js":"app()","keyId":"k1","version":2,"signature":"\#(bad)","sequence":1}"#
         guard case .rejected(let reason) = seq.stage(payload) else {
             return XCTFail("expected rejection")
         }
@@ -544,7 +553,8 @@ final class OTABootSequencerTests: XCTestCase {
     func testBootEnforcedReVerifyFailureDropsPlantedRecord() throws {
         // An App-Group writer plants a record with a bad signature (NF-35).
         storeRecord(
-            OTARecord(js: "evil()", keyId: "k1", version: 2, signature: "ZXZpbA=="),
+            OTARecord(
+                js: "evil()", keyId: "k1", version: 2, signature: "ZXZpbA==", sequence: 1),
             in: active)
         let seq = makeSequencer()
         let run = try runBoot(seq)
@@ -792,6 +802,7 @@ final class OTABootSequencerTests: XCTestCase {
         storeRecord(signedRecord(js: "unproven()"), in: active)
         counters.attempts = 2
         counters.highWater = 2
+        counters.sequenceHighWater = 1  // equal sequence: the same publish
         let seq = makeSequencer(healthSignal: .explicit)
         guard case .accepted = seq.stage(signedPayload(js: "unproven()", version: 2)) else {
             return XCTFail("re-staging identical bytes should still be accepted")
@@ -826,7 +837,8 @@ extension OTABootSequencerTests {
         // notice — losing it would leave only the shipped error, hiding WHY
         // the OTA isn't running.
         storeRecord(
-            OTARecord(js: "evil()", keyId: "k1", version: 2, signature: "ZXZpbA=="),
+            OTARecord(
+                js: "evil()", keyId: "k1", version: 2, signature: "ZXZpbA==", sequence: 1),
             in: active)
         struct ShippedBoom: Error {}
         let seq = makeSequencer()
@@ -848,7 +860,7 @@ extension OTABootSequencerTests {
     }
 }
 
-// The revocation lever (scheme v2): a signed expiry is enforced at save AND at
+// The revocation lever (scheme v2+): a signed expiry is enforced at save AND at
 // every boot, and can't be stripped (it's inside the signed bytes — pinned by
 // OTASigningInteropTests/UpdatePlanTests; these cover the enforcement).
 extension OTABootSequencerTests {
@@ -892,5 +904,208 @@ extension OTABootSequencerTests {
         } else {
             XCTFail("expiresAt 0 must mean never, got \(run.outcome)")
         }
+    }
+}
+
+// Same-version replay (scheme v3): the signed publish `sequence` is compared
+// to a per-device mark at STAGE and the mark is raised on accept. Boot and the
+// crash-loop known-good restore stay sequence-blind (the rollback target is
+// older by construction). The stub verify ignores the message bytes, so these
+// pin the gate's logic; OTASigningInteropTests pins the bytes.
+extension OTABootSequencerTests {
+    func testStageRefusesSequenceBelowMark() {
+        counters.sequenceHighWater = 5
+        let seq = makeSequencer()
+        guard case .rejected(let reason) = seq.stage(signedPayload(version: 2, sequence: 4))
+        else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertTrue(reason.contains("replay blocked"), "got: \(reason)")
+        XCTAssertNil(decodeActiveRecord())
+        XCTAssertEqual(counters.sequenceHighWater, 5, "a refusal never moves the mark")
+    }
+
+    func testStageAcceptsEqualSequence() {
+        // `>=`, like the version mark: identical bytes re-stage, and two
+        // publishes in the same second are interchangeable — a sequence can't
+        // be minted without the signing key.
+        counters.sequenceHighWater = 5
+        let seq = makeSequencer()
+        XCTAssertEqual(seq.stage(signedPayload(sequence: 5)), .accepted)
+        XCTAssertEqual(counters.sequenceHighWater, 5)
+    }
+
+    func testStageAcceptRaisesTheSequenceMark() {
+        // The mark moves at ACCEPT, with no boot in between: otherwise the
+        // window between staging B and relaunching lets a re-served A (fresh by
+        // releaseId, so JS downloads it) overwrite B in the active slot.
+        let seq = makeSequencer()
+        XCTAssertEqual(seq.stage(signedPayload(js: "b()", sequence: 9)), .accepted)
+        XCTAssertEqual(counters.sequenceHighWater, 9)
+        guard case .rejected(let reason) = seq.stage(signedPayload(js: "a()", sequence: 8))
+        else {
+            return XCTFail("the earlier publish must be refused")
+        }
+        XCTAssertTrue(reason.contains("replay blocked"))
+        XCTAssertEqual(decodeActiveRecord()?.js, "b()", "B is still the staged bundle")
+        XCTAssertEqual(seq.stage(signedPayload(js: "b()", sequence: 9)), .accepted)
+    }
+
+    func testSequenceMarkIsRaisedEvenIfTheBundleNeverBoots() throws {
+        // The documented cost of the stage-time mark: a bundle that fails to
+        // boot has still consumed its place in the order, so the remedy is a
+        // republish (fresh sequence), never a restore of the earlier manifest.
+        let seq = makeSequencer()
+        XCTAssertEqual(seq.stage(signedPayload(js: "b()", sequence: 9)), .accepted)
+        let run = try runBoot(seq, sourceThrows: true)
+        guard case .ranShipped(let notice) = run.outcome else {
+            return XCTFail("expected shipped fallback")
+        }
+        XCTAssertNotNil(notice)
+        guard case .rejected(let reason) = seq.stage(signedPayload(js: "a()", sequence: 8))
+        else {
+            return XCTFail("the earlier publish must still be refused")
+        }
+        XCTAssertTrue(reason.contains("replay blocked"))
+    }
+
+    func testStageDoesNotRaiseTheMarkOnARefusedBundle() {
+        // The bump sits after every earlier guard AND after the atomic write:
+        // a bad signature, a lapsed expiry, a version downgrade and a failed
+        // record write each leave the mark where it was.
+        counters.highWater = 5
+        let seq = makeSequencer()
+        let badSignature =
+            #"{"js":"app()","keyId":"k1","version":5,"signature":"ZXZpbA==","sequence":999}"#
+        guard case .rejected = seq.stage(badSignature) else { return XCTFail("bad signature") }
+        XCTAssertEqual(counters.sequenceHighWater, 0)
+        guard
+            case .rejected = seq.stage(signedPayload(version: 5, expiresAt: 999_999, sequence: 999))
+        else {
+            return XCTFail("expired")
+        }
+        XCTAssertEqual(counters.sequenceHighWater, 0)
+        guard case .rejected = seq.stage(signedPayload(version: 2, sequence: 999)) else {
+            return XCTFail("downgrade")
+        }
+        XCTAssertEqual(counters.sequenceHighWater, 0)
+        active.failRecordWrites = true
+        guard case .rejected = seq.stage(signedPayload(version: 5, sequence: 999)) else {
+            return XCTFail("write failure")
+        }
+        XCTAssertEqual(counters.sequenceHighWater, 0, "no record written, no mark")
+    }
+
+    func testStageRefusesPayloadWithoutSequenceUnderEnforcement() {
+        // A v2-shaped payload (good key, good signature, no sequence) explains
+        // itself instead of reading as a corrupt signature.
+        counters.highWater = 1
+        counters.sequenceHighWater = 3
+        let seq = makeSequencer()
+        guard case .rejected(let reason) = seq.stage(signedPayload(sequence: nil)) else {
+            return XCTFail("expected rejection")
+        }
+        XCTAssertTrue(reason.contains("no publish sequence"), "got: \(reason)")
+        XCTAssertNil(active.record)
+        XCTAssertEqual(counters.highWater, 1)
+        XCTAssertEqual(counters.sequenceHighWater, 3)
+    }
+
+    func testStageRefusalOrder() {
+        // The sequence checks slot in after their predecessors, so every
+        // existing refusal keeps its wording when both apply.
+        counters.highWater = 5
+        counters.sequenceHighWater = 5
+        let seq = makeSequencer()
+        guard
+            case .rejected(let expired) = seq.stage(
+                signedPayload(version: 5, expiresAt: 999_999, sequence: 4))
+        else {
+            return XCTFail("expired")
+        }
+        XCTAssertTrue(expired.contains("expired"), "got: \(expired)")
+        guard case .rejected(let downgrade) = seq.stage(signedPayload(version: 2, sequence: 4))
+        else {
+            return XCTFail("downgrade")
+        }
+        XCTAssertTrue(downgrade.contains("downgrade blocked"), "got: \(downgrade)")
+        let unknownKey =
+            #"{"js":"app()","keyId":"nope","version":5,"signature":"\#(Self.goodSignatureB64)"}"#
+        guard case .rejected(let key) = seq.stage(unknownKey) else { return XCTFail("key") }
+        XCTAssertTrue(key.contains("unknown or missing signing key id"), "got: \(key)")
+    }
+
+    func testDisabledIgnoresSequence() {
+        // The dev fail-open has no anti-rollback and no replay gate either.
+        counters.sequenceHighWater = 5
+        let seq = makeSequencer(keyState: .disabled)
+        XCTAssertEqual(seq.stage("app()"), .accepted)
+        XCTAssertNil(decodeActiveRecord()?.sequence)
+        XCTAssertEqual(seq.stage(signedPayload(sequence: 1)), .accepted)
+        XCTAssertEqual(counters.sequenceHighWater, 5)
+    }
+
+    func testCrashLoopRollbackToLowerSequenceKnownGood() throws {
+        // Boot never compares sequences: the known-good is older by
+        // construction, and refusing it would block the only rollback target.
+        storeRecord(signedRecord(js: "good()", version: 2, sequence: 3), in: knownGood)
+        storeRecord(signedRecord(js: "bad()", version: 2, sequence: 9), in: active)
+        counters.highWater = 2
+        counters.sequenceHighWater = 9
+        counters.attempts = 3
+        let seq = makeSequencer()
+        let run = try runBoot(seq)
+        guard case .ranOTA(let record, let notice) = run.outcome else {
+            return XCTFail("expected the rollback bundle to run, got \(run.outcome)")
+        }
+        XCTAssertEqual(record.js, "good()")
+        XCTAssertTrue(notice?.contains("rolled back") == true)
+        XCTAssertEqual(counters.sequenceHighWater, 9, "boot never moves the mark")
+        XCTAssertEqual(counters.attempts, 1)
+    }
+
+    func testBootDoesNotGateStoredRecordOnSequence() throws {
+        storeRecord(signedRecord(sequence: 1), in: active)
+        counters.sequenceHighWater = 9
+        let run = try runBoot(makeSequencer())
+        if case .ranOTA = run.outcome {
+        } else {
+            XCTFail("boot is sequence-blind by design, got \(run.outcome)")
+        }
+    }
+
+    func testPlantedRecordWithoutSequenceIsDroppedAtBoot() throws {
+        // The on-disk migration: a record written by a pre-v3 binary decodes
+        // with a nil sequence, has no signed message, and is dropped by the
+        // existing re-verification — the shipped bundle runs until the next
+        // check installs a v3 bundle.
+        storeRecord(signedRecord(sequence: nil), in: active)
+        let run = try runBoot(makeSequencer())
+        XCTAssertTrue(run.sources.isEmpty)
+        guard case .ranShipped(let notice) = run.outcome else {
+            return XCTFail("expected shipped fallback")
+        }
+        XCTAssertTrue(notice?.contains("re-verification") == true)
+        XCTAssertNil(active.record)
+    }
+
+    func testReSigningIdenticalBytesWithANewerSequenceGivesAFreshBudget() {
+        // `sequence` is part of OTARecord equality, so the same js re-signed
+        // later is a NEW artifact with its own boot budget — intended: only
+        // the signing key can mint a sequence, so this is not an attacker lever.
+        storeRecord(signedRecord(js: "same()", sequence: 100), in: active)
+        counters.attempts = 2
+        counters.highWater = 2
+        counters.sequenceHighWater = 100
+        let seq = makeSequencer(healthSignal: .explicit)
+        XCTAssertEqual(seq.stage(signedPayload(js: "same()", sequence: 200)), .accepted)
+        XCTAssertEqual(counters.attempts, 0)
+        XCTAssertEqual(counters.sequenceHighWater, 200)
+    }
+
+    func testStagedRecordCarriesSequence() {
+        let seq = makeSequencer()
+        XCTAssertEqual(seq.stage(signedPayload(sequence: 1_700_000_000)), .accepted)
+        XCTAssertEqual(decodeActiveRecord()?.sequence, 1_700_000_000)
     }
 }

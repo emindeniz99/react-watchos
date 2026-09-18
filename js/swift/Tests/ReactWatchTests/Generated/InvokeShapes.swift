@@ -96,8 +96,10 @@ struct SaveUpdateRequest: InvokeShape {
     let requiredFeatures: [String]?
     let minBridgeProtocol: Int?
     let expiresAt: Int?
+    let sequence: Int?
     static let declaredKeys: Set<String> = [
         "js", "version", "signature", "keyId", "requiredFeatures", "minBridgeProtocol", "expiresAt",
+        "sequence",
     ]
 }
 
@@ -424,13 +426,15 @@ struct UpdateState: InvokeShape {
     let version: Int?
     let keyId: String?
     let expiresAt: Int?
+    let sequence: Int?
     let highWater: Int
+    let sequenceHighWater: Int
     let releaseId: String?
     let healthSignal: String
     let bootAttempts: Int
     static let declaredKeys: Set<String> = [
-        "source", "version", "keyId", "expiresAt", "highWater", "releaseId", "healthSignal",
-        "bootAttempts",
+        "source", "version", "keyId", "expiresAt", "sequence", "highWater", "sequenceHighWater",
+        "releaseId", "healthSignal", "bootAttempts",
     ]
 }
 
