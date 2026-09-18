@@ -65,13 +65,42 @@ in `ci.yml`, `quality.yml` and `build.yml`, because they are reusable
 untrusted; it cannot see who the callers are. Here they are two workflows in
 this repo: `release.yml` passes the tag release-please just cut (the run's own
 commit), and `vendor-quickjs.yml` passes the branch its own bot just pushed. A
-direct `workflow_dispatch` leaves the input empty, and a foreign repo calling
-the file runs it in its own cache scope, not ours. So these alerts are
-dismissed as *false positive* with that sentence as the comment, and a new job
-on the same checkout will raise them again — dismiss again, same reason. Don't
-exclude the query in `codeql.yml`: it is the one that would fire if some future
-job checked out a pull request's head in a default-branch context, which is the
-defect it exists for.
+direct `workflow_dispatch` leaves the input empty (none of the three files
+declares a `ref` input), a fork PR's run writes only to the PR's cache scope,
+and a foreign repo calling the file runs it in its own cache scope. So the
+alert's literal claim — an outsider chooses the code these jobs run — is
+untrue.
+
+They are still dismissed as **won't fix, not false positive**, because an
+adversarial pass over the claim (2026-09-18, three independent refuters, one
+judge) found the shape CodeQL describes with a different untrusted party.
+`vendor-quickjs.yml` runs on `schedule`, so its `github.ref` is `main` and its
+cache scope is main's; its `propose` job downloads quickjs-ng at a **mutable
+tag**, hashes what it downloaded, and compiles and runs it; the `gates` and
+`watch-build` calls then run that engine again on the bot branch, with
+`actions/cache` keyed on `hashFiles('js/swift/Sources/CQuickJS/**')` — the
+tree the bot just replaced — and `setup-node`'s pnpm cache saving afterwards.
+Whoever controls upstream's tags (or retags an already-soaked release: the
+7-day soak reads `published_at`, which a retag keeps) therefore runs code in
+main's cache scope before a human sees the PR, and `pnpm install
+--frozen-lockfile` trusts a restored store's index, so a poisoned store
+installs green. What bounds it: every cache-restoring job is `contents:
+read` with `persist-credentials: false` and no `id-token`; `release.yml`'s
+`publish` restores nothing and cold-builds from an immutable tag; the write-
+capable jobs cache nothing. The worst case is a forged CI verdict, not
+attacker bytes on npm — and the same upstream already ships to consumers as
+C source through the normal vendor path, so vendoring is the risk being
+accepted; the pre-review window is the increment. The real reduction is
+listed in [roadmap.md](./roadmap.md)'s engine row: pin the vendoring input to
+an upstream **commit SHA** and verify the tag→commit binding through a second
+channel before anything runs. A GitHub App token for the bot's PR would move
+the gates into the PR's scope but leaves `propose` and `release.yml`'s call
+as they are, so it is not the fix.
+
+A new job on the same checkout raises the alert again — dismiss again, same
+reason. Don't exclude the query in `codeql.yml`: it is the one that would
+fire if some future job checked out a pull request's head in a
+default-branch context, which is the defect it exists for.
 
 `js/polynomial-redos` on `update.ts`'s `/[^/]*$/` (the sonarjs row below had
 already weighed it) was fixed rather than dismissed — a one-line string scan is
