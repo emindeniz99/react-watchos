@@ -59,6 +59,7 @@ export function installMockHost() {
     getUpdateState: {
       source: "shipped",
       highWater: 0,
+      sequenceHighWater: 0,
       healthSignal: "commit",
       bootAttempts: 0,
     },

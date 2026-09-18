@@ -640,6 +640,7 @@ export const invokeShapes: StructDef[] = [
         optional: true,
       },
       { name: "expiresAt", swift: "Int?", ts: "number", optional: true },
+      { name: "sequence", swift: "Int?", ts: "number", optional: true },
     ],
   },
   {
@@ -1338,7 +1339,9 @@ export const invokeShapes: StructDef[] = [
       { name: "version", swift: "Int?", ts: "number", optional: true },
       { name: "keyId", swift: "String?", ts: "string", optional: true },
       { name: "expiresAt", swift: "Int?", ts: "number", optional: true },
+      { name: "sequence", swift: "Int?", ts: "number", optional: true },
       { name: "highWater", swift: "Int", ts: "number" },
+      { name: "sequenceHighWater", swift: "Int", ts: "number" },
       { name: "releaseId", swift: "String?", ts: "string", optional: true },
       { name: "healthSignal", swift: "String", ts: '"commit" | "explicit"' },
       { name: "bootAttempts", swift: "Int", ts: "number" },
@@ -2574,8 +2577,9 @@ export const hostMethods: HostMethod[] = [
     response: "SaveUpdateResult",
   },
   // OTA observability (review §6.11b): which bundle is actually running —
-  // source/version/keyId/expiresAt + the device's anti-rollback high-water —
-  // so an app can ship fleet telemetry, making the staleness/freeze monitoring
+  // source/version/keyId/expiresAt/sequence + the device's anti-rollback
+  // high-water and publish-sequence marks — so an app can ship fleet
+  // telemetry, making the staleness/freeze monitoring
   // that docs/ota-signing.md recommends actually implementable.
   {
     name: "getUpdateState",

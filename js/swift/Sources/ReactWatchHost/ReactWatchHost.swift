@@ -934,9 +934,11 @@ final class ReactWatchModel {
     }
 
     /// OTA observability (review §6.11b): reports which bundle this launch
-    /// actually booted — source/version/keyId/expiresAt + the anti-rollback
-    /// high-water mark — so an app can ship fleet telemetry. JS merges the
-    /// running bundle's content id (`__bundleReleaseId`) on its side.
+    /// actually booted — source/version/keyId/expiresAt/sequence + the
+    /// anti-rollback high-water mark and the publish-sequence mark (the highest
+    /// sequence accepted at save, which a lower manifest is refused against) —
+    /// so an app can ship fleet telemetry. JS merges the running bundle's
+    /// content id (`__bundleReleaseId`) on its side.
     ///
     /// `healthSignal` + `bootAttempts` are the ARCH-04 pair: which policy this
     /// BINARY is on (a bundle can't know that on its own — the trust anchor is
@@ -947,6 +949,7 @@ final class ReactWatchModel {
         var result: [String: Any] = [
             "source": bootedOTARecord != nil ? "ota" : "shipped",
             "highWater": store.otaHighWater(),
+            "sequenceHighWater": store.otaSequenceHighWater(),
             "healthSignal": updateHealthSignal == .explicit ? "explicit" : "commit",
             "bootAttempts": store.otaBootAttempts(),
         ]
@@ -954,6 +957,7 @@ final class ReactWatchModel {
             if let version = record.version { result["version"] = version }
             if let keyId = record.keyId { result["keyId"] = keyId }
             if let expiresAt = record.expiresAt { result["expiresAt"] = expiresAt }
+            if let sequence = record.sequence { result["sequence"] = sequence }
         }
         runtime?.resolveInvoke(id: id, resultJson: Self.jsonObject(result))
     }
@@ -1352,13 +1356,17 @@ final class ReactWatchModel {
     }
 
     /// Remote manifest served at `OTAConfig.manifestURL` ({version, bundle,
-    /// signature}); `bundle` is absolute or relative to the manifest URL.
+    /// signature, keyId, sequence, expiresAt}); `bundle` is absolute or
+    /// relative to the manifest URL. A hand-built copy of the fields JS
+    /// `applyUpdate` forwards — every signed field must ride here too, or the
+    /// update-required screen's button stages a payload `stage` refuses.
     private struct RemoteManifest: Decodable {
         let version: Int
         let bundle: String
         let signature: String?
         let keyId: String?
         let expiresAt: Int?
+        let sequence: Int?
     }
 
     /// Native OTA recovery for the hard gate (CR-17): when stale JS is blocked
@@ -1419,6 +1427,7 @@ final class ReactWatchModel {
             if let signature = manifest.signature { payload["signature"] = signature }
             if let keyId = manifest.keyId { payload["keyId"] = keyId }
             if let expiresAt = manifest.expiresAt { payload["expiresAt"] = expiresAt }
+            if let sequence = manifest.sequence { payload["sequence"] = sequence }
             guard let payloadData = try? JSONSerialization.data(withJSONObject: payload),
                 let payloadString = String(data: payloadData, encoding: .utf8)
             else { return }
@@ -2790,7 +2799,8 @@ public struct OTAConfig: Sendable {
     /// lockstep with the shipped bundle, only on a breaking change (db schema /
     /// wire contract); it anchors the anti-rollback boot decision.
     public var shippedVersion: Int
-    /// Update manifest endpoint (`{version, bundle, signature}`). Lets the hard
+    /// Update manifest endpoint (`{version, bundle, signature, keyId,
+    /// sequence, expiresAt}` — what `signManifest` writes). Lets the hard
     /// gate's "Check for update" recover natively — re-fetching a current bundle
     /// when stale JS is blocked and the JS app isn't running to fetch. HTTPS.
     public var manifestURL: String?

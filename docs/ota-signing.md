@@ -100,10 +100,11 @@ node sign.mjs
 together for a real target, dev-key fallback included.)
 
 `signManifest` signs the exact bytes the watch verifies —
-`"v2:<kid>:<version>:<expiresAt>:<dist/bundle.js>"` (matching Swift's
-`UpdatePlan.signedMessage`) — and writes the base64 signature **and the `keyId`**
-into `dist/manifest.json`. Signing is a **separate step from the build** on
-purpose: the private key never touches a dev build.
+`"v3:<kid>:<version>:<sequence>:<expiresAt>:<dist/bundle.js>"` (matching
+Swift's `UpdatePlan.signedMessage`) — and writes the base64 signature, **the
+`keyId` and the `sequence`** into `dist/manifest.json`. Signing is a
+**separate step from the build** on purpose: the private key never touches a
+dev build.
 
 Optional revocation lever: pass `expiresAt` (epoch seconds) to `signManifest`
 to bind an expiry into the signed bytes. The watch refuses a lapsed bundle at
@@ -113,6 +114,26 @@ extend. Omit it and the signature never expires (`expiresAt: 0`). (In this
 repo, `pnpm ota:sign` wraps this as `OTA_SIGNING_EXPIRES_DAYS=<n>` — see
 [`scripts/ota-sign.ts`](../js/scripts/ota-sign.ts).)
 
+The publish `sequence` is a positive integer bound into the signed bytes that
+orders your publishes at the same `version`. `signManifest` sets it: the
+default is the signing time in epoch seconds; pass `sequence: <n>` for a CI
+build number (`OTA_SIGNING_SEQUENCE=<n>` with `pnpm ota:sign`). It must fit
+in 1..2^31-1: Swift `Int` is 32-bit on `arm64_32` (every supported watch
+before S9), and a larger value fails the whole payload decode there with an
+unrelated reason. GitHub's `run_number` fits; `run_id` does not. The watch
+keeps the highest sequence it has accepted next to the version mark and
+refuses anything lower at save — a re-served earlier build is rejected with
+`replay blocked`. Every signing is a new publish: re-signing an older bundle
+gives it a fresh sequence, which is how you roll back (re-serving its old
+manifest is not). Equal sequences are interchangeable — two publishes in the
+same second, or a reused build number, can be swapped for each other; the
+watch also uses this to re-stage identical bytes. Pick timestamps OR a build
+counter per fleet and never mix them: one signing without
+`OTA_SIGNING_SEQUENCE` raises every device's mark to ~1.7e9, and every later
+build-number publish is refused until you pass a sequence above it. Rotated
+keys share one order automatically with the time default; if you pass build
+numbers from more than one signer, they must come from one counter.
+
 Then upload `dist/manifest.json` and `dist/bundle.js` to your update endpoint
 (serve over **HTTPS**). The app's `fetchAndApplyUpdate(manifestUrl)` /
 `checkForUpdate(manifestUrl)` consume them; in the hard gate, the native
@@ -121,8 +142,25 @@ recovery path (`OTAConfig.manifestURL`) does the same.
 The manifest:
 
 ```json
-{ "version": 1, "bundle": "bundle.js", "signature": "<base64>", "keyId": "<kid>" }
+{
+  "version": 1,
+  "bundle": "bundle.js",
+  "signature": "<base64>",
+  "keyId": "<kid>",
+  "sequence": 1700000000,
+  "expiresAt": 0
+}
 ```
+
+### Scheme changes
+
+Each binary accepts exactly one scheme; the prefix is inside the signed
+bytes. A `v3` binary reads a `v2`-signed bundle as unsigned (`OTA update
+rejected: no publish sequence …`) and keeps whatever it is running — the
+shipped bundle right after the binary upgrade (the old `v2` record is
+dropped at boot), or the last `v3` bundle it accepted; a `v2` binary does
+the same to a `v3` bundle and keeps its last accepted one. Re-sign on
+upgrade — see [MIGRATIONS.md](../MIGRATIONS.md).
 
 ## 3. Versioning (anti-rollback)
 
@@ -145,15 +183,20 @@ bundle can never run against a newer-schema db. With the **hard** gate, stale JS
 won't boot at all (it shows a native "update required" screen, recoverable via
 `OTAConfig.manifestURL`).
 
-"Older" means a lower `version` — nothing else in the signed bytes is ordered.
-`releaseId` is a content hash (it tells two bundles apart, not which came
-first), so at the **same** `version` the watch treats any validly signed bundle
-as acceptable: whoever controls the manifest URL can serve an earlier signed
-build in place of the current one, and the device will install it as a "fresh"
-release. That is not a rollback the high-water mark can see. The one bound is
-the signed expiry from §2 — set `OTA_SIGNING_EXPIRES_DAYS` (or `expiresAt` in
-`signManifest`) to the longest window you are prepared to have an old build
-re-served in, and re-sign to extend.
+"Older" means a lower `version`; at the **same** `version`, order is the
+signed `sequence` from §2. `releaseId` is a content hash (it tells two bundles
+apart, not which came first), so JS still downloads a re-served earlier build
+as "fresh" — but the watch refuses it at save (`replay blocked`). The mark it
+compares against is the highest sequence ACCEPTED at save on that device,
+global across `keyId`s, and blind at boot: the crash-loop rollback to the
+known-good record (older by construction) still works. A bundle that never
+boots has still raised the mark, so the remedy for a bad release is to
+republish (re-sign, fresh sequence), not to restore the earlier manifest. The
+mark starts at 0 on install and reinstall (the App Group is wiped with the
+app), so for a freshly installed device the signed expiry remains the bound —
+set `OTA_SIGNING_EXPIRES_DAYS` (or `expiresAt` in `signManifest`) to the
+longest window you are prepared to have an old build served to a new install,
+and re-sign to extend.
 
 ## 4. Health signal — when a bundle is trusted enough to keep (ARCH-04)
 
@@ -275,7 +318,7 @@ already declares isn't the kind of change 2.5.2 is aimed at.
 | Purpose unchanged | An OTA update carries **JavaScript only** — one `bundle.js` plus a small manifest. No native code, no dylibs, no downloaded bytecode. Entitlements, `Info.plist`, the target set, and every native capability stay in the code-signed binary, so a bundle can only re-arrange behavior the reviewed app already had. |
 | Purpose unchanged (enforced, not promised) | **`CapabilityGate`** (ARCH-01) refuses any bundle whose required feature set isn't a subset of the binary's — the answer is "update the app from the App Store", not "download more". **`HostPolicy`** (ARCH-07) lets the consumer narrow that further; a feature the app didn't authorize is absent from `__host` and rejects with `POLICY_DENIED`. Turning a sensitive feature (health, BLE, network, notifications, AI) on is **always a native release**. |
 | No store-within-a-store | One app, one bundle, one publisher: the update channel is a manifest URL **you** control, resolved against **your** trusted signer keys. There is no bundle marketplace, no third-party code distribution, and no purchase surface outside StoreKit (the `iap` capability is native). |
-| Security not compromised | Every bundle is **Ed25519-signed** over `v2:<keyId>:<version>:<expiresAt>:<bundle-js>`, with the `keyId` bound **inside** the signed bytes and the trust anchor (`signerPublicKeys`) shipping in the code-signed binary; an unknown `keyId` fails closed, empty keys refuse saves entirely, records are **re-verified at every boot** (app and widget), and the anti-rollback high-water mark refuses any bundle whose `version` is below the newest applied. What the high-water mark does **not** stop is a replay at the **same** `version` — any bundle you ever signed at the current compatibility version is still acceptable to the watch until its signed `expiresAt` lapses, so the expiry is the only bound on that window (§2, §3). The bundle runs inside the app's own sandbox in an interpreter — it cannot reach anything the binary doesn't hand it. |
+| Security not compromised | Every bundle is **Ed25519-signed** over `v3:<keyId>:<version>:<sequence>:<expiresAt>:<bundle-js>`, with the `keyId` bound **inside** the signed bytes and the trust anchor (`signerPublicKeys`) shipping in the code-signed binary; an unknown `keyId` fails closed, empty keys refuse saves entirely, records are **re-verified at every boot** (app and widget), the anti-rollback high-water mark refuses any bundle whose `version` is below the newest applied, and the signed `sequence` refuses a same-`version` replay at save; the expiry remains the bound for a freshly (re)installed device (§2, §3). The bundle runs inside the app's own sandbox in an interpreter — it cannot reach anything the binary doesn't hand it. |
 | Security not compromised (availability side) | The **health gate**: `otaBootAttempts` rolls a bundle back to the last known-good after 3 un-blessed launches, and `OTAConfig.healthSignal = .explicit` makes the bundle prove itself with `markUpdateHealthy()` after your own checks. A bad update degrades to the reviewed, shipped bundle instead of stranding the user. |
 
 **On the bytecode.** The `.qbc` blob is **compiled on the device**, by the
@@ -306,9 +349,12 @@ Sources:
 
 ## Threat-model note: the manifest itself is NOT signed (freeze exposure)
 
-The signature covers `v2:<keyId>:<version>:<expiresAt>:<bundle-js>` — the
-**bundle content, its compatibility version, and its expiry**, which is what
-stops in-sandbox RCE, version swaps, and expiry-stripping. The **manifest JSON is not signed**, so an on-path
+The signature covers `v3:<keyId>:<version>:<sequence>:<expiresAt>:<bundle-js>`
+— the **bundle content, its compatibility version, its publish sequence, and
+its expiry**, which is what stops in-sandbox RCE, version swaps,
+expiry-stripping and same-version replay. The sequence removes backwards
+movement only: an on-path attacker can still pin the fleet at the newest
+bundle they have. The **manifest JSON is not signed**, so an on-path
 attacker who can answer the manifest URL cannot inject code, but CAN:
 
 - serve a stale manifest forever (a **freeze/suppression attack** — clients

@@ -62,6 +62,7 @@ describe("OTA observability (getUpdateState)", () => {
     expect(await getUpdateState()).toEqual({
       source: "shipped",
       highWater: 0,
+      sequenceHighWater: 0,
       healthSignal: "commit",
       bootAttempts: 0,
     });
@@ -236,6 +237,34 @@ describe("OTA applyUpdate", () => {
     );
   });
 
+  it("appends the signed publish sequence LAST so older payloads are byte-identical", async () => {
+    // The watch compares the signed `sequence` to its high-water mark (the
+    // same-version replay bound); key order is pinned because the payload
+    // crosses as a JSON string and the fixtures diff it.
+    const host = installMockHost();
+    await applyUpdate(
+      "globalThis.x = 1;",
+      7,
+      "c2lnbmF0dXJl",
+      "k1",
+      undefined,
+      undefined,
+      undefined,
+      42,
+    );
+    expect(host.invoke).toHaveBeenCalledWith(
+      expect.any(Number),
+      "saveUpdate",
+      JSON.stringify({
+        js: "globalThis.x = 1;",
+        version: 7,
+        signature: "c2lnbmF0dXJl",
+        keyId: "k1",
+        sequence: 42,
+      }),
+    );
+  });
+
   // CX-005: a watch-side refusal (bad signature, capability gap, downgrade,
   // write failure) comes back as a *resolved* { accepted: false } with the
   // native reason — the saveUpdate invoke resolves it, it doesn't reject.
@@ -316,6 +345,76 @@ describe("OTA freshness check", () => {
         keyId: "k1A2b3C4",
       }),
     );
+  });
+
+  it("fetchAndApplyUpdate threads the manifest's sequence into the saveUpdate payload", async () => {
+    const host = installMockHost();
+    g.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        json: async () => ({
+          version: 3,
+          bundle: "bundle.js",
+          signature: "sig",
+          keyId: "k1A2b3C4",
+          sequence: 1_700_000_000,
+        }),
+      })
+      .mockResolvedValueOnce({ text: async () => "globalThis.x=1;" });
+    expect(await fetchAndApplyUpdate("https://x.test/manifest.json")).toBe(3);
+    expect(host.invoke).toHaveBeenCalledWith(
+      expect.any(Number),
+      "saveUpdate",
+      JSON.stringify({
+        js: "globalThis.x=1;",
+        version: 3,
+        signature: "sig",
+        keyId: "k1A2b3C4",
+        sequence: 1_700_000_000,
+      }),
+    );
+  });
+
+  it("a replay the watch refuses is reported as not staged and leaves no staged marker", async () => {
+    // The native gate answers `{accepted:false, code:"rejected", message}`
+    // (no dedicated code); JS must not report the version as staged nor
+    // suppress the next check as if the bundle were awaiting relaunch.
+    const host = installMockHost();
+    const backing = new Map<string, string>();
+    host.getItem.mockImplementation((k: string) => backing.get(k) ?? null);
+    host.setItem.mockImplementation((k: string, v: string) => {
+      backing.set(k, v);
+    });
+    host.invoke.mockImplementation((id: number) => {
+      (
+        globalThis as {
+          __resolveInvoke?: (id: number, resultJson: string) => void;
+        }
+      ).__resolveInvoke?.(
+        id,
+        JSON.stringify({
+          accepted: false,
+          code: "rejected",
+          message:
+            "OTA update rejected: publish sequence 5 is older than the last accepted 9 (replay blocked)",
+        }),
+      );
+    });
+    g.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({
+        json: async () => ({
+          version: 3,
+          bundle: "bundle.js",
+          releaseId: "old",
+          sequence: 5,
+        }),
+      })
+      .mockResolvedValueOnce({ text: async () => "globalThis.x=1;" });
+    expect(
+      await fetchAndApplyUpdate("https://x.test/manifest.json"),
+    ).toBeNull();
+    expect(backing.size).toBe(0);
   });
 
   it("fetchAndApplyUpdate is a no-op when not newer", async () => {
@@ -654,6 +753,17 @@ describe("manifest shape validation (NF-32)", () => {
     }
   });
 
+  it("rejects a non-integer sequence (it is inside the signed bytes)", async () => {
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY, 1.5]) {
+      g.fetch = vi.fn(async () => ({
+        json: async () => ({ version: 2, bundle: "bundle.js", sequence: bad }),
+      }));
+      await expect(
+        checkForUpdate("https://x.test/manifest.json"),
+      ).rejects.toThrow(/`sequence` must be an integer when present/);
+    }
+  });
+
   it("accepts a fully-populated valid manifest", async () => {
     g.fetch = vi.fn(async () => ({
       json: async () => ({
@@ -664,6 +774,8 @@ describe("manifest shape validation (NF-32)", () => {
         keyId: "kid",
         requiredFeatures: ["network"],
         minBridgeProtocol: 1,
+        expiresAt: 0,
+        sequence: 1_700_000_000,
       }),
     }));
     const result = await checkForUpdate("https://x.test/manifest.json");

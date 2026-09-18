@@ -7,10 +7,13 @@ import Foundation
 ///
 /// Security (CR-4 / CR-17): an OTA bundle is arbitrary JS that runs with the
 /// full host surface, so an unverified one is in-sandbox RCE. The signature
-/// covers `signedMessage` — `"<scheme>:<keyId>:<version>:<js>"` — so the
-/// **key id and version are inside the signed data**: neither can be
-/// relabelled. Binding the version makes anti-rollback trustworthy (an
-/// attacker can't pass off an old bundle as new); binding the `keyId` (CX-007)
+/// covers `signedMessage` —
+/// `"<scheme>:<keyId>:<version>:<sequence>:<expiresAt>:<js>"` — so the
+/// **key id, version and publish sequence are inside the signed data**: none
+/// can be relabelled. Binding the version makes anti-rollback trustworthy (an
+/// attacker can't pass off an old bundle as new); binding the `sequence`
+/// closes the same-`version` replay (the sequencer refuses a sequence below
+/// the highest it has accepted); binding the `keyId` (CX-007)
 /// is what makes key rotation safe — the signer commits to *which* key signed
 /// *this* bundle, so a `keyId` can't be swapped to steer the host to a
 /// different verification key (the JWT `kid`-confusion failure mode). The host
@@ -19,19 +22,24 @@ import Foundation
 /// un-updated consumer keeps working.
 public struct UpdatePlan: Equatable, Sendable {
     /// Signature/format scheme tag — bumped if the signing scheme ever changes
-    /// (crypto-agility), kept inside the signed bytes. v2 binds `expiresAt`
+    /// (crypto-agility), kept inside the signed bytes. v2 bound `expiresAt`
     /// (epoch seconds, 0 = never) into the signature — the revocation lever:
-    /// an old signed bundle stops verifying after it lapses, so a leaked or
-    /// superseded artifact can't be replayed forever.
-    public static let scheme = "v2"
+    /// an old signed bundle stops verifying after it lapses. v3 adds the
+    /// publish `sequence` between version and expiresAt: at the same
+    /// compatibility `version` nothing in the v2 bytes was ordered, so a
+    /// re-served earlier signed build installed as a fresh release. Each
+    /// binary accepts exactly one scheme; a v2 signature never verifies over
+    /// a v3 message (prefix and slot count both differ).
+    public static let scheme = "v3"
 
     /// A `keyId` must be colon-free (the signed message is `:`-delimited and
     /// `js` is the only free-form field) so the concatenation stays injective —
     /// `kid="a:1",version=0` must not collide with `kid="a",version="1:0"`.
     /// Enforced on BOTH the signer and the verifier (per the rotation design
     /// review): the host validates the parsed `keyId` before trusting the
-    /// split, rather than relying on a well-behaved signer. `version` is an
-    /// `Int` (colon-impossible) so only `keyId` needs guarding.
+    /// split, rather than relying on a well-behaved signer. `version`,
+    /// `sequence` and `expiresAt` are `Int` (colon-impossible) so only
+    /// `keyId` needs guarding.
     public static func isValidKeyId(_ keyId: String) -> Bool {
         !keyId.isEmpty && keyId.count <= 64
             && keyId.allSatisfy {
@@ -52,6 +60,12 @@ public struct UpdatePlan: Equatable, Sendable {
     /// Epoch seconds after which the signature stops verifying (bound into
     /// the signed bytes). nil/0 = never expires.
     public let expiresAt: Int?
+    /// Publisher-monotonic publish ordinal, bound into the signed bytes: orders
+    /// releases at the same `version` so a re-served earlier build is refused
+    /// at save. nil = no sequence (a pre-v3 payload) — nothing verifiable.
+    /// `Int` is 32-bit on arm64_32, so the signer caps it at Int32.max; a
+    /// larger value would fail the whole decode on pre-S9 watches.
+    public let sequence: Int?
     /// Capability features the bundle requires (ARCH-01). The host refuses to
     /// apply a bundle whose features it doesn't provide (CapabilityGate); empty
     /// = no requirement declared.
@@ -67,12 +81,13 @@ public struct UpdatePlan: Equatable, Sendable {
         let requiredFeatures: [String]?
         let minBridgeProtocol: Int?
         let expiresAt: Int?
+        let sequence: Int?
     }
 
     public init(
         js: String, keyId: String? = nil, version: Int?, signature: Data?,
         requiredFeatures: [String] = [], minBridgeProtocol: Int = 0,
-        expiresAt: Int? = nil
+        expiresAt: Int? = nil, sequence: Int? = nil
     ) {
         self.js = js
         self.keyId = keyId
@@ -81,12 +96,14 @@ public struct UpdatePlan: Equatable, Sendable {
         self.requiredFeatures = requiredFeatures
         self.minBridgeProtocol = minBridgeProtocol
         self.expiresAt = expiresAt
+        self.sequence = sequence
     }
 
     /// Parses the saveUpdate payload. The signed shape is
-    /// `{"js":"…","keyId":"…","version":N,"signature":"<base64>"}`; a payload
-    /// that isn't that object is treated as a bare (legacy/unsigned) bundle so
-    /// older callers still work — they then take the fail-open path in the host.
+    /// `{"js":"…","keyId":"…","version":N,"signature":"<base64>","sequence":N}`;
+    /// a payload that isn't that object is treated as a bare (legacy/unsigned)
+    /// bundle so older callers still work — they then take the fail-open path
+    /// in the host.
     public init(payload: String) {
         guard let data = payload.data(using: .utf8),
             let decoded = try? JSONDecoder().decode(Payload.self, from: data)
@@ -98,6 +115,7 @@ public struct UpdatePlan: Equatable, Sendable {
             requiredFeatures = []
             minBridgeProtocol = 0
             expiresAt = nil
+            sequence = nil
             return
         }
         js = decoded.js
@@ -107,19 +125,25 @@ public struct UpdatePlan: Equatable, Sendable {
         requiredFeatures = decoded.requiredFeatures ?? []
         minBridgeProtocol = decoded.minBridgeProtocol ?? 0
         expiresAt = decoded.expiresAt
+        sequence = decoded.sequence
     }
 
     /// The exact bytes the signature must cover: scheme + keyId + version +
-    /// expiresAt + bundle, so the key id, version, AND expiry are bound to the
-    /// bundle and can't be tampered (an expiry can't be stripped off a signed
-    /// bundle). nil unless the payload carries BOTH a `version` and a
-    /// charset-valid `keyId` (nothing verifiable otherwise) — the host treats
-    /// nil as "missing/invalid, reject" when keys are configured. `keyId` is the
+    /// sequence + expiresAt + bundle, so the key id, version, publish sequence
+    /// AND expiry are bound to the bundle and can't be tampered (an expiry
+    /// can't be stripped off a signed bundle, a sequence can't be raised).
+    /// nil unless the payload carries a `version`, a charset-valid `keyId` AND
+    /// a `sequence` (nothing verifiable otherwise — a pre-v3 payload has no
+    /// sequence and reads as unsigned) — the host treats nil as
+    /// "missing/invalid, reject" when keys are configured. `keyId` is the
     /// single source of truth: the same value selects the key AND is bound here,
     /// so lookup-key and signed-key can't diverge. `expiresAt` is canonical as
-    /// an integer (0 = never), colon-impossible like `version`.
+    /// an integer (0 = never), colon-impossible like `version` and `sequence`.
     public func signedMessage() -> Data? {
-        guard let version, let keyId, Self.isValidKeyId(keyId) else { return nil }
-        return Data("\(Self.scheme):\(keyId):\(version):\(expiresAt ?? 0):\(js)".utf8)
+        guard let version, let keyId, let sequence, Self.isValidKeyId(keyId) else {
+            return nil
+        }
+        return Data(
+            "\(Self.scheme):\(keyId):\(version):\(sequence):\(expiresAt ?? 0):\(js)".utf8)
     }
 }

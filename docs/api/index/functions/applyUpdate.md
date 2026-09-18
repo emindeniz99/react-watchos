@@ -6,9 +6,9 @@
 
 # Function: applyUpdate()
 
-> **applyUpdate**(`js`, `version?`, `signature?`, `keyId?`, `requiredFeatures?`, `minBridgeProtocol?`, `expiresAt?`): `Promise`\<`SaveUpdateResult`\>
+> **applyUpdate**(`js`, `version?`, `signature?`, `keyId?`, `requiredFeatures?`, `minBridgeProtocol?`, `expiresAt?`, `sequence?`): `Promise`\<`SaveUpdateResult`\>
 
-Defined in: [js/src/update.ts:159](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L159)
+Defined in: [js/src/update.ts:170](https://github.com/emindeniz99/react-watchos/blob/main/js/src/update.ts#L170)
 
 Stages an OTA bundle and resolves whether the watch accepted it (CX-005).
 Resolves (never rejects) with `{ accepted }` — a refusal from the native side
@@ -45,6 +45,10 @@ always *resolves* its invoke with a SaveUpdateResult.
 `number`
 
 ### expiresAt?
+
+`number`
+
+### sequence?
 
 `number`
 

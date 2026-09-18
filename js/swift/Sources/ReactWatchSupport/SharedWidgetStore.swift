@@ -72,6 +72,21 @@ public struct SharedWidgetStore: Sendable {
         defaults?.set(version, forKey: Self.otaHighWaterKey)
     }
 
+    /// OTA same-version replay mark (scheme v3): the highest signed publish
+    /// `sequence` this device has ACCEPTED AT STAGE — not the running bundle's,
+    /// and never raised at boot. Same App Group as the version mark and the db
+    /// so all three share fate on uninstall. 0 when unset (fresh install), so
+    /// the first validly signed bundle sets it.
+    public static let otaSequenceHighWaterKey = "react.ota.sequenceHighWater"
+
+    public func otaSequenceHighWater() -> Int {
+        defaults?.integer(forKey: Self.otaSequenceHighWaterKey) ?? 0
+    }
+
+    public func setOTASequenceHighWater(_ sequence: Int) {
+        defaults?.set(sequence, forKey: Self.otaSequenceHighWaterKey)
+    }
+
     /// OTA crash-loop guard (ARCH-04): boots that ran the OTA bundle but never
     /// reached a healthy first commit. Incremented before evaluating the bundle
     /// and reset to 0 on the first commit (host) — so a *native* crash on boot

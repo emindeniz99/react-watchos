@@ -12,18 +12,21 @@ import { Storage } from "./storage";
  *
  * Security (CR-4 / CR-17): an OTA bundle is arbitrary JS that runs with the
  * full host surface, so an unverified one from a compromised origin is
- * in-sandbox RCE. Sign `"v2:<keyId>:<version>:<expiresAt>:<js>"` with your
- * Ed25519 private key and pass the base64 `signature`, the `keyId`, and the
- * `version` (+ optional `expiresAt` — the revocation lever); the
- * watch looks the `keyId` up in the trusted `keyId -> publicKey` map configured
- * on `ReactWatchRootView(ota: OTAConfig(signerPublicKeys:))` and verifies the
- * signature before persisting/evaluating. The `keyId` is bound *inside* the
- * signed bytes (CX-007), so it can't be swapped to steer the watch to a
- * different key, and an unknown `keyId` fails closed — that's what makes key
- * rotation safe. The `version` is a compatibility integer (bump it only on a
- * breaking change); the watch refuses any bundle older than the newest it has
- * applied (anti-rollback), so an old bundle can't run against a newer-schema db.
- * Always fetch over HTTPS. With no key configured, new OTA saves are REFUSED
+ * in-sandbox RCE. Sign `"v3:<keyId>:<version>:<sequence>:<expiresAt>:<js>"`
+ * with your Ed25519 private key and pass the base64 `signature`, the `keyId`,
+ * the `version` and the `sequence` (+ optional `expiresAt` — the revocation
+ * lever); the watch looks the `keyId` up in the trusted `keyId -> publicKey`
+ * map configured on `ReactWatchRootView(ota: OTAConfig(signerPublicKeys:))`
+ * and verifies the signature before persisting/evaluating. The `keyId` is
+ * bound *inside* the signed bytes (CX-007), so it can't be swapped to steer
+ * the watch to a different key, and an unknown `keyId` fails closed — that's
+ * what makes key rotation safe. The `version` is a compatibility integer
+ * (bump it only on a breaking change); the watch refuses any bundle older
+ * than the newest it has applied (anti-rollback), so an old bundle can't run
+ * against a newer-schema db. The `sequence` orders publishes at the same
+ * `version`: the watch keeps the highest it has accepted at save and refuses
+ * a lower one, so a re-served earlier build is not installed (same-version
+ * replay). Always fetch over HTTPS. With no key configured, new OTA saves are REFUSED
  * (NF-29 secure default) unless the app explicitly opts into
  * `OTAConfig(allowUnsignedUpdates: true)` for development.
  *
@@ -63,8 +66,15 @@ export interface UpdateState {
   keyId?: string;
   /** The running record's signed expiry (epoch seconds; absent/0 = never). */
   expiresAt?: number;
+  /** The running OTA record's signed publish sequence (absent when shipped
+   *  or running an unsigned dev bundle). */
+  sequence?: number;
   /** The device's anti-rollback high-water mark. */
   highWater: number;
+  /** The highest publish `sequence` this device has ACCEPTED AT SAVE (not
+   *  necessarily booted); a manifest below it is refused as a replay. 0 on a
+   *  fresh install. */
+  sequenceHighWater: number;
   /** Content id of the RUNNING bundle (same value as the manifest
    *  `releaseId` for identical bytes) — merged in from the host-injected
    *  `__bundleReleaseId`, so it's present even for the shipped bundle. */
@@ -100,6 +110,7 @@ export async function getUpdateState(): Promise<UpdateState> {
     state = {
       source: "shipped",
       highWater: 0,
+      sequenceHighWater: 0,
       healthSignal: "commit",
       bootAttempts: 0,
     };
@@ -164,6 +175,7 @@ export async function applyUpdate(
   requiredFeatures?: string[],
   minBridgeProtocol?: number,
   expiresAt?: number,
+  sequence?: number,
 ): Promise<SaveUpdateResult> {
   try {
     // JSON.stringify drops undefined keys, so a call without keyId/capability
@@ -176,6 +188,7 @@ export async function applyUpdate(
       requiredFeatures,
       minBridgeProtocol,
       expiresAt,
+      sequence,
     });
   } catch (error) {
     // invoke only rejects here when there's no host / the native side errored;
@@ -216,7 +229,7 @@ export interface UpdateManifest {
   /** Bundle URL — absolute (https), or relative to the manifest URL. */
   bundle: string;
   /** base64 Ed25519 signature over
-   *  "v2:<keyId>:<version>:<expiresAt>:<bundle-js>". */
+   *  "v3:<keyId>:<version>:<sequence>:<expiresAt>:<bundle-js>". */
   signature?: string;
   /** Opaque id of the signing key (CX-007). Selects the watch's trusted public
    *  key and is bound into the signed bytes; an unknown id fails closed. */
@@ -225,6 +238,11 @@ export interface UpdateManifest {
    *  (bound into the signed bytes — the revocation lever). 0/omitted = never
    *  expires. Set at signing time (`signManifest`/OTA_SIGNING_EXPIRES_DAYS). */
   expiresAt?: number;
+  /** Publish sequence (bound into the signed bytes): orders releases at the
+   *  same `version`. The watch keeps the highest it has accepted and refuses
+   *  a lower one, so a re-served earlier build is not installed. Set at
+   *  signing time (`signManifest`; default = signing time in epoch seconds). */
+  sequence?: number;
   /**
    * Capability features the bundle requires (ARCH-01), e.g. ["network",
    * "bluetooth"]. The watch refuses to apply a bundle whose features its binary
@@ -287,6 +305,13 @@ function parseManifest(raw: unknown): UpdateManifest {
     // non-integer here would just fail verification later — but fail loudly at
     // the parse boundary like every other field.
     fail("`expiresAt` must be an integer when present");
+  }
+  if (
+    m.sequence !== undefined &&
+    (typeof m.sequence !== "number" || !Number.isInteger(m.sequence))
+  ) {
+    // Inside the signed bytes like `expiresAt`; same loud-at-the-boundary rule.
+    fail("`sequence` must be an integer when present");
   }
   return m as unknown as UpdateManifest;
 }
@@ -578,6 +603,7 @@ export async function fetchAndApplyUpdate(
     manifest.requiredFeatures,
     manifest.minBridgeProtocol,
     manifest.expiresAt,
+    manifest.sequence,
   );
   // Downloaded, but the watch refused it at save (e.g. signature/capability):
   // report not-staged rather than a version that won't take effect.

@@ -215,6 +215,7 @@ export interface SaveUpdateRequest {
   requiredFeatures?: string[];
   minBridgeProtocol?: number;
   expiresAt?: number;
+  sequence?: number;
 }
 
 export interface ScheduleBackgroundRefreshRequest {
@@ -467,7 +468,9 @@ export interface UpdateState {
   version?: number;
   keyId?: string;
   expiresAt?: number;
+  sequence?: number;
   highWater: number;
+  sequenceHighWater: number;
   releaseId?: string;
   healthSignal: "commit" | "explicit";
   bootAttempts: number;
