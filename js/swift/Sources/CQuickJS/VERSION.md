@@ -1,7 +1,7 @@
-# Vendored: quickjs-ng v0.16.2
-Upstream commit: 1ab8676f4b6d6d669baeb5f21790fb9734636a20
+# Vendored: quickjs-ng v0.17.0
+Upstream commit: 6d46d07d04041b40f4f49eaa7fdebe44c314c699
 
-Source: https://github.com/quickjs-ng/quickjs/archive/refs/tags/v0.16.2.tar.gz
+Source: https://github.com/quickjs-ng/quickjs/archive/6d46d07d04041b40f4f49eaa7fdebe44c314c699.tar.gz
 License: MIT (see LICENSE in this directory)
 
 Core engine files only — `quickjs-libc` (the OS interface) is deliberately
@@ -37,7 +37,7 @@ sequence JSRuntime.swift uses.
    it needs no edit) and run `tools/embed-smoke/run.sh` to prove the new
    engine still embeds.
 
-Tarball SHA-256: 97c80625b26775a4c7ca618c004d4ea24cf99cbf867e4eba78bd927a8b23d106
+Tarball SHA-256: a62cf1ff7d6d2f82b90a2d247a57e9eb56b81c03feb1f372a53923426e358cb0
 (the archive as downloaded on the bump day; in the bot it is the propose→push
 handoff. GitHub does not promise archive bytes are stable, so a stale digest
 is not evidence of tampering — the `Upstream commit:` line is the identity,
