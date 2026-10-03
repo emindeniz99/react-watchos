@@ -8,4 +8,4 @@
 
 > `const` **DatePicker**: `FC`\<[`DatePickerProps`](../interfaces/DatePickerProps.md)\>
 
-Defined in: [js/src/components.ts:797](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L797)
+Defined in: [js/src/components.ts:807](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L807)

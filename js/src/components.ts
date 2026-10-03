@@ -82,12 +82,22 @@ export type Fill = ColorValue | LinearGradientFill;
 
 /**
  * VoiceOver metadata supported by every primitive (applied as SwiftUI
- * .accessibilityLabel/.accessibilityHint in NodeView). Watch users rely
- * on VoiceOver, so author labels for icon-only or composite controls.
+ * .accessibilityLabel/.accessibilityHint/.accessibilityHidden in NodeView).
+ * Watch users rely on VoiceOver, so author labels for icon-only or composite
+ * controls.
  */
 interface A11yProps {
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  /**
+   * Hides this node and its whole subtree from VoiceOver (SwiftUI
+   * `.accessibilityHidden(true)`, applied after label and hint, so it wins
+   * over both). For purely decorative nodes such as a large quote mark or a
+   * drop cap, which VoiceOver would otherwise read out as noise. Never set it
+   * on anything interactive, or on a container holding interactive children:
+   * a hidden control cannot be reached with VoiceOver at all.
+   */
+  accessibilityHidden?: boolean;
 }
 
 /**

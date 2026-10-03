@@ -8,4 +8,4 @@
 
 > `const` **List**: `FC`\<[`ListProps`](../interfaces/ListProps.md)\>
 
-Defined in: [js/src/components.ts:778](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L778)
+Defined in: [js/src/components.ts:788](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L788)
