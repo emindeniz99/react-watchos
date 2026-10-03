@@ -6,7 +6,7 @@
 
 # Interface: GaugeProps
 
-Defined in: [js/src/components.ts:265](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L265)
+Defined in: [js/src/components.ts:324](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L324)
 
 ## Extends
 
@@ -18,7 +18,7 @@ Defined in: [js/src/components.ts:265](https://github.com/emindeniz99/react-watc
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -30,7 +30,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L89)
 
 #### Inherited from
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **animation?**: `object`
 
-Defined in: [js/src/components.ts:92](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L92)
+Defined in: [js/src/components.ts:151](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L151)
 
 Animate this node's committed changes (SwiftUI `.animation(_:value:)`):
 any prop or subtree change transitions with the given curve instead of
@@ -65,11 +65,13 @@ only — widgets are static snapshots and ignore it.
 
 ### background?
 
-> `optional` **background?**: [`ColorValue`](../type-aliases/ColorValue.md)
+> `optional` **background?**: [`Fill`](../type-aliases/Fill.md)
 
-Defined in: [js/src/components.ts:73](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L73)
+Defined in: [js/src/components.ts:115](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L115)
 
-Fill color behind the content (rounded when cornerRadius is set).
+Colour or gradient behind the content (rounded when cornerRadius is set):
+`background="#1C1B18"` or
+`background={{ type: "linearGradient", colors: ["indigo", "black"] }}`.
 
 #### Inherited from
 
@@ -81,7 +83,27 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:272](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L272)
+Defined in: [js/src/components.ts:331](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L331)
+
+***
+
+### containerBackground?
+
+> `optional` **containerBackground?**: [`Fill`](../type-aliases/Fill.md)
+
+Defined in: [js/src/components.ts:125](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L125)
+
+Full-bleed page colour or gradient behind the system chrome (SwiftUI
+`.containerBackground(_, for: .tabView)`). Set it on a TabView page, the
+direct child of `<TabView>`; elsewhere it has nothing to fill.
+
+**App-only: a no-op in complications and Smart Stack widgets.** The widget
+container's background is fixed to clear. Declared in `codegen/schema.ts`
+`propDegradations` and listed in `docs/api/capabilities.md`.
+
+#### Inherited from
+
+`ModifierProps.containerBackground`
 
 ***
 
@@ -89,7 +111,7 @@ Defined in: [js/src/components.ts:272](https://github.com/emindeniz99/react-watc
 
 > `optional` **cornerRadius?**: `number`
 
-Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L75)
+Defined in: [js/src/components.ts:134](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L134)
 
 Rounds the background — or clips the content when there is none.
 
@@ -99,11 +121,28 @@ Rounds the background — or clips the content when there is none.
 
 ***
 
+### fontDesign?
+
+> `optional` **fontDesign?**: `"default"` \| `"serif"` \| `"rounded"` \| `"monospaced"`
+
+Defined in: [js/src/components.ts:132](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L132)
+
+Type family within the system font (SwiftUI `.fontDesign`): `"serif"` is
+New York, `"rounded"` SF Rounded, `"monospaced"` SF Mono. Set on a stack,
+it applies to every Text inside; a Text (or nested segment) that sets its
+own wins. Works with `textStyle`, so Dynamic Type still applies.
+
+#### Inherited from
+
+`ModifierProps.fontDesign`
+
+***
+
 ### frame?
 
 > `optional` **frame?**: `object`
 
-Defined in: [js/src/components.ts:66](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L66)
+Defined in: [js/src/components.ts:104](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L104)
 
 Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
@@ -133,7 +172,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **ignoresSafeArea?**: `boolean`
 
-Defined in: [js/src/components.ts:85](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L85)
+Defined in: [js/src/components.ts:144](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L144)
 
 Let this node extend under the safe area (SwiftUI `.ignoresSafeArea()`).
 Set it on an overlay stacked on a `fullScreen` map so bottom-anchored
@@ -149,7 +188,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:269](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L269)
+Defined in: [js/src/components.ts:328](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L328)
 
 ***
 
@@ -157,7 +196,7 @@ Defined in: [js/src/components.ts:269](https://github.com/emindeniz99/react-watc
 
 > `optional` **max?**: `number`
 
-Defined in: [js/src/components.ts:268](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L268)
+Defined in: [js/src/components.ts:327](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L327)
 
 ***
 
@@ -165,7 +204,7 @@ Defined in: [js/src/components.ts:268](https://github.com/emindeniz99/react-watc
 
 > `optional` **min?**: `number`
 
-Defined in: [js/src/components.ts:267](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L267)
+Defined in: [js/src/components.ts:326](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L326)
 
 ***
 
@@ -173,7 +212,7 @@ Defined in: [js/src/components.ts:267](https://github.com/emindeniz99/react-watc
 
 > `optional` **opacity?**: `number`
 
-Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L77)
+Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L136)
 
 0 (invisible) … 1 (opaque).
 
@@ -187,7 +226,7 @@ Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/react-watch
 
 > `optional` **padding?**: `number` \| \{ `horizontal?`: `number`; `vertical?`: `number`; \}
 
-Defined in: [js/src/components.ts:64](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L64)
+Defined in: [js/src/components.ts:102](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L102)
 
 Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
@@ -201,7 +240,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **style?**: `string`
 
-Defined in: [js/src/components.ts:271](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L271)
+Defined in: [js/src/components.ts:330](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L330)
 
 "circular" | "linear"; widgets pick accessory styles by family.
 
@@ -211,7 +250,7 @@ Defined in: [js/src/components.ts:271](https://github.com/emindeniz99/react-watc
 
 > `optional` **tint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L79)
+Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L138)
 
 Accent color for this subtree's controls (SwiftUI .tint).
 
@@ -225,4 +264,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:266](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L266)
+Defined in: [js/src/components.ts:325](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L325)

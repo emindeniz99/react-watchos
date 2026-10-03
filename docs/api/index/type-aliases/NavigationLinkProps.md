@@ -8,4 +8,4 @@
 
 > **NavigationLinkProps** = `A11yProps` & \{ `children?`: `never`; `label`: `string`; `to`: `string`; \} \| \{ `children`: `ReactNode`; `label?`: `string`; `to`: `string`; \}
 
-Defined in: [js/src/components.ts:301](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L301)
+Defined in: [js/src/components.ts:360](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L360)

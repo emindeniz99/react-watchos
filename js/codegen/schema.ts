@@ -351,6 +351,14 @@ export const propDegradations: PropDegradation[] = [
       "The widget's interactive Button hard-codes .buttonStyle(.plain); " +
       "glass/glassProminent/plain are all no-ops in complications.",
   },
+  {
+    component: "*",
+    prop: "containerBackground",
+    note:
+      "Applied as .containerBackground(_, for: .tabView) in NodeView's " +
+      "shared modifier chain; reactWidgetView fixes the widget container " +
+      "to .clear, so it is a no-op in complications.",
+  },
 ];
 
 /** Plain structs, rendered for both Swift and TS from `fields`. */

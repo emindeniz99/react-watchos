@@ -16,6 +16,7 @@
         "height": 120
       },
       "background": "#00000080",
+      "fontDesign": "serif",
       "cornerRadius": 6,
       "opacity": 0.9,
       "tint": "accentColor",
@@ -50,6 +51,7 @@
                 "id": 1,
                 "type": "Text",
                 "props": {
+                  "fontDesign": "rounded",
                   "text": "Rich "
                 },
                 "children": []
@@ -93,7 +95,21 @@
         "id": 10,
         "type": "ZStack",
         "props": {
-          "alignment": "topLeading"
+          "alignment": "topLeading",
+          "background": {
+            "type": "linearGradient",
+            "stops": [
+              {
+                "color": "indigo",
+                "location": 0
+              },
+              {
+                "color": "#000000",
+                "location": 0.7
+              }
+            ],
+            "end": "bottomTrailing"
+          }
         },
         "children": [
           {
@@ -293,6 +309,7 @@
             "id": 27,
             "type": "Text",
             "props": {
+              "containerBackground": "#1C1B18",
               "text": "tab"
             },
             "children": []

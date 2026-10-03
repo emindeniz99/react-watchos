@@ -8,4 +8,4 @@
 
 > `const` **Divider**: `FC`\<[`DividerProps`](../interfaces/DividerProps.md)\>
 
-Defined in: [js/src/components.ts:720](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L720)
+Defined in: [js/src/components.ts:779](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L779)

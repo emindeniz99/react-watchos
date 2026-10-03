@@ -6,7 +6,7 @@
 
 # Interface: ChartPoint
 
-Defined in: [js/src/components.ts:668](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L668)
+Defined in: [js/src/components.ts:727](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L727)
 
 One <Chart> data point: `y` is required; `x` is a numeric position or a
  category label (strings chart as discrete categories). Omit `x` to plot
@@ -18,7 +18,7 @@ One <Chart> data point: `y` is required; `x` is a numeric position or a
 
 > `optional` **x?**: `string` \| `number`
 
-Defined in: [js/src/components.ts:669](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L669)
+Defined in: [js/src/components.ts:728](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L728)
 
 ***
 
@@ -26,4 +26,4 @@ Defined in: [js/src/components.ts:669](https://github.com/emindeniz99/react-watc
 
 > **y**: `number`
 
-Defined in: [js/src/components.ts:670](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L670)
+Defined in: [js/src/components.ts:729](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L729)

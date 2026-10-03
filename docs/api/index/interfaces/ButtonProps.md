@@ -6,7 +6,7 @@
 
 # Interface: ButtonProps
 
-Defined in: [js/src/components.ts:188](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L188)
+Defined in: [js/src/components.ts:247](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L247)
 
 Swipe actions (SwiftUI `.swipeActions`), the watchOS-idiomatic way to act on
 a row. Only meaningful on a row inside a `<List>`; unlike a raw `onSwipe`
@@ -26,7 +26,7 @@ edge independently:
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -38,7 +38,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L89)
 
 #### Inherited from
 
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **animation?**: `object`
 
-Defined in: [js/src/components.ts:92](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L92)
+Defined in: [js/src/components.ts:151](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L151)
 
 Animate this node's committed changes (SwiftUI `.animation(_:value:)`):
 any prop or subtree change transitions with the given curve instead of
@@ -73,11 +73,13 @@ only — widgets are static snapshots and ignore it.
 
 ### background?
 
-> `optional` **background?**: [`ColorValue`](../type-aliases/ColorValue.md)
+> `optional` **background?**: [`Fill`](../type-aliases/Fill.md)
 
-Defined in: [js/src/components.ts:73](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L73)
+Defined in: [js/src/components.ts:115](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L115)
 
-Fill color behind the content (rounded when cornerRadius is set).
+Colour or gradient behind the content (rounded when cornerRadius is set):
+`background="#1C1B18"` or
+`background={{ type: "linearGradient", colors: ["indigo", "black"] }}`.
 
 #### Inherited from
 
@@ -89,7 +91,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **buttonStyle?**: `"glass"` \| `"glassProminent"` \| `"plain"`
 
-Defined in: [js/src/components.ts:217](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L217)
+Defined in: [js/src/components.ts:276](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L276)
 
 Button chrome. "glass"/"glassProminent" are Liquid Glass
 ("glassProminent" is the accented fill). "plain" strips all chrome so the content IS the button — use it with
@@ -108,7 +110,27 @@ interactive button hard-codes `.buttonStyle(.plain)`, so every value here
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:218](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L218)
+Defined in: [js/src/components.ts:277](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L277)
+
+***
+
+### containerBackground?
+
+> `optional` **containerBackground?**: [`Fill`](../type-aliases/Fill.md)
+
+Defined in: [js/src/components.ts:125](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L125)
+
+Full-bleed page colour or gradient behind the system chrome (SwiftUI
+`.containerBackground(_, for: .tabView)`). Set it on a TabView page, the
+direct child of `<TabView>`; elsewhere it has nothing to fill.
+
+**App-only: a no-op in complications and Smart Stack widgets.** The widget
+container's background is fixed to clear. Declared in `codegen/schema.ts`
+`propDegradations` and listed in `docs/api/capabilities.md`.
+
+#### Inherited from
+
+`ModifierProps.containerBackground`
 
 ***
 
@@ -116,7 +138,7 @@ Defined in: [js/src/components.ts:218](https://github.com/emindeniz99/react-watc
 
 > `optional` **cornerRadius?**: `number`
 
-Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L75)
+Defined in: [js/src/components.ts:134](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L134)
 
 Rounds the background — or clips the content when there is none.
 
@@ -130,7 +152,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **focusable?**: `boolean`
 
-Defined in: [js/src/components.ts:111](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L111)
+Defined in: [js/src/components.ts:170](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L170)
 
 Make this view Crown/focus-addressable (watchOS focus traversal).
  To programmatically CLAIM the Crown, use `<CrownRotation focused>` —
@@ -142,11 +164,28 @@ Make this view Crown/focus-addressable (watchOS focus traversal).
 
 ***
 
+### fontDesign?
+
+> `optional` **fontDesign?**: `"default"` \| `"serif"` \| `"rounded"` \| `"monospaced"`
+
+Defined in: [js/src/components.ts:132](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L132)
+
+Type family within the system font (SwiftUI `.fontDesign`): `"serif"` is
+New York, `"rounded"` SF Rounded, `"monospaced"` SF Mono. Set on a stack,
+it applies to every Text inside; a Text (or nested segment) that sets its
+own wins. Works with `textStyle`, so Dynamic Type still applies.
+
+#### Inherited from
+
+`ModifierProps.fontDesign`
+
+***
+
 ### frame?
 
 > `optional` **frame?**: `object`
 
-Defined in: [js/src/components.ts:66](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L66)
+Defined in: [js/src/components.ts:104](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L104)
 
 Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
@@ -176,7 +215,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **glass?**: `boolean`
 
-Defined in: [js/src/components.ts:122](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L122)
+Defined in: [js/src/components.ts:181](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L181)
 
 Apply the watchOS 26 Liquid Glass effect.
 
@@ -197,7 +236,7 @@ a view in the app renders it plain on a watch face. Declared in
 
 > `optional` **ignoresSafeArea?**: `boolean`
 
-Defined in: [js/src/components.ts:85](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L85)
+Defined in: [js/src/components.ts:144](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L144)
 
 Let this node extend under the safe area (SwiftUI `.ignoresSafeArea()`).
 Set it on an overlay stacked on a `fullScreen` map so bottom-anchored
@@ -213,7 +252,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **intent?**: `string`
 
-Defined in: [js/src/components.ts:204](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L204)
+Defined in: [js/src/components.ts:263](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L263)
 
 Makes this button interactive **inside a widget/complication**: a tap
 runs the `registerIntent(name, …)` handler in the widget extension (no app
@@ -228,7 +267,7 @@ button without `intent` renders its (non-interactive) content.
 
 > `optional` **leadingSwipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:139](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L139)
+Defined in: [js/src/components.ts:198](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L198)
 
 #### Inherited from
 
@@ -240,7 +279,7 @@ Defined in: [js/src/components.ts:139](https://github.com/emindeniz99/react-watc
 
 > `optional` **leadingSwipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:140](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L140)
+Defined in: [js/src/components.ts:199](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L199)
 
 #### Inherited from
 
@@ -252,7 +291,7 @@ Defined in: [js/src/components.ts:140](https://github.com/emindeniz99/react-watc
 
 > `optional` **leadingSwipeActionTint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:141](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L141)
+Defined in: [js/src/components.ts:200](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L200)
 
 #### Inherited from
 
@@ -264,7 +303,7 @@ Defined in: [js/src/components.ts:141](https://github.com/emindeniz99/react-watc
 
 > `optional` **onDrag?**: (`translation`) => `void`
 
-Defined in: [js/src/components.ts:107](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L107)
+Defined in: [js/src/components.ts:166](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L166)
 
 Streamed drag translation (quantized to throttle the bridge) — for scrubbing.
 
@@ -294,7 +333,7 @@ Streamed drag translation (quantized to throttle the bridge) — for scrubbing.
 
 > `optional` **onLeadingSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:142](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L142)
+Defined in: [js/src/components.ts:201](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L201)
 
 #### Returns
 
@@ -310,7 +349,7 @@ Defined in: [js/src/components.ts:142](https://github.com/emindeniz99/react-watc
 
 > `optional` **onLongPress?**: () => `void`
 
-Defined in: [js/src/components.ts:104](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L104)
+Defined in: [js/src/components.ts:163](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L163)
 
 #### Returns
 
@@ -326,7 +365,7 @@ Defined in: [js/src/components.ts:104](https://github.com/emindeniz99/react-watc
 
 > `optional` **onPress?**: () => `void`
 
-Defined in: [js/src/components.ts:193](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L193)
+Defined in: [js/src/components.ts:252](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L252)
 
 #### Returns
 
@@ -338,7 +377,7 @@ Defined in: [js/src/components.ts:193](https://github.com/emindeniz99/react-watc
 
 > `optional` **onSwipe?**: (`direction`) => `void`
 
-Defined in: [js/src/components.ts:105](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L105)
+Defined in: [js/src/components.ts:164](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L164)
 
 #### Parameters
 
@@ -360,7 +399,7 @@ Defined in: [js/src/components.ts:105](https://github.com/emindeniz99/react-watc
 
 > `optional` **onSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L138)
+Defined in: [js/src/components.ts:197](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L197)
 
 #### Returns
 
@@ -376,7 +415,7 @@ Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/react-watc
 
 > `optional` **opacity?**: `number`
 
-Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L77)
+Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L136)
 
 0 (invisible) … 1 (opaque).
 
@@ -390,7 +429,7 @@ Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/react-watch
 
 > `optional` **padding?**: `number` \| \{ `horizontal?`: `number`; `vertical?`: `number`; \}
 
-Defined in: [js/src/components.ts:64](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L64)
+Defined in: [js/src/components.ts:102](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L102)
 
 Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
@@ -404,7 +443,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **primaryAction?**: `boolean`
 
-Defined in: [js/src/components.ts:195](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L195)
+Defined in: [js/src/components.ts:254](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L254)
 
 Bind this button to the Apple Watch double-tap gesture.
 
@@ -414,7 +453,7 @@ Bind this button to the Apple Watch double-tap gesture.
 
 > `optional` **swipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:135](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L135)
+Defined in: [js/src/components.ts:194](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L194)
 
 #### Inherited from
 
@@ -426,7 +465,7 @@ Defined in: [js/src/components.ts:135](https://github.com/emindeniz99/react-watc
 
 > `optional` **swipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L136)
+Defined in: [js/src/components.ts:195](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L195)
 
 #### Inherited from
 
@@ -438,7 +477,7 @@ Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/react-watc
 
 > `optional` **swipeActionTint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:137](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L137)
+Defined in: [js/src/components.ts:196](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L196)
 
 #### Inherited from
 
@@ -450,7 +489,7 @@ Defined in: [js/src/components.ts:137](https://github.com/emindeniz99/react-watc
 
 > `optional` **tint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L79)
+Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L138)
 
 Accent color for this subtree's controls (SwiftUI .tint).
 

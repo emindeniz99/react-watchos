@@ -6,7 +6,7 @@
 
 # Interface: NavigationStackProps
 
-Defined in: [js/src/components.ts:282](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L282)
+Defined in: [js/src/components.ts:341](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L341)
 
 ## Extends
 
@@ -18,7 +18,7 @@ Defined in: [js/src/components.ts:282](https://github.com/emindeniz99/react-watc
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -30,7 +30,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L89)
 
 #### Inherited from
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:298](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L298)
+Defined in: [js/src/components.ts:357](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L357)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:298](https://github.com/emindeniz99/react-watc
 
 > `optional` **onPathChange?**: (`path`) => `void`
 
-Defined in: [js/src/components.ts:297](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L297)
+Defined in: [js/src/components.ts:356](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L356)
 
 Fired when native back/link gestures propose a new stack path. In
 controlled mode, fold it into `path` SYNCHRONOUSLY — setState inside the
@@ -75,7 +75,7 @@ already popped — but must be folded the same way.
 
 > `optional` **path?**: `string`[]
 
-Defined in: [js/src/components.ts:288](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L288)
+Defined in: [js/src/components.ts:347](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L347)
 
 Controlled native stack path. Root is represented by [] and pushed
 routes are stable path strings such as ["/hydration"].
@@ -86,4 +86,4 @@ routes are stable path strings such as ["/hydration"].
 
 > `optional` **title?**: `string`
 
-Defined in: [js/src/components.ts:283](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L283)
+Defined in: [js/src/components.ts:342](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L342)

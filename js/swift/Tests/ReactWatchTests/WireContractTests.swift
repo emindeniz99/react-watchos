@@ -107,6 +107,32 @@ final class WireContractTests: XCTestCase {
         XCTAssertEqual(root.string("accessibilityLabel"), "sink-root")
         XCTAssertEqual(root.string("accessibilityHint"), "the kitchen sink")
 
+        // Fill and fontDesign, parsed from the real serializer output: the
+        // string form of `background` must still be a colour, the object form
+        // a gradient with its stops, and fontDesign on a stack (shared chain)
+        // plus a nested segment's own override.
+        XCTAssertEqual(
+            RNStyle.fill(from: root.props["background"]),
+            .color(.rgba(r: 0, g: 0, b: 0, a: 128.0 / 255)))
+        XCTAssertEqual(RNStyle.fontDesign(root.string("fontDesign")), .serif)
+        let segment = try XCTUnwrap(findText(root, "Rich "))
+        XCTAssertEqual(RNStyle.fontDesign(segment.string("fontDesign")), .rounded)
+        let zstack = try XCTUnwrap(find(root, "ZStack"))
+        XCTAssertEqual(
+            RNStyle.fill(from: zstack.props["background"]),
+            .linearGradient(
+                RNStyle.LinearGradient(
+                    stops: [
+                        .init(color: .named("indigo"), location: 0),
+                        .init(color: .rgba(r: 0, g: 0, b: 0, a: 1), location: 0.7),
+                    ],
+                    start: .top, end: .bottomTrailing)))
+        let tabView = try XCTUnwrap(find(root, "TabView"))
+        let page = try XCTUnwrap(tabView.children.first)
+        XCTAssertEqual(
+            RNStyle.fill(from: page.props["containerBackground"]),
+            .color(.rgba(r: 28.0 / 255, g: 27.0 / 255, b: 24.0 / 255, a: 1)))
+
         // High-risk per-component props, spot-parsed end to end.
         let gauge = try XCTUnwrap(find(root, "Gauge"))
         let bounds = RNStyle.gaugeBounds(

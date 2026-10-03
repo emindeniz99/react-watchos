@@ -6,7 +6,7 @@
 
 # Interface: TabViewProps
 
-Defined in: [js/src/components.ts:357](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L357)
+Defined in: [js/src/components.ts:416](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L416)
 
 ## Extends
 
@@ -18,7 +18,7 @@ Defined in: [js/src/components.ts:357](https://github.com/emindeniz99/react-watc
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -30,7 +30,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L89)
 
 #### Inherited from
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:359](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L359)
+Defined in: [js/src/components.ts:418](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L418)
 
 Each child is one page.
 
@@ -52,7 +52,7 @@ Each child is one page.
 
 > `optional` **onChange?**: (`index`) => `void`
 
-Defined in: [js/src/components.ts:370](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L370)
+Defined in: [js/src/components.ts:429](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L429)
 
 Fires with the new page index as the user swipes between pages.
 
@@ -72,7 +72,7 @@ Fires with the new page index as the user swipes between pages.
 
 > `optional` **selection?**: `number`
 
-Defined in: [js/src/components.ts:368](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L368)
+Defined in: [js/src/components.ts:427](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L427)
 
 Controlled selected page index (0-based). When set, the native TabView
 binds to it optimistically (a swipe holds until React acks) — keep it in
@@ -87,7 +87,7 @@ controlled input.
 
 > `optional` **style?**: `"page"` \| `"verticalPage"`
 
-Defined in: [js/src/components.ts:387](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L387)
+Defined in: [js/src/components.ts:446](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L446)
 
 Which SwiftUI `TabViewStyle` to page with. Each value maps to the style
 of the same name, so this prop means exactly what SwiftUI means:

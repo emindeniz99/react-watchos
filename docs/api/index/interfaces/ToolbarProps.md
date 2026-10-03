@@ -6,7 +6,7 @@
 
 # Interface: ToolbarProps
 
-Defined in: [js/src/components.ts:700](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L700)
+Defined in: [js/src/components.ts:759](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L759)
 
 Screen toolbar (SwiftUI `.toolbar`); children must be <ToolbarItem>.
  Place it anywhere inside the screen's content.
@@ -17,4 +17,4 @@ Screen toolbar (SwiftUI `.toolbar`); children must be <ToolbarItem>.
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:701](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L701)
+Defined in: [js/src/components.ts:760](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L760)

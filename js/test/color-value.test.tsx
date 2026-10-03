@@ -33,3 +33,43 @@ describe("ColorValue prop typing", () => {
     expect(notAName).toBeTruthy();
   });
 });
+
+// Fill: `background`/`containerBackground` take a colour OR a gradient object.
+// The serializer forwards the object untouched (RNStyle.fill parses it in
+// Swift), and the string form keeps its plain-string wire shape.
+describe("Fill prop typing and serialization", () => {
+  it("serializes a gradient object as-is and a colour as a string", () => {
+    const host = new MemoryHost();
+    new WatchRoot(host).render(
+      <VStack>
+        <VStack
+          background={{ type: "linearGradient", colors: ["red", "blue"] }}
+        />
+        <VStack background="#1c1c1e" containerBackground="indigo" />
+      </VStack>,
+    );
+    const [, gradient, solid] = findByType(host.lastCommit!.root!, "VStack");
+    expect(gradient?.props.background).toEqual({
+      type: "linearGradient",
+      colors: ["red", "blue"],
+    });
+    expect(solid?.props.background).toBe("#1c1c1e");
+    expect(solid?.props.containerBackground).toBe("indigo");
+  });
+
+  it("rejects an untagged gradient and a misspelled stop colour", () => {
+    // @ts-expect-error a gradient needs its `type` discriminator
+    const untagged = <VStack background={{ colors: ["red", "blue"] }} />;
+    const typo = (
+      <VStack
+        background={{
+          type: "linearGradient",
+          // @ts-expect-error "tomato" is not a ColorValue
+          stops: [{ color: "tomato", location: 0 }],
+        }}
+      />
+    );
+    expect(untagged).toBeTruthy();
+    expect(typo).toBeTruthy();
+  });
+});

@@ -8,4 +8,4 @@
 
 > `const` **ScrollView**: `FC`\<[`ScrollViewProps`](../interfaces/ScrollViewProps.md)\>
 
-Defined in: [js/src/components.ts:718](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L718)
+Defined in: [js/src/components.ts:777](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L777)

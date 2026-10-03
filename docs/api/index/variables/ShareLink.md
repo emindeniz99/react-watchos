@@ -8,4 +8,4 @@
 
 > `const` **ShareLink**: `FC`\<[`ShareLinkProps`](../interfaces/ShareLinkProps.md)\>
 
-Defined in: [js/src/components.ts:750](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L750)
+Defined in: [js/src/components.ts:809](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L809)

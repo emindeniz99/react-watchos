@@ -8,4 +8,4 @@
 
 > `const` **MapView**: `FC`\<[`MapProps`](../interfaces/MapProps.md)\>
 
-Defined in: [js/src/components.ts:740](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L740)
+Defined in: [js/src/components.ts:799](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L799)

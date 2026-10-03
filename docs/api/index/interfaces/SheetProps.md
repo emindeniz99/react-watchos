@@ -6,7 +6,7 @@
 
 # Interface: SheetProps
 
-Defined in: [js/src/components.ts:623](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L623)
+Defined in: [js/src/components.ts:682](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L682)
 
 Modal sheet (SwiftUI `.sheet`; effectively full-screen on watchOS).
 Controlled like <Alert>: present with `presented`, the user's swipe-down /
@@ -18,7 +18,7 @@ system dismissal fires `onChange(false)`. Children are the sheet content.
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:626](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L626)
+Defined in: [js/src/components.ts:685](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L685)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [js/src/components.ts:626](https://github.com/emindeniz99/react-watc
 
 > `optional` **onChange?**: (`presented`) => `void`
 
-Defined in: [js/src/components.ts:625](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L625)
+Defined in: [js/src/components.ts:684](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L684)
 
 #### Parameters
 
@@ -44,4 +44,4 @@ Defined in: [js/src/components.ts:625](https://github.com/emindeniz99/react-watc
 
 > `optional` **presented?**: `boolean`
 
-Defined in: [js/src/components.ts:624](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L624)
+Defined in: [js/src/components.ts:683](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L683)

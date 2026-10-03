@@ -277,7 +277,8 @@ can't claim) is
 
 - **Not RN core.** No RN components, no RN ecosystem libraries, no Yoga
   flexbox. 41 SwiftUI-like primitives, each accepting shared layout-modifier
-  props (`padding`, `frame`, `background`, `cornerRadius`, `opacity`, `tint`,
+  props (`padding`, `frame`, `background` (colour or gradient),
+  `containerBackground`, `cornerRadius`, `opacity`, `tint`, `fontDesign`,
   per-node `animation`, stack `alignment`).
 - **Requires watchOS 26.** Everything, Controls and Liquid Glass included,
   runs ungated on watchOS 26+; Series 4, Series 5 and SE (1st gen) can't run

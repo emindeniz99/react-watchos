@@ -6,7 +6,7 @@
 
 # Interface: ConfirmationDialogProps
 
-Defined in: [js/src/components.ts:611](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L611)
+Defined in: [js/src/components.ts:670](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L670)
 
 Action-sheet-style dialog (SwiftUI `.confirmationDialog`); same controlled
  contract as <Alert>, children are <AlertAction> elements.
@@ -17,7 +17,7 @@ Action-sheet-style dialog (SwiftUI `.confirmationDialog`); same controlled
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:615](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L615)
+Defined in: [js/src/components.ts:674](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L674)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [js/src/components.ts:615](https://github.com/emindeniz99/react-watc
 
 > `optional` **onChange?**: (`presented`) => `void`
 
-Defined in: [js/src/components.ts:614](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L614)
+Defined in: [js/src/components.ts:673](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L673)
 
 #### Parameters
 
@@ -43,7 +43,7 @@ Defined in: [js/src/components.ts:614](https://github.com/emindeniz99/react-watc
 
 > `optional` **presented?**: `boolean`
 
-Defined in: [js/src/components.ts:612](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L612)
+Defined in: [js/src/components.ts:671](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L671)
 
 ***
 
@@ -51,4 +51,4 @@ Defined in: [js/src/components.ts:612](https://github.com/emindeniz99/react-watc
 
 > **title**: `string`
 
-Defined in: [js/src/components.ts:613](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L613)
+Defined in: [js/src/components.ts:672](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L672)

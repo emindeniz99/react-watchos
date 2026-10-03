@@ -24,11 +24,14 @@ public enum RNUI {
     /// mapped to a SwiftUI `Color`; nil when the value is neither a known name
     /// nor valid hex, so callers fall back to `.primary`/`.accentColor`.
     public static func color(_ name: String?) -> Color? {
-        guard let value = RNStyle.color(name) else { return nil }
+        RNStyle.color(name).map { color($0) }
+    }
+
+    /// A parsed `RNStyle` color -> SwiftUI `Color`.
+    public static func color(_ value: RNStyle.Color) -> Color {
         switch value {
-        case .named(let named): return systemColor(named)
-        case .rgba(let r, let g, let b, let a):
-            return Color(red: r, green: g, blue: b, opacity: a)
+        case .named(let named): systemColor(named)
+        case .rgba(let r, let g, let b, let a): Color(red: r, green: g, blue: b, opacity: a)
         }
     }
 
@@ -73,6 +76,47 @@ public enum RNUI {
         }
     }
 
+    /// Parsed `fontDesign` -> SwiftUI `Font.Design`.
+    public static func fontDesign(_ design: RNStyle.FontDesign) -> Font.Design {
+        switch design {
+        case .default: .default
+        case .serif: .serif
+        case .rounded: .rounded
+        case .monospaced: .monospaced
+        }
+    }
+
+    public static func unitPoint(_ point: RNStyle.LinearGradient.Point) -> UnitPoint {
+        switch point {
+        case .top: .top
+        case .bottom: .bottom
+        case .leading: .leading
+        case .trailing: .trailing
+        case .center: .center
+        case .topLeading: .topLeading
+        case .topTrailing: .topTrailing
+        case .bottomLeading: .bottomLeading
+        case .bottomTrailing: .bottomTrailing
+        }
+    }
+
+    /// A parsed `Fill` (`background`, `containerBackground`) -> the
+    /// ShapeStyle both interpreters paint with.
+    public static func shapeStyle(_ fill: RNStyle.Fill) -> AnyShapeStyle {
+        switch fill {
+        case .color(let value):
+            AnyShapeStyle(color(value))
+        case .linearGradient(let gradient):
+            AnyShapeStyle(
+                LinearGradient(
+                    stops: gradient.stops.map {
+                        Gradient.Stop(color: color($0.color), location: CGFloat($0.location))
+                    },
+                    startPoint: unitPoint(gradient.start),
+                    endPoint: unitPoint(gradient.end)))
+        }
+    }
+
     public static func horizontalAlignment(_ name: String?) -> HorizontalAlignment {
         switch name {
         case "leading": .leading
@@ -113,6 +157,7 @@ public enum RNUI {
         let bold: Bool
         let monospacedDigit: Bool
         let font: Font?
+        let design: Font.Design?
         let color: Color
 
         public init(_ node: RNNode) {
@@ -125,6 +170,7 @@ public enum RNUI {
             } else {
                 font = nil
             }
+            design = RNStyle.fontDesign(node.string("fontDesign")).map(RNUI.fontDesign)
             color = RNUI.color(node.string("color")) ?? .primary
         }
 
@@ -133,6 +179,7 @@ public enum RNUI {
             if bold { text = text.bold() }
             if monospacedDigit { text = text.monospacedDigit() }
             if let font { text = text.font(font) }
+            if let design { text = text.fontDesign(design) }
             return text.foregroundStyle(color)
         }
     }
@@ -162,6 +209,9 @@ public enum RNUI {
             text = text.font(semanticFont(style))
         } else if let size = node.double("size") {
             text = text.font(.system(size: CGFloat(size)))
+        }
+        if let design = RNStyle.fontDesign(node.string("fontDesign")) {
+            text = text.fontDesign(fontDesign(design))
         }
         if let segmentColor = color(node.string("color")) {
             text = text.foregroundStyle(segmentColor)
