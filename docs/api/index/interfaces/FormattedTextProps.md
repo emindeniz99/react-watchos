@@ -6,7 +6,7 @@
 
 # Interface: FormattedTextProps
 
-Defined in: [js/src/components.ts:558](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L558)
+Defined in: [js/src/components.ts:594](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L594)
 
 Locale-aware formatted date/number text, rendered natively (i18n step 2).
 QuickJS ships no `Intl` — instead of embedding ICU in the bundle, declare
@@ -25,7 +25,7 @@ for a number; `date` wins when both are set.
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:76](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L76)
 
 #### Inherited from
 
@@ -37,7 +37,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L75)
 
 #### Inherited from
 
@@ -49,7 +49,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **animation?**: `object`
 
-Defined in: [js/src/components.ts:92](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L92)
+Defined in: [js/src/components.ts:121](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L121)
 
 Animate this node's committed changes (SwiftUI `.animation(_:value:)`):
 any prop or subtree change transitions with the given curve instead of
@@ -74,7 +74,7 @@ only — widgets are static snapshots and ignore it.
 
 > `optional` **background?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:73](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L73)
+Defined in: [js/src/components.ts:96](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L96)
 
 Fill color behind the content (rounded when cornerRadius is set).
 
@@ -84,11 +84,27 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 ***
 
+### backgroundGradient?
+
+> `optional` **backgroundGradient?**: `LinearGradientValue`
+
+Defined in: [js/src/components.ts:102](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L102)
+
+Gradient fill behind the content, drawn where `background` would be
+(same cornerRadius rounding, same stroke in an accented complication).
+Takes precedence over `background` when both are set.
+
+#### Inherited from
+
+`ModifierProps.backgroundGradient`
+
+***
+
 ### bold?
 
 > `optional` **bold?**: `boolean`
 
-Defined in: [js/src/components.ts:576](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L576)
+Defined in: [js/src/components.ts:612](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L612)
 
 ***
 
@@ -96,7 +112,7 @@ Defined in: [js/src/components.ts:576](https://github.com/emindeniz99/react-watc
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:578](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L578)
+Defined in: [js/src/components.ts:614](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L614)
 
 ***
 
@@ -104,7 +120,7 @@ Defined in: [js/src/components.ts:578](https://github.com/emindeniz99/react-watc
 
 > `optional` **cornerRadius?**: `number`
 
-Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L75)
+Defined in: [js/src/components.ts:104](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L104)
 
 Rounds the background — or clips the content when there is none.
 
@@ -118,7 +134,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **currency?**: `string`
 
-Defined in: [js/src/components.ts:573](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L573)
+Defined in: [js/src/components.ts:609](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L609)
 
 ISO 4217 code for `format: "currency"`; absent = the locale's own.
 
@@ -128,7 +144,7 @@ ISO 4217 code for `format: "currency"`; absent = the locale's own.
 
 > `optional` **date?**: `number`
 
-Defined in: [js/src/components.ts:560](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L560)
+Defined in: [js/src/components.ts:596](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L596)
 
 Epoch milliseconds to render as a localized date/time.
 
@@ -138,7 +154,7 @@ Epoch milliseconds to render as a localized date/time.
 
 > `optional` **dateStyle?**: `"full"` \| `"none"` \| `"short"` \| `"medium"` \| `"long"`
 
-Defined in: [js/src/components.ts:565](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L565)
+Defined in: [js/src/components.ts:601](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L601)
 
 Date part style. Default: "medium" for a bare `date`; "none" once
 `timeStyle` is set (so a time-only render has no surprise date prefix).
@@ -149,7 +165,7 @@ Date part style. Default: "medium" for a bare `date`; "none" once
 
 > `optional` **format?**: `"currency"` \| `"decimal"` \| `"percent"`
 
-Defined in: [js/src/components.ts:571](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L571)
+Defined in: [js/src/components.ts:607](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L607)
 
 Number shape: "percent" renders 0.5 as "50%" (the Intl convention).
 
@@ -159,7 +175,7 @@ Number shape: "percent" renders 0.5 as "50%" (the Intl convention).
 
 > `optional` **frame?**: `object`
 
-Defined in: [js/src/components.ts:66](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L66)
+Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L89)
 
 Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
@@ -189,7 +205,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **ignoresSafeArea?**: `boolean`
 
-Defined in: [js/src/components.ts:85](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L85)
+Defined in: [js/src/components.ts:114](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L114)
 
 Let this node extend under the safe area (SwiftUI `.ignoresSafeArea()`).
 Set it on an overlay stacked on a `fullScreen` map so bottom-anchored
@@ -205,7 +221,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **maxFractionDigits?**: `number`
 
-Defined in: [js/src/components.ts:575](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L575)
+Defined in: [js/src/components.ts:611](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L611)
 
 ***
 
@@ -213,7 +229,7 @@ Defined in: [js/src/components.ts:575](https://github.com/emindeniz99/react-watc
 
 > `optional` **minFractionDigits?**: `number`
 
-Defined in: [js/src/components.ts:574](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L574)
+Defined in: [js/src/components.ts:610](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L610)
 
 ***
 
@@ -221,7 +237,7 @@ Defined in: [js/src/components.ts:574](https://github.com/emindeniz99/react-watc
 
 > `optional` **opacity?**: `number`
 
-Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L77)
+Defined in: [js/src/components.ts:106](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L106)
 
 0 (invisible) … 1 (opaque).
 
@@ -235,7 +251,7 @@ Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/react-watch
 
 > `optional` **padding?**: `number` \| \{ `horizontal?`: `number`; `vertical?`: `number`; \}
 
-Defined in: [js/src/components.ts:64](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L64)
+Defined in: [js/src/components.ts:87](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L87)
 
 Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
@@ -249,7 +265,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **size?**: `number`
 
-Defined in: [js/src/components.ts:577](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L577)
+Defined in: [js/src/components.ts:613](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L613)
 
 ***
 
@@ -257,7 +273,7 @@ Defined in: [js/src/components.ts:577](https://github.com/emindeniz99/react-watc
 
 > `optional` **timeStyle?**: `"full"` \| `"none"` \| `"short"` \| `"medium"` \| `"long"`
 
-Defined in: [js/src/components.ts:567](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L567)
+Defined in: [js/src/components.ts:603](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L603)
 
 Time part style (default "none").
 
@@ -267,7 +283,7 @@ Time part style (default "none").
 
 > `optional` **tint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L79)
+Defined in: [js/src/components.ts:108](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L108)
 
 Accent color for this subtree's controls (SwiftUI .tint).
 
@@ -281,6 +297,6 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `number`
 
-Defined in: [js/src/components.ts:569](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L569)
+Defined in: [js/src/components.ts:605](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L605)
 
 Number to render with the device locale's separators.

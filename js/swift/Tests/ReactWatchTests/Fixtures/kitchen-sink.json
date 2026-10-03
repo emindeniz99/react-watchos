@@ -43,6 +43,7 @@
               "monospacedDigit": true,
               "textStyle": "headline",
               "color": "green",
+              "fontDesign": "serif",
               "text": ""
             },
             "children": [
@@ -93,7 +94,14 @@
         "id": 10,
         "type": "ZStack",
         "props": {
-          "alignment": "topLeading"
+          "alignment": "topLeading",
+          "backgroundGradient": {
+            "colors": [
+              "indigo",
+              "#000000"
+            ],
+            "end": "bottomTrailing"
+          }
         },
         "children": [
           {

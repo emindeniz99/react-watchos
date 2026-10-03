@@ -141,14 +141,26 @@ describe("swift contract fixtures", () => {
         accessibilityHint="the kitchen sink"
       >
         <HStack spacing={2} alignment="center">
-          <Text bold monospacedDigit textStyle="headline" color="green">
+          <Text
+            bold
+            monospacedDigit
+            textStyle="headline"
+            color="green"
+            fontDesign="serif"
+          >
             Rich <Text color="#FF8000">segment</Text>
           </Text>
           <TimerText since={1000} milliseconds size={22} />
           <Spacer />
           <Divider />
         </HStack>
-        <ZStack alignment="topLeading">
+        <ZStack
+          alignment="topLeading"
+          backgroundGradient={{
+            colors: ["indigo", "#000000"],
+            end: "bottomTrailing",
+          }}
+        >
           <Image systemName="drop.fill" size={17} color="blue" />
           <Gauge value={7} min={0} max={10} label="G" style="circular" />
         </ZStack>

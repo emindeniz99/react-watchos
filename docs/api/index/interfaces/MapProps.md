@@ -6,7 +6,7 @@
 
 # Interface: MapProps
 
-Defined in: [js/src/components.ts:420](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L420)
+Defined in: [js/src/components.ts:456](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L456)
 
 A MapKit map (watchOS 26): a region with markers and an optional route.
 
@@ -20,7 +20,7 @@ A MapKit map (watchOS 26): a region with markers and an optional route.
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:76](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L76)
 
 #### Inherited from
 
@@ -32,7 +32,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L75)
 
 #### Inherited from
 
@@ -44,7 +44,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **animation?**: `object`
 
-Defined in: [js/src/components.ts:92](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L92)
+Defined in: [js/src/components.ts:121](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L121)
 
 Animate this node's committed changes (SwiftUI `.animation(_:value:)`):
 any prop or subtree change transitions with the given curve instead of
@@ -69,7 +69,7 @@ only — widgets are static snapshots and ignore it.
 
 > `optional` **annotations?**: [`MapAnnotation`](MapAnnotation.md)[]
 
-Defined in: [js/src/components.ts:425](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L425)
+Defined in: [js/src/components.ts:461](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L461)
 
 ***
 
@@ -77,7 +77,7 @@ Defined in: [js/src/components.ts:425](https://github.com/emindeniz99/react-watc
 
 > `optional` **background?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:73](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L73)
+Defined in: [js/src/components.ts:96](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L96)
 
 Fill color behind the content (rounded when cornerRadius is set).
 
@@ -87,11 +87,27 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 ***
 
+### backgroundGradient?
+
+> `optional` **backgroundGradient?**: `LinearGradientValue`
+
+Defined in: [js/src/components.ts:102](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L102)
+
+Gradient fill behind the content, drawn where `background` would be
+(same cornerRadius rounding, same stroke in an accented complication).
+Takes precedence over `background` when both are set.
+
+#### Inherited from
+
+`ModifierProps.backgroundGradient`
+
+***
+
 ### cameraTrigger?
 
 > `optional` **cameraTrigger?**: `number`
 
-Defined in: [js/src/components.ts:460](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L460)
+Defined in: [js/src/components.ts:496](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L496)
 
 A monotonically increasing nudge that re-applies the camera's target
 (follow or region). Increment it from a "recenter" button so tapping it
@@ -104,7 +120,7 @@ same follow/region target is otherwise a no-op the map can't observe.
 
 > `optional` **cornerRadius?**: `number`
 
-Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L75)
+Defined in: [js/src/components.ts:104](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L104)
 
 Rounds the background — or clips the content when there is none.
 
@@ -118,7 +134,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **followsUserLocation?**: `boolean`
 
-Defined in: [js/src/components.ts:453](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L453)
+Defined in: [js/src/components.ts:489](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L489)
 
 Make the camera smoothly track the live location natively
 (`MapCameraPosition.userLocation`), instead of you feeding it coordinates.
@@ -132,7 +148,7 @@ search results); the user can still pan freely without being yanked back.
 
 > `optional` **frame?**: `object`
 
-Defined in: [js/src/components.ts:66](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L66)
+Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L89)
 
 Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
@@ -162,7 +178,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 > `optional` **fullScreen?**: `boolean`
 
-Defined in: [js/src/components.ts:438](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L438)
+Defined in: [js/src/components.ts:474](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L474)
 
 Fill the whole screen edge-to-edge (ignores the safe area, so the map runs
 under the navigation bar and the back chevron floats over it). Use for a
@@ -174,7 +190,7 @@ realistic full-screen map; overlay any controls on top with a ZStack.
 
 > `optional` **height?**: `number`
 
-Defined in: [js/src/components.ts:432](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L432)
+Defined in: [js/src/components.ts:468](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L468)
 
 Fixed map height in points. Ignored when `fullScreen` is set. Defaults to
 120 — a small inline map card.
@@ -185,7 +201,7 @@ Fixed map height in points. Ignored when `fullScreen` is set. Defaults to
 
 > `optional` **ignoresSafeArea?**: `boolean`
 
-Defined in: [js/src/components.ts:85](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L85)
+Defined in: [js/src/components.ts:114](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L114)
 
 Let this node extend under the safe area (SwiftUI `.ignoresSafeArea()`).
 Set it on an overlay stacked on a `fullScreen` map so bottom-anchored
@@ -201,7 +217,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **latitude?**: `number`
 
-Defined in: [js/src/components.ts:422](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L422)
+Defined in: [js/src/components.ts:458](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L458)
 
 Region center + span (degrees). Defaults to fit the annotations.
 
@@ -211,7 +227,7 @@ Region center + span (degrees). Defaults to fit the annotations.
 
 > `optional` **longitude?**: `number`
 
-Defined in: [js/src/components.ts:423](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L423)
+Defined in: [js/src/components.ts:459](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L459)
 
 ***
 
@@ -219,7 +235,7 @@ Defined in: [js/src/components.ts:423](https://github.com/emindeniz99/react-watc
 
 > `optional` **onPress?**: () => `void`
 
-Defined in: [js/src/components.ts:466](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L466)
+Defined in: [js/src/components.ts:502](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L502)
 
 Fired on a single tap on the map (a pan/zoom does NOT fire it). Use it to
 toggle overlay chrome for an immersive full-screen map, the way native maps
@@ -235,7 +251,7 @@ hide their controls while you explore.
 
 > `optional` **opacity?**: `number`
 
-Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L77)
+Defined in: [js/src/components.ts:106](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L106)
 
 0 (invisible) … 1 (opaque).
 
@@ -249,7 +265,7 @@ Defined in: [js/src/components.ts:77](https://github.com/emindeniz99/react-watch
 
 > `optional` **padding?**: `number` \| \{ `horizontal?`: `number`; `vertical?`: `number`; \}
 
-Defined in: [js/src/components.ts:64](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L64)
+Defined in: [js/src/components.ts:87](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L87)
 
 Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
@@ -263,7 +279,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **route?**: `object`[]
 
-Defined in: [js/src/components.ts:427](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L427)
+Defined in: [js/src/components.ts:463](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L463)
 
 Polyline route as lat/lon points.
 
@@ -281,7 +297,7 @@ Polyline route as lat/lon points.
 
 > `optional` **showsUserLocation?**: `boolean`
 
-Defined in: [js/src/components.ts:445](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L445)
+Defined in: [js/src/components.ts:481](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L481)
 
 Show the device's live location as MapKit's native blue dot (accuracy ring
 + heading), via a `UserAnnotation`. This is the platform's own rendering —
@@ -294,7 +310,7 @@ location permission (e.g. request it once with `getCurrentLocation()`).
 
 > `optional` **span?**: `number`
 
-Defined in: [js/src/components.ts:424](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L424)
+Defined in: [js/src/components.ts:460](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L460)
 
 ***
 
@@ -302,7 +318,7 @@ Defined in: [js/src/components.ts:424](https://github.com/emindeniz99/react-watc
 
 > `optional` **tint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:79](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L79)
+Defined in: [js/src/components.ts:108](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L108)
 
 Accent color for this subtree's controls (SwiftUI .tint).
 

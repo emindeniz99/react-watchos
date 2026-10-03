@@ -26,7 +26,7 @@ import type { ColorValue, TextProps } from "./components";
 /** Spreadable Text prop bundle — a text "variant". */
 export type TextVariant = Pick<
   TextProps,
-  "textStyle" | "bold" | "color" | "monospacedDigit"
+  "textStyle" | "bold" | "color" | "monospacedDigit" | "fontDesign"
 >;
 
 export interface WatchTheme {

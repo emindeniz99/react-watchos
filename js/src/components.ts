@@ -43,6 +43,29 @@ export type SystemColorName =
  */
 export type ColorValue = SystemColorName | `#${string}`;
 
+/** A SwiftUI `UnitPoint` by name: where a gradient starts or ends. */
+export type UnitPointName =
+  | "top"
+  | "bottom"
+  | "leading"
+  | "trailing"
+  | "center"
+  | "topLeading"
+  | "topTrailing"
+  | "bottomLeading"
+  | "bottomTrailing";
+
+/**
+ * A linear gradient fill (SwiftUI `LinearGradient`): `colors` spread evenly
+ * from `start` (default `"top"`) to `end` (default `"bottom"`). Needs at
+ * least two valid colors; fewer and the node draws no gradient.
+ */
+export interface LinearGradientValue {
+  colors: ColorValue[];
+  start?: UnitPointName;
+  end?: UnitPointName;
+}
+
 /**
  * VoiceOver metadata supported by every primitive (applied as SwiftUI
  * .accessibilityLabel/.accessibilityHint in NodeView). Watch users rely
@@ -71,6 +94,12 @@ interface ModifierProps {
   };
   /** Fill color behind the content (rounded when cornerRadius is set). */
   background?: ColorValue;
+  /**
+   * Gradient fill behind the content, drawn where `background` would be
+   * (same cornerRadius rounding, same stroke in an accented complication).
+   * Takes precedence over `background` when both are set.
+   */
+  backgroundGradient?: LinearGradientValue;
   /** Rounds the background — or clips the content when there is none. */
   cornerRadius?: number;
   /** 0 (invisible) … 1 (opaque). */
@@ -183,6 +212,13 @@ export interface TextProps extends A11yProps, ModifierProps {
   color?: ColorValue;
   /** Use fixed-width digits for counters/timers to avoid layout jitter. */
   monospacedDigit?: boolean;
+  /**
+   * Type family within the system font (SwiftUI `.fontDesign`): `"serif"` is
+   * New York, `"rounded"` SF Rounded, `"monospaced"` SF Mono. Works with
+   * `textStyle`, so Dynamic Type still applies. A nested segment that omits
+   * it inherits the outer Text's design.
+   */
+  fontDesign?: "default" | "serif" | "rounded" | "monospaced";
 }
 
 export interface ButtonProps

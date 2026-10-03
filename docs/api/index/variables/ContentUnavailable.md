@@ -8,4 +8,4 @@
 
 > `const` **ContentUnavailable**: `FC`\<[`ContentUnavailableProps`](../interfaces/ContentUnavailableProps.md)\>
 
-Defined in: [js/src/components.ts:755](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L755)
+Defined in: [js/src/components.ts:791](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L791)
