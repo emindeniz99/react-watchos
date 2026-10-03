@@ -65,15 +65,20 @@ runs on is a claim, not a supported floor.
 **What the first watchOS 10 run found** (556 tests pass on watchOS 26; the
 build passed on 10.5, the tests did not):
 
-- `Image` with a `source` such as `::not a url::` ended the test process on
-  10.5 right after NSURLSession logged a task with a nil URL; watchOS 26
-  only logs the failed request. `NodeView` now hands AsyncImage only an
-  http(s) URL with a host; anything else takes the symbol fallback.
 - SwiftUI on watchOS 10 traps when a `NavigationStack` is created without
   a hosting scene ("No interface idiom was found"), which is how
-  `ImageRenderer` renders in `NodeViewRenderTests`. Those renders are
-  skipped below watchOS 11. The hosted stack on a watchOS 10 device is the
-  one item left to the [Mac checklist](./mac-session-checklist.md).
+  `ImageRenderer` renders in `NodeViewRenderTests`.
+- An `AsyncImage` rendered the same way crashes on the NSURLSession
+  delegate thread while SwiftUI tears down its loader state after the
+  render (EXC_BAD_ACCESS, pointer authentication failure, in the crash
+  report of the second run), with a well-formed URL as much as a garbage
+  one. A first reading blamed a nil-URL log line and filtered the URL in
+  `NodeView`; the crash report disproved it and the filter was reverted.
+
+  Both are harness limits: a hosted scene has what each needs. The
+  harness skips trees holding either below watchOS 11, and the hosted
+  paths on a watchOS 10 device are the two items left to the
+  [Mac checklist](./mac-session-checklist.md).
 - The older Foundation accepts a `seq` one below Int64.min, rounding it
   through a Double; the wire decoder refuses it on every OS. The parity
   test now asserts the refusal everywhere and parity only on the Swift
