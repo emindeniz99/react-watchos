@@ -8,4 +8,4 @@
 
 > `const` **FormattedText**: `FC`\<[`FormattedTextProps`](../interfaces/FormattedTextProps.md)\>
 
-Defined in: [js/src/components.ts:769](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L769)
+Defined in: [js/src/components.ts:792](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L792)

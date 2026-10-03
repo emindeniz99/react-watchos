@@ -133,6 +133,7 @@ describe("swift contract fixtures", () => {
         padding={{ horizontal: 8, vertical: 2 }}
         frame={{ maxWidth: "infinity", height: 120 }}
         background="#00000080"
+        fontDesign="serif"
         cornerRadius={6}
         opacity={0.9}
         tint="accentColor"
@@ -141,14 +142,9 @@ describe("swift contract fixtures", () => {
         accessibilityHint="the kitchen sink"
       >
         <HStack spacing={2} alignment="center">
-          <Text
-            bold
-            monospacedDigit
-            textStyle="headline"
-            color="green"
-            fontDesign="serif"
-          >
-            Rich <Text color="#FF8000">segment</Text>
+          <Text bold monospacedDigit textStyle="headline" color="green">
+            <Text fontDesign="rounded">Rich </Text>
+            <Text color="#FF8000">segment</Text>
           </Text>
           <TimerText since={1000} milliseconds size={22} />
           <Spacer />
@@ -156,8 +152,12 @@ describe("swift contract fixtures", () => {
         </HStack>
         <ZStack
           alignment="topLeading"
-          backgroundGradient={{
-            colors: ["indigo", "#000000"],
+          background={{
+            type: "linearGradient",
+            stops: [
+              { color: "indigo", location: 0 },
+              { color: "#000000", location: 0.7 },
+            ],
             end: "bottomTrailing",
           }}
         >
@@ -197,7 +197,7 @@ describe("swift contract fixtures", () => {
           <Text>5</Text>
         </CrownRotation>
         <TabView selection={1} onChange={() => {}} style="verticalPage">
-          <Text>tab</Text>
+          <Text containerBackground="#1C1B18">tab</Text>
           <Text>tab 2</Text>
         </TabView>
         <FormattedText date={1768483200000} dateStyle="medium" />

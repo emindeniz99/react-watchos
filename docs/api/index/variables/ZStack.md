@@ -8,4 +8,4 @@
 
 > `const` **ZStack**: `FC`\<[`ZStackProps`](../interfaces/ZStackProps.md)\>
 
-Defined in: [js/src/components.ts:754](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L754)
+Defined in: [js/src/components.ts:777](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L777)

@@ -8,4 +8,4 @@
 
 > `const` **Gauge**: `FC`\<[`GaugeProps`](../interfaces/GaugeProps.md)\>
 
-Defined in: [js/src/components.ts:758](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L758)
+Defined in: [js/src/components.ts:781](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L781)

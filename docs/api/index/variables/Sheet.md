@@ -8,4 +8,4 @@
 
 > `const` **Sheet**: `FC`\<[`SheetProps`](../interfaces/SheetProps.md)\>
 
-Defined in: [js/src/components.ts:782](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L782)
+Defined in: [js/src/components.ts:805](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L805)

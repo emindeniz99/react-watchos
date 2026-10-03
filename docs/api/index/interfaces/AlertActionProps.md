@@ -6,7 +6,7 @@
 
 # Interface: AlertActionProps
 
-Defined in: [js/src/components.ts:620](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L620)
+Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L643)
 
 An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
  presentation automatically when an action is tapped; `onPress` fires for
@@ -22,7 +22,7 @@ An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:76](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L76)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -34,7 +34,7 @@ Defined in: [js/src/components.ts:76](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L75)
+Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L89)
 
 #### Inherited from
 
@@ -46,7 +46,7 @@ Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watch
 
 > **label**: `string`
 
-Defined in: [js/src/components.ts:621](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L621)
+Defined in: [js/src/components.ts:644](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L644)
 
 ***
 
@@ -54,7 +54,7 @@ Defined in: [js/src/components.ts:621](https://github.com/emindeniz99/react-watc
 
 > `optional` **onPress?**: () => `void`
 
-Defined in: [js/src/components.ts:624](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L624)
+Defined in: [js/src/components.ts:647](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L647)
 
 #### Returns
 
@@ -66,6 +66,6 @@ Defined in: [js/src/components.ts:624](https://github.com/emindeniz99/react-watc
 
 > `optional` **role?**: `"destructive"` \| `"cancel"`
 
-Defined in: [js/src/components.ts:623](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L623)
+Defined in: [js/src/components.ts:646](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L646)
 
 "destructive" renders red; "cancel" gets the cancel slot/placement.

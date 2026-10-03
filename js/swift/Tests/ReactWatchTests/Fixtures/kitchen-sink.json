@@ -16,6 +16,7 @@
         "height": 120
       },
       "background": "#00000080",
+      "fontDesign": "serif",
       "cornerRadius": 6,
       "opacity": 0.9,
       "tint": "accentColor",
@@ -43,7 +44,6 @@
               "monospacedDigit": true,
               "textStyle": "headline",
               "color": "green",
-              "fontDesign": "serif",
               "text": ""
             },
             "children": [
@@ -51,6 +51,7 @@
                 "id": 1,
                 "type": "Text",
                 "props": {
+                  "fontDesign": "rounded",
                   "text": "Rich "
                 },
                 "children": []
@@ -95,10 +96,17 @@
         "type": "ZStack",
         "props": {
           "alignment": "topLeading",
-          "backgroundGradient": {
-            "colors": [
-              "indigo",
-              "#000000"
+          "background": {
+            "type": "linearGradient",
+            "stops": [
+              {
+                "color": "indigo",
+                "location": 0
+              },
+              {
+                "color": "#000000",
+                "location": 0.7
+              }
             ],
             "end": "bottomTrailing"
           }
@@ -301,6 +309,7 @@
             "id": 27,
             "type": "Text",
             "props": {
+              "containerBackground": "#1C1B18",
               "text": "tab"
             },
             "children": []

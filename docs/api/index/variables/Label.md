@@ -8,4 +8,4 @@
 
 > `const` **Label**: `FC`\<[`LabelProps`](../interfaces/LabelProps.md)\>
 
-Defined in: [js/src/components.ts:784](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L784)
+Defined in: [js/src/components.ts:807](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L807)

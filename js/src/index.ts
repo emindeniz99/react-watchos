@@ -86,6 +86,7 @@ export type {
   CrownRotationProps,
   DatePickerProps,
   DividerProps,
+  Fill,
   FormattedTextProps,
   GaugeProps,
   GridProps,
@@ -94,6 +95,7 @@ export type {
   ImageProps,
   LabeledContentProps,
   LabelProps,
+  LinearGradientFill,
   ListProps,
   MapAnnotation,
   MapProps,
@@ -119,6 +121,7 @@ export type {
   ToggleProps,
   ToolbarItemProps,
   ToolbarProps,
+  UnitPointName,
   VStackProps,
   ZStackProps,
 } from "./components";

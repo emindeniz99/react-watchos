@@ -6,7 +6,7 @@
 
 # Interface: GridRowProps
 
-Defined in: [js/src/components.ts:690](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L690)
+Defined in: [js/src/components.ts:713](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L713)
 
 One row of a <Grid>; each child is a cell.
 
@@ -20,7 +20,7 @@ One row of a <Grid>; each child is a cell.
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:76](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L76)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -32,7 +32,7 @@ Defined in: [js/src/components.ts:76](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L75)
+Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L89)
 
 #### Inherited from
 
@@ -44,4 +44,4 @@ Defined in: [js/src/components.ts:75](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:691](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L691)
+Defined in: [js/src/components.ts:714](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L714)
