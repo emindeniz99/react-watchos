@@ -166,6 +166,12 @@ final class WireContractTests: XCTestCase {
         XCTAssertEqual(crown.bool("focused"), true)
         XCTAssertEqual(crown.bool("onFocusChange"), true)
 
+        // A decorative node hidden from VoiceOver: the bare JSX flag crosses
+        // as a plain bool, exactly what both interpreters' a11y chains read.
+        let quoteMark = try XCTUnwrap(findText(root, "\u{201C}"))
+        XCTAssertEqual(quoteMark.bool("accessibilityHidden"), true)
+        XCTAssertNil(root.bool("accessibilityHidden"))
+
         // Rich text: the nested <Text> segment survives as an element child.
         let richText = try XCTUnwrap(find(root, "Text"))
         XCTAssertEqual(richText.string("textStyle"), "headline")

@@ -6,7 +6,7 @@
 
 # Interface: ToolbarItemProps
 
-Defined in: [js/src/components.ts:764](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L764)
+Defined in: [js/src/components.ts:774](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L774)
 
 One toolbar slot; the child is its content (usually a <Button>).
 
@@ -16,7 +16,7 @@ One toolbar slot; the child is its content (usually a <Button>).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:766](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L766)
+Defined in: [js/src/components.ts:776](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L776)
 
 ***
 
@@ -24,4 +24,4 @@ Defined in: [js/src/components.ts:766](https://github.com/emindeniz99/react-watc
 
 > **placement**: `"topBarLeading"` \| `"topBarTrailing"` \| `"bottomBar"`
 
-Defined in: [js/src/components.ts:765](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L765)
+Defined in: [js/src/components.ts:775](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L775)

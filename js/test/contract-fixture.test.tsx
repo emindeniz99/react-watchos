@@ -149,6 +149,7 @@ describe("swift contract fixtures", () => {
           <TimerText since={1000} milliseconds size={22} />
           <Spacer />
           <Divider />
+          <Text accessibilityHidden>“</Text>
         </HStack>
         <ZStack
           alignment="topLeading"
