@@ -8,4 +8,4 @@
 
 > `const` **VStack**: `FC`\<[`VStackProps`](../interfaces/VStackProps.md)\>
 
-Defined in: [js/src/components.ts:779](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L779)
+Defined in: [js/src/components.ts:780](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L780)

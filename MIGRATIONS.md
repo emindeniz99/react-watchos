@@ -11,27 +11,6 @@ first, and only versions with consumer-facing action items appear.
      package); the npm-page README links here by absolute GitHub URL so a
      registry consumer can still find it. -->
 
-## 0.10.x → 0.11.0
-
-**The package now requires watchOS 26: `Package.swift` declares
-`.watchOS("26.0")` (and `.iOS("26.0")`), and the config plugin's default
-`deploymentTarget` for the generated watch and widget targets is `"26.0"`.**
-The availability gates below 26 are gone, so Liquid Glass, double-tap,
-interactive widget buttons, Controls and every Smart Stack clue run ungated.
-The watches this drops are Series 4, Series 5 and SE (1st gen), which stop at
-watchOS 10. An app that must keep supporting them stays on 0.10.x. The plugin
-does not validate `deploymentTarget`; it passes the value through to the
-generated targets. The real floor comes from `Package.swift`, so a target
-left at `"10.0"` (or anything below 26) fails to build: Xcode refuses to link
-a package product whose minimum watchOS is higher than the target's.
-Reasoning: docs/design-deployment-floor-2026-10-03.md.
-
-Action:
-- Bump `react-watchos` to 0.11.0.
-- Remove any `deploymentTarget` override below `"26.0"` from the plugin
-  options in your `app.json` (or set it to `"26.0"` or higher).
-- Rebuild: `npx expo prebuild --clean`, then build the watch app.
-
 ## 0.9.x → 0.10.0
 
 **Every OTA bundle you serve must be re-signed: the signing scheme is now

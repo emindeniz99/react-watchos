@@ -6,7 +6,7 @@
 
 # Interface: WorkoutSummary
 
-Defined in: [js/src/health.ts:312](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L312)
+Defined in: [js/src/health.ts:311](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L311)
 
 One saved workout — the fields a "recent workouts" row actually renders.
 
@@ -24,7 +24,7 @@ shape.
 
 > **activeEnergyKcal**: `number` \| `null`
 
-Defined in: [js/src/health.ts:330](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L330)
+Defined in: [js/src/health.ts:329](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L329)
 
 Active energy burned, kcal. `null` means the workout recorded **no**
  energy samples — a manually logged session, say — not that it burned
@@ -37,7 +37,7 @@ Active energy burned, kcal. `null` means the workout recorded **no**
 
 > `optional` **activityType?**: [`WorkoutActivityType`](../type-aliases/WorkoutActivityType.md)
 
-Defined in: [js/src/health.ts:325](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L325)
+Defined in: [js/src/health.ts:324](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L324)
 
 Omitted when this binary's vocabulary has no name for the stored
  activity — the list contains workouts other apps saved, so naming the
@@ -49,7 +49,7 @@ Omitted when this binary's vocabulary has no name for the stored
 
 > **distanceMeters**: `number` \| `null`
 
-Defined in: [js/src/health.ts:342](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L342)
+Defined in: [js/src/health.ts:340](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L340)
 
 Distance, metres, read from the quantity type the workout's *activity*
  records under — `distanceCycling` for a ride, `distanceSwimming` for a
@@ -59,9 +59,8 @@ Distance, metres, read from the quantity type the workout's *activity*
  what an indoor yoga session honestly looks like — not 0.
 
  Rowing, paddling, cross-country skiing and skating record under types
- Apple introduced at watchOS 11 that are not yet exposed (reachable since
- the floor is 26, see docs/roadmap.md), so they read as walking/running
- and will usually be `null`.
+ Apple introduced at watchOS 11, above this package's floor, so they read
+ as walking/running and will usually be `null`.
 
 ***
 
@@ -69,7 +68,7 @@ Distance, metres, read from the quantity type the workout's *activity*
 
 > **durationMs**: `number`
 
-Defined in: [js/src/health.ts:321](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L321)
+Defined in: [js/src/health.ts:320](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L320)
 
 Time the workout was *running*, in ms. Not `endMs - startMs`: HealthKit's
  `duration` excludes paused time, and this is the number a row shows.
@@ -80,7 +79,7 @@ Time the workout was *running*, in ms. Not `endMs - startMs`: HealthKit's
 
 > **endMs**: `number`
 
-Defined in: [js/src/health.ts:318](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L318)
+Defined in: [js/src/health.ts:317](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L317)
 
 ***
 
@@ -88,7 +87,7 @@ Defined in: [js/src/health.ts:318](https://github.com/emindeniz99/react-watchos/
 
 > **id**: `string`
 
-Defined in: [js/src/health.ts:316](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L316)
+Defined in: [js/src/health.ts:315](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L315)
 
 The saved `HKWorkout`'s UUID — a stable list key, and the same id
  `WorkoutState.endedWorkoutId` reports for a workout this app just
@@ -100,4 +99,4 @@ The saved `HKWorkout`'s UUID — a stable list key, and the same id
 
 > **startMs**: `number`
 
-Defined in: [js/src/health.ts:317](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L317)
+Defined in: [js/src/health.ts:316](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L316)

@@ -365,9 +365,9 @@ describe("EventKit asks for the access it actually needs", () => {
     // Apple: "Your app can't request read-only access… To read events or
     // reminders from the event store, your app needs full access." So a
     // read-only API must still call requestFullAccess*. `requestAccess(to:)`
-    // is deprecated since watchOS 10.0, below our floor, and
-    // `requestWriteOnlyAccessToEvents` cannot read at all — calling either
-    // would produce an API that prompts and then returns nothing.
+    // is deprecated AT our floor, and `requestWriteOnlyAccessToEvents` cannot
+    // read at all — calling either would produce an API that prompts and then
+    // returns nothing.
     const src = code(read(CALENDAR));
     expect(src).toContain("requestFullAccessToEvents");
     expect(src).toContain("requestFullAccessToReminders");

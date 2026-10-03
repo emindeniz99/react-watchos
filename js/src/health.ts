@@ -53,7 +53,7 @@ import { registerNativeListener, type Unsubscribe } from "./nativeEvents";
  * deprecated the `total*` properties) and the two live ring-goal spellings
  * (`exerciseTimeGoal` / `standHoursGoal`, replacing spellings Apple deprecated
  * at watchOS 27) are 9.0 — well under this package's
- * watchOS 26 floor, so nothing here is version-gated. HealthKit is
+ * watchOS 10 floor, so nothing here is version-gated. HealthKit is
  * **device-only** in practice: the simulator run script deliberately signs
  * without the `healthkit` entitlement (see docs/running-on-sim.md), so on a
  * simulator these calls have no data to return.
@@ -253,9 +253,8 @@ export interface SleepSample {
  * substituting Apple's defaults or dividing into an `Infinity`/`NaN` arc that
  * renders as a full or blank ring.
  *
- * Not yet exposed: `isPaused` (watchOS 11) and the "activity moved to a paused
- * state" story around it — reachable since the floor is 26, see
- * docs/roadmap.md.
+ * Deliberately not carried: `isPaused` (watchOS 11, above this package's floor)
+ * and the "activity moved to a paused state" story around it.
  */
 export interface ActivitySummary {
   /** The day this row is *for*, `"YYYY-MM-DD"` — a calendar day as the user
@@ -336,9 +335,8 @@ export interface WorkoutSummary {
    *  what an indoor yoga session honestly looks like — not 0.
    *
    *  Rowing, paddling, cross-country skiing and skating record under types
-   *  Apple introduced at watchOS 11 that are not yet exposed (reachable since
-   *  the floor is 26, see docs/roadmap.md), so they read as walking/running
-   *  and will usually be `null`. */
+   *  Apple introduced at watchOS 11, above this package's floor, so they read
+   *  as walking/running and will usually be `null`. */
   distanceMeters: number | null;
 }
 

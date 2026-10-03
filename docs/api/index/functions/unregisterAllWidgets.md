@@ -8,7 +8,7 @@
 
 > **unregisterAllWidgets**(): `void`
 
-Defined in: [js/src/widgets.ts:371](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L371)
+Defined in: [js/src/widgets.ts:373](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L373)
 
 ## Returns
 

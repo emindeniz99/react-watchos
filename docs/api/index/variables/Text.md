@@ -8,4 +8,4 @@
 
 > `const` **Text**: `FC`\<[`TextProps`](../interfaces/TextProps.md)\>
 
-Defined in: [js/src/components.ts:781](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L781)
+Defined in: [js/src/components.ts:782](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L782)

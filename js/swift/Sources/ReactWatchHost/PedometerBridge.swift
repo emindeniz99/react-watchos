@@ -80,7 +80,7 @@ final class PedometerBridge {
     /// deliberately built so a denial is indistinguishable from "no samples"
     /// (HealthQueryBridge says so); CoreMotion is not, so there is no excuse
     /// for reporting a refusal as an empty window. watchOS 4.0+ — far under
-    /// the package's watchOS 26 floor, and already listed in the availability
+    /// the package's watchOS 10 floor, and already listed in the availability
     /// table of docs/design-health-package.md.
     ///
     /// `.notDetermined` must NOT count as denial: CoreMotion has no

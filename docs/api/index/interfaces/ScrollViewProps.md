@@ -6,7 +6,7 @@
 
 # Interface: ScrollViewProps
 
-Defined in: [js/src/components.ts:324](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L324)
+Defined in: [js/src/components.ts:325](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L325)
 
 ## Extends
 
@@ -102,7 +102,7 @@ Colour or gradient behind the content (rounded when cornerRadius is set):
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:325](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L325)
+Defined in: [js/src/components.ts:326](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L326)
 
 ***
 

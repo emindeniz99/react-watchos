@@ -213,23 +213,25 @@ public func reactRelevantContexts(
 /// guessing a family from which fields happen to be present. Used by the static
 /// (Void) provider and a consumer's configurable (intent) provider (CX-017).
 ///
-/// **Availability**: every arm is ungated. `poi`, `dateRange` and an explicit
-/// `dateKind` are watchOS 26.0, which is this package's floor; the other six
-/// families are older.
+/// **Availability is per-arm** — the `AddGlassControl` pattern, gates rather
+/// than a deployment-floor raise. `poi`, `dateRange` and any explicit
+/// `dateKind` are watchOS 26.0 and return nil below it; the other six families
+/// are watchOS 10.0, i.e. free at this package's floor.
 ///
-/// One deliberate "return nil" choice: an unrecognized `kind`, `dateKind`,
-/// `category`, `place` or `condition` (a bundle newer than this binary) drops
-/// that clue and keeps the rest. Same forward-compat posture as the node
-/// interpreters' `default:`. An unrecognized `dateKind` is never degraded to
-/// the kind-less `date(_:)`: `.informational` means "this is not a scheduled
-/// moment", so a plain date would surface the widget for a clue whose author
-/// asked for the opposite.
+/// Two deliberate "return nil" choices:
+/// - An explicit `dateKind` below watchOS 26 DROPS the clue instead of falling
+///   back to the kind-less `date(_:)`. `.informational` means "this is not a
+///   scheduled moment"; degrading it to a plain date would surface the widget
+///   for a clue whose author asked for the opposite.
+/// - An unrecognized `kind`, `dateKind`, `category`, `place` or `condition` —
+///   a bundle newer than this binary — drops that clue and keeps the rest.
+///   Same forward-compat posture as the node interpreters' `default:`.
 ///
-/// `dateRange` maps to `date(range:kind:)` (watchOS 26.0); the older
-/// `date(from:to:)` is deprecated at 26.0 and is not used.
-/// (`date(interval:kind:)`, also 26.0, is the same signal spelled start +
-/// duration and deliberately has no wire kind of its own — the JS `dateRange`
-/// covers it.)
+/// `dateRange` has no sub-26 path at all: `date(range:kind:)` is watchOS 26.0
+/// and the older `date(from:to:)` is deprecated AT 26.0, so there is nothing
+/// below it to fall back to. (`date(interval:kind:)`, also 26.0, is the same
+/// signal spelled start + duration and deliberately has no wire kind of its
+/// own — the JS `dateRange` covers it.)
 ///
 /// **Permissions** (Apple's docs, recorded so nobody debugs a silent
 /// non-surface as a mapping bug): the three location families require the APP
@@ -240,6 +242,7 @@ public func reactRelevantContexts(
 /// have an effect" — no error reaches this code. Details + the
 /// `NSWidgetWantsLocation` open question live on the JS type
 /// (`RelevantContext` in js/src/widgets.ts) and in docs/ui-guide.md.
+@available(watchOS 11.0, *)
 public func reactRelevantContext(
     from ctx: PublishedRelevantContext
 ) -> RelevantContext? {
@@ -248,24 +251,31 @@ public func reactRelevantContext(
         guard let ms = ctx.date else { return nil }
         let exact = Date(timeIntervalSince1970: ms / 1000)
         guard let kindName = ctx.dateKind else { return .date(exact) }
-        guard let kind = reactRelevantDateKind(kindName) else { return nil }
-        return .date(exact, kind: kind)
+        if #available(watchOS 26.0, *) {
+            if let kind = reactRelevantDateKind(kindName) {
+                return .date(exact, kind: kind)
+            }
+        }
+        return nil
 
     case "dateRange":
         guard let from = ctx.from, let to = ctx.to, from <= to else {
             return nil
         }
-        let start = Date(timeIntervalSince1970: from / 1000)
-        let end = Date(timeIntervalSince1970: to / 1000)
-        // An ABSENT dateKind defaults (`date(range:kind:)` has no kindless
-        // overload to fall back to); an UNRECOGNIZED one drops the clue,
-        // exactly as the `date` arm does. A kind this binary can't name is
-        // not a kind it may silently substitute `.default` for.
-        guard let name = ctx.dateKind else {
-            return .date(range: start...end, kind: .default)
+        if #available(watchOS 26.0, *) {
+            let start = Date(timeIntervalSince1970: from / 1000)
+            let end = Date(timeIntervalSince1970: to / 1000)
+            // An ABSENT dateKind defaults (`date(range:kind:)` has no kindless
+            // overload to fall back to); an UNRECOGNIZED one drops the clue,
+            // exactly as the `date` arm does. A kind this binary can't name is
+            // not a kind it may silently substitute `.default` for.
+            guard let name = ctx.dateKind else {
+                return .date(range: start...end, kind: .default)
+            }
+            guard let kind = reactRelevantDateKind(name) else { return nil }
+            return .date(range: start...end, kind: kind)
         }
-        guard let kind = reactRelevantDateKind(name) else { return nil }
-        return .date(range: start...end, kind: kind)
+        return nil
 
     case "location":
         guard let lat = ctx.latitude, let lon = ctx.longitude else {
@@ -285,12 +295,15 @@ public func reactRelevantContext(
         )
 
     case "poi":
-        guard let name = ctx.category, let category = reactPoiCategory(name) else {
-            return nil
+        guard let name = ctx.category else { return nil }
+        if #available(watchOS 26.0, *) {
+            if let category = reactPoiCategory(name) {
+                // The only overload that itself returns an Optional — the
+                // system can refuse a category outright.
+                return .location(category: category)
+            }
         }
-        // The only overload that itself returns an Optional — the system can
-        // refuse a category outright.
-        return .location(category: category)
+        return nil
 
     case "inferredLocation":
         guard let place = ctx.place else { return nil }
@@ -328,6 +341,7 @@ public func reactRelevantContext(
 }
 
 /// RelevanceKit `DateKind` (watchOS 26.0) from its wire case name.
+@available(watchOS 26.0, *)
 private func reactRelevantDateKind(_ name: String) -> RelevantContext.DateKind? {
     switch name {
     case "default": .default
@@ -342,8 +356,9 @@ private func reactRelevantDateKind(_ name: String) -> RelevantContext.DateKind? 
 /// silently build a category that matches nothing). 73 members; MapKit's 11
 /// "Type Properties" additions (`airportTerminal`, `scenicView`, …) are watchOS
 /// 27.0 beta and are deliberately absent — naming a symbol the current SDK
-/// can't compile is the CX-002/FoundationModels mistake. Four members are
-/// themselves watchOS 11.0, under this package's watchOS 26 floor.
+/// can't compile is the CX-002/FoundationModels mistake. Gated at 26.0 because
+/// that is the only caller; four members are themselves watchOS 11.0.
+@available(watchOS 26.0, *)
 private func reactPoiCategory(_ name: String) -> MKPointOfInterestCategory? {
     switch name {
     // Arts and culture
@@ -492,7 +507,9 @@ public struct ReactTimelineProvider: TimelineProvider {
     }
 
     /// Maps React's published date/location hints to RelevanceKit so the Smart
-    /// Stack surfaces this widget at the right time/place (CX-017).
+    /// Stack surfaces this widget at the right time/place (CX-017). watchOS
+    /// 11+; earlier versions use the default empty relevance.
+    @available(watchOS 11.0, *)
     public func relevance() async -> WidgetRelevance<Void> {
         let attributes = reactRelevantContexts(forKind: kind, appGroupId: appGroupId)
             .compactMap {

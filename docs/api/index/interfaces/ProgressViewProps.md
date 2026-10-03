@@ -6,7 +6,7 @@
 
 # Interface: ProgressViewProps
 
-Defined in: [js/src/components.ts:344](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L344)
+Defined in: [js/src/components.ts:345](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L345)
 
 ## Extends
 
@@ -199,7 +199,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:348](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L348)
+Defined in: [js/src/components.ts:349](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L349)
 
 ***
 
@@ -249,7 +249,7 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **total?**: `number`
 
-Defined in: [js/src/components.ts:347](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L347)
+Defined in: [js/src/components.ts:348](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L348)
 
 ***
 
@@ -257,6 +257,6 @@ Defined in: [js/src/components.ts:347](https://github.com/emindeniz99/react-watc
 
 > `optional` **value?**: `number`
 
-Defined in: [js/src/components.ts:346](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L346)
+Defined in: [js/src/components.ts:347](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L347)
 
 Fraction 0...1 when total omitted, else value out of total.

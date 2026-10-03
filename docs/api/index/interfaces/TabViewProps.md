@@ -6,7 +6,7 @@
 
 # Interface: TabViewProps
 
-Defined in: [js/src/components.ts:426](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L426)
+Defined in: [js/src/components.ts:427](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L427)
 
 ## Extends
 
@@ -61,7 +61,7 @@ Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:428](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L428)
+Defined in: [js/src/components.ts:429](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L429)
 
 Each child is one page.
 
@@ -71,7 +71,7 @@ Each child is one page.
 
 > `optional` **onChange?**: (`index`) => `void`
 
-Defined in: [js/src/components.ts:439](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L439)
+Defined in: [js/src/components.ts:440](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L440)
 
 Fires with the new page index as the user swipes between pages.
 
@@ -91,7 +91,7 @@ Fires with the new page index as the user swipes between pages.
 
 > `optional` **selection?**: `number`
 
-Defined in: [js/src/components.ts:437](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L437)
+Defined in: [js/src/components.ts:438](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L438)
 
 Controlled selected page index (0-based). When set, the native TabView
 binds to it optimistically (a swipe holds until React acks) — keep it in
@@ -106,7 +106,7 @@ controlled input.
 
 > `optional` **style?**: `"page"` \| `"verticalPage"`
 
-Defined in: [js/src/components.ts:456](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L456)
+Defined in: [js/src/components.ts:457](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L457)
 
 Which SwiftUI `TabViewStyle` to page with. Each value maps to the style
 of the same name, so this prop means exactly what SwiftUI means:

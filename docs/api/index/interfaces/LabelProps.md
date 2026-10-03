@@ -6,7 +6,7 @@
 
 # Interface: LabelProps
 
-Defined in: [js/src/components.ts:707](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L707)
+Defined in: [js/src/components.ts:708](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L708)
 
 Icon + text as one primitive (SwiftUI `Label(_:systemImage:)`).
 
@@ -104,7 +104,7 @@ Colour or gradient behind the content (rounded when cornerRadius is set):
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:711](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L711)
+Defined in: [js/src/components.ts:712](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L712)
 
 ***
 
@@ -209,7 +209,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > **label**: `string`
 
-Defined in: [js/src/components.ts:708](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L708)
+Defined in: [js/src/components.ts:709](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L709)
 
 ***
 
@@ -245,7 +245,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > **systemName**: `string`
 
-Defined in: [js/src/components.ts:710](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L710)
+Defined in: [js/src/components.ts:711](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L711)
 
 SF Symbol name.
 

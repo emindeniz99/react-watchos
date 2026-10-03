@@ -179,7 +179,7 @@ interface GestureProps {
    *  see docs/design-focus-management.md. */
   focusable?: boolean;
   /**
-   * Apply the watchOS 26 Liquid Glass effect.
+   * Apply the watchOS 26 Liquid Glass effect (no-op on older OSes).
    *
    * **App-only: a no-op in complications and Smart Stack widgets.** It is
    * applied in the app interpreter's shared modifier chain, which the widget
@@ -260,20 +260,21 @@ export interface ButtonProps
     SwipeActionProps,
     ModifierProps {
   onPress?: () => void;
-  /** Bind this button to the Apple Watch double-tap gesture. */
+  /** Bind this button to the Apple Watch double-tap gesture (watchOS 11+). */
   primaryAction?: boolean;
   /**
-   * Makes this button interactive **inside a widget/complication**: a tap
-   * runs the `registerIntent(name, …)` handler in the widget extension (no app
-   * launch), which mutates Storage and reloads the timeline — the same
-   * mechanism a Control uses. `onPress` is for the in-app UI and is ignored in
-   * a widget; `intent` is for a widget and is ignored in the app. A widget
-   * button without `intent` renders its (non-interactive) content.
+   * Makes this button interactive **inside a widget/complication** (watchOS
+   * 11+): a tap runs the `registerIntent(name, …)` handler in the widget
+   * extension (no app launch), which mutates Storage and reloads the timeline —
+   * the same mechanism a Control uses. `onPress` is for the in-app UI and is
+   * ignored in a widget; `intent` is for a widget and is ignored in the app. On
+   * watchOS 10 a widget button falls back to its (non-interactive) content.
    */
   intent?: string;
   /**
-   * Button chrome. "glass"/"glassProminent" are Liquid Glass
-   * ("glassProminent" is the accented fill). "plain" strips all chrome so the content IS the button — use it with
+   * Button chrome. "glass"/"glassProminent" are Liquid Glass (watchOS 26+;
+   * silently the default on older watches; "glassProminent" is the accented
+   * fill). "plain" strips all chrome so the content IS the button — use it with
    * your own `background`/`cornerRadius`/`padding` to build a custom control
    * (e.g. a circular icon button). Omit for the standard watchOS button.
    *

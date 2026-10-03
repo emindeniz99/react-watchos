@@ -115,7 +115,7 @@ identical for all**; "live data" and "interactive" are purely JS concerns:
   bumps it (`App.tsx`'s "Tap +1" → `Storage.counterAdd` + `publishWidgets()`),
   **and** on the rectangular family the complication shows live **+/- buttons**
   (`<Button intent="taps.inc/dec">`) that run `registerIntent` handlers in the
-  extension with no app launch. Both sides mutate the same key in
+  extension with no app launch (watchOS 11+). Both sides mutate the same key in
   different processes, so it's an **atomic counter** (ARCH-05) — `counterAdd`
   avoids the lost-update race that `Storage.set` would have.
 
