@@ -424,25 +424,35 @@ jobs:
           set -o pipefail
           WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)
           test -n "$WORKSPACE"
-          # The claim under test: the scheme's targets declare 10.0 and none
-          # sits above it. A target above it would build fine here and hide
-          # a raised floor. Below 10.0 (a dependency's own floor) is harmless.
+          # The claim under test: the scheme's watchOS targets declare 10.0
+          # and none sits above it. A target above it would build fine here
+          # and hide a raised floor. Below 10.0 (a dependency's own floor) is
+          # harmless. Only watchOS targets count: the iOS companion app
+          # (ReactWatchDemo) reports the SDK's default WATCHOS_DEPLOYMENT_TARGET
+          # it never builds against (26.5 on the first run of this job).
           xcodebuild -showBuildSettings -json \
             -workspace "$WORKSPACE" \
             -scheme "React Watch" \
             -destination "platform=watchOS Simulator,id=$WATCH_ID" \
             | python3 -c '
           import json, sys
-          rows = [(t["target"], t["buildSettings"].get("WATCHOS_DEPLOYMENT_TARGET"))
-                  for t in json.load(sys.stdin)]
-          for name, floor in rows:
-              print(f"{name}: WATCHOS_DEPLOYMENT_TARGET={floor}")
+          rows = []
+          for t in json.load(sys.stdin):
+              bs = t["buildSettings"]
+              platforms = bs.get("SUPPORTED_PLATFORMS", "") + " " + bs.get("SDKROOT", "")
+              floor = bs.get("WATCHOS_DEPLOYMENT_TARGET")
+              is_watch = "watch" in platforms
+              name = t["target"]
+              print(f"{name}: WATCHOS_DEPLOYMENT_TARGET={floor}"
+                    + ("" if is_watch else " (not a watchOS target, ignored)"))
+              if is_watch:
+                  rows.append((name, floor))
           def above(floor):
               return [int(p) for p in floor.split(".")] > [10, 0]
           if not any(floor == "10.0" for _, floor in rows):
-              sys.exit("::error::no target in the scheme declares the 10.0 floor")
+              sys.exit("::error::no watchOS target in the scheme declares the 10.0 floor")
           if any(floor and above(floor) for _, floor in rows):
-              sys.exit("::error::a target in the scheme is above the 10.0 floor")
+              sys.exit("::error::a watchOS target in the scheme is above the 10.0 floor")
           '
           xcodebuild build \
             -workspace "$WORKSPACE" \
