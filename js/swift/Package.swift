@@ -123,7 +123,8 @@ targets.append(
 
 let package = Package(
     name: "ReactWatchHost",
-    platforms: [.watchOS(.v10), .iOS(.v17), .macOS(.v14)],
+    // String form: `.v26` needs tools 6.2, and this manifest stays on 6.0 for Linux CI.
+    platforms: [.watchOS("26.0"), .iOS("26.0"), .macOS(.v14)],
     products: products,
     targets: targets,
     cLanguageStandard: .gnu11

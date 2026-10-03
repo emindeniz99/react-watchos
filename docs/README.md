@@ -161,6 +161,10 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   type; the doc's "no failing scenario" claim is refuted by two of the three
   findings. Kept as the record of the other reading — see the annotation at
   its head and the re-scoped heading in the codex architecture review.
+- [design-deployment-floor-2026-10-03.md](./design-deployment-floor-2026-10-03.md) —
+  why the deployment floor moved from watchOS 10 / iOS 17 to watchOS 26 /
+  iOS 26 (0.11.0): which devices it drops, which availability gates it
+  removed, what stayed (the watchOS 27 gates, macOS 14), and when to revisit.
 
 - [code-review-2026-06-27-deep-dive.md](./code-review-2026-06-27-deep-dive.md) — adversarially-verified code+design+DX review (64 confirmed findings; the blocker is fixed).
 - [code-review-2026-07-02-self-review-cycles.md](./code-review-2026-07-02-self-review-cycles.md) — three adversarial self-review cycles over the session's blind-written Swift/JS (capability, render-pipeline, core); 20 confirmed+fixed so far incl. a critical Swift-6 compile break.
