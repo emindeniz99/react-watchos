@@ -98,8 +98,31 @@ final class NodeViewRenderTests: XCTestCase {
     private func renderFixture(_ name: String) throws {
         let tree = try RNTree(wireJSON: Self.pushedPathsAreOutOfReach(Self.fixture(name)))
         let root = try XCTUnwrap(tree.root, "\(name).json has no root")
+        if Self.navigationStackCannotRenderHostless(root) {
+            throw XCTSkip(
+                "\(name).json holds a NavigationStack; hostless render traps below watchOS 11")
+        }
         mark("fixture \(name)")
         render(root)
+    }
+
+    /// SwiftUI on watchOS 10 traps when a NavigationStack is created outside
+    /// a hosting scene ("No interface idiom was found when creating the
+    /// navigation stack", SwiftUI/NavigationStackCore_UIKit.swift:15), and
+    /// ImageRenderer is exactly that. watchOS 26 renders it. Measured on the
+    /// floor CI job's watchOS 10.5 simulator, 2026-10-03; 11 to 25 are not
+    /// exercised. A hosted scene supplies the idiom, so this is a harness
+    /// limit, not an interpreter defect; whether the hosted stack renders on
+    /// a watchOS 10 device is the Mac checklist's item. Below 11 a tree that
+    /// holds a NavigationStack is skipped here, and the per-node walk still
+    /// renders every other primitive on the floor OS.
+    nonisolated private static func navigationStackCannotRenderHostless(_ node: RNNode) -> Bool {
+        if #available(watchOS 11, *) { return false }
+        return containsNavigationStack(node)
+    }
+
+    nonisolated private static func containsNavigationStack(_ node: RNNode) -> Bool {
+        node.type == "NavigationStack" || node.children.contains(where: containsNavigationStack)
     }
 
     /// A NavigationStack whose controlled `path` is non-empty pushes on
@@ -130,8 +153,12 @@ final class NodeViewRenderTests: XCTestCase {
         let root = try XCTUnwrap(tree.root)
         var rendered = Set<String>()
         func walk(_ node: RNNode) {
-            mark("kitchen-sink root \(node.type)#\(node.id)")
-            render(node)
+            if node.type == "NavigationStack", Self.navigationStackCannotRenderHostless(node) {
+                mark("kitchen-sink root \(node.type)#\(node.id) skipped below watchOS 11")
+            } else {
+                mark("kitchen-sink root \(node.type)#\(node.id)")
+                render(node)
+            }
             rendered.insert(node.type)
             node.children.forEach(walk)
         }
@@ -222,7 +249,12 @@ final class NodeViewRenderTests: XCTestCase {
     func testHostileStepper() { hostile("Stepper") }
     func testHostileDatePicker() { hostile("DatePicker") }
     func testHostileMap() { hostile("Map") }
-    func testHostileNavigationStack() { hostile("NavigationStack") }
+    func testHostileNavigationStack() throws {
+        if #unavailable(watchOS 11) {
+            throw XCTSkip("hostless NavigationStack render traps below watchOS 11")
+        }
+        hostile("NavigationStack")
+    }
     func testHostilePresentations() { hostile("Alert/ConfirmationDialog/Sheet") }
     func testHostileLayoutModifiers() { hostile("Text (LayoutModifier / shared modifier props)") }
 
