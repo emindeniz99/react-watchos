@@ -98,31 +98,46 @@ final class NodeViewRenderTests: XCTestCase {
     private func renderFixture(_ name: String) throws {
         let tree = try RNTree(wireJSON: Self.pushedPathsAreOutOfReach(Self.fixture(name)))
         let root = try XCTUnwrap(tree.root, "\(name).json has no root")
-        if Self.navigationStackCannotRenderHostless(root) {
-            throw XCTSkip(
-                "\(name).json holds a NavigationStack; hostless render traps below watchOS 11")
+        if let limit = Self.hostlessRenderLimit(root) {
+            throw XCTSkip("\(name).json: \(limit)")
         }
         mark("fixture \(name)")
         render(root)
     }
 
-    /// SwiftUI on watchOS 10 traps when a NavigationStack is created outside
-    /// a hosting scene ("No interface idiom was found when creating the
-    /// navigation stack", SwiftUI/NavigationStackCore_UIKit.swift:15), and
-    /// ImageRenderer is exactly that. watchOS 26 renders it. Measured on the
-    /// floor CI job's watchOS 10.5 simulator, 2026-10-03; 11 to 25 are not
-    /// exercised. A hosted scene supplies the idiom, so this is a harness
-    /// limit, not an interpreter defect; whether the hosted stack renders on
-    /// a watchOS 10 device is the Mac checklist's item. Below 11 a tree that
-    /// holds a NavigationStack is skipped here, and the per-node walk still
-    /// renders every other primitive on the floor OS.
-    nonisolated private static func navigationStackCannotRenderHostless(_ node: RNNode) -> Bool {
-        if #available(watchOS 11, *) { return false }
-        return containsNavigationStack(node)
+    /// Two things SwiftUI on watchOS 10 cannot do through ImageRenderer, i.e.
+    /// without a hosting scene. Both measured on the floor CI job's watchOS
+    /// 10.5 simulator on 2026-10-03, both fine on watchOS 26; 11 to 25 are
+    /// not exercised. Harness limits, not interpreter defects: a hosted scene
+    /// has what both need, and the hosted paths on a watchOS 10 device are
+    /// the Mac checklist's items.
+    ///
+    /// - A NavigationStack traps on creation: "No interface idiom was found
+    ///   when creating the navigation stack" (NavigationStackCore_UIKit:15).
+    /// - An AsyncImage (`Image` with `source`) crashes on the NSURLSession
+    ///   delegate thread while SwiftUI tears down the loader state after the
+    ///   render finished (EXC_BAD_ACCESS, pointer authentication failure, in
+    ///   the crash report of the second floor run), with a well-formed URL
+    ///   as much as a garbage one.
+    ///
+    /// Returns the reason the tree cannot be rendered here, or nil. Below 11
+    /// a tree that holds either is skipped; the per-node walk still renders
+    /// every other primitive on the floor OS.
+    nonisolated private static func hostlessRenderLimit(_ node: RNNode) -> String? {
+        if #available(watchOS 11, *) { return nil }
+        if contains(node, where: { $0.type == "NavigationStack" }) {
+            return "hostless NavigationStack traps below watchOS 11"
+        }
+        if contains(node, where: { $0.type == "Image" && $0.string("source") != nil }) {
+            return "hostless AsyncImage crashes on teardown below watchOS 11"
+        }
+        return nil
     }
 
-    nonisolated private static func containsNavigationStack(_ node: RNNode) -> Bool {
-        node.type == "NavigationStack" || node.children.contains(where: containsNavigationStack)
+    nonisolated private static func contains(
+        _ node: RNNode, where test: (RNNode) -> Bool
+    ) -> Bool {
+        test(node) || node.children.contains { contains($0, where: test) }
     }
 
     /// A NavigationStack whose controlled `path` is non-empty pushes on
@@ -153,8 +168,8 @@ final class NodeViewRenderTests: XCTestCase {
         let root = try XCTUnwrap(tree.root)
         var rendered = Set<String>()
         func walk(_ node: RNNode) {
-            if node.type == "NavigationStack", Self.navigationStackCannotRenderHostless(node) {
-                mark("kitchen-sink root \(node.type)#\(node.id) skipped below watchOS 11")
+            if let limit = Self.hostlessRenderLimit(node) {
+                mark("kitchen-sink root \(node.type)#\(node.id) skipped: \(limit)")
             } else {
                 mark("kitchen-sink root \(node.type)#\(node.id)")
                 render(node)
@@ -283,6 +298,10 @@ final class NodeViewRenderTests: XCTestCase {
                 node = try Self.decode(c.json)
             } catch {
                 XCTFail("\(c.type) \(c.prop)=\(c.value): case JSON is not wire-decodable: \(error)")
+                continue
+            }
+            if let limit = Self.hostlessRenderLimit(node) {
+                mark("\(c.type) \(c.prop)=\(c.value) skipped: \(limit)")
                 continue
             }
             mark("\(c.type) \(c.prop)=\(c.value) — \(c.why)")
