@@ -120,7 +120,7 @@ function resolveOptions(
     // entitlement on watchOS — the `com.apple.security.personal-information.calendars`
     // one Apple documents is for SANDBOXED macOS apps.
     calendar: o.calendar ?? false,
-    deploymentTarget: o.deploymentTarget ?? "26.0",
+    deploymentTarget: o.deploymentTarget ?? "10.0",
     appleTeamId: o.appleTeamId ?? config.ios?.appleTeamId,
     // Deep-link scheme, defaulted to the consumer's own bundle id (like the App
     // Group) so two apps that both embed this library never register the same

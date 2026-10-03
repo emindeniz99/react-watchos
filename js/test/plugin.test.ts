@@ -298,7 +298,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     workouts: false,
     motion: false,
     calendar: false,
-    deploymentTarget: "26.0",
+    deploymentTarget: "10.0",
     scheme: "com.emindeniz99.reactwatch",
     watchBundleSuffix: ".watch",
     widgetBundleSuffix: ".watch.widgets",
@@ -312,7 +312,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     const c = watchTargetConfig(demoOpts);
     expect(c.type).toBe("watch");
     expect(c.name).toBe("React Watch");
-    expect(c.deploymentTarget).toBe("26.0");
+    expect(c.deploymentTarget).toBe("10.0");
     expect(c.bundleIdentifier).toBe(".watch");
     expect(c.entitlements["com.apple.security.application-groups"]).toEqual([
       "group.com.emindeniz99.reactwatch",
@@ -350,9 +350,9 @@ describe("targetConfig (options -> apple-targets config)", () => {
     const on = watchTargetConfig({ ...demoOpts, calendar: true });
     expect(on.infoPlist.NSCalendarsFullAccessUsageDescription).toBeTruthy();
     expect(on.infoPlist.NSRemindersFullAccessUsageDescription).toBeTruthy();
-    // The DEPRECATED spelling (deprecated since watchOS 10.0, far below this
-    // package's 26 floor) must never ship: it would be an unused key App
-    // Review reads as a permission the app doesn't actually use.
+    // The DEPRECATED spelling (deprecated at watchOS 10.0 — this package's
+    // floor) must never ship: it would be an unused key App Review reads as a
+    // permission the app doesn't actually use.
     expect(on.infoPlist.NSCalendarsUsageDescription).toBeUndefined();
     // watchOS gates EventKit purely through the runtime prompt. The
     // `com.apple.security.personal-information.calendars` entitlement Apple
@@ -568,7 +568,7 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(c).toEqual({
       type: "watch-widget",
       name: "React Watch Widgets",
-      deploymentTarget: "26.0",
+      deploymentTarget: "10.0",
       bundleIdentifier: ".watch.widgets",
       entitlements: {
         "com.apple.security.application-groups": [
@@ -605,7 +605,7 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
     expect(o.name).toBe("React Watch");
     expect(o.widgetName).toBe("React Watch Widgets");
     expect(o.appGroup).toBe("group.com.emindeniz99.reactwatch");
-    expect(o.deploymentTarget).toBe("26.0");
+    expect(o.deploymentTarget).toBe("10.0");
     // Scheme defaults to the bundle id (collision-safe across apps); the native
     // host surfaces it to JS, so there's no second place to configure it.
     expect(o.scheme).toBe("com.emindeniz99.reactwatch");

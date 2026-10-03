@@ -1,16 +1,108 @@
 # Decision: deployment floor watchOS 26 / iOS 26
 
-**Status:** decided (owner, 2026-10-03). Ships in 0.11.0. Consumer steps are in
-[MIGRATIONS.md](../MIGRATIONS.md) under `0.10.x → 0.11.0`.
+**Status:** reverted 2026-10-03, floor is watchOS 10. PR #31 raised the floor
+to watchOS 26 / iOS 26; it was reverted the same day, before any release
+carried it (npm was still at 0.10.0), so no consumer has anything to undo.
 
-## Why the floor was 10
+## Reverted
+
+Owner decision, 2026-10-03. `Package.swift` is back to
+`.watchOS(.v10), .iOS(.v17), .macOS(.v14)`, the config plugin's default
+`deploymentTarget` is `"10.0"` again, and every watchOS 11 and 26
+availability gate PR #31 removed is back with its fallback. The 0.11.0
+entry in MIGRATIONS.md and the roadmap list of symbols "reachable at the 26
+floor" went with the revert. Both example apps now say `"10.0"`; the Expo
+example's earlier `"11.0"` was not restored.
+
+Why watchOS 10:
+
+- **It drops no watch Apple still updates.** Series 4, Series 5 and SE (1st
+  gen) stop at watchOS 10. watchOS 9 runs on the same hardware, so going
+  lower gains no device.
+- **Those watches are not a rounding error.** They are an estimated 4–7% of
+  active Apple Watches. The figure is a shipment-based estimate (annual units
+  times a survival curve); Apple publishes no data, and the estimate moves by
+  5–8 points across survival assumptions. The original record below said no
+  share data existed; this estimate is what filled that gap.
+- **Same rule as the consumer app.** The iPhone app that ships this package
+  sits at iOS 16.4, the Expo SDK 57 default, chosen the same way: the widest
+  floor that keeps every device Apple can still update.
+- **The toolchain does not force 26.** Building needs a current SDK, but the
+  deployment target is a separate setting. The owner builds with Xcode 27,
+  which still targets watchOS 9 and later; watchOS 10 is the lowest it can
+  simulate or debug. So a watchOS 10 floor can still be built, run on a
+  simulator and debugged. Apple lists both sets of numbers on its
+  [Xcode support page](https://developer.apple.com/support/xcode/); the
+  release notes separate the deployment floor from the simulator floor.
+
+Evidence, with the device tables and the share estimate:
+[2026-10-03-apple-os-floors.md](https://github.com/emindeniz99/playground/blob/main/projects/stack/docs/evidence/2026-10-03-apple-os-floors.md).
+
+**Props added after PR #31.** PRs #32 and #36 were written against the 26
+floor, so each SwiftUI API they call was checked against Apple's docs JSON
+on 2026-10-03 (watchOS `introducedAt`):
+
+| API | watchOS |
+|---|---|
+| `View.fontDesign(_:)` | 9.1 |
+| `Text.fontDesign(_:)` | 9.1 |
+| `View.containerBackground(_:for:)` | 10.0 |
+| `ContainerBackgroundPlacement.tabView` | 10.0 |
+| `View.accessibilityHidden(_:)` | 7.0 |
+| `AnyShapeStyle` | 8.0 |
+
+All are at or below 10.0, so `fontDesign`, the gradient `background`,
+`containerBackground` and `accessibilityHidden` need no new gate.
+
+**How the floor is checked.** The `watchos-floor-build` job in
+`.github/workflows/build.yml` installs a watchOS 10.5 simulator runtime,
+asserts that the scheme's watchOS targets declare 10.0, builds the "React
+Watch" scheme (host and widget) for that simulator and runs the package
+tests on it. The macos-26 runner installs the runtime in under a minute
+(first run, 2026-10-03), so the run is not owed on a Mac. A floor nothing
+runs on is a claim, not a supported floor.
+
+**What the first watchOS 10 run found** (556 tests pass on watchOS 26; the
+build passed on 10.5, the tests did not):
+
+- SwiftUI on watchOS 10 traps when a `NavigationStack` is created without
+  a hosting scene ("No interface idiom was found"), which is how
+  `ImageRenderer` renders in `NodeViewRenderTests`.
+- An `AsyncImage` rendered the same way crashes on the NSURLSession
+  delegate thread while SwiftUI tears down its loader state after the
+  render (EXC_BAD_ACCESS, pointer authentication failure, in the crash
+  report of the second run), with a well-formed URL as much as a garbage
+  one. A first reading blamed a nil-URL log line and filtered the URL in
+  `NodeView`; the crash report disproved it and the filter was reverted.
+
+  Both are harness limits: a hosted scene has what each needs. The
+  harness skips trees holding either below watchOS 11, and the hosted
+  paths on a watchOS 10 device are the two items left to the
+  [Mac checklist](./mac-session-checklist.md).
+- The older Foundation accepts a `seq` one below Int64.min, rounding it
+  through a Double; the wire decoder refuses it on every OS. The parity
+  test now asserts the refusal everywhere and parity only on the Swift
+  Foundation (watchOS 11 and later).
+
+**Revisit trigger.** Raise the floor only when the Xcode this project
+requires can no longer target watchOS 10, or when the share of Series 4,
+Series 5 and SE (1st gen) is measured under about 3%. This replaces the
+"Revisit" rule at the end of the original record.
+
+## Original decision: watchOS 26 (superseded)
+
+Kept as written on 2026-10-03, as the record of what was tried and why. Its
+status line read: "decided (owner, 2026-10-03). Ships in 0.11.0." "What
+changed" describes the tree PR #31 produced, which no longer exists.
+
+### Why the floor was 10
 
 Nobody chose it. watchOS 10 came with the Expo / apple-targets watch template
 in the first demo commit, was copied into `Package.swift`, and the docs then
 treated it as given. Every `@available` gate below 26 in the package existed
 only to honour that inherited number.
 
-## Why 26
+### Why 26
 
 - **Devices.** The only watches a watchOS 10 floor keeps are Series 4,
   Series 5 and SE (1st gen), sold 2018–2020. Their last release is watchOS 10
@@ -35,7 +127,7 @@ Sources, checked 2026-10-03:
 [endoflife.date/watchos](https://endoflife.date/watchos),
 [endoflife.date/iphone](https://endoflife.date/iphone).
 
-## What changed
+### What changed
 
 - `js/swift/Package.swift`: `platforms: [.watchOS("26.0"), .iOS("26.0"),
   .macOS(.v14)]`. The string form keeps `swift-tools-version:6.0`; the `.v26`
@@ -57,7 +149,7 @@ Sources, checked 2026-10-03:
 - Behaviour on watchOS 26 and later is unchanged; only the below-floor paths
   are gone.
 
-## What did not change
+### What did not change
 
 - The `watchOS 27` gates in `ReactWatchHost.swift` (Foundation Models, inside
   `#if canImport(FoundationModels)`). 27 is above the floor.
@@ -68,7 +160,7 @@ Sources, checked 2026-10-03:
   `metric`, `HKActivitySummary.isPaused`, the watchOS 11 distance types) are
   now reachable and listed as follow-up work in [roadmap.md](./roadmap.md).
 
-## Revisit
+### Revisit
 
 When watchOS 28 ships, consider moving the floor to 27 the same way: check
 which devices stop at 26, and whether the toolchain already requires the 27

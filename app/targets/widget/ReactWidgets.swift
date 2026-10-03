@@ -52,7 +52,7 @@ struct DaypartWidget: Widget {
     }
 }
 
-/// Control Center / Action button control. The visual is an
+/// Control Center / Action button control (watchOS 26+). The visual is an
 /// OS template; React owns the metadata (label/symbol come from the
 /// published payload) and the behavior (the intent dispatches into the
 /// React-registered handler via QuickJS).
@@ -67,6 +67,7 @@ struct AddGlassIntent: AppIntent {
     }
 }
 
+@available(watchOS 26.0, *)
 struct AddGlassControl: ControlWidget {
     /// Computed (not static let) so republished React metadata is picked
     /// up on every render instead of being frozen at process start.
@@ -100,6 +101,7 @@ struct AddGlassControl: ControlWidget {
 /// `WidgetIntentRuntime.handle` carries an intent name but no parameters, and
 /// re-deriving the new state JS-side would only be correct while the last
 /// published payload is current.
+@available(watchOS 26.0, *)
 struct SetRemindersIntent: SetValueIntent {
     static let title: LocalizedStringResource = "Hydration Reminders"
     static let description = IntentDescription("Turn hydration reminders on or off.")
@@ -121,6 +123,7 @@ struct SetRemindersIntent: SetValueIntent {
 /// permanently-off chrome the user fights with. Button-vs-toggle stays a Swift
 /// choice: these are two different types in the bundle below, and JS supplies
 /// the declared toggle's state rather than switching a button into one.
+@available(watchOS 26.0, *)
 struct RemindersControl: ControlWidget {
     private var toggle: (label: String, systemName: String?, value: Bool)? {
         reactControlToggle(
@@ -159,7 +162,9 @@ struct ReactWidgetBundle: WidgetBundle {
         HydrationWidget()
         ShoppingWidget()
         DaypartWidget()
-        AddGlassControl()
-        RemindersControl()
+        if #available(watchOS 26.0, *) {
+            AddGlassControl()
+            RemindersControl()
+        }
     }
 }

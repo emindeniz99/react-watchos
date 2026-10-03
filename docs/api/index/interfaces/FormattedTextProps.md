@@ -6,7 +6,7 @@
 
 # Interface: FormattedTextProps
 
-Defined in: [js/src/components.ts:626](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L626)
+Defined in: [js/src/components.ts:627](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L627)
 
 Locale-aware formatted date/number text, rendered natively (i18n step 2).
 QuickJS ships no `Intl` — instead of embedding ICU in the bundle, declare
@@ -109,7 +109,7 @@ Colour or gradient behind the content (rounded when cornerRadius is set):
 
 > `optional` **bold?**: `boolean`
 
-Defined in: [js/src/components.ts:644](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L644)
+Defined in: [js/src/components.ts:645](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L645)
 
 ***
 
@@ -117,7 +117,7 @@ Defined in: [js/src/components.ts:644](https://github.com/emindeniz99/react-watc
 
 > `optional` **color?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:646](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L646)
+Defined in: [js/src/components.ts:647](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L647)
 
 ***
 
@@ -159,7 +159,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **currency?**: `string`
 
-Defined in: [js/src/components.ts:641](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L641)
+Defined in: [js/src/components.ts:642](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L642)
 
 ISO 4217 code for `format: "currency"`; absent = the locale's own.
 
@@ -169,7 +169,7 @@ ISO 4217 code for `format: "currency"`; absent = the locale's own.
 
 > `optional` **date?**: `number`
 
-Defined in: [js/src/components.ts:628](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L628)
+Defined in: [js/src/components.ts:629](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L629)
 
 Epoch milliseconds to render as a localized date/time.
 
@@ -179,7 +179,7 @@ Epoch milliseconds to render as a localized date/time.
 
 > `optional` **dateStyle?**: `"full"` \| `"none"` \| `"short"` \| `"medium"` \| `"long"`
 
-Defined in: [js/src/components.ts:633](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L633)
+Defined in: [js/src/components.ts:634](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L634)
 
 Date part style. Default: "medium" for a bare `date`; "none" once
 `timeStyle` is set (so a time-only render has no surprise date prefix).
@@ -207,7 +207,7 @@ own wins. Works with `textStyle`, so Dynamic Type still applies.
 
 > `optional` **format?**: `"currency"` \| `"decimal"` \| `"percent"`
 
-Defined in: [js/src/components.ts:639](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L639)
+Defined in: [js/src/components.ts:640](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L640)
 
 Number shape: "percent" renders 0.5 as "50%" (the Intl convention).
 
@@ -263,7 +263,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **maxFractionDigits?**: `number`
 
-Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L643)
+Defined in: [js/src/components.ts:644](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L644)
 
 ***
 
@@ -271,7 +271,7 @@ Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/react-watc
 
 > `optional` **minFractionDigits?**: `number`
 
-Defined in: [js/src/components.ts:642](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L642)
+Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L643)
 
 ***
 
@@ -307,7 +307,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > `optional` **size?**: `number`
 
-Defined in: [js/src/components.ts:645](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L645)
+Defined in: [js/src/components.ts:646](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L646)
 
 ***
 
@@ -315,7 +315,7 @@ Defined in: [js/src/components.ts:645](https://github.com/emindeniz99/react-watc
 
 > `optional` **timeStyle?**: `"full"` \| `"none"` \| `"short"` \| `"medium"` \| `"long"`
 
-Defined in: [js/src/components.ts:635](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L635)
+Defined in: [js/src/components.ts:636](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L636)
 
 Time part style (default "none").
 
@@ -339,6 +339,6 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `number`
 
-Defined in: [js/src/components.ts:637](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L637)
+Defined in: [js/src/components.ts:638](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L638)
 
 Number to render with the device locale's separators.

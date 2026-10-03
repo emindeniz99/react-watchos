@@ -27,6 +27,15 @@ automatically, in minutes, for free. status.md's ② row still describes this as
 `pnpm test:swift:watch` run by hand; that is how it *started*, not how it works
 now. **Check the run before opening Xcode.**
 
+**The watchOS 10 floor is proven only by a run on watchOS 10.** The
+`watchos-floor-build` job builds the "React Watch" scheme and runs the
+package tests on a watchOS 10.5 simulator; CI installs that runtime itself
+(2026-10-03). Two items stay on the Mac, because the hostless test harness
+cannot do either on watchOS 10: on a watchOS 10 simulator or device, open
+the demo and push a NavigationStack route; then show an `Image` with a
+remote `source` and leave the screen while it is still loading. Reasoning:
+[design-deployment-floor-2026-10-03.md](./design-deployment-floor-2026-10-03.md).
+
 ## Tier 1 — DEFERRED to the watchOS 27 public release (owner call, 2026-08-22)
 
 **Do not spend a session on this before mid-September 2026.** The tier needs an

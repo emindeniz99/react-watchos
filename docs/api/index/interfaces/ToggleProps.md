@@ -6,7 +6,7 @@
 
 # Interface: ToggleProps
 
-Defined in: [js/src/components.ts:290](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L290)
+Defined in: [js/src/components.ts:291](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L291)
 
 ## Extends
 
@@ -199,7 +199,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:293](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L293)
+Defined in: [js/src/components.ts:294](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L294)
 
 ***
 
@@ -207,7 +207,7 @@ Defined in: [js/src/components.ts:293](https://github.com/emindeniz99/react-watc
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:292](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L292)
+Defined in: [js/src/components.ts:293](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L293)
 
 #### Parameters
 
@@ -267,4 +267,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `boolean`
 
-Defined in: [js/src/components.ts:291](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L291)
+Defined in: [js/src/components.ts:292](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L292)

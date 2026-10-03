@@ -60,7 +60,8 @@ struct ShoppingTimelineProvider: AppIntentTimelineProvider {
     /// Per-list Smart Stack relevance (CX-017): for each shopping list that
     /// published date/location hints, surface the widget *configured to that
     /// list* at the right time/place — the configurable-widget counterpart of
-    /// ReactTimelineProvider.relevance(). Behaviour is device-only.
+    /// ReactTimelineProvider.relevance(). watchOS 11+; behaviour is device-only.
+    @available(watchOS 11.0, *)
     func relevance() async -> WidgetRelevance<SelectShoppingListIntent> {
         var attributes: [WidgetRelevanceAttribute<SelectShoppingListIntent>] = []
         // ONE payload decode for the whole pass: the payload carries every
