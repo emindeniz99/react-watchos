@@ -43,6 +43,15 @@ minimumReleaseAgeStrict: true
 # SECURITY.md carries the copy-paste.
 overrides:
   '@xmldom/xmldom@~0.7.0': ^0.8.12
+  # brace-expansion DoS (GHSA-qhr7-859c-m2p7, GHSA-6j4f-fj2g-mc7p): the tree
+  # held 2.1.1 (minimatch 9, ^2.0.2) and 5.0.6 / 5.0.9 (minimatch 10, ^5.0.5 /
+  # ^5.0.8). Patched in 2.1.6 / 5.0.11, inside those ranges and published
+  # 2026-09-14, past the 7-day cooldown, so this raises the floor instead of
+  # baselining. Reached only through @bacons/apple-targets and expo (config
+  # plugins, @expo/cli) in the workspace installs; never bundled into a
+  # watch app.
+  'brace-expansion@^2': ^2.1.6
+  'brace-expansion@^5': ^5.0.11
 
 # Advisory baseline for the `pnpm audit --audit-level=high` gate in
 # security.yml. Every GHSA here was already open against this lockfile when
@@ -60,7 +69,8 @@ overrides:
 # Removal: the fix is a lockfile refresh, not a longer list. Each package
 # below has a patched release older than the 7-day cooldown (so the refresh
 # is not blocked), except image-size 1.x: there is no patched 1.x — the fix
-# is 2.0.3+, which react-native's `image-size@^1` range never takes. When
+# is 2.0.3+, which react-native's `image-size@^1` range never takes — and
+# node-forge / braces, whose patched releases are not on npm yet (below). When
 # the bump lands, DELETE the entries it fixes — pnpm 11 does not report a
 # stale ignore, so a forgotten one silently hides a real recurrence.
 # `pnpm audit --audit-level=high` with the entries removed is the proof that
@@ -89,16 +99,24 @@ audit:
     - GHSA-2v37-7h3g-55p8
     # shell-quote 1.8.4; patched in 1.9.0.
     - GHSA-395f-4hp3-45gv
-    # brace-expansion 2.1.1 / 5.0.6; patched in 2.1.4 / 5.0.9.
-    - GHSA-3jxr-9vmj-r5cp
-    - GHSA-mh99-v99m-4gvg
-    - GHSA-rgw5-rvv9-x895
     # browserslist 4.28.2; patched in 4.28.7.
     - GHSA-73wf-gq98-2v4g
     - GHSA-c83g-rgw3-j3cx
     # image-size 1.2.1 (under react-native); fixed only in 2.0.3+, outside ^1.
     - GHSA-5p2g-fcmc-qvqq
     - GHSA-w3rx-r6r6-pgpr
+    # node-forge 1.4.0 (under @expo/cli and @expo/code-signing-certificates,
+    # both ^1.3.3); patched in 1.4.1, which is not published to npm as of
+    # 2026-10-03 (latest is 1.4.0), so no override or refresh can install it.
+    # First failed the gate on 2026-10-03. Expo CLI tooling in the workspace
+    # installs; never bundled into a watch app.
+    - GHSA-86w9-cpqp-85rv
+    # braces 3.0.3 (under micromatch 4.0.8 via metro-file-map, ^3.0.3);
+    # patched in 3.0.4, which is not published to npm as of 2026-10-03
+    # (latest is 3.0.3), so no override or refresh can install it. First
+    # failed the gate on 2026-10-03. Metro bundler file crawling in the `app`
+    # workspace only; never bundled into a watch app.
+    - GHSA-vfj7-8cjw-p6xm
 
 # Lifecycle-script allowlist (pnpm 11 home of package.json's former
 # pnpm.onlyBuiltDependencies): only the toolchain binaries we actually
