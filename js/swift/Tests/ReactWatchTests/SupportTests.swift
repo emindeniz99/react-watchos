@@ -2349,39 +2349,138 @@ final class RNStyleFillAndDesignTests: XCTestCase {
         XCTAssertNil(RNStyle.fontDesign(nil))
     }
 
-    func testGradientParsesColorsAndPoints() {
-        XCTAssertEqual(
-            RNStyle.linearGradient(
-                from: .object([
-                    "colors": .array([.string("#1C1B18"), .string("teal")]),
-                    "start": .string("topLeading"), "end": .string("bottomTrailing"),
-                ])),
-            RNStyle.LinearGradient(
-                colors: [.rgba(r: 28.0 / 255, g: 27.0 / 255, b: 24.0 / 255, a: 1), .named("teal")],
-                start: .topLeading, end: .bottomTrailing))
+    private typealias Stop = RNStyle.LinearGradient.Stop
+
+    private func gradient(_ fields: [String: JSONValue]) -> RNStyle.Fill? {
+        RNStyle.fill(
+            from: .object(fields.merging(["type": .string("linearGradient")]) { a, _ in a }))
     }
 
-    func testGradientDefaultsTopToBottomAndDropsBadColors() {
-        // An unknown point falls back to its default rather than voiding the
-        // whole fill; an invalid color is dropped while two valid ones remain.
-        XCTAssertEqual(
-            RNStyle.linearGradient(
-                from: .object([
-                    "colors": .array([.string("black"), .string("tomato"), .string("white")]),
-                    "end": .string("diagonal"),
-                ])),
-            RNStyle.LinearGradient(colors: [.named("black"), .named("white")]))
+    private func stop(_ color: String, _ location: Double) -> JSONValue {
+        .object(["color": .string(color), "location": .number(location)])
     }
 
-    func testGradientNeedsTwoValidColors() {
-        // One color is a plain `background`; drawing it as a "gradient" would
-        // silently hide the node's `background` fallback.
+    func testStringFillIsAColorAndInvalidStringIsNil() {
+        // The plain-string form every existing `background` value uses.
+        XCTAssertEqual(
+            RNStyle.fill(from: .string("#1C1B18")),
+            .color(.rgba(r: 28.0 / 255, g: 27.0 / 255, b: 24.0 / 255, a: 1)))
+        XCTAssertEqual(RNStyle.fill(from: .string("indigo")), .color(.named("indigo")))
+        XCTAssertNil(RNStyle.fill(from: .string("tomato")))
+        XCTAssertNil(RNStyle.fill(from: .number(1)))
+        XCTAssertNil(RNStyle.fill(from: nil))
+    }
+
+    func testColorsAreSpreadIntoEvenStops() {
+        // One code path for the interpreters: `colors` becomes stops at
+        // 0, 1/(n-1), ... 1, the same spacing SwiftUI gives LinearGradient(colors:).
+        XCTAssertEqual(
+            gradient([
+                "colors": .array([.string("black"), .string("#FFFFFF"), .string("teal")]),
+                "start": .string("topLeading"), "end": .string("bottomTrailing"),
+            ]),
+            .linearGradient(
+                RNStyle.LinearGradient(
+                    stops: [
+                        Stop(color: .named("black"), location: 0),
+                        Stop(color: .rgba(r: 1, g: 1, b: 1, a: 1), location: 0.5),
+                        Stop(color: .named("teal"), location: 1),
+                    ],
+                    start: .topLeading, end: .bottomTrailing)))
+    }
+
+    func testExplicitStopsKeepTheirLocations() {
+        XCTAssertEqual(
+            gradient(["stops": .array([stop("indigo", 0), stop("black", 0.7)])]),
+            .linearGradient(
+                RNStyle.LinearGradient(stops: [
+                    Stop(color: .named("indigo"), location: 0),
+                    Stop(color: .named("black"), location: 0.7),
+                ])))
+        // Equal neighbours are allowed (a hard edge), only a decrease is not.
+        XCTAssertNotNil(
+            gradient(["stops": .array([stop("red", 0.5), stop("blue", 0.5)])]))
+    }
+
+    func testInvalidColorIsDroppedNotFatal() {
+        // A misspelled colour loses that entry; two valid ones remain a gradient.
+        XCTAssertEqual(
+            gradient([
+                "colors": .array([.string("black"), .string("tomato"), .string("white")])
+            ]),
+            .linearGradient(
+                RNStyle.LinearGradient(stops: [
+                    Stop(color: .named("black"), location: 0),
+                    Stop(color: .named("white"), location: 1),
+                ])))
+        XCTAssertEqual(
+            gradient(["stops": .array([stop("red", 0), stop("tomato", 0.4), stop("blue", 1)])]),
+            .linearGradient(
+                RNStyle.LinearGradient(stops: [
+                    Stop(color: .named("red"), location: 0),
+                    Stop(color: .named("blue"), location: 1),
+                ])))
+    }
+
+    func testFewerThanTwoValidEntriesIsNil() {
+        // One colour is a plain `background`, not a gradient.
+        XCTAssertNil(gradient(["colors": .array([.string("black")])]))
+        XCTAssertNil(gradient(["colors": .array([.string("black"), .string("tomato")])]))
+        XCTAssertNil(gradient(["stops": .array([stop("red", 0), stop("tomato", 1)])]))
+        XCTAssertNil(gradient(["colors": .string("black")]))
+    }
+
+    func testExactlyOneOfColorsOrStops() {
+        // Both present is ambiguous (which wins?), neither is no gradient.
         XCTAssertNil(
-            RNStyle.linearGradient(
-                from: .object(["colors": .array([.string("black"), .string("tomato")])])))
-        XCTAssertNil(RNStyle.linearGradient(from: .object(["colors": .string("black")])))
-        XCTAssertNil(RNStyle.linearGradient(from: .array([.string("black"), .string("white")])))
-        XCTAssertNil(RNStyle.linearGradient(from: nil))
+            gradient([
+                "colors": .array([.string("red"), .string("blue")]),
+                "stops": .array([stop("red", 0), stop("blue", 1)]),
+            ]))
+        XCTAssertNil(gradient([:]))
+    }
+
+    func testBadStopLocationVoidsTheFill() {
+        // No position to repair a bad location to, so fail closed.
+        for bad in [-0.1, 1.5, Double.nan, Double.infinity] {
+            XCTAssertNil(
+                gradient(["stops": .array([stop("red", 0), stop("blue", bad)])]), "\(bad)")
+        }
+        XCTAssertNil(gradient(["stops": .array([stop("red", 0.8), stop("blue", 0.2)])]))
+        XCTAssertNil(
+            gradient([
+                "stops": .array([stop("red", 0), .object(["color": .string("blue")])])
+            ]))
+        // Order is checked across every stop, even one dropped for its colour.
+        XCTAssertNil(
+            gradient([
+                "stops": .array([stop("red", 0), stop("tomato", 0.9), stop("blue", 0.5)])
+            ]))
+    }
+
+    func testUnknownOrMissingTypeIsNil() {
+        let colors: JSONValue = .array([.string("red"), .string("blue")])
+        XCTAssertNil(
+            RNStyle.fill(
+                from: .object(["type": .string("radialGradient"), "colors": colors])))
+        XCTAssertNil(RNStyle.fill(from: .object(["colors": colors])))
+    }
+
+    func testPointsDefaultTopToBottomAndUnknownNamesFallBack() {
+        // An unknown point falls back to its default rather than voiding the fill.
+        guard
+            case .linearGradient(let defaults)? = gradient([
+                "colors": .array([.string("red"), .string("blue")])
+            ]),
+            case .linearGradient(let unknown)? = gradient([
+                "colors": .array([.string("red"), .string("blue")]),
+                "start": .string("diagonal"), "end": .number(3),
+            ])
+        else { return XCTFail("expected two gradients") }
+        XCTAssertEqual(defaults.start, .top)
+        XCTAssertEqual(defaults.end, .bottom)
+        XCTAssertEqual(unknown.start, .top)
+        XCTAssertEqual(unknown.end, .bottom)
     }
 }
 

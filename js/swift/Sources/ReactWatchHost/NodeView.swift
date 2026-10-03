@@ -1510,11 +1510,12 @@ private func buttonRole(_ name: String?) -> ButtonRole? {
 }
 
 /// Design-system Tier 1: the layout/appearance modifier props every visual
-/// node supports (padding/frame/background/cornerRadius/opacity/tint).
-/// Parsing is RNStyle (pure, Linux-tested, shared with the widget
-/// interpreter); this only maps values to SwiftUI. Application order is the
-/// documented contract in components.ts: padding -> background+cornerRadius
-/// -> frame -> opacity -> tint.
+/// node supports (padding/frame/background/containerBackground/cornerRadius/
+/// opacity/tint/fontDesign). Parsing is RNStyle (pure, Linux-tested, shared
+/// with the widget interpreter); this only maps values to SwiftUI.
+/// Application order is the documented contract in components.ts: padding ->
+/// background+cornerRadius -> containerBackground -> frame -> opacity -> tint
+/// (fontDesign is environment, so its position doesn't matter).
 struct LayoutModifier: ViewModifier {
     let node: RNNode
     /// Honor the user's Reduce Motion accessibility setting: a node's
@@ -1530,17 +1531,26 @@ struct LayoutModifier: ViewModifier {
                 )
                 .modifier(
                     BackgroundModifier(
-                        background: RNUI.backgroundFill(
-                            color: node.string("background"),
-                            gradient: node.props["backgroundGradient"]),
+                        background: RNStyle.fill(from: node.props["background"])
+                            .map(RNUI.shapeStyle),
                         cornerRadius: node.double("cornerRadius").map { CGFloat($0) }
                     )
+                )
+                .modifier(
+                    ContainerBackgroundModifier(
+                        background: RNStyle.fill(from: node.props["containerBackground"])
+                            .map(RNUI.shapeStyle))
                 )
                 .modifier(FrameModifier(frame: RNStyle.frame(from: node.props["frame"])))
                 .opacity(node.double("opacity") ?? 1)
                 .modifier(TintModifier(tint: NodeView.styleColor(node.string("tint"))))
                 .modifier(
-                    SafeAreaModifier(ignore: node.bool("ignoresSafeArea") == true))
+                    SafeAreaModifier(ignore: node.bool("ignoresSafeArea") == true)
+                )
+                .modifier(
+                    FontDesignModifier(
+                        design: RNStyle.fontDesign(node.string("fontDesign"))
+                            .map(RNUI.fontDesign)))
         )
     }
 
@@ -1615,6 +1625,21 @@ private struct BackgroundModifier: ViewModifier {
     }
 }
 
+/// A TabView page's full-bleed background (SwiftUI `.containerBackground(_:for:
+/// .tabView)`, watchOS 10.0 — this package's floor). On any other node the
+/// placement has no container to fill, so it is inert there.
+private struct ContainerBackgroundModifier: ViewModifier {
+    let background: AnyShapeStyle?
+
+    func body(content: Content) -> some View {
+        if let background {
+            content.containerBackground(background, for: .tabView)
+        } else {
+            content
+        }
+    }
+}
+
 private struct FrameModifier: ViewModifier {
     let frame: RNStyle.Frame?
 
@@ -1642,6 +1667,17 @@ private struct TintModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         if let tint { content.tint(tint) } else { content }
+    }
+}
+
+/// `fontDesign` as a View modifier, so a stack sets the design for every Text
+/// inside it; a descendant Text's own design (RNUI.TextStyle) wins. Applied
+/// only when set: SwiftUI's `.fontDesign(nil)` resets an inherited design.
+private struct FontDesignModifier: ViewModifier {
+    let design: Font.Design?
+
+    func body(content: Content) -> some View {
+        if let design { content.fontDesign(design) } else { content }
     }
 }
 

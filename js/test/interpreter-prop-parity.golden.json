@@ -90,6 +90,7 @@
   },
   "Map": {
     "app": [
+      "annotations",
       "cameraTrigger",
       "followsUserLocation",
       "fullScreen",
@@ -97,6 +98,7 @@
       "latitude",
       "longitude",
       "onPress",
+      "route",
       "showsUserLocation",
       "span"
     ],
@@ -302,10 +304,12 @@
   "Chart": {
     "app": [
       "color",
+      "points",
       "type"
     ],
     "widget": [
       "color",
+      "points",
       "type"
     ]
   },
@@ -343,9 +347,13 @@
     "app": [
       "accessibilityHint",
       "accessibilityLabel",
+      "animation",
       "background",
+      "containerBackground",
       "cornerRadius",
       "focusable",
+      "fontDesign",
+      "frame",
       "glass",
       "ignoresSafeArea",
       "leadingSwipeActionTint",
@@ -354,6 +362,7 @@
       "onLongPress",
       "onSwipe",
       "opacity",
+      "padding",
       "selection",
       "swipeActionTint",
       "tint"
@@ -363,7 +372,10 @@
       "accessibilityLabel",
       "background",
       "cornerRadius",
+      "fontDesign",
+      "frame",
       "opacity",
+      "padding",
       "tint"
     ]
   }

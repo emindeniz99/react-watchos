@@ -62,11 +62,12 @@ import { components, propDegradations } from "../codegen/schema";
 // the golden asserted the INVERSE of reality, listing four of them widget-only
 // while the app read them too.
 //
-// Known and deliberate limitation, symmetric across both interpreters so it
-// hides no drift: `node.props["padding"]`-style reads (padding, frame,
-// animation) match no `readsIn` pattern on EITHER side, as do reads through a
-// variable key (`node.string(labelKey)` in EdgeSwipeActionModifier). Widening
-// `readsIn` for those is a separate change.
+// 2026-10-03 — `node.props["x"]` reads are scanned too. They used to be a
+// "known limitation, symmetric across both interpreters", which hid padding,
+// frame and animation from the gate; it stopped being harmless once
+// `background` (a colour OR a gradient object) moved to a raw-JSON read and
+// `containerBackground` arrived as an app-only one. Reads through a variable
+// key (`node.string(labelKey)` in EdgeSwipeActionModifier) are still unseen.
 //
 // The dispatch member itself (`rendered` / `render`) is deliberately NOT
 // expanded from `body`: it contains the whole switch, so following it would
@@ -105,6 +106,10 @@ function readsIn(body: string): Set<string> {
   for (const m of body.matchAll(
     /\bnode\.(?:string|double|bool|int|stringArray|json)\("(\w+)"\)/g,
   )) {
+    reads.add(m[1] as string);
+  }
+  // node.props["prop"] — raw-JSON reads handed to an RNStyle parser.
+  for (const m of body.matchAll(/\bnode\.props\["(\w+)"\]/g)) {
     reads.add(m[1] as string);
   }
   // cgFloat("prop") / cgFloat(node, "prop") — the shared CGFloat helper.
@@ -318,6 +323,17 @@ describe("interpreter per-prop parity (M6-interim golden)", () => {
           "NodeView.body — the scan must follow `.modifier(T(...))` by type, " +
           "not just named helpers",
       ).toContain(prop);
+    }
+  });
+
+  // Pinned by NAME for the same reason: these are read only as
+  // `node.props["x"]`, so a scan that lost that pattern would drop them from
+  // the regenerated golden without a single failure.
+  it("sees raw-JSON `node.props[...]` reads on both sides", () => {
+    for (const side of ["app", "widget"] as const) {
+      for (const prop of ["padding", "background"]) {
+        expect(extracted[SHARED_KEY]?.[side]).toContain(prop);
+      }
     }
   });
 

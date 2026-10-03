@@ -70,21 +70,24 @@ public struct WidgetNodeView: View {
 
     /// Design-system Tier 1 parity with NodeView.LayoutModifier — same props,
     /// same RNStyle parsing, same application order (padding -> background +
-    /// cornerRadius -> frame -> opacity -> tint).
+    /// cornerRadius -> frame -> opacity -> tint, plus fontDesign). The one
+    /// deliberate gap is `containerBackground`: `reactWidgetView` fixes the
+    /// widget container to `.clear` (a declared prop degradation).
     @ViewBuilder private func applyLayout(
         _ content: some View, _ node: RNNode
     ) -> some View {
         let insets = RNStyle.padding(from: node.props["padding"])
         let frame = RNStyle.frame(from: node.props["frame"])
-        let background = RNUI.backgroundFill(
-            color: node.string("background"), gradient: node.props["backgroundGradient"])
+        let background = RNStyle.fill(from: node.props["background"]).map(RNUI.shapeStyle)
         let radius = node.double("cornerRadius").map { CGFloat($0) }
         let tint = color(node.string("tint"))
+        let design = RNStyle.fontDesign(node.string("fontDesign")).map(RNUI.fontDesign)
         padded(content, insets)
             .modifier(WidgetBackground(background: background, cornerRadius: radius))
             .modifier(WidgetFrame(frame: frame))
             .opacity(node.double("opacity") ?? 1)
             .modifier(WidgetTint(tint: tint))
+            .modifier(WidgetFontDesign(design: design))
     }
 
     @ViewBuilder private func padded(
@@ -522,6 +525,15 @@ private struct WidgetTint: ViewModifier {
 
     func body(content: Content) -> some View {
         if let tint { content.tint(tint) } else { content }
+    }
+}
+
+/// Only when set: `.fontDesign(nil)` would clear an ancestor's design.
+private struct WidgetFontDesign: ViewModifier {
+    let design: Font.Design?
+
+    func body(content: Content) -> some View {
+        if let design { content.fontDesign(design) } else { content }
     }
 }
 

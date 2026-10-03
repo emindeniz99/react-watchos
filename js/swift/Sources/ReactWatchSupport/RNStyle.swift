@@ -60,7 +60,7 @@ public enum RNStyle {
         return style
     }
 
-    /// Type family within the system font (js TextProps.fontDesign). nil for
+    /// Type family within the system font (js `fontDesign`). nil for
     /// an absent or unknown name, so the text keeps whatever design it
     /// inherits rather than being forced back to the default.
     public enum FontDesign: String, Sendable, CaseIterable {
@@ -205,41 +205,101 @@ extension RNStyle {
         return frame.isEmpty ? nil : frame
     }
 
-    /// Parsed `backgroundGradient` prop: a linear gradient between named unit
-    /// points. Invalid colors are dropped; fewer than two valid ones is no
-    /// gradient at all (nil), since one color is just `background`.
+    /// Parsed `background` / `containerBackground` prop (js `Fill`): what a
+    /// node paints. An enum, like SwiftUI's ShapeStyle family, so another
+    /// gradient kind is one more case rather than another prop.
+    public enum Fill: Equatable, Sendable {
+        case color(Color)
+        case linearGradient(LinearGradient)
+    }
+
+    /// A linear gradient between named unit points. Always carries explicit
+    /// stops: a `colors` list is spread evenly into stops at parse time, so
+    /// the interpreters have one code path.
     public struct LinearGradient: Equatable, Sendable {
         public enum Point: String, Sendable, CaseIterable {
             case top, bottom, leading, trailing, center
             case topLeading, topTrailing, bottomLeading, bottomTrailing
         }
 
-        public let colors: [Color]
+        public struct Stop: Equatable, Sendable {
+            public let color: Color
+            /// 0...1 along the start -> end line.
+            public let location: Double
+
+            public init(color: Color, location: Double) {
+                self.color = color
+                self.location = location
+            }
+        }
+
+        public let stops: [Stop]
         public let start: Point
         public let end: Point
 
-        public init(colors: [Color], start: Point = .top, end: Point = .bottom) {
-            self.colors = colors
+        public init(stops: [Stop], start: Point = .top, end: Point = .bottom) {
+            self.stops = stops
             self.start = start
             self.end = end
         }
     }
 
-    public static func linearGradient(from value: JSONValue?) -> LinearGradient? {
-        guard case .object(let fields)? = value,
-            case .array(let entries)? = fields["colors"]
-        else { return nil }
-        let colors = entries.compactMap { entry -> Color? in
-            guard case .string(let name) = entry else { return nil }
-            return color(name)
+    /// A string is a colour (nil when invalid); an object needs a known
+    /// `type`. A gradient takes exactly one of `colors`/`stops` and needs two
+    /// valid entries. Invalid colours are dropped, but a stop location that is
+    /// non-finite, outside 0...1 or decreasing voids the whole fill: there is
+    /// no position to repair it to, so it fails closed like `animation`.
+    public static func fill(from value: JSONValue?) -> Fill? {
+        switch value {
+        case .string(let name)?:
+            return color(name).map(Fill.color)
+        case .object(let fields)?:
+            guard fields["type"] == .string("linearGradient"),
+                let gradient = linearGradient(fields)
+            else { return nil }
+            return .linearGradient(gradient)
+        default:
+            return nil
         }
-        guard colors.count >= 2 else { return nil }
+    }
+
+    private static func linearGradient(_ fields: [String: JSONValue]) -> LinearGradient? {
+        let stops: [LinearGradient.Stop]
+        switch (fields["colors"], fields["stops"]) {
+        case (.array(let entries)?, nil):
+            let colors = entries.compactMap { entry -> Color? in
+                guard case .string(let name) = entry else { return nil }
+                return color(name)
+            }
+            guard colors.count >= 2 else { return nil }
+            let last = Double(colors.count - 1)
+            stops = colors.enumerated().map { index, entry in
+                LinearGradient.Stop(color: entry, location: Double(index) / last)
+            }
+        case (nil, .array(let entries)?):
+            var parsed: [LinearGradient.Stop] = []
+            var previous = 0.0
+            for entry in entries {
+                guard case .object(let stop) = entry,
+                    let location = stop["location"].flatMap(Self.number),
+                    location.isFinite, location >= previous, location <= 1
+                else { return nil }
+                previous = location
+                guard case .string(let name)? = stop["color"], let stopColor = color(name)
+                else { continue }
+                parsed.append(LinearGradient.Stop(color: stopColor, location: location))
+            }
+            stops = parsed
+        default:
+            return nil
+        }
+        guard stops.count >= 2 else { return nil }
         func point(_ key: String, _ fallback: LinearGradient.Point) -> LinearGradient.Point {
             guard case .string(let name)? = fields[key] else { return fallback }
             return LinearGradient.Point(rawValue: name) ?? fallback
         }
         return LinearGradient(
-            colors: colors, start: point("start", .top), end: point("end", .bottom))
+            stops: stops, start: point("start", .top), end: point("end", .bottom))
     }
 
     /// Parsed `animation` prop: how this node's changes animate

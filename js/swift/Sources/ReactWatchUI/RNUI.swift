@@ -24,11 +24,14 @@ public enum RNUI {
     /// mapped to a SwiftUI `Color`; nil when the value is neither a known name
     /// nor valid hex, so callers fall back to `.primary`/`.accentColor`.
     public static func color(_ name: String?) -> Color? {
-        guard let value = RNStyle.color(name) else { return nil }
+        RNStyle.color(name).map { color($0) }
+    }
+
+    /// A parsed `RNStyle` color -> SwiftUI `Color`.
+    public static func color(_ value: RNStyle.Color) -> Color {
         switch value {
-        case .named(let named): return systemColor(named)
-        case .rgba(let r, let g, let b, let a):
-            return Color(red: r, green: g, blue: b, opacity: a)
+        case .named(let named): systemColor(named)
+        case .rgba(let r, let g, let b, let a): Color(red: r, green: g, blue: b, opacity: a)
         }
     }
 
@@ -97,27 +100,21 @@ public enum RNUI {
         }
     }
 
-    /// What a node paints behind itself: its `backgroundGradient` when that
-    /// parses, else its `background` color, else nil. One answer for both
-    /// interpreters, so the gradient's precedence can't drift between them.
-    /// The caller reads both props itself, so the interpreter-prop-parity
-    /// scan still sees each interpreter read them.
-    public static func backgroundFill(color name: String?, gradient: JSONValue?) -> AnyShapeStyle? {
-        if let gradient = RNStyle.linearGradient(from: gradient) {
-            let colors = gradient.colors.map { value -> Color in
-                switch value {
-                case .named(let named): systemColor(named)
-                case .rgba(let r, let g, let b, let a):
-                    Color(red: r, green: g, blue: b, opacity: a)
-                }
-            }
-            return AnyShapeStyle(
+    /// A parsed `Fill` (`background`, `containerBackground`) -> the
+    /// ShapeStyle both interpreters paint with.
+    public static func shapeStyle(_ fill: RNStyle.Fill) -> AnyShapeStyle {
+        switch fill {
+        case .color(let value):
+            AnyShapeStyle(color(value))
+        case .linearGradient(let gradient):
+            AnyShapeStyle(
                 LinearGradient(
-                    colors: colors,
+                    stops: gradient.stops.map {
+                        Gradient.Stop(color: color($0.color), location: CGFloat($0.location))
+                    },
                     startPoint: unitPoint(gradient.start),
                     endPoint: unitPoint(gradient.end)))
         }
-        return color(name).map { AnyShapeStyle($0) }
     }
 
     public static func horizontalAlignment(_ name: String?) -> HorizontalAlignment {

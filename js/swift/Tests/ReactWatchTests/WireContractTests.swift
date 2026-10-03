@@ -107,16 +107,13 @@ final class WireContractTests: XCTestCase {
         XCTAssertEqual(root.string("accessibilityLabel"), "sink-root")
         XCTAssertEqual(root.string("accessibilityHint"), "the kitchen sink")
 
-        // The two styling props whose wire shape is an enum name and a nested
-        // object: parsed from the real serializer output, not a literal.
+        // fontDesign's enum name and `background`'s string form, parsed from
+        // the real serializer output, not a literal.
         let text = try XCTUnwrap(find(root, "Text"))
         XCTAssertEqual(RNStyle.fontDesign(text.string("fontDesign")), .serif)
-        let zstack = try XCTUnwrap(find(root, "ZStack"))
         XCTAssertEqual(
-            RNStyle.linearGradient(from: zstack.props["backgroundGradient"]),
-            RNStyle.LinearGradient(
-                colors: [.named("indigo"), .rgba(r: 0, g: 0, b: 0, a: 1)],
-                start: .top, end: .bottomTrailing))
+            RNStyle.fill(from: root.props["background"]),
+            .color(.rgba(r: 0, g: 0, b: 0, a: 128.0 / 255)))
 
         // High-risk per-component props, spot-parsed end to end.
         let gauge = try XCTUnwrap(find(root, "Gauge"))
