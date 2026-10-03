@@ -223,6 +223,7 @@
   "NavigationStack": {
     "app": [],
     "widget": [
+      "accessibilityHidden",
       "accessibilityHint",
       "accessibilityLabel"
     ]
@@ -285,6 +286,7 @@
       "verticalSpacing"
     ],
     "widget": [
+      "accessibilityHidden",
       "accessibilityHint",
       "accessibilityLabel",
       "horizontalSpacing",
@@ -345,6 +347,7 @@
   },
   "__shared__": {
     "app": [
+      "accessibilityHidden",
       "accessibilityHint",
       "accessibilityLabel",
       "animation",
@@ -368,6 +371,7 @@
       "tint"
     ],
     "widget": [
+      "accessibilityHidden",
       "accessibilityHint",
       "accessibilityLabel",
       "background",

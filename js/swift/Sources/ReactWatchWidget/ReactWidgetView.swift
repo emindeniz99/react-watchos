@@ -52,7 +52,20 @@ public struct WidgetNodeView: View {
         }
     }
 
+    /// Same order as the app's A11yModifier: label, then hint, then
+    /// `.accessibilityHidden(true)` outermost. Hidden wins: it removes the
+    /// node and its whole subtree from VoiceOver.
     @ViewBuilder private func applyA11y(
+        _ content: some View, _ node: RNNode
+    ) -> some View {
+        if node.bool("accessibilityHidden") == true {
+            applyLabelHint(content, node).accessibilityHidden(true)
+        } else {
+            applyLabelHint(content, node)
+        }
+    }
+
+    @ViewBuilder private func applyLabelHint(
         _ content: some View, _ node: RNNode
     ) -> some View {
         if let label = node.string("accessibilityLabel"),

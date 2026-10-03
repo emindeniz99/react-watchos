@@ -60,7 +60,8 @@ struct NodeView: View {
             .modifier(
                 A11yModifier(
                     label: node.string("accessibilityLabel"),
-                    hint: node.string("accessibilityHint")
+                    hint: node.string("accessibilityHint"),
+                    hidden: node.bool("accessibilityHidden") == true
                 )
             )
             .modifier(GestureModifier(node: node, model: model))
@@ -194,7 +195,8 @@ struct NodeView: View {
                     .modifier(
                         A11yModifier(
                             label: row.string("accessibilityLabel"),
-                            hint: row.string("accessibilityHint")))
+                            hint: row.string("accessibilityHint"),
+                            hidden: row.bool("accessibilityHidden") == true))
                 }
             }
         case "GridRow":
@@ -798,7 +800,8 @@ private struct RoutedNavigationStack: View {
             .modifier(
                 A11yModifier(
                     label: rootRoute?.string("accessibilityLabel"),
-                    hint: rootRoute?.string("accessibilityHint"))
+                    hint: rootRoute?.string("accessibilityHint"),
+                    hidden: rootRoute?.bool("accessibilityHidden") == true)
             )
             .navigationTitle(rootTitle)
             .navigationDestination(for: String.self) { route in
@@ -1035,7 +1038,8 @@ private struct NavigationRouteDestination: View {
             .modifier(
                 A11yModifier(
                     label: node.string("accessibilityLabel"),
-                    hint: node.string("accessibilityHint")))
+                    hint: node.string("accessibilityHint"),
+                    hidden: node.bool("accessibilityHidden") == true))
     }
 
     @ViewBuilder private var content: some View {
@@ -1142,11 +1146,25 @@ private struct OptimisticTextField: View {
 /// Applies optional VoiceOver metadata to any node (A11yProps in
 /// js/src/components.ts). Only set when present so unlabeled nodes keep
 /// SwiftUI's inferred accessibility.
+///
+/// Order: label, then hint, then `.accessibilityHidden(true)` outermost —
+/// the same order as the widget's `applyA11y`. Hidden wins: it removes the
+/// node and its whole subtree from VoiceOver, so a label on a hidden node is
+/// never read.
 private struct A11yModifier: ViewModifier {
     let label: String?
     let hint: String?
+    let hidden: Bool
 
-    func body(content: Content) -> some View {
+    @ViewBuilder func body(content: Content) -> some View {
+        if hidden {
+            labeled(content).accessibilityHidden(true)
+        } else {
+            labeled(content)
+        }
+    }
+
+    @ViewBuilder private func labeled(_ content: Content) -> some View {
         switch (label, hint) {
         case (let label?, let hint?):
             content.accessibilityLabel(label).accessibilityHint(hint)
@@ -1489,7 +1507,8 @@ private struct SheetNode: View {
         .modifier(
             A11yModifier(
                 label: action.string("accessibilityLabel"),
-                hint: action.string("accessibilityHint")))
+                hint: action.string("accessibilityHint"),
+                hidden: action.bool("accessibilityHidden") == true))
     }
 }
 
