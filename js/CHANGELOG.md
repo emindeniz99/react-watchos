@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.11.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.10.0...react-watchos-v0.11.0) (2026-10-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* **repo:** the package, the plugin's default deploymentTarget and the generated targets require watchOS 26 (iOS 26 in Package.swift). Apps that must support Series 4/5 or SE 1st gen stay on 0.10.x; see MIGRATIONS.md and docs/design-deployment-floor-2026-10-03.md.
+
+### Features
+
+* **js:** add accessibilityHidden for decorative nodes ([b820728](https://github.com/emindeniz99/react-watchos/commit/b8207288f6d6411cc8bf71bed2a6a68a4054102a))
+* **js:** add accessibilityHidden for decorative nodes ([99211e1](https://github.com/emindeniz99/react-watchos/commit/99211e1e7987336cc8f91bf50181228f1b7d792f))
+* **js:** add Text fontDesign and a backgroundGradient modifier prop ([a922465](https://github.com/emindeniz99/react-watchos/commit/a922465cdac669af8889391d503160c8e497ffa1))
+* **js:** fills with gradients, containerBackground and fontDesign on any node ([06e44bf](https://github.com/emindeniz99/react-watchos/commit/06e44bf3f73afc80bef7f7deee79da3e66f7b398))
+* **js:** widen background to a Fill and add containerBackground ([0814a2e](https://github.com/emindeniz99/react-watchos/commit/0814a2e307ac505e95d1e4e4e23334ca81291f6e))
+* **repo:** raise the deployment floor to watchOS 26 and iOS 26 ([1ceda2c](https://github.com/emindeniz99/react-watchos/commit/1ceda2ccd22782da6e063582ba0b538fd2065b2c))
+* **swift:** honour accessibilityHidden in both interpreters ([a890a0e](https://github.com/emindeniz99/react-watchos/commit/a890a0e41bdfa9ffc53ccb3ac83cfc95d4e136fe))
+* **swift:** parse Fill with stops and render containerBackground ([2c35b1a](https://github.com/emindeniz99/react-watchos/commit/2c35b1a4832f7dfc96b4dac2c47d19567da72dc2))
+* **swift:** render fontDesign and gradient fills in both interpreters ([8e508a9](https://github.com/emindeniz99/react-watchos/commit/8e508a90790ddd10ac3d2e9c7e598cdcb7c99439))
+
 ## [0.10.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.9.1...react-watchos-v0.10.0) (2026-09-18)
 
 
