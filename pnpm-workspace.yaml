@@ -71,18 +71,15 @@ overrides:
 # the ranges their dependents already accept) moved @xmldom/xmldom, shell-quote
 # and browserslist to patched versions and deleted their entries; js-yaml and
 # nanoid had already resolved to patched versions, so their entries were stale
-# and went too. Three baselined packages remain, none fixable by a refresh:
-# image-size 1.x has no patched 1.x (the fix is 2.0.3+, which react-native's
-# `image-size@^1` range never takes), and node-forge / braces have patched
-# releases that are not on npm yet (below). When one of those lands, DELETE the
-# entries it fixes — pnpm 11 does not report a stale ignore, so a forgotten one
-# silently hides a real recurrence. `pnpm audit --audit-level=high` with the
+# and went too. The 2026-10-03 in-range refresh then dropped image-size 1.2.1
+# from the lockfile entirely, so its two entries went as well. Two baselined
+# packages remain, neither fixable by a refresh: node-forge / braces have
+# patched releases that are not on npm yet (below). When one of those lands,
+# DELETE the entries it fixes — pnpm 11 does not report a stale ignore, so a
+# forgotten one silently hides a real recurrence. `pnpm audit --audit-level=high` with the
 # entries removed is the proof that the bump took.
 audit:
   ignore:
-    # image-size 1.2.1 (under react-native); fixed only in 2.0.3+, outside ^1.
-    - GHSA-5p2g-fcmc-qvqq
-    - GHSA-w3rx-r6r6-pgpr
     # node-forge 1.4.0 (under @expo/cli and @expo/code-signing-certificates,
     # both ^1.3.3); patched in 1.4.1, which is not published to npm as of
     # 2026-10-03 (latest is 1.4.0), so no override or refresh can install it.
