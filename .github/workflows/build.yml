@@ -487,3 +487,17 @@ jobs:
             app/build-watch-floor.log
             js/swift/test-watchos-floor.log
           if-no-files-found: ignore
+      # Same reason as watchos-tests: a trap leaves only "Restarting after
+      # unexpected exit" in the log, and the backtrace lives in the crash
+      # report and the result bundle. The first floor run had one trap whose
+      # cause the log alone could not settle.
+      - name: Upload crash reports + result bundle
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: watchos-floor-diagnostics
+          path: |
+            js/swift/test-watchos-floor.xcresult
+            ~/Library/Logs/DiagnosticReports/xctest*.ips
+            ~/Library/Logs/DiagnosticReports/xctest*.crash
+          if-no-files-found: ignore
