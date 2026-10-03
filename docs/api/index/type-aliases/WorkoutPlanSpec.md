@@ -8,7 +8,7 @@
 
 > **WorkoutPlanSpec** = [`WorkoutPlanCommon`](../interfaces/WorkoutPlanCommon.md) & `object` \| [`WorkoutPlanCommon`](../interfaces/WorkoutPlanCommon.md) & `object` \| [`WorkoutPlanCommon`](../interfaces/WorkoutPlanCommon.md) & `object`
 
-Defined in: [js/src/workoutPlans.ts:185](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L185)
+Defined in: [js/src/workoutPlans.ts:186](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L186)
 
 A workout composition. Three kinds, matching the three WorkoutKit types this
 package builds:

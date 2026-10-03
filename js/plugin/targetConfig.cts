@@ -199,7 +199,7 @@ function watchTargetConfig(opts: ResolvedOptions) {
     // automatically denies any access request").
     //
     // The FULL-ACCESS spellings, not `NSCalendarsUsageDescription`: that one
-    // is deprecated at watchOS 10.0, which is this package's floor, and
+    // is deprecated since watchOS 10.0, well below this package's 26 floor, and
     // reading events needs full access anyway (Apple exposes no read-only
     // grant). Two separate keys because events and reminders are two separate
     // permissions with two separate prompts.

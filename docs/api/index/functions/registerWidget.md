@@ -8,7 +8,7 @@
 
 > **registerWidget**(`definition`): `void`
 
-Defined in: [js/src/widgets.ts:350](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L350)
+Defined in: [js/src/widgets.ts:348](https://github.com/emindeniz99/react-watchos/blob/main/js/src/widgets.ts#L348)
 
 ## Parameters
 

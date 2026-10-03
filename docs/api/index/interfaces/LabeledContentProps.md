@@ -6,7 +6,7 @@
 
 # Interface: LabeledContentProps
 
-Defined in: [js/src/components.ts:685](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L685)
+Defined in: [js/src/components.ts:684](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L684)
 
 A label:value row (SwiftUI `LabeledContent`); children are the value
  view, or pass the simple `value` string.
@@ -84,7 +84,7 @@ Fill color behind the content (rounded when cornerRadius is set).
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:688](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L688)
+Defined in: [js/src/components.ts:687](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L687)
 
 ***
 
@@ -152,7 +152,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > **label**: `string`
 
-Defined in: [js/src/components.ts:686](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L686)
+Defined in: [js/src/components.ts:685](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L685)
 
 ***
 
@@ -202,4 +202,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `string`
 
-Defined in: [js/src/components.ts:687](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L687)
+Defined in: [js/src/components.ts:686](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L686)

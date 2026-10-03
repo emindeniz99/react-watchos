@@ -66,8 +66,8 @@ import type { WorkoutActivityType } from "./workout";
  * **device-unverified** (③ in docs/status.md). The read-back is what makes
  * that honest at runtime rather than hopeful.
  *
- * Every symbol used natively is watchOS 10.0 — this package's floor — so
- * nothing here is version-gated.
+ * Every symbol used natively is watchOS 10.0 — well under this package's
+ * watchOS 26 floor — so nothing here is version-gated.
  */
 
 /**
@@ -102,8 +102,9 @@ export type WorkoutPlanGoal =
  *   library's — budget for it in your UI copy.
  *
  * `metric` (current vs average) is available on the **speed** alerts only:
- * Apple takes it at watchOS 10.0 there and at 10.4 for power, and this package
- * is deliberately `@available`-free.
+ * Apple takes it at watchOS 10.0 there and at 10.4 for power. The power
+ * `metric` is not yet exposed — reachable since the floor is 26, see
+ * docs/roadmap.md.
  */
 export type WorkoutPlanAlert =
   | { kind: "heartRateRange"; lowerBpm: number; upperBpm: number }

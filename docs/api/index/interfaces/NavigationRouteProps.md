@@ -6,7 +6,7 @@
 
 # Interface: NavigationRouteProps
 
-Defined in: [js/src/components.ts:320](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L320)
+Defined in: [js/src/components.ts:319](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L319)
 
 ## Extends
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:325](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L325)
+Defined in: [js/src/components.ts:324](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L324)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:325](https://github.com/emindeniz99/react-watc
 
 > **path**: `string`
 
-Defined in: [js/src/components.ts:322](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L322)
+Defined in: [js/src/components.ts:321](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L321)
 
 Stable path for links, deep links, notifications, and tests.
 
@@ -60,6 +60,6 @@ Stable path for links, deep links, notifications, and tests.
 
 > `optional` **title?**: `string`
 
-Defined in: [js/src/components.ts:324](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L324)
+Defined in: [js/src/components.ts:323](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L323)
 
 Native navigation title when this route is displayed.

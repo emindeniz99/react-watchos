@@ -241,15 +241,16 @@ different questions:
   CPU or radio at surface time.
 
 The clue vocabulary is a tagged union covering RelevanceKit's whole surface
-(every `introducedAt` below read from Apple's docs JSON, 2026-08-22):
+(every `introducedAt` below read from Apple's docs JSON, 2026-08-22; all
+are at or under the watchOS 26 floor, so none is gated):
 
 | JS clue (`kind`) | RelevanceKit factory | watchOS |
 |---|---|---|
 | `date` (no `dateKind`) | `date(_:)` | 10.0 |
-| `date` + `dateKind` | `date(_:kind:)` | 26.0 (dropped below) |
-| `dateRange` | `date(range:kind:)` | 26.0 (dropped below — no sub-26 overload; `date(from:to:)` is deprecated AT 26.0) |
+| `date` + `dateKind` | `date(_:kind:)` | 26.0 |
+| `dateRange` | `date(range:kind:)` | 26.0 (`date(from:to:)` is deprecated at 26.0 and unused) |
 | `location` (lat/lon/radius, default 100 m) | `location(_:)` + `CLCircularRegion` | 10.0 |
-| `poi` (73 MapKit categories) | `location(category:)` | 26.0 (dropped below) |
+| `poi` (73 MapKit categories) | `location(category:)` | 26.0 |
 | `inferredLocation` (`home\|work\|school\|commute`) | `location(inferred:)` | 10.0 |
 | `fitness` (`activityRingsIncomplete\|workoutActive`) | `fitness(_:)` | 10.0 |
 | `sleep` (`bedtime\|wakeup`) | `sleep(_:)` | 10.0 |

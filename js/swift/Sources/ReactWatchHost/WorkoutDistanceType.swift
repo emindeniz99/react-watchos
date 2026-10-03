@@ -25,13 +25,11 @@ enum WorkoutDistance {
     /// type of its own (yoga, strength training): the type exists, the workout
     /// simply has no samples of it, and `statistics(for:)` reports that as nil.
     ///
-    /// Rowing, paddling, cross-country skiing and skating are deliberately NOT
-    /// here. `distanceRowing`, `distancePaddleSports`,
-    /// `distanceCrossCountrySkiing` and `distanceSkatingSports` are all watchOS
-    /// **11.0** — above this package's watchOS 10 floor — and this package is
-    /// `@available`-free by policy, so they fall to the default and read as
-    /// nil rather than drag a version gate into a lookup table. Revisit when
-    /// the floor moves.
+    /// Rowing, paddling, cross-country skiing and skating are NOT here yet.
+    /// `distanceRowing`, `distancePaddleSports`, `distanceCrossCountrySkiing`
+    /// and `distanceSkatingSports` are watchOS **11.0**, reachable since the
+    /// floor is 26 but not yet exposed (see docs/roadmap.md), so they fall to
+    /// the default and read as nil.
     static func identifier(
         for activity: HKWorkoutActivityType
     ) -> HKQuantityTypeIdentifier {

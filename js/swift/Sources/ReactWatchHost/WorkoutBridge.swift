@@ -411,7 +411,7 @@ final class WorkoutSessionOwner: NSObject {
     /// Adopts a workout left running by a launch that CRASHED mid-session.
     ///
     /// Apple, `recoverActiveWorkoutSession(completion:)` (watchOS 5.0, below the
-    /// v10 floor): *"If your app crashes during an active workout session, the
+    /// v26 floor): *"If your app crashes during an active workout session, the
     /// system calls your extension delegate's … method the next time your app
     /// launches. To recover the workout session, call … As soon as you receive
     /// the session object, you must access its builder and set up your data

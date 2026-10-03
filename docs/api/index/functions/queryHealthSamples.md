@@ -8,7 +8,7 @@
 
 > **queryHealthSamples**(`request`): `Promise`\<[`HealthSample`](../interfaces/HealthSample.md)[]\>
 
-Defined in: [js/src/health.ts:463](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L463)
+Defined in: [js/src/health.ts:465](https://github.com/emindeniz99/react-watchos/blob/main/js/src/health.ts#L465)
 
 Raw samples (`HKSampleQueryDescriptor`) in `[startMs, endMs)`, newest first.
 

@@ -23,7 +23,7 @@ registerWidget({
 });
 
 // 2) DYNAMIC + INTERACTIVE — the tap count, with +/- buttons right on the
-//    complication (watchOS 11+, accessoryRectangular). Each button runs a
+//    complication (accessoryRectangular). Each button runs a
 //    registered intent in the extension (no app launch); the count is a
 //    cross-process-atomic counter (ARCH-05) so the app's "Tap +1" and the
 //    widget's buttons can't lose each other's increments.
