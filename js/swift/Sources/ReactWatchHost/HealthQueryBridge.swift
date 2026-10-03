@@ -5,7 +5,7 @@
 // ReactWatchSupport's HealthQueryPlan (Linux-tested) and this file only turns a
 // VALIDATED plan into a HealthKit query.
 //
-// Query APIs: the `HK*QueryDescriptor` family (watchOS 8.5, below the v10
+// Query APIs: the `HK*QueryDescriptor` family (watchOS 8.5, below the v26
 // floor), not the pre-descriptor `HKSampleQuery`/`HKStatisticsQuery` classes.
 // Their `result(for:)` is `async throws`, which drops straight into the host's
 // existing Task -> hop to main -> generation-guard settle pattern; the callback

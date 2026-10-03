@@ -6,8 +6,8 @@
 // VALIDATED plan into an EventKit query.
 //
 // Availability: `requestFullAccessToEvents(completion:)` /
-// `requestFullAccessToReminders(completion:)` are watchOS 10.0 — exactly this
-// package's floor — so nothing here needs an `@available` gate. The
+// `requestFullAccessToReminders(completion:)` are watchOS 10.0 — well under
+// this package's watchOS 26 floor — so nothing here needs an `@available` gate. The
 // pre-10 `requestAccess(to:completion:)` is deprecated at 10.0 and is
 // deliberately not used; project rule 1 (pre-release, prefer the clean shape)
 // gives no compat argument for shipping it.

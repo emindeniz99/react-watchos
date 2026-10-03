@@ -141,7 +141,7 @@ public enum HealthStatistic: String, CaseIterable, Sendable {
 
 /// A sleep interval's stage — `HKCategoryValueSleepAnalysis` on the wire.
 /// `.inBed` is watchOS 2.0, `.awake` 3.0 and the four `asleep*` cases 9.0, so
-/// all six are below the package's v10 floor and ship ungated. Keep in sync
+/// all six are below the package's v26 floor and ship ungated. Keep in sync
 /// with the `stage` union in js/codegen/schema.ts.
 public enum SleepStage: String, CaseIterable, Sendable {
     case inBed
@@ -153,7 +153,7 @@ public enum SleepStage: String, CaseIterable, Sendable {
 }
 
 /// Which quantity the MOVE ring measures — `HKActivityMoveMode` (watchOS 7.0,
-/// both cases, so ungated at the v10 floor like every vocabulary in this file).
+/// both cases, so ungated at the v26 floor like every vocabulary in this file).
 ///
 /// Reported rather than assumed, because assuming is wrong for a whole class of
 /// users: an under-18 account — and anyone who picked Move Time in Settings —
