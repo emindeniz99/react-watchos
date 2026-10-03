@@ -29,9 +29,11 @@ now. **Check the run before opening Xcode.**
 
 **The watchOS 10 floor is proven only by a run on watchOS 10.** The
 `watchos-floor-build` job builds the "React Watch" scheme and runs the
-package tests on a watchOS 10.5 simulator. If CI cannot install that
-runtime, the same build and test run is owed on a Mac once per release,
-before the tag. Reasoning:
+package tests on a watchOS 10.5 simulator; CI installs that runtime itself
+(2026-10-03). One item stays on the Mac: open the demo on a watchOS 10
+simulator or device and push a NavigationStack route, because the test
+harness cannot create a NavigationStack without a hosting scene on
+watchOS 10. Reasoning:
 [design-deployment-floor-2026-10-03.md](./design-deployment-floor-2026-10-03.md).
 
 ## Tier 1 — DEFERRED to the watchOS 27 public release (owner call, 2026-08-22)

@@ -56,11 +56,28 @@ All are at or below 10.0, so `fontDesign`, the gradient `background`,
 
 **How the floor is checked.** The `watchos-floor-build` job in
 `.github/workflows/build.yml` installs a watchOS 10.5 simulator runtime,
-asserts that the scheme's targets declare 10.0, builds the "React Watch"
-scheme (host and widget) for that simulator and runs the package tests on
-it. If CI cannot install the runtime, the same run is owed on a Mac once per
-release (see [mac-session-checklist.md](./mac-session-checklist.md)). A floor
-nothing runs on is a claim, not a supported floor.
+asserts that the scheme's watchOS targets declare 10.0, builds the "React
+Watch" scheme (host and widget) for that simulator and runs the package
+tests on it. The macos-26 runner installs the runtime in under a minute
+(first run, 2026-10-03), so the run is not owed on a Mac. A floor nothing
+runs on is a claim, not a supported floor.
+
+**What the first watchOS 10 run found** (556 tests pass on watchOS 26; the
+build passed on 10.5, the tests did not):
+
+- `Image` with a `source` such as `::not a url::` ended the test process on
+  10.5 right after NSURLSession logged a task with a nil URL; watchOS 26
+  only logs the failed request. `NodeView` now hands AsyncImage only an
+  http(s) URL with a host; anything else takes the symbol fallback.
+- SwiftUI on watchOS 10 traps when a `NavigationStack` is created without
+  a hosting scene ("No interface idiom was found"), which is how
+  `ImageRenderer` renders in `NodeViewRenderTests`. Those renders are
+  skipped below watchOS 11. The hosted stack on a watchOS 10 device is the
+  one item left to the [Mac checklist](./mac-session-checklist.md).
+- The older Foundation accepts a `seq` one below Int64.min, rounding it
+  through a Double; the wire decoder refuses it on every OS. The parity
+  test now asserts the refusal everywhere and parity only on the Swift
+  Foundation (watchOS 11 and later).
 
 **Revisit trigger.** Raise the floor only when the Xcode this project
 requires can no longer target watchOS 10, or when the share of Series 4,
