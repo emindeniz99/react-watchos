@@ -60,6 +60,17 @@ public enum RNStyle {
         return style
     }
 
+    /// Type family within the system font (js TextProps.fontDesign). nil for
+    /// an absent or unknown name, so the text keeps whatever design it
+    /// inherits rather than being forced back to the default.
+    public enum FontDesign: String, Sendable, CaseIterable {
+        case `default`, serif, rounded, monospaced
+    }
+
+    public static func fontDesign(_ name: String?) -> FontDesign? {
+        name.flatMap(FontDesign.init(rawValue:))
+    }
+
     /// A wire-controlled Double as an Int without trapping: `Int(1e300)` (and
     /// anything at/past ±2^63) is a runtime trap, and every number this is used
     /// on comes straight from JS props — a plain prop bug must not crash the
@@ -192,6 +203,43 @@ extension RNStyle {
             maxHeightInfinity: fields["maxHeight"] == .string("infinity")
         )
         return frame.isEmpty ? nil : frame
+    }
+
+    /// Parsed `backgroundGradient` prop: a linear gradient between named unit
+    /// points. Invalid colors are dropped; fewer than two valid ones is no
+    /// gradient at all (nil), since one color is just `background`.
+    public struct LinearGradient: Equatable, Sendable {
+        public enum Point: String, Sendable, CaseIterable {
+            case top, bottom, leading, trailing, center
+            case topLeading, topTrailing, bottomLeading, bottomTrailing
+        }
+
+        public let colors: [Color]
+        public let start: Point
+        public let end: Point
+
+        public init(colors: [Color], start: Point = .top, end: Point = .bottom) {
+            self.colors = colors
+            self.start = start
+            self.end = end
+        }
+    }
+
+    public static func linearGradient(from value: JSONValue?) -> LinearGradient? {
+        guard case .object(let fields)? = value,
+            case .array(let entries)? = fields["colors"]
+        else { return nil }
+        let colors = entries.compactMap { entry -> Color? in
+            guard case .string(let name) = entry else { return nil }
+            return color(name)
+        }
+        guard colors.count >= 2 else { return nil }
+        func point(_ key: String, _ fallback: LinearGradient.Point) -> LinearGradient.Point {
+            guard case .string(let name)? = fields[key] else { return fallback }
+            return LinearGradient.Point(rawValue: name) ?? fallback
+        }
+        return LinearGradient(
+            colors: colors, start: point("start", .top), end: point("end", .bottom))
     }
 
     /// Parsed `animation` prop: how this node's changes animate

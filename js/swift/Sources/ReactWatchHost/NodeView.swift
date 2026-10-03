@@ -1530,7 +1530,9 @@ struct LayoutModifier: ViewModifier {
                 )
                 .modifier(
                     BackgroundModifier(
-                        background: NodeView.styleColor(node.string("background")),
+                        background: RNUI.backgroundFill(
+                            color: node.string("background"),
+                            gradient: node.props["backgroundGradient"]),
                         cornerRadius: node.double("cornerRadius").map { CGFloat($0) }
                     )
                 )
@@ -1596,7 +1598,7 @@ private struct PaddingModifier: ViewModifier {
 }
 
 private struct BackgroundModifier: ViewModifier {
-    let background: Color?
+    let background: AnyShapeStyle?
     let cornerRadius: CGFloat?
 
     func body(content: Content) -> some View {

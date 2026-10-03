@@ -73,6 +73,53 @@ public enum RNUI {
         }
     }
 
+    /// Parsed `fontDesign` -> SwiftUI `Font.Design`.
+    public static func fontDesign(_ design: RNStyle.FontDesign) -> Font.Design {
+        switch design {
+        case .default: .default
+        case .serif: .serif
+        case .rounded: .rounded
+        case .monospaced: .monospaced
+        }
+    }
+
+    public static func unitPoint(_ point: RNStyle.LinearGradient.Point) -> UnitPoint {
+        switch point {
+        case .top: .top
+        case .bottom: .bottom
+        case .leading: .leading
+        case .trailing: .trailing
+        case .center: .center
+        case .topLeading: .topLeading
+        case .topTrailing: .topTrailing
+        case .bottomLeading: .bottomLeading
+        case .bottomTrailing: .bottomTrailing
+        }
+    }
+
+    /// What a node paints behind itself: its `backgroundGradient` when that
+    /// parses, else its `background` color, else nil. One answer for both
+    /// interpreters, so the gradient's precedence can't drift between them.
+    /// The caller reads both props itself, so the interpreter-prop-parity
+    /// scan still sees each interpreter read them.
+    public static func backgroundFill(color name: String?, gradient: JSONValue?) -> AnyShapeStyle? {
+        if let gradient = RNStyle.linearGradient(from: gradient) {
+            let colors = gradient.colors.map { value -> Color in
+                switch value {
+                case .named(let named): systemColor(named)
+                case .rgba(let r, let g, let b, let a):
+                    Color(red: r, green: g, blue: b, opacity: a)
+                }
+            }
+            return AnyShapeStyle(
+                LinearGradient(
+                    colors: colors,
+                    startPoint: unitPoint(gradient.start),
+                    endPoint: unitPoint(gradient.end)))
+        }
+        return color(name).map { AnyShapeStyle($0) }
+    }
+
     public static func horizontalAlignment(_ name: String?) -> HorizontalAlignment {
         switch name {
         case "leading": .leading
@@ -113,6 +160,7 @@ public enum RNUI {
         let bold: Bool
         let monospacedDigit: Bool
         let font: Font?
+        let design: Font.Design?
         let color: Color
 
         public init(_ node: RNNode) {
@@ -125,6 +173,7 @@ public enum RNUI {
             } else {
                 font = nil
             }
+            design = RNStyle.fontDesign(node.string("fontDesign")).map(RNUI.fontDesign)
             color = RNUI.color(node.string("color")) ?? .primary
         }
 
@@ -133,6 +182,7 @@ public enum RNUI {
             if bold { text = text.bold() }
             if monospacedDigit { text = text.monospacedDigit() }
             if let font { text = text.font(font) }
+            if let design { text = text.fontDesign(design) }
             return text.foregroundStyle(color)
         }
     }
@@ -162,6 +212,9 @@ public enum RNUI {
             text = text.font(semanticFont(style))
         } else if let size = node.double("size") {
             text = text.font(.system(size: CGFloat(size)))
+        }
+        if let design = RNStyle.fontDesign(node.string("fontDesign")) {
+            text = text.fontDesign(fontDesign(design))
         }
         if let segmentColor = color(node.string("color")) {
             text = text.foregroundStyle(segmentColor)

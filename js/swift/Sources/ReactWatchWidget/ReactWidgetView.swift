@@ -76,7 +76,8 @@ public struct WidgetNodeView: View {
     ) -> some View {
         let insets = RNStyle.padding(from: node.props["padding"])
         let frame = RNStyle.frame(from: node.props["frame"])
-        let background = color(node.string("background"))
+        let background = RNUI.backgroundFill(
+            color: node.string("background"), gradient: node.props["backgroundGradient"])
         let radius = node.double("cornerRadius").map { CGFloat($0) }
         let tint = color(node.string("tint"))
         padded(content, insets)
@@ -442,7 +443,7 @@ public struct WidgetNodeView: View {
 }
 
 private struct WidgetBackground: ViewModifier {
-    let background: Color?
+    let background: AnyShapeStyle?
     let cornerRadius: CGFloat?
 
     /// How the system is rendering this complication (WidgetKit, watchOS 9.0,

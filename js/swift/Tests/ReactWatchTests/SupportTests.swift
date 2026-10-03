@@ -2339,6 +2339,52 @@ final class RNStyleModifierTests: XCTestCase {
     }
 }
 
+final class RNStyleFillAndDesignTests: XCTestCase {
+    func testFontDesignParsesKnownNamesOnly() {
+        XCTAssertEqual(RNStyle.fontDesign("serif"), .serif)
+        XCTAssertEqual(RNStyle.fontDesign("default"), .default)
+        // Unknown or absent is nil, not .default: a nested segment with no
+        // design must keep the outer Text's design instead of resetting it.
+        XCTAssertNil(RNStyle.fontDesign("italic"))
+        XCTAssertNil(RNStyle.fontDesign(nil))
+    }
+
+    func testGradientParsesColorsAndPoints() {
+        XCTAssertEqual(
+            RNStyle.linearGradient(
+                from: .object([
+                    "colors": .array([.string("#1C1B18"), .string("teal")]),
+                    "start": .string("topLeading"), "end": .string("bottomTrailing"),
+                ])),
+            RNStyle.LinearGradient(
+                colors: [.rgba(r: 28.0 / 255, g: 27.0 / 255, b: 24.0 / 255, a: 1), .named("teal")],
+                start: .topLeading, end: .bottomTrailing))
+    }
+
+    func testGradientDefaultsTopToBottomAndDropsBadColors() {
+        // An unknown point falls back to its default rather than voiding the
+        // whole fill; an invalid color is dropped while two valid ones remain.
+        XCTAssertEqual(
+            RNStyle.linearGradient(
+                from: .object([
+                    "colors": .array([.string("black"), .string("tomato"), .string("white")]),
+                    "end": .string("diagonal"),
+                ])),
+            RNStyle.LinearGradient(colors: [.named("black"), .named("white")]))
+    }
+
+    func testGradientNeedsTwoValidColors() {
+        // One color is a plain `background`; drawing it as a "gradient" would
+        // silently hide the node's `background` fallback.
+        XCTAssertNil(
+            RNStyle.linearGradient(
+                from: .object(["colors": .array([.string("black"), .string("tomato")])])))
+        XCTAssertNil(RNStyle.linearGradient(from: .object(["colors": .string("black")])))
+        XCTAssertNil(RNStyle.linearGradient(from: .array([.string("black"), .string("white")])))
+        XCTAssertNil(RNStyle.linearGradient(from: nil))
+    }
+}
+
 final class RNStyleAnimationTests: XCTestCase {
     func testParsesKindAndDuration() {
         XCTAssertEqual(
