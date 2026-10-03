@@ -6,7 +6,7 @@
 
 # Interface: AlertProps
 
-Defined in: [js/src/components.ts:597](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L597)
+Defined in: [js/src/components.ts:596](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L596)
 
 System alert (SwiftUI `.alert`), React-controlled like Toggle: you present
 it with `presented`, the system dismisses it (action tap), and
@@ -19,7 +19,7 @@ it with `presented`, the system dismisses it (action tap), and
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:607](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L607)
+Defined in: [js/src/components.ts:606](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L606)
 
 ***
 
@@ -27,7 +27,7 @@ Defined in: [js/src/components.ts:607](https://github.com/emindeniz99/react-watc
 
 > `optional` **message?**: `string`
 
-Defined in: [js/src/components.ts:600](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L600)
+Defined in: [js/src/components.ts:599](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L599)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [js/src/components.ts:600](https://github.com/emindeniz99/react-watc
 
 > `optional` **onChange?**: (`presented`) => `void`
 
-Defined in: [js/src/components.ts:606](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L606)
+Defined in: [js/src/components.ts:605](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L605)
 
 REQUIRED for the alert to actually present: without it React could never
 observe the system's dismissal and the seq-ack would re-present forever,
@@ -57,7 +57,7 @@ so a handler-less presentation stays hidden (the controlled-input rule).
 
 > `optional` **presented?**: `boolean`
 
-Defined in: [js/src/components.ts:598](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L598)
+Defined in: [js/src/components.ts:597](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L597)
 
 ***
 
@@ -65,4 +65,4 @@ Defined in: [js/src/components.ts:598](https://github.com/emindeniz99/react-watc
 
 > **title**: `string`
 
-Defined in: [js/src/components.ts:599](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L599)
+Defined in: [js/src/components.ts:598](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L598)

@@ -8,7 +8,7 @@
 
 > **WorkoutPlanAlert** = \{ `kind`: `"heartRateRange"`; `lowerBpm`: `number`; `upperBpm`: `number`; \} \| \{ `kind`: `"heartRateZone"`; `zone`: `number`; \} \| \{ `kind`: `"speedRange"`; `lowerMetersPerSecond`: `number`; `metric?`: `"current"` \| `"average"`; `upperMetersPerSecond`: `number`; \} \| \{ `kind`: `"speedThreshold"`; `metersPerSecond`: `number`; `metric?`: `"current"` \| `"average"`; \} \| \{ `kind`: `"cadenceRange"`; `lowerCountPerMinute`: `number`; `upperCountPerMinute`: `number`; \} \| \{ `countPerMinute`: `number`; `kind`: `"cadenceThreshold"`; \} \| \{ `kind`: `"powerRange"`; `lowerWatts`: `number`; `upperWatts`: `number`; \} \| \{ `kind`: `"powerThreshold"`; `watts`: `number`; \} \| \{ `kind`: `"powerZone"`; `zone`: `number`; \}
 
-Defined in: [js/src/workoutPlans.ts:108](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L108)
+Defined in: [js/src/workoutPlans.ts:109](https://github.com/emindeniz99/react-watchos/blob/main/js/src/workoutPlans.ts#L109)
 
 The in-workout alert a step fires on. **One per step** — Apple's
 `WorkoutStep.alert` is a single optional, not an array.
@@ -27,5 +27,6 @@ Two things worth knowing before shipping one:
   library's — budget for it in your UI copy.
 
 `metric` (current vs average) is available on the **speed** alerts only:
-Apple takes it at watchOS 10.0 there and at 10.4 for power, and this package
-is deliberately `@available`-free.
+Apple takes it at watchOS 10.0 there and at 10.4 for power. The power
+`metric` is not yet exposed — reachable since the floor is 26, see
+docs/roadmap.md.

@@ -17,7 +17,7 @@ import {
  * No watchOS 26 API is involved: the bridge uses `HKWorkoutSession` (2.0),
  * `HKLiveWorkoutDataSource` (5.0), `HKQuantityType(.heartRate)` (2.0),
  * `CMMotionManager` (2.0) and `CLLocationManager` — every one of them far
- * below this project's watchOS 10 floor.
+ * below this project's watchOS 26 floor.
  */
 export const SENSOR_EVENT_PREFIX = "sensor.";
 

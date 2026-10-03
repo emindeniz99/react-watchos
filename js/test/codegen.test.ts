@@ -341,8 +341,8 @@ describe("workout-plan vocabularies match their Swift enums", () => {
         "public enum WorkoutPlanGoalKind: String, CaseIterable, Sendable {",
       ),
     ).toEqual(schemaUnion("WorkoutPlanGoalRequest", "kind"));
-    // `poolSwimDistanceWithTime` is watchOS 11.0 — it would be this package
-    // family's first @available gate, which is the property being protected.
+    // `poolSwimDistanceWithTime` is watchOS 11.0, not yet exposed (reachable
+    // since the floor is 26 — see docs/roadmap.md). Adding it is roadmap work.
     expect(schemaUnion("WorkoutPlanGoalRequest", "kind")).not.toContain(
       "poolSwimDistanceWithTime",
     );

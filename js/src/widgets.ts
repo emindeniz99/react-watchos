@@ -71,9 +71,8 @@ export interface WidgetTimelineEntry {
 
 /**
  * How the system should treat a date clue (RelevanceKit `DateKind`,
- * watchOS 26.0). Omit to let RelevanceKit pick — the older, kind-less
- * `date(_:)` overload (watchOS 10.0) is used then, so a watch below 26 still
- * gets the hint.
+ * watchOS 26.0). Omit to let RelevanceKit pick — the kind-less `date(_:)`
+ * overload is used then.
  */
 export type RelevantDateKind = "default" | "informational" | "scheduled";
 
@@ -207,10 +206,9 @@ export type PoiCategory =
  * discriminant is the only shape that can carry a POI category, an inferred
  * place, or a fitness/sleep/headphones condition at all.
  *
- * Availability is per-arm and handled natively: `poi`, `dateRange` and any
- * explicit `dateKind` need watchOS 26.0 and are dropped below it (`@available`
- * gate in `reactRelevantContext`); the other six families are watchOS 10.0 —
- * the package's own floor — so they work on every supported watch.
+ * Every family works on every supported watch: `poi`, `dateRange` and an
+ * explicit `dateKind` are watchOS 26.0, the package's own floor, and the
+ * other six families are watchOS 10.0.
  *
  * **Permissions — a clue only has an effect if the app already holds the
  * matching grant.** Publishing one costs nothing and requests nothing: the
