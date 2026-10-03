@@ -393,16 +393,13 @@ jobs:
           # 24: `pnpm build` runs scripts/build.ts through Node's native type
           # stripping (matches .mise.toml and the other jobs).
           node-version: "24"
-          cache: pnpm
-          cache-dependency-path: pnpm-lock.yaml
+          # No pnpm cache and no vendored-quickjs cache in this job: it checks
+          # out `inputs.ref`, and a cache written from an arbitrary ref can be
+          # read back by a default-branch run (CodeQL "cache poisoning via
+          # execution of untrusted code"). A cold install and quickjs build
+          # cost minutes on a job that already downloads a simulator runtime.
       - name: Install (pnpm workspace)
         run: pnpm install --frozen-lockfile
-      # Same cache directory and key as watchos-tests above.
-      - name: Cache the vendored quickjs-ng build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/react-watchos/vendored-qjs
-          key: qjs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('js/swift/Sources/CQuickJS/**', 'tools/vendored-qjs/main.c', 'tools/vendored-qjs/build.sh') }}
       - name: Build the JS bundle + bytecode
         run: |
           pnpm --filter react-watchos build
