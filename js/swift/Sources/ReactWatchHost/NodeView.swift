@@ -331,7 +331,7 @@ struct NodeView: View {
 
     private var buttonAccessibilityLabel: String? {
         if node.string("accessibilityLabel") != nil { return nil }
-        let text = textContent(in: node)
+        let text = Self.textContent(in: node)
         return text.isEmpty ? nil : text
     }
 
@@ -343,7 +343,12 @@ struct NodeView: View {
         }
     }
 
-    private func textContent(in node: RNNode) -> String {
+    /// The label a Button derives when it has none of its own: its Text
+    /// descendants, joined. A subtree marked `accessibilityHidden` is
+    /// decorative by declaration and stays out of it, or VoiceOver would read
+    /// the glyph the prop exists to hide. Static so the test can call it.
+    static func textContent(in node: RNNode) -> String {
+        if node.bool("accessibilityHidden") == true { return "" }
         let own = node.type == "Text" ? node.string("text") ?? "" : ""
         let childText = node.children.map(textContent).filter { !$0.isEmpty }
             .joined(separator: " ")
