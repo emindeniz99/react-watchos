@@ -405,6 +405,21 @@ struct NodeView: View {
         return ui
     }
 
+    /// AsyncImage takes any URL. On the watchOS 10.5 simulator (floor CI
+    /// run, 2026-10-03) the "::not a url::" row of NodeViewRenderTests made
+    /// NSURLSession log "Resuming an NSURLSessionTask with nil URL" and the
+    /// test process exited moments later; watchOS 26 only logs the failed
+    /// task. A JS bundle can put anything in `source`, so the string must
+    /// parse AND name an http(s) host before it reaches the loader;
+    /// otherwise the symbol fallback renders.
+    private static func remoteImageURL(_ string: String) -> URL? {
+        guard let url = URL(string: string),
+            let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+            let host = url.host, !host.isEmpty
+        else { return nil }
+        return url
+    }
+
     /// Three image sources: base64 inline bitmap, remote URL (AsyncImage,
     /// native-loaded + cached), or an SF Symbol. Symbols for icons, URLs for
     /// photos/posters, base64 only for small inline bitmaps.
@@ -416,7 +431,7 @@ struct NodeView: View {
             Image(uiImage: ui).resizable().scaledToFit()
                 .frame(width: side, height: side)
         } else if let urlString = node.string("source"),
-            let url = URL(string: urlString)
+            let url = Self.remoteImageURL(urlString)
         {
             AsyncImage(url: url) { image in
                 image.resizable().scaledToFit()
