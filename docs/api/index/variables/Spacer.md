@@ -8,4 +8,4 @@
 
 > `const` **Spacer**: `FC`\<[`SpacerProps`](../interfaces/SpacerProps.md)\>
 
-Defined in: [js/src/components.ts:775](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L775)
+Defined in: [js/src/components.ts:774](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L774)

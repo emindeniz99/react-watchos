@@ -6,7 +6,7 @@
 
 # Interface: DatePickerProps
 
-Defined in: [js/src/components.ts:529](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L529)
+Defined in: [js/src/components.ts:528](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L528)
 
 Date/time picker. value and onChange are epoch milliseconds.
 
@@ -182,7 +182,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:531](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L531)
+Defined in: [js/src/components.ts:530](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L530)
 
 ***
 
@@ -190,7 +190,7 @@ Defined in: [js/src/components.ts:531](https://github.com/emindeniz99/react-watc
 
 > `optional` **mode?**: `"date"` \| `"hourAndMinute"` \| `"dateAndTime"`
 
-Defined in: [js/src/components.ts:533](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L533)
+Defined in: [js/src/components.ts:532](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L532)
 
 "date" | "hourAndMinute" | "dateAndTime" (default).
 
@@ -200,7 +200,7 @@ Defined in: [js/src/components.ts:533](https://github.com/emindeniz99/react-watc
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:534](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L534)
+Defined in: [js/src/components.ts:533](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L533)
 
 #### Parameters
 
@@ -260,4 +260,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:530](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L530)
+Defined in: [js/src/components.ts:529](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L529)

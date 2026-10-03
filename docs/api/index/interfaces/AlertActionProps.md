@@ -6,7 +6,7 @@
 
 # Interface: AlertActionProps
 
-Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L643)
+Defined in: [js/src/components.ts:642](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L642)
 
 An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
  presentation automatically when an action is tapped; `onPress` fires for
@@ -46,7 +46,7 @@ Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watch
 
 > **label**: `string`
 
-Defined in: [js/src/components.ts:644](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L644)
+Defined in: [js/src/components.ts:643](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L643)
 
 ***
 
@@ -54,7 +54,7 @@ Defined in: [js/src/components.ts:644](https://github.com/emindeniz99/react-watc
 
 > `optional` **onPress?**: () => `void`
 
-Defined in: [js/src/components.ts:647](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L647)
+Defined in: [js/src/components.ts:646](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L646)
 
 #### Returns
 
@@ -66,6 +66,6 @@ Defined in: [js/src/components.ts:647](https://github.com/emindeniz99/react-watc
 
 > `optional` **role?**: `"destructive"` \| `"cancel"`
 
-Defined in: [js/src/components.ts:646](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L646)
+Defined in: [js/src/components.ts:645](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L645)
 
 "destructive" renders red; "cancel" gets the cancel slot/placement.

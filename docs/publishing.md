@@ -156,7 +156,7 @@ type ReactWatchOptions = {
                                 //   keys the OS denies every access request WITHOUT prompting, so
                                 //   getCalendarEvents/getReminders would reject PERMISSION_DENIED
                                 //   forever.
-  deploymentTarget?: string;    // default "10.0"
+  deploymentTarget?: string;    // default "26.0"
   appleTeamId?: string;         // for EAS / signing scaffolding (default: your app.json ios.appleTeamId)
   scheme?: string;              // the reactwatch:// deep-link scheme (default: your bundleIdentifier,
                                 //   reverse-DNS — surfaced to JS as globalThis.__urlScheme)

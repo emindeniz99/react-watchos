@@ -33,9 +33,10 @@ public enum WorkoutPlanSpecKind: String, CaseIterable, Sendable {
     case pacer
 }
 
-/// `WorkoutGoal`. The four cases at the watchOS 10.0 floor;
-/// `poolSwimDistanceWithTime` is watchOS 11.0 and cut to keep this package
-/// gate-free. Keep in sync with the `kind` union on `WorkoutPlanGoalRequest`.
+/// `WorkoutGoal`. The four watchOS 10.0 cases; `poolSwimDistanceWithTime`
+/// (watchOS 11.0) is not yet exposed — reachable since the floor is 26, see
+/// docs/roadmap.md. Keep in sync with the `kind` union on
+/// `WorkoutPlanGoalRequest`.
 public enum WorkoutPlanGoalKind: String, CaseIterable, Sendable {
     case open
     case distance
@@ -44,8 +45,8 @@ public enum WorkoutPlanGoalKind: String, CaseIterable, Sendable {
 }
 
 /// The nine `WorkoutAlert` conformers, all watchOS 10.0 — none of them is cut.
-/// What IS cut is the POWER alerts' current-vs-average selector, which is
-/// watchOS 10.4 (see `WorkoutPlanAlertMetric`).
+/// What is not yet exposed is the POWER alerts' current-vs-average selector,
+/// which is watchOS 10.4 (see `WorkoutPlanAlertMetric`).
 /// Keep in sync with the `kind` union on `WorkoutPlanAlertRequest`.
 public enum WorkoutPlanAlertKind: String, CaseIterable, Sendable {
     case heartRateRange
@@ -70,9 +71,9 @@ public enum WorkoutPlanStepPurpose: String, CaseIterable, Sendable {
 ///
 /// The asymmetry is Apple's, and it is the reason this enum exists at all:
 /// `WorkoutAlert.speed(_:unit:metric:)` takes it at watchOS **10.0**, while the
-/// power equivalent (`power(_:unit:metric:)`) is watchOS **10.4**. Exposing the
-/// speed selector is free at this package's floor; exposing the power one would
-/// be its first `@available` gate, so the power alerts ship through the 10.0
+/// power equivalent (`power(_:unit:metric:)`) is watchOS **10.4**. The power
+/// selector is not yet exposed — reachable since the floor is 26, see
+/// docs/roadmap.md — so the power alerts ship through the 10.0
 /// `power(_:unit:)` form and only their selector waits (`workoutPlanPowerMetric`).
 /// Keep in sync with the `metric` union on `WorkoutPlanAlertRequest`.
 public enum WorkoutPlanAlertMetric: String, CaseIterable, Sendable {
@@ -106,9 +107,9 @@ public struct WorkoutPlanAlertSpec: Equatable, Sendable {
 /// A validated `WorkoutStep`. `alert` is a single optional, not an array —
 /// Apple's `WorkoutStep.alert` is `(any WorkoutAlert)?`.
 ///
-/// `displayName` is absent on purpose: `WorkoutStep.displayName` is watchOS
-/// 11.0 and would be this package family's first `@available` gate. Recorded as
-/// the top follow-up (`workoutPlanStepNames`).
+/// `displayName` is not yet exposed: `WorkoutStep.displayName` is watchOS 11.0,
+/// reachable since the floor is 26 — see docs/roadmap.md
+/// (`workoutPlanStepNames`).
 public struct WorkoutPlanStepSpec: Equatable, Sendable {
     public let goal: WorkoutPlanGoalSpec?
     public let alert: WorkoutPlanAlertSpec?
@@ -405,8 +406,8 @@ extension WorkoutPlanAlertSpec {
                 return .failure(error)
             }
         }
-        // The current-vs-average selector is SPEED-only at this floor — the
-        // power one is watchOS 10.4 and cut. Sending it to any other kind is
+        // The current-vs-average selector is SPEED-only for now — the power
+        // one (watchOS 10.4) is not yet exposed. Sending it to any other kind is
         // refused rather than dropped, so a caller asking for average power
         // learns it did not happen.
         let speedAlert = kind == .speedRange || kind == .speedThreshold

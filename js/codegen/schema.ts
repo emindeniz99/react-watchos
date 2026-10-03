@@ -159,7 +159,7 @@ export const components: Component[] = [
   { name: "Sheet", widget: "degraded" },
   { name: "Section", widget: "degraded" },
   { name: "Label", widget: "full" },
-  // Layout/data-display vocabulary (watchOS 9/10 APIs within the v10 floor).
+  // Layout/data-display vocabulary (watchOS 9/10 APIs within the v26 floor).
   { name: "Grid", widget: "full" },
   { name: "GridRow", widget: "full" },
   { name: "ShareLink", widget: "degraded" },
@@ -176,7 +176,7 @@ export const components: Component[] = [
  * kinds`): an open string type-checks, returns a plausible promise, and
  * resolves `null` forever. Every one is `HKQuantityTypeIdentifier` at watchOS
  * 2.0-7.4 (`appleMoveTime` is the ceiling; nothing here is beta or
- * deprecated), far below the v10 floor, so none needs an `@available` gate.
+ * deprecated), far below the v26 floor, so none needs an `@available` gate.
  *
  * The unit each is reported in is fixed NATIVELY (never chosen by JS — a unit
  * string on the wire is a drift surface with no gate); `HealthQuantityKind` in
@@ -216,8 +216,8 @@ export const healthQuantityTypes: string[] = [
  *
  * Swept from Apple's docs JSON (`healthkit/hkworkoutactivitytype.json` +
  * one fetch per member): 84 cases, watchOS `introducedAt` maxing out at
- * exactly **10.0** (`underwaterDiving`) — our package floor — so not one of
- * them needs an `@available` gate. The three DEPRECATED spellings are excluded
+ * exactly **10.0** (`underwaterDiving`) — well under our watchOS 26 package
+ * floor — so not one of them needs an `@available` gate. The three DEPRECATED spellings are excluded
  * (`dance` deprecated watchOS 7.0, `danceInspiredTraining` 3.0,
  * `mixedMetabolicCardioTraining` 4.0): project rule 1 is "pre-release, prefer
  * the clean shape", which gives no compat argument for shipping them. 84 - 3 =
@@ -946,8 +946,8 @@ export const invokeShapes: StructDef[] = [
     doc: "A WorkoutKit `WorkoutGoal`; the unit is fixed by `kind`.",
     fields: [
       {
-        // poolSwimDistanceWithTime is watchOS 11.0 and cut — it would be this
-        // package family's first @available gate. Keep in sync with
+        // poolSwimDistanceWithTime (watchOS 11.0) is not yet exposed —
+        // reachable since the floor is 26, see docs/roadmap.md. Keep in sync with
         // WorkoutPlanGoalKind in ReactWatchSupport (codegen.test.ts pins them).
         name: "kind",
         swift: "String",
@@ -976,9 +976,9 @@ export const invokeShapes: StructDef[] = [
       {
         // SPEED alerts only, and that asymmetry is Apple's: `speed(_:unit:
         // metric:)` takes it at watchOS 10.0 while `power(_:unit:metric:)` is
-        // 10.4 — so the speed selector is free at our floor and the power one
-        // would be this package family's first @available gate. Keep in sync
-        // with WorkoutPlanAlertMetric in ReactWatchSupport.
+        // 10.4. The power selector is not yet exposed — reachable since the
+        // floor is 26, see docs/roadmap.md. Keep in sync with
+        // WorkoutPlanAlertMetric in ReactWatchSupport.
         name: "metric",
         swift: "String?",
         ts: '"current" | "average"',
@@ -1468,7 +1468,7 @@ export const invokeShapes: StructDef[] = [
       { name: "endMs", swift: "Double", ts: "number" },
       {
         // HKCategoryValueSleepAnalysis. .inBed is watchOS 2.0, .awake 3.0 and
-        // the four asleep* cases 9.0 — all below the v10 floor, so all six ship
+        // the four asleep* cases 9.0 — all below the v26 floor, so all six ship
         // ungated. Keep in sync with SleepStage in ReactWatchSupport
         // (codegen.test.ts pins the two).
         name: "stage",

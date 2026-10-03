@@ -6,7 +6,7 @@
 
 # Interface: ContentUnavailableProps
 
-Defined in: [js/src/components.ts:751](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L751)
+Defined in: [js/src/components.ts:750](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L750)
 
 Standard empty-state placeholder (SwiftUI `ContentUnavailableView`).
 
@@ -119,7 +119,7 @@ Rounds the background — or clips the content when there is none.
 
 > `optional` **description?**: `string`
 
-Defined in: [js/src/components.ts:755](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L755)
+Defined in: [js/src/components.ts:754](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L754)
 
 ***
 
@@ -218,7 +218,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 > **systemName**: `string`
 
-Defined in: [js/src/components.ts:754](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L754)
+Defined in: [js/src/components.ts:753](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L753)
 
 SF Symbol name.
 
@@ -242,4 +242,4 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > **title**: `string`
 
-Defined in: [js/src/components.ts:752](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L752)
+Defined in: [js/src/components.ts:751](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L751)

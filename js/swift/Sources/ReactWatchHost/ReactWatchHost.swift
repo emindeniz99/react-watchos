@@ -2991,7 +2991,7 @@ public struct ReactWatchRootView: View {
             default: break
             }
         }
-        // `initial: true` (watchOS 10.0, exactly the floor) is half of the
+        // `initial: true` (watchOS 10.0, below the 26 floor) is half of the
         // answer to the initial-value problem: a plain .onChange fires only on
         // CHANGE, so a bundle that mounts while the wrist is already down would
         // believe luminance is normal and keep its timers running — precisely

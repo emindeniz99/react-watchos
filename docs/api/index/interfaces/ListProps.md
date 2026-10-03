@@ -6,7 +6,7 @@
 
 # Interface: ListProps
 
-Defined in: [js/src/components.ts:319](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L319)
+Defined in: [js/src/components.ts:318](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L318)
 
 ## Extends
 
@@ -83,7 +83,7 @@ Colour or gradient behind the content (rounded when cornerRadius is set):
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:320](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L320)
+Defined in: [js/src/components.ts:319](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L319)
 
 ***
 

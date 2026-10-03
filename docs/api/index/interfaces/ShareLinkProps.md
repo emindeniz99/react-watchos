@@ -6,7 +6,7 @@
 
 # Interface: ShareLinkProps
 
-Defined in: [js/src/components.ts:719](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L719)
+Defined in: [js/src/components.ts:718](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L718)
 
 System share sheet (SwiftUI `ShareLink`). Children are the custom
  tappable label; omit them for the system's default share label.
@@ -86,7 +86,7 @@ Colour or gradient behind the content (rounded when cornerRadius is set):
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:722](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L722)
+Defined in: [js/src/components.ts:721](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L721)
 
 ***
 
@@ -191,7 +191,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > **item**: `string`
 
-Defined in: [js/src/components.ts:721](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L721)
+Defined in: [js/src/components.ts:720](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L720)
 
 The text or URL to share.
 

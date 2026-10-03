@@ -8,4 +8,4 @@
 
 > `const` **Alert**: `FC`\<[`AlertProps`](../interfaces/AlertProps.md)\>
 
-Defined in: [js/src/components.ts:801](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L801)
+Defined in: [js/src/components.ts:800](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L800)

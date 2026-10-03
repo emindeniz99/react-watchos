@@ -26,8 +26,8 @@ import { invoke, USER_MEDIATED_INVOKE_TIMEOUT_MS } from "./invoke";
  * `calendar: true` — off by default (M13 least privilege), like `healthKit`
  * and `push`.
  *
- * Every symbol used natively is watchOS 10.0 or below — exactly this package's
- * floor — so nothing here is version-gated. The deprecated
+ * Every symbol used natively is watchOS 10.0 or below — well under this
+ * package's watchOS 26 floor — so nothing here is version-gated. The deprecated
  * `requestAccess(to:completion:)` and `NSCalendarsUsageDescription` are
  * deliberately not used.
  */

@@ -6,7 +6,7 @@
 
 # Interface: PickerProps
 
-Defined in: [js/src/components.ts:409](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L409)
+Defined in: [js/src/components.ts:408](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L408)
 
 ## Extends
 
@@ -180,7 +180,7 @@ controls reach the physical edge instead of floating above the inset.
 
 > `optional` **label?**: `string`
 
-Defined in: [js/src/components.ts:410](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L410)
+Defined in: [js/src/components.ts:409](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L409)
 
 ***
 
@@ -188,7 +188,7 @@ Defined in: [js/src/components.ts:410](https://github.com/emindeniz99/react-watc
 
 > `optional` **onChange?**: (`index`) => `void`
 
-Defined in: [js/src/components.ts:414](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L414)
+Defined in: [js/src/components.ts:413](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L413)
 
 #### Parameters
 
@@ -220,7 +220,7 @@ Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/react-watc
 
 > **options**: `string`[]
 
-Defined in: [js/src/components.ts:411](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L411)
+Defined in: [js/src/components.ts:410](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L410)
 
 ***
 
@@ -256,6 +256,6 @@ Accent color for this subtree's controls (SwiftUI .tint).
 
 > `optional` **value?**: `number`
 
-Defined in: [js/src/components.ts:413](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L413)
+Defined in: [js/src/components.ts:412](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L412)
 
 Selected index into options.

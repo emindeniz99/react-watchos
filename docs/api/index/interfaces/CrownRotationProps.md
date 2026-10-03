@@ -6,7 +6,7 @@
 
 # Interface: CrownRotationProps
 
-Defined in: [js/src/components.ts:546](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L546)
+Defined in: [js/src/components.ts:545](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L545)
 
 Binds the Digital Crown to a numeric value over its children (SwiftUI
 `digitalCrownRotation`). The wrapped view becomes crown-focusable;
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:89](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:586](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L586)
+Defined in: [js/src/components.ts:585](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L585)
 
 ***
 
@@ -58,7 +58,7 @@ Defined in: [js/src/components.ts:586](https://github.com/emindeniz99/react-watc
 
 > `optional` **focused?**: `boolean`
 
-Defined in: [js/src/components.ts:577](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L577)
+Defined in: [js/src/components.ts:576](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L576)
 
 Declarative Crown-focus claim. watchOS routes the Digital Crown to
 exactly ONE focused view, so a screen with two `<CrownRotation>`s must
@@ -85,7 +85,7 @@ Full model: docs/design-focus-management.md.
 
 > `optional` **haptic?**: `boolean`
 
-Defined in: [js/src/components.ts:555](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L555)
+Defined in: [js/src/components.ts:554](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L554)
 
 Crown haptic detents (default true).
 
@@ -95,7 +95,7 @@ Crown haptic detents (default true).
 
 > `optional` **max?**: `number`
 
-Defined in: [js/src/components.ts:551](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L551)
+Defined in: [js/src/components.ts:550](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L550)
 
 Range upper bound (default 100).
 
@@ -105,7 +105,7 @@ Range upper bound (default 100).
 
 > `optional` **min?**: `number`
 
-Defined in: [js/src/components.ts:549](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L549)
+Defined in: [js/src/components.ts:548](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L548)
 
 Range lower bound (default 0).
 
@@ -115,7 +115,7 @@ Range lower bound (default 0).
 
 > `optional` **onChange?**: (`value`) => `void`
 
-Defined in: [js/src/components.ts:556](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L556)
+Defined in: [js/src/components.ts:555](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L555)
 
 #### Parameters
 
@@ -133,7 +133,7 @@ Defined in: [js/src/components.ts:556](https://github.com/emindeniz99/react-watc
 
 > `optional` **onFocusChange?**: (`focused`) => `void`
 
-Defined in: [js/src/components.ts:585](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L585)
+Defined in: [js/src/components.ts:584](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L584)
 
 Fired when Crown focus moves to (`true`) or away from (`false`) this
 view — both when a focused claim lands and when the system
@@ -157,7 +157,7 @@ truthful.
 
 > `optional` **step?**: `number`
 
-Defined in: [js/src/components.ts:553](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L553)
+Defined in: [js/src/components.ts:552](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L552)
 
 Detent size (default 1).
 
@@ -167,4 +167,4 @@ Detent size (default 1).
 
 > **value**: `number`
 
-Defined in: [js/src/components.ts:547](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L547)
+Defined in: [js/src/components.ts:546](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L546)

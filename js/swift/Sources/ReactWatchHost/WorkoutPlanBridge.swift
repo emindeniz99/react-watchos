@@ -580,8 +580,9 @@ import ReactWatchSupport
         let value = spec.threshold ?? 0
         let zone = spec.zone ?? 1
         // The 10.0 speed selector. The POWER equivalent is watchOS 10.4 and is
-        // deliberately not exposed — the power alerts below use the 10.0
-        // `power(_:unit:)` form, which keeps this package `@available`-free.
+        // not yet exposed (reachable since the floor is 26, see
+        // docs/roadmap.md) — the power alerts below use the 10.0
+        // `power(_:unit:)` form.
         let metric: WorkoutAlertMetric = spec.metric == .average ? .average : .current
         switch spec.kind {
         case .heartRateRange:

@@ -298,12 +298,12 @@ struct NodeView: View {
         }
     }
 
-    /// A Button, optionally bound to the double-tap gesture (watchOS 11+).
+    /// A Button, optionally bound to the double-tap gesture.
     @ViewBuilder private var buttonView: some View {
         let button = Button(
             action: { model.dispatch(nodeId: node.id, event: "press") }
         ) { childViews }
-        if node.bool("primaryAction") == true, #available(watchOS 11.0, *) {
+        if node.bool("primaryAction") == true {
             glassStyled(accessibleButton(button)).handGestureShortcut(.primaryAction)
         } else {
             glassStyled(accessibleButton(button))
@@ -311,23 +311,15 @@ struct NodeView: View {
     }
 
     /// Applies the `buttonStyle` prop. Liquid Glass (GlassButtonStyle, verified
-    /// watchOS 26.0) is a no-op on older OSes; "plain" strips the default chrome
-    /// so a custom-styled control (own background/frame) renders cleanly. The
-    /// same JS runs everywhere.
+    /// watchOS 26.0) is always available at the watchOS 26 floor; "plain" strips
+    /// the default chrome so a custom-styled control (own background/frame)
+    /// renders cleanly.
     @ViewBuilder private func glassStyled(_ button: some View) -> some View {
         switch node.string("buttonStyle") {
         case "glass":
-            if #available(watchOS 26.0, *) {
-                button.buttonStyle(.glass)
-            } else {
-                button
-            }
+            button.buttonStyle(.glass)
         case "glassProminent":
-            if #available(watchOS 26.0, *) {
-                button.buttonStyle(.glassProminent)
-            } else {
-                button
-            }
+            button.buttonStyle(.glassProminent)
         case "plain":
             button.buttonStyle(.plain)
         default:
@@ -1692,13 +1684,13 @@ private struct SafeAreaModifier: ViewModifier {
     }
 }
 
-/// Applies the watchOS 26 Liquid Glass effect when opted in; a no-op on
-/// older OSes so the same JS runs everywhere.
+/// Applies the watchOS 26 Liquid Glass effect when `glass` is set; otherwise
+/// a no-op.
 private struct GlassModifier: ViewModifier {
     let glass: Bool
 
     func body(content: Content) -> some View {
-        if glass, #available(watchOS 26.0, *) {
+        if glass {
             content.glassEffect()
         } else {
             content

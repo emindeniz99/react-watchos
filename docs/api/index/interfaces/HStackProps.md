@@ -200,7 +200,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 Defined in: [js/src/components.ts:181](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L181)
 
-Apply the watchOS 26 Liquid Glass effect (no-op on older OSes).
+Apply the watchOS 26 Liquid Glass effect.
 
 **App-only: a no-op in complications and Smart Stack widgets.** It is
 applied in the app interpreter's shared modifier chain, which the widget

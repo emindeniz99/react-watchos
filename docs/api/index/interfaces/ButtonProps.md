@@ -91,11 +91,10 @@ Colour or gradient behind the content (rounded when cornerRadius is set):
 
 > `optional` **buttonStyle?**: `"glass"` \| `"glassProminent"` \| `"plain"`
 
-Defined in: [js/src/components.ts:277](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L277)
+Defined in: [js/src/components.ts:276](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L276)
 
-Button chrome. "glass"/"glassProminent" are Liquid Glass (watchOS 26+;
-silently the default on older watches; "glassProminent" is the accented
-fill). "plain" strips all chrome so the content IS the button — use it with
+Button chrome. "glass"/"glassProminent" are Liquid Glass
+("glassProminent" is the accented fill). "plain" strips all chrome so the content IS the button — use it with
 your own `background`/`cornerRadius`/`padding` to build a custom control
 (e.g. a circular icon button). Omit for the standard watchOS button.
 
@@ -111,7 +110,7 @@ interactive button hard-codes `.buttonStyle(.plain)`, so every value here
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:278](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L278)
+Defined in: [js/src/components.ts:277](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L277)
 
 ***
 
@@ -218,7 +217,7 @@ Fixed and/or max dimensions; `"infinity"` = SwiftUI's fill idiom.
 
 Defined in: [js/src/components.ts:181](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L181)
 
-Apply the watchOS 26 Liquid Glass effect (no-op on older OSes).
+Apply the watchOS 26 Liquid Glass effect.
 
 **App-only: a no-op in complications and Smart Stack widgets.** It is
 applied in the app interpreter's shared modifier chain, which the widget
@@ -255,12 +254,12 @@ controls reach the physical edge instead of floating above the inset.
 
 Defined in: [js/src/components.ts:263](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L263)
 
-Makes this button interactive **inside a widget/complication** (watchOS
-11+): a tap runs the `registerIntent(name, …)` handler in the widget
-extension (no app launch), which mutates Storage and reloads the timeline —
-the same mechanism a Control uses. `onPress` is for the in-app UI and is
-ignored in a widget; `intent` is for a widget and is ignored in the app. On
-watchOS 10 a widget button falls back to its (non-interactive) content.
+Makes this button interactive **inside a widget/complication**: a tap
+runs the `registerIntent(name, …)` handler in the widget extension (no app
+launch), which mutates Storage and reloads the timeline — the same
+mechanism a Control uses. `onPress` is for the in-app UI and is ignored in
+a widget; `intent` is for a widget and is ignored in the app. A widget
+button without `intent` renders its (non-interactive) content.
 
 ***
 
@@ -446,7 +445,7 @@ Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`.
 
 Defined in: [js/src/components.ts:254](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L254)
 
-Bind this button to the Apple Watch double-tap gesture (watchOS 11+).
+Bind this button to the Apple Watch double-tap gesture.
 
 ***
 

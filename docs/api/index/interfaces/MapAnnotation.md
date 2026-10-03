@@ -6,7 +6,7 @@
 
 # Interface: MapAnnotation
 
-Defined in: [js/src/components.ts:469](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L469)
+Defined in: [js/src/components.ts:468](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L468)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [js/src/components.ts:469](https://github.com/emindeniz99/react-watc
 
 > **lat**: `number`
 
-Defined in: [js/src/components.ts:470](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L470)
+Defined in: [js/src/components.ts:469](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L469)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [js/src/components.ts:470](https://github.com/emindeniz99/react-watc
 
 > **lon**: `number`
 
-Defined in: [js/src/components.ts:471](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L471)
+Defined in: [js/src/components.ts:470](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L470)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [js/src/components.ts:471](https://github.com/emindeniz99/react-watc
 
 > `optional` **systemImage?**: `string`
 
-Defined in: [js/src/components.ts:474](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L474)
+Defined in: [js/src/components.ts:473](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L473)
 
 SF Symbol for the marker.
 
@@ -40,7 +40,7 @@ SF Symbol for the marker.
 
 > `optional` **tint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:475](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L475)
+Defined in: [js/src/components.ts:474](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L474)
 
 ***
 
@@ -48,4 +48,4 @@ Defined in: [js/src/components.ts:475](https://github.com/emindeniz99/react-watc
 
 > `optional` **title?**: `string`
 
-Defined in: [js/src/components.ts:472](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L472)
+Defined in: [js/src/components.ts:471](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L471)

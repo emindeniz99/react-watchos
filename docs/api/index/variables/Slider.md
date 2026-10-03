@@ -8,4 +8,4 @@
 
 > `const` **Slider**: `FC`\<[`SliderProps`](../interfaces/SliderProps.md)\>
 
-Defined in: [js/src/components.ts:796](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L796)
+Defined in: [js/src/components.ts:795](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L795)

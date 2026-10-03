@@ -5,7 +5,7 @@
 [![watch build](https://github.com/emindeniz99/react-watchos/actions/workflows/build.yml/badge.svg)](https://github.com/emindeniz99/react-watchos/actions/workflows/build.yml)
 [![Socket](https://socket.dev/api/badge/npm/package/react-watchos)](https://socket.dev/npm/package/react-watchos)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-![watchOS 10+](https://img.shields.io/badge/watchOS-10%2B-black)
+![watchOS 26+](https://img.shields.io/badge/watchOS-26%2B-black)
 ![React 19](https://img.shields.io/badge/React-19-61dafb)
 
 Write Apple Watch UI in React — JSX, hooks, state — rendered as **native
@@ -280,8 +280,9 @@ can't claim) is
   props (`padding`, `frame`, `background` (colour or gradient),
   `containerBackground`, `cornerRadius`, `opacity`, `tint`, `fontDesign`,
   per-node `animation`, stack `alignment`).
-- **Controls require watchOS 26**; gated with `#available`, everything else
-  runs on watchOS 10+.
+- **Requires watchOS 26.** Everything, Controls and Liquid Glass included,
+  runs ungated on watchOS 26+; Series 4, Series 5 and SE (1st gen) can't run
+  it. Why: [docs/design-deployment-floor-2026-10-03.md](./docs/design-deployment-floor-2026-10-03.md).
 - **No `Intl`.** QuickJS ships without the ECMAScript i18n API, so
   `toLocaleString` and friends render a hardcoded US-style format. The answer
   is to hand native the declarative target — `<FormattedText>` for dates and

@@ -322,12 +322,12 @@ public struct WidgetNodeView: View {
         return route.hasPrefix("/") ? route : "/\(route)"
     }
 
-    /// An interactive widget button (watchOS 11+): a tap runs the React intent
-    /// named by the `intent` prop in the extension, with no app launch. Without
-    /// an `intent` prop, or on watchOS 10, it degrades to its (static) content —
-    /// `onPress` is an in-app gesture that can't fire from a widget timeline.
+    /// An interactive widget button: a tap runs the React intent named by the
+    /// `intent` prop in the extension, with no app launch. Without an `intent`
+    /// prop it degrades to its (static) content — `onPress` is an in-app
+    /// gesture that can't fire from a widget timeline.
     @ViewBuilder private func button(_ node: RNNode) -> some View {
-        if #available(watchOS 11.0, *), let intent = node.string("intent") {
+        if let intent = node.string("intent") {
             Button(
                 intent: ReactWidgetButtonIntent(
                     name: intent, appGroupId: appGroupId)
@@ -451,7 +451,7 @@ private struct WidgetBackground: ViewModifier {
 
     /// How the system is rendering this complication (WidgetKit, watchOS 9.0,
     /// `.fullColor` / `.accented` / `.vibrant` — verified from the docs JSON,
-    /// well under this package's watchOS 10 floor).
+    /// well under this package's watchOS 26 floor).
     ///
     /// Read HERE, in the one modifier whose output the mode changes, rather
     /// than in `WidgetNodeView`: the mode is a global, `WidgetNodeView` is
