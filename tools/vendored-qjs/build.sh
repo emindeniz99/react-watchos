@@ -69,6 +69,27 @@ stamp() {
     } | sha256sum | cut -d' ' -f1
 }
 
+# One builder at a time. Several vitest workers call this script in parallel
+# (qjs-smoke, dap-debugger and the qjs-tools helper each do) and on a cold
+# cache all of them used to compile into the same files: one worker executed
+# $BIN while another's `cc` was still writing it, which the kernel reports as
+# ETXTBSY or EACCES (release PR #35's coverage job, 2026-10-04, right after
+# the engine bump to 0.17.0 invalidated the cache). `mkdir` is atomic, so the
+# lock directory serialises the callers; the stamp check runs under the lock
+# so the losers find the finished build and skip. A lock left behind by a
+# killed build is reported after two minutes instead of waiting forever.
+LOCK="$OUT/.lock"
+waited=0
+until mkdir "$LOCK" 2>/dev/null; do
+    if [ "$waited" -ge 1200 ]; then
+        echo "vendored-qjs: $LOCK held for over 120 s; remove it if no build is running" >&2
+        exit 1
+    fi
+    sleep 0.1
+    waited=$((waited + 1))
+done
+trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM HUP
+
 WANT="$(stamp)"
 if [ ! -x "$BIN" ] || [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$WANT" ]; then
     mkdir -p "$OBJ"
@@ -82,8 +103,12 @@ if [ ! -x "$BIN" ] || [ ! -f "$STAMP" ] || [ "$(cat "$STAMP")" != "$WANT" ]; the
         # shellcheck disable=SC2086  # CFLAGS is a deliberate word list
         "$CC_BIN" $CFLAGS -I"$VENDOR/include" -c "$VENDOR/$unit.c" -o "$OBJ/$unit.o"
     done
+    # Link to a temporary name and rename into place: a reader that holds a
+    # path to $BIN from an earlier call then sees either the old complete
+    # binary or the new one, never a half-written file.
     # shellcheck disable=SC2086
-    "$CC_BIN" $CFLAGS -I"$VENDOR/include" -o "$BIN" main.c "$OBJ"/*.o -lm -lpthread
+    "$CC_BIN" $CFLAGS -I"$VENDOR/include" -o "$BIN.tmp.$$" main.c "$OBJ"/*.o -lm -lpthread
+    mv -f "$BIN.tmp.$$" "$BIN"
     printf '%s' "$WANT" >"$STAMP"
 else
     echo "vendored-qjs: up to date ($OUT)" >&2
