@@ -56,24 +56,34 @@ Two things the audit found that are worth remembering:
   had one hyphen where the em-dash heading slugs to two. Exactly the class
   `lychee --include-fragments` exists for.
 
-### CodeQL alerts that are dismissed, and why
+### CodeQL `actions/cache-poisoning/poisonable-step`: what it found, what closed it
 
-`actions/cache-poisoning/poisonable-step` fires on every step that executes
-code in a job whose checkout is `ref: ${{ inputs.ref }}` — which is every job
-in `ci.yml`, `quality.yml` and `build.yml`, because they are reusable
-(`workflow_call`) and a caller has to name the ref. CodeQL reads the input as
-untrusted; it cannot see who the callers are. Here they are two workflows in
-this repo: `release.yml` passes the tag release-please just cut (the run's own
-commit), and `vendor-quickjs.yml` passes the branch its own bot just pushed. A
-direct `workflow_dispatch` leaves the input empty (none of the three files
-declares a `ref` input), a fork PR's run writes only to the PR's cache scope,
-and a foreign repo calling the file runs it in its own cache scope. So the
-alert's literal claim — an outsider chooses the code these jobs run — is
-untrue.
+Until 2026-10-04 the query fired on every step that executes code in a job
+whose checkout was `ref: ${{ inputs.ref }}` — every job in `ci.yml`,
+`quality.yml` and `build.yml`, because they are reusable (`workflow_call`) and
+a caller could name the ref. CodeQL reads such an input as untrusted; it
+cannot see who the callers are. Here the one caller left was `release.yml`,
+passing the tag release-please had just cut — the run's own commit — so the
+alert's literal claim, that an outsider chooses the code these jobs run, was
+untrue. It was dismissed as **won't fix, not false positive**, because the
+shape was real: a called workflow checking out one commit inside a run scoped
+to another is exactly what the query names, and a future caller could have
+fed it anything.
 
-They are still dismissed as **won't fix, not false positive**, because
-`release.yml` still passes `ref: <tag>` (the run's own commit) into the three
-reusable files, and that is the shape the query names. The bot-side shape an
+Closed 2026-10-04 by removing the shape rather than arguing with it. The
+three reusable files take no inputs beyond build.yml's `xcode`; their
+checkouts take the run's own commit. `release.yml` no longer passes a ref:
+its first job resolves the tag's commit over the git protocol and refuses to
+publish unless that commit is `github.sha`, so the gates, the publish checkout
+and the tag are one tree by construction (the publish job re-asserts it on
+the checkout it packs). The cost moved into the RUNBOOK in `release.yml`: a
+publish that has to be retried after main moved on is retried by dispatching
+`release.yml` **on the tag**, and a push to main in that state fails red with
+the exact command, instead of quietly self-healing. The alert does not fire
+on the current workflows; if a new reusable input that names a ref ever
+appears, it will, and that is the query doing its job.
+
+The bot-side shape an
 adversarial pass over the claim found (2026-09-18, three independent
 refuters, one judge) — `vendor-quickjs.yml` runs on `schedule`, so its
 `github.ref` is `main` and its cache scope is main's; its `propose` job
@@ -100,10 +110,9 @@ verdict on the bot's own branch, not attacker bytes on npm — and the same
 upstream already ships to consumers as C source through the normal vendor
 path, so vendoring is the risk being accepted.
 
-A new job on the same checkout raises the alert again — dismiss again, same
-reason. Don't exclude the query in `codeql.yml`: it is the one that would
-fire if some future job checked out a pull request's head in a
-default-branch context, which is the defect it exists for.
+Don't exclude the query in `codeql.yml`: it is the one that would fire if
+some future job checked out a pull request's head in a default-branch
+context, which is the defect it exists for.
 
 `js/polynomial-redos` on `update.ts`'s `/[^/]*$/` (the sonarjs row below had
 already weighed it) was fixed rather than dismissed — a one-line string scan is

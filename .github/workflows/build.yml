@@ -15,9 +15,10 @@ on:
         description: "Xcode version (e.g. 16.2, 26.0, latest-stable)"
         default: "latest-stable"
         required: false
-  # Callable from another workflow — see the same block in ci.yml for why.
-  # release.yml calls it against the tag it is about to publish: the
-  # `#if os(watchOS)` host the tarball ships compiles here and nowhere else.
+  # Callable from another workflow — see the same block in ci.yml for why,
+  # including why there is no `ref` input. release.yml calls it in the run
+  # that publishes, on the tag's commit: the `#if os(watchOS)` host the
+  # tarball ships compiles here and nowhere else.
   # An engine bump is exactly the change this macOS job exists for (CQuickJS
   # is compiled for arm64_32 here alone), and the vendor bot DISPATCHES it on
   # its branch — the `workflow_dispatch` above, `xcode` at its latest-stable
@@ -26,10 +27,6 @@ on:
   # what cancels a superseded bot dispatch on the same branch.
   workflow_call:
     inputs:
-      ref:
-        description: "Git ref to check out. Empty = the caller's own ref."
-        type: string
-        required: false
       xcode:
         description: "Xcode version"
         type: string
@@ -103,8 +100,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Empty on push/PR — checkout then uses the event's own default ref.
-          ref: ${{ inputs.ref }}
           persist-credentials: false
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
@@ -127,8 +122,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Empty on push/PR — checkout then uses the event's own default ref.
-          ref: ${{ inputs.ref }}
           persist-credentials: false
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
@@ -219,8 +212,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Empty on push/PR — checkout then uses the event's own default ref.
-          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - name: Select Xcode
@@ -341,8 +332,6 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Empty on push/PR — checkout then uses the event's own default ref.
-          ref: ${{ inputs.ref }}
           persist-credentials: false
 
       - name: Select Xcode
