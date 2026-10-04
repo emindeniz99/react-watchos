@@ -816,7 +816,51 @@ describe("withEasAppExtensions (EAS extra-target signing)", () => {
     expect(list[0].entitlements["aps-environment"]).toBeUndefined();
   });
 
-  it("is idempotent — upserts by targetName instead of duplicating", () => {
+  // @bacons/apple-targets registers each target with EAS under its
+  // PRODUCT name (spaces stripped: "ReactWatch"), while it creates the Xcode
+  // target under the display name ("React Watch"). EAS assigns provisioning
+  // profiles by Xcode target name, so the first real EAS build of a consumer
+  // died in "Configure Xcode project" on a target that does not exist
+  // (2026-10-04). This entry must win, keyed by bundle id like apple-targets'.
+  it("replaces apple-targets' product-name entry with the Xcode target name", () => {
+    const cfg = {
+      ...config,
+      extra: {
+        eas: {
+          build: {
+            experimental: {
+              ios: {
+                appExtensions: [
+                  {
+                    targetName: "ReactWatch",
+                    bundleIdentifier: "com.emindeniz99.reactwatch.watch",
+                    entitlements: {},
+                  },
+                  {
+                    targetName: "ReactWatchWidgets",
+                    bundleIdentifier:
+                      "com.emindeniz99.reactwatch.watch.widgets",
+                    entitlements: {},
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    };
+    withEasAppExtensions(cfg, resolveOptions(config, {}));
+    const list = extensionsOf(cfg) as Array<{
+      targetName: string;
+      bundleIdentifier: string;
+    }>;
+    expect(list.map((e) => [e.targetName, e.bundleIdentifier])).toEqual([
+      ["React Watch", "com.emindeniz99.reactwatch.watch"],
+      ["React Watch Widgets", "com.emindeniz99.reactwatch.watch.widgets"],
+    ]);
+  });
+
+  it("is idempotent — upserts by bundle id instead of duplicating", () => {
     const opts = resolveOptions(config, {});
     const cfg = { ...config };
     withEasAppExtensions(cfg, opts);
