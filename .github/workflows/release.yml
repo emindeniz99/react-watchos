@@ -1,8 +1,16 @@
 name: release
 
 # ONE run, three stages: release-please cuts the release, ci.yml, quality.yml
-# and build.yml re-run against THAT TAG as called workflows, then the npm
-# publish happens in the SAME run, gated on all of it.
+# and build.yml re-run as called workflows on the commit the tag names, then
+# the npm publish happens in the SAME run, gated on all of it.
+#
+# The called workflows take no `ref`: they check out the run's own commit, and
+# job 1 refuses to publish unless that commit IS the tagged one. So the gates,
+# the publish checkout and the tag are the same tree by construction, and no
+# workflow here ever checks out one commit inside a run scoped to another
+# (the shape CodeQL reports as cache poisoning). The price is in the RUNBOOK:
+# a publish that must be retried is retried by dispatching this workflow ON
+# THE TAG, not by pushing to main.
 #
 # - The FILENAME release.yml is load-bearing — npm's trusted publisher config
 #   matches on organization/user + repository + WORKFLOW FILENAME (basename,
@@ -25,9 +33,16 @@ name: release
 # - Normal release: merge the release-please PR. Nothing manual. That push runs
 #   job 1 (tags + creates the Release), the called gates against the tag, and
 #   then job 2 (publishes THAT TAG).
-# - A publish that failed: re-run the failed job, push anything to main, or
-#   dispatch this workflow. All three converge on the same gate, which
-#   publishes only what is missing from the registry — re-runs are green no-ops.
+# - A publish that failed: re-run the failed job, or dispatch this workflow ON
+#   THE TAG (Actions → release → Run workflow → pick the tag, or
+#   `gh workflow run release.yml --ref react-watchos-vX.Y.Z`). Both converge on
+#   the same gate, which publishes only what is missing from the registry —
+#   re-runs are green no-ops. A push to main, or a dispatch on main, finishes
+#   the release only while main's HEAD is still the tagged commit; once main
+#   has moved on, job 1 fails RED with the dispatch command, and keeps doing
+#   so on every push until the tag is published or the next release moves the
+#   manifest past it. Red on purpose: a tagged Release with no npm version is
+#   a broken state, and the gates may only ever run on the tagged tree.
 # - A red `gates`/`quality`/`watch-build` job: the tag's tree cannot change,
 #   so no re-run turns it green (a macOS runner or CocoaPods hiccup is the
 #   exception — re-run the failed jobs once before concluding). Otherwise
@@ -56,6 +71,8 @@ on:
   # Deliberately NO inputs: the gate below resolves what to publish from the
   # manifest and the tag, so a dispatch can never publish a ref someone typed
   # by hand — which is the wrong-bytes failure this design exists to close.
+  # The ref a dispatch RUNS ON is the one choice: main for a normal retry or
+  # a release-PR refresh, the tag to finish a publish main has moved past.
   workflow_dispatch:
 
 # `permissions` is replace-not-merge and nothing is inherited from an empty
@@ -79,6 +96,7 @@ jobs:
     outputs:
       publish: ${{ steps.gate.outputs.publish }}
       tag: ${{ steps.gate.outputs.tag }}
+      commit: ${{ steps.gate.outputs.commit }}
       version: ${{ steps.gate.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -107,6 +125,8 @@ jobs:
           RELEASED_TAG: ${{ steps.rp.outputs['js--tag_name'] }}
           RELEASED_VERSION: ${{ steps.rp.outputs['js--version'] }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RUN_SHA: ${{ github.sha }}
+          RUN_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
 
@@ -129,12 +149,17 @@ jobs:
           # The tag must exist before anything is packed: publishing a version
           # nothing tagged would ship bytes no Release points at. Ask the
           # REMOTE — actions/checkout fetches depth 1 and no tags, so local git
-          # knows about none of them.
-          if ! git ls-remote --exit-code --tags "$REPO_URL" "refs/tags/${TAG}" >/dev/null; then
+          # knows about none of them. Keep the commit it names: release-please
+          # makes lightweight tags, so the one line IS the commit; an annotated
+          # tag would add a peeled `^{}` line, which is the one to take then.
+          TAG_COMMIT="$(git ls-remote --tags "$REPO_URL" "refs/tags/${TAG}" "refs/tags/${TAG}^{}" \
+            | awk '$2 ~ /\^\{\}$/ { peeled = $1 } $2 !~ /\^\{\}$/ { plain = $1 } END { print (peeled != "" ? peeled : plain) }')"
+          if [ -z "$TAG_COMMIT" ]; then
             echo "publish=false" >>"$GITHUB_OUTPUT"
             echo "::notice::${TAG} does not exist — nothing to publish."
             exit 0
           fi
+          echo "commit=${TAG_COMMIT}" >>"$GITHUB_OUTPUT"
 
           # `npm view <pkg>@<version>` exits 1 with E404 when the version is
           # absent — and that is the PUBLISH path, so a bare call under `set -e`
@@ -158,19 +183,30 @@ jobs:
             exit 1
           fi
 
-          echo "publish=true" >>"$GITHUB_OUTPUT"
-          echo "::notice::react-watchos@${VERSION} is not on npm — publishing ${TAG}."
+          # The gates below check out THIS run's commit (they take no ref), and
+          # so does the publish job. Both must be the tagged tree, or the run
+          # would verify one commit and attest another. Red, not a skip: a
+          # tagged Release with no npm version is broken until someone acts,
+          # and the fix is one dispatch on the tag.
+          if [ "$TAG_COMMIT" != "$RUN_SHA" ]; then
+            echo "publish=false" >>"$GITHUB_OUTPUT"
+            echo "::error::react-watchos@${VERSION} is not on npm, but this run is on ${RUN_REF} at ${RUN_SHA}, not the tagged ${TAG_COMMIT}. Finish the release on the tag: gh workflow run release.yml --ref ${TAG}"
+            exit 1
+          fi
 
-  # The gates main runs, re-run against the TAG. Until 2026-09 `publish`
+          echo "publish=true" >>"$GITHUB_OUTPUT"
+          echo "::notice::react-watchos@${VERSION} is not on npm — publishing ${TAG} (${TAG_COMMIT})."
+
+  # The gates main runs, re-run on the tagged commit. Until 2026-09 `publish`
   # depended on `release_please` alone: it re-ran five of the checks a push
   # to main runs (build, typecheck, lint, size, vitest) and RACED the rest —
   # codegen drift, the examples' single-React build, the Linux `swift build`
   # + `swift test` of the sources the tarball ships, publint/attw over the
   # packed artifact — none of which could stop a publish. ci.yml, quality.yml
-  # and build.yml are called here as reusable workflows (the pattern
-  # vendor-quickjs.yml uses for the bot's branch) with the tag as `ref`, and
-  # `publish` needs all three. Only when there is something to publish: on an
-  # ordinary push to main the workflows already ran on their own triggers.
+  # and build.yml are called here as reusable workflows, and `publish` needs
+  # all three. They check out this run's commit, which job 1 has just proved
+  # to be the tag's. Only when there is something to publish: on an ordinary
+  # push to main the workflows already ran on their own triggers.
   #
   # build.yml is the expensive one — three macOS jobs, ~30-40 min wall clock
   # per publish — and it is called anyway, because it is the ONLY place the
@@ -195,8 +231,6 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/ci.yml # zizmor: ignore[self-repository]
-    with:
-      ref: ${{ needs.release_please.outputs.tag }}
 
   quality:
     needs: release_please
@@ -205,8 +239,6 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/quality.yml # zizmor: ignore[self-repository]
-    with:
-      ref: ${{ needs.release_please.outputs.tag }}
 
   watch-build:
     needs: release_please
@@ -215,8 +247,6 @@ jobs:
     permissions:
       contents: read
     uses: ./.github/workflows/build.yml # zizmor: ignore[self-repository]
-    with:
-      ref: ${{ needs.release_please.outputs.tag }}
 
   publish:
     # `needs` on the three called workflows is the gate: a red or cancelled
@@ -231,13 +261,25 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Check out the TAG, never the branch. Without this a dispatch — or a
-          # run queued behind another merge — packs whatever main HEAD drifted
-          # to, and because trusted publishing attaches provenance
-          # automatically, the attestation would faithfully attest the WRONG
-          # commit. A missing tag fails the checkout, before the registry.
-          ref: ${{ needs.release_please.outputs.tag }}
+          # No `ref`: this checks out the run's own commit, the same one the
+          # three called gate workflows just verified, and job 1 only lets
+          # this job run when that commit is the tag's. The step below proves
+          # it again on the checkout that gets packed, because trusted
+          # publishing attaches provenance automatically and the attestation
+          # would faithfully attest the WRONG commit if main had drifted.
           persist-credentials: false
+      - name: The checked-out commit is the tagged one
+        env:
+          TAG: ${{ needs.release_please.outputs.tag }}
+          TAG_COMMIT: ${{ needs.release_please.outputs.commit }}
+        run: |
+          set -euo pipefail
+          HEAD_SHA="$(git rev-parse HEAD)"
+          if [ "$HEAD_SHA" != "$TAG_COMMIT" ]; then
+            echo "::error::checked out ${HEAD_SHA}, but ${TAG} names ${TAG_COMMIT} — refusing to publish."
+            exit 1
+          fi
+          echo "${TAG} = ${HEAD_SHA}"
       # No `version` input: pnpm/action-setup reads the exact pinned version
       # from the root package.json "packageManager" field.
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
