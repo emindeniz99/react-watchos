@@ -56,6 +56,32 @@ spelling and skips the beta churn. **Revisit trigger: the watchOS 27 SDK is in a
 release Xcode.** Until then this tier's status is *blocked*, not *pending* — a
 Mac session should spend itself on Tier 2 instead.
 
+### Result of the first Xcode 27 compile (2026-10-04)
+
+Xcode 27.1 beta 1, watchOS 27.0 SDK. The tier's premise was wrong: this is
+not a spelling problem. `canImport(FoundationModels)` is true on the watch
+SDK, but `SystemLanguageModel`, `LanguageModelSession.GenerationError` and
+`LanguageModelSession.ToolCallError` are marked unavailable on watchOS, and
+`LanguageModelSession` takes `model: some LanguageModel`. The only
+`LanguageModel` the watch SDK offers is `PrivateCloudComputeLanguageModel`,
+which runs in Apple's cloud and has a quota. So 0.11.0 and earlier fail to
+compile under Xcode 27 with six errors in `ReactWatchHost.swift`, for every
+consumer, whether or not they call the AI API.
+
+The fix that shipped is a gate, not a port: the block now compiles only
+when `REACT_WATCHOS_SYSTEM_LANGUAGE_MODEL` is set, and no build sets it.
+`generate()` keeps rejecting with "on-device AI unavailable", as it does on
+every Xcode 26 build. Porting the AI surface to
+`PrivateCloudComputeLanguageModel` is a design task (availability, quota
+and its error type differ), not a Mac chore.
+
+The same run executed the package suite on a watchOS 27.0 simulator: 554
+tests passed and four crashed, all `NodeViewRenderTests.testFixtureTreediff*`,
+with `Fatal error: no current update to enqueue action to` after SwiftUI
+logs "Unable to render flattened version of … NavigationStackRepresentable".
+That is the hostless-harness NavigationStack limit, now a trap on watchOS
+27. CI runs Xcode 26 and does not see it.
+
 ### What it is, once it is unblocked
 
 Exactly one thing, and it is the biggest un-compiled surface in the tree:

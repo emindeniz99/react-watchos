@@ -11,7 +11,17 @@ import SwiftUI
 import UserNotifications
 import WatchKit
 import WidgetKit
-#if canImport(FoundationModels)
+// REACT_WATCHOS_SYSTEM_LANGUAGE_MODEL is not set by any build. The watchOS 27
+// SDK (Xcode 27) ships FoundationModels, so `canImport` is true there, but it
+// marks `SystemLanguageModel`, `LanguageModelSession.GenerationError` and
+// `LanguageModelSession.ToolCallError` unavailable on watchOS: the watch's only
+// `LanguageModel` is `PrivateCloudComputeLanguageModel`. Everything behind this
+// flag was written against the on-device model from Apple's docs before any
+// SDK could compile it, and it does not compile for watchOS. Until the AI
+// surface is ported to the model the watch has, the flag keeps it out and
+// `generate()` rejects with "on-device AI unavailable", which is what every
+// Xcode 26 build has always done (docs/mac-session-checklist.md, Tier 1).
+#if canImport(FoundationModels) && REACT_WATCHOS_SYSTEM_LANGUAGE_MODEL
 import FoundationModels
 #endif
 
@@ -1450,7 +1460,7 @@ final class ReactWatchModel {
     /// On an older SDK FoundationModels isn't in the watch SDK, so this compiles
     /// to the `false` fallthrough — building the real query needs Xcode 27.
     private func aiAvailability(id: Int) {
-        #if canImport(FoundationModels)
+        #if canImport(FoundationModels) && REACT_WATCHOS_SYSTEM_LANGUAGE_MODEL
         if #available(watchOS 27.0, *) {
             let available = SystemLanguageModel.default.isAvailable
             runtime?.resolveInvoke(id: id, resultJson: available ? "true" : "false")
@@ -1487,7 +1497,7 @@ final class ReactWatchModel {
             rejectGenerate(id: id, code: .invalidSchema, message: problem)
             return
         }
-        #if canImport(FoundationModels)
+        #if canImport(FoundationModels) && REACT_WATCHOS_SYSTEM_LANGUAGE_MODEL
         // Foundation Models' LanguageModelSession is watchOS 27.0+ (Apple docs;
         // it's 26.0 on iOS/macOS but only reached the watch at 27.0, in beta) —
         // the gate was wrongly 26.0 (CX-002). Building this path needs the
@@ -1540,7 +1550,7 @@ final class ReactWatchModel {
             .resume(returning: replyJson)
     }
 
-    #if canImport(FoundationModels)
+    #if canImport(FoundationModels) && REACT_WATCHOS_SYSTEM_LANGUAGE_MODEL
     @available(watchOS 27.0, *)
     private func startFoundationModelsGenerate(id: Int, plan: GeneratePlan) {
         let gen = generation
