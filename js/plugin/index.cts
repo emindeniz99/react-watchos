@@ -249,8 +249,15 @@ function targetProductsFor(
  * validate their provisioning profiles BEFORE the Xcode project exists, via
  * extra.eas.build.experimental.ios.appExtensions — the documented mechanism; a
  * config plugin that adds extension targets is expected to add this. Idempotent
- * (upsert by targetName). NOTE: not verifiable without an actual EAS build;
- * local Xcode signing is unaffected by it.
+ * (upsert by bundle id, the key @bacons/apple-targets uses for the same list).
+ *
+ * Must run AFTER apple-targets. It registers each target under its PRODUCT
+ * name (spaces stripped, "ReactWatch") but creates the Xcode target under the
+ * display name ("React Watch"), and EAS assigns provisioning profiles by Xcode
+ * target name: the first real EAS build of a consumer died in "Configure
+ * Xcode project" on a target that does not exist (2026-10-04). The entries
+ * written here carry the Xcode target name and replace apple-targets' own.
+ * Local Xcode signing is unaffected by any of it.
  */
 function withEasAppExtensions(
   config: import("@expo/config-plugins").ExportedConfig,
@@ -271,7 +278,9 @@ function withEasAppExtensions(
     entitlements: Record<string, unknown>;
   }) => {
     const i = ios.appExtensions.findIndex(
-      (e: { targetName?: string }) => e.targetName === entry.targetName,
+      (e: { targetName?: string; bundleIdentifier?: string }) =>
+        e.bundleIdentifier === entry.bundleIdentifier ||
+        e.targetName === entry.targetName,
     );
     if (i >= 0) ios.appExtensions[i] = entry;
     else ios.appExtensions.push(entry);
@@ -310,8 +319,11 @@ function withEasAppExtensions(
     // Reconcile when the widget is turned off (CX-011): drop a previously-added
     // widget extension so EAS doesn't keep provisioning a target that no longer
     // exists.
+    const widgetBundleId = bundleIdFor(opts.widgetBundleSuffix);
     const i = ios.appExtensions.findIndex(
-      (e: { targetName?: string }) => e.targetName === opts.widgetName,
+      (e: { targetName?: string; bundleIdentifier?: string }) =>
+        e.bundleIdentifier === widgetBundleId ||
+        e.targetName === opts.widgetName,
     );
     if (i >= 0) ios.appExtensions.splice(i, 1);
   }
@@ -332,10 +344,6 @@ const withReactWatch = (
   // The on-disk writes and the pbxproj edit are also individually idempotent.
   const inner = createRunOncePlugin(
     ((cfg) => {
-      // 0. Declare the watch app + widget extension to EAS so cloud builds
-      //    provision/sign them before the Xcode project is generated.
-      cfg = withEasAppExtensions(cfg, opts);
-
       // 1. Generate the apple-targets config file(s) on disk BEFORE
       //    apple-targets globs them (synchronously, at evaluation time).
       ensureTargetConfigFile(projectRoot, WATCH_DIR, watchTargetConfig(opts));
@@ -361,6 +369,12 @@ const withReactWatch = (
       // 2. Let apple-targets discover + inject the targets (its proven,
       //    Phase-1 target creation).
       cfg = withAppleTargets(cfg, { appleTeamId: opts.appleTeamId });
+
+      // 2b. Declare the watch app + widget extension to EAS so cloud builds
+      //     provision/sign them before the Xcode project is generated. After
+      //     apple-targets on purpose: its own entries name the product, not
+      //     the Xcode target, and these replace them (see the function).
+      cfg = withEasAppExtensions(cfg, opts);
 
       // 3. Link the SwiftPM products + merge the target Info.plists DURING
       //    prebuild (CX-012), by hooking apple-targets' own xcode base mod and
