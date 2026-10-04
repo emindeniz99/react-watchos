@@ -8,9 +8,9 @@
 
 > **generateObject**\<`T`\>(`prompt`, `schema`, `options?`): `Promise`\<`T`\>
 
-Defined in: [js/src/ai.ts:828](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L828)
+Defined in: [js/src/ai.ts:889](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L889)
 
-Guided generation: the on-device model fills in `schema` (a typed JSON
+Guided generation: the model fills in `schema` (a typed JSON
 Schema subset, [AISchema](../type-aliases/AISchema.md)) and the promise resolves the parsed object.
 Constrained decoding natively (`DynamicGenerationSchema`), so the model
 cannot produce keys or types outside the schema; a generation that still

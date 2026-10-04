@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AIError, AIObjectSchema, AIToolCallContext } from "../src/index";
@@ -7,7 +7,7 @@ import {
   AI_TOOL_CALL_EVENT,
   generateObject,
   generateText,
-  isOnDeviceAIAvailable,
+  getAIAvailability,
 } from "../src/index";
 import { dispatchNativeEvent } from "../src/nativeEvents";
 import { installMockHost } from "./helpers";
@@ -37,7 +37,7 @@ afterEach(() => {
   delete g.__host;
 });
 
-describe("on-device AI (generateText)", () => {
+describe("AI (generateText)", () => {
   it("sends the prompt + options and resolves with generated text", async () => {
     const host = installMockHost();
     const promise = generateText("Summarize my day", {
@@ -93,7 +93,29 @@ describe("on-device AI (generateText)", () => {
     expect(error.message).toBe("MODEL_ON_FIRE: boom");
   });
 
-  it("rejects UNAVAILABLE when on-device AI is unavailable", async () => {
+  it("lands the Private Cloud Compute failures typed, not as INTERNAL", async () => {
+    // On watchOS the model runs on Private Cloud Compute, so being offline,
+    // out of daily quota, or hitting a busy service are ordinary outcomes a
+    // UI must tell apart (retry when online / tell the person their quota is
+    // spent / try later) — they must not collapse into INTERNAL.
+    for (const code of [
+      "NETWORK_FAILURE",
+      "QUOTA_LIMIT_REACHED",
+      "SERVICE_UNAVAILABLE",
+      "TIMEOUT",
+    ] as const) {
+      const host = installMockHost();
+      const promise = generateText("hi");
+      const [id] = host.generate.mock.calls[0];
+      rejectGenerate(id, JSON.stringify({ code, message: "native says" }));
+      const error: AIError = await promise.catch((e) => e);
+      expect(error.code).toBe(code);
+      expect(error.message).toBe("native says");
+      delete g.__host;
+    }
+  });
+
+  it("rejects UNAVAILABLE when AI is unavailable", async () => {
     const error: AIError = await generateText("hi").catch((e) => e);
     expect(error.code).toBe("UNAVAILABLE");
     expect(error.message).toMatch(/unavailable/);
@@ -121,19 +143,95 @@ describe("on-device AI (generateText)", () => {
 
   // CX-002 capability query: a runtime availability check (distinct from the
   // build-time `ai` feature) so UIs can show/hide AI without a throwaway call.
-  it("isOnDeviceAIAvailable resolves false without an AI-capable host", async () => {
-    expect(await isOnDeviceAIAvailable()).toBe(false);
+  it("getAIAvailability resolves unsupported without an AI-capable host", async () => {
+    expect(await getAIAvailability()).toBe("unsupported");
   });
 
-  it("isOnDeviceAIAvailable resolves the host's answer", async () => {
+  function hostAnsweringAvailability(resultJson: string): void {
     const host = installMockHost();
     host.invoke.mockImplementation((id: number, method: string) => {
       const g = globalThis as {
         __resolveInvoke?: (id: number, resultJson: string) => void;
       };
-      if (method === "aiAvailability") g.__resolveInvoke?.(id, "true");
+      if (method === "aiAvailability") g.__resolveInvoke?.(id, resultJson);
     });
-    expect(await isOnDeviceAIAvailable()).toBe(true);
+  }
+
+  it("getAIAvailability passes the native reason through", async () => {
+    // The reason is the point: "deviceNotEligible" means show another UI for
+    // good, "systemNotReady" means check again later — a boolean loses that.
+    for (const state of [
+      "available",
+      "deviceNotEligible",
+      "systemNotReady",
+      "unsupported",
+    ] as const) {
+      hostAnsweringAvailability(JSON.stringify(state));
+      expect(await getAIAvailability()).toBe(state);
+    }
+  });
+
+  it("getAIAvailability degrades an unknown native answer to unsupported", async () => {
+    // An older/other binary (the pre-0.12 boolean, or a reason this library
+    // predates) must not leak a value the union does not list.
+    hostAnsweringAvailability("true");
+    expect(await getAIAvailability()).toBe("unsupported");
+    hostAnsweringAvailability(JSON.stringify("toString"));
+    expect(await getAIAvailability()).toBe("unsupported");
+  });
+});
+
+describe("closed vocabularies match AIPlan.swift", () => {
+  // Both closed sets cross the bridge as bare strings, so a member added to
+  // ONE side alone ships a value the other side degrades to INTERNAL /
+  // unsupported. Read from source, the invoke.test.ts idiom: the
+  // `Record<Union, true>` tables are a faithful image of each TS union.
+  const swiftSource = readFileSync(
+    join(__dirname, "../swift/Sources/ReactWatchSupport/AIPlan.swift"),
+    "utf8",
+  );
+  const tsSource = readFileSync(join(__dirname, "../src/ai.ts"), "utf8");
+
+  function block(src: string, marker: string, end: string): string {
+    const start = src.indexOf(marker);
+    expect(start, marker).toBeGreaterThan(-1);
+    return src.slice(start, src.indexOf(end, start));
+  }
+
+  it("AIErrorCode: neither side carries a code the other cannot", () => {
+    const ts = [
+      ...block(tsSource, "const AI_ERROR_CODES", "};").matchAll(/(\w+): true/g),
+    ]
+      .map((m) => m[1])
+      .sort();
+    const swift = [
+      ...block(swiftSource, "public enum AIErrorCode", "\n}").matchAll(
+        /case\s+\w+\s*=\s*"(\w+)"/g,
+      ),
+    ]
+      .map((m) => m[1])
+      .sort();
+    expect(ts.length).toBeGreaterThan(0);
+    expect(swift).toEqual(ts);
+  });
+
+  it("AIAvailability: neither side carries a state the other cannot", () => {
+    const ts = [
+      ...block(tsSource, "const AI_AVAILABILITY", "};").matchAll(
+        /(\w+): true/g,
+      ),
+    ]
+      .map((m) => m[1])
+      .sort();
+    const swift = [
+      ...block(swiftSource, "public enum AIAvailability", "\n}").matchAll(
+        /^\s+case (\w+)$/gm,
+      ),
+    ]
+      .map((m) => m[1])
+      .sort();
+    expect(ts.length).toBeGreaterThan(0);
+    expect(swift).toEqual(ts);
   });
 });
 

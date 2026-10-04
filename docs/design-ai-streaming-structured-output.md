@@ -445,3 +445,51 @@ top of the streaming section's list:
 4. Device behavior: how the ~3B model actually uses a declared tool (call
    frequency, argument quality), the context-window cost of tool definitions,
    and concurrency (parallel `call`s parking multiple continuations).
+
+## 2026-10-04 — the first Xcode 27 compile, and the port to Private Cloud Compute
+
+This section supersedes the "owed to Xcode 27" lists above where they
+disagree. Xcode 27.1 beta 1 (watchOS 27.0 SDK) compiled the block for the
+first time and found six errors, all one cause: the SDK marks
+`SystemLanguageModel`, `LanguageModelSession.GenerationError` and
+`LanguageModelSession.ToolCallError` unavailable on watchOS. The watch's only
+`LanguageModel` is `PrivateCloudComputeLanguageModel`. Everything this note
+worried about type-checked as written: `ResponseStream` snapshots and
+`snapshot.content`, `DynamicGenerationSchema`'s labels, `JSBridgedTool` with
+`GeneratedContent` for both associated types and its `@concurrent` witness,
+and `LanguageModelSession(model:tools:instructions:)` with a `String?`.
+
+What the port changed, and why:
+
+- **Model.** `LanguageModelSession(model: PrivateCloudComputeLanguageModel(), …)`.
+  Every generation now goes over the network to Apple's server model and
+  counts against the person's daily quota. The app needs the managed
+  `com.apple.developer.private-cloud-compute` entitlement; the config plugin
+  writes it only under the opt-in `privateCloudCompute` option, because an
+  App ID without Apple's grant fails provisioning.
+- **Availability.** `getAIAvailability()` replaces `isOnDeviceAIAvailable()`
+  and passes the model's reason through (`deviceNotEligible`,
+  `systemNotReady`), plus `unsupported` when there is no model to ask.
+  `generate()` checks availability before the request, as Apple's PCC article
+  advises. Quota stays out of availability: Apple documents the two as
+  orthogonal, and a quota-status query is a follow-up, not part of this port.
+- **Errors.** Three enums replace `GenerationError`: `LanguageModelError`,
+  `PrivateCloudComputeLanguageModel.Error` and `LanguageModelSession.Error`.
+  `AIErrorCode.forModelError` classifies all three by case name. New codes:
+  `NETWORK_FAILURE`, `QUOTA_LIMIT_REACHED`, `SERVICE_UNAVAILABLE`.
+  `TIMEOUT` can now come from the model. `unsupportedCapability` maps to
+  `UNAVAILABLE`. `DECODING_FAILURE` has no native source any more and stays a
+  JS-minted code. `GenerationSchema.SchemaError` now maps to `INVALID_SCHEMA`;
+  the old comment claimed that, but the code sent it to `INTERNAL`.
+- **Tool failures.** No `ToolCallError` exists on watchOS, and Apple's docs do
+  not say what `respond` throws when a tool's `call` throws there. The host
+  now records a failed JS tool call per generation and rejects `TOOL_FAILED`
+  from that record whenever the generation then fails. The JS contract is
+  unchanged. One case is unknown: if the framework hands the tool's error to
+  the model as output and generation succeeds, the promise resolves; only a
+  device run can say which happens.
+
+Still owed to a device with the entitlement: a real response, streaming
+cadence against the 250 ms floor, guardrail/refusal shapes, the tool-failure
+path above, cancellation latency, and the quota codes (Xcode can simulate
+them from the scheme's run options).

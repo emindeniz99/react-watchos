@@ -81,8 +81,9 @@ and **force-push** (`non_fast_forward`), but names no `required_status_checks`
   Native core (no RN ecosystem libraries — README says it first, so should
   the announcement); no device claim beyond "boots + renders" (E3 — haptics,
   Digital Crown feel, HealthKit/GPS streams and the live-face complication are
-  still unverified on hardware); on-device AI is
-  blocked on watchOS 27 SDK (status.md ⛔); Suspense unsupported by design.
+  still unverified on hardware); no "on-device AI" (the watch's model is
+  Apple Intelligence on Private Cloud Compute, compiled but never run on a
+  watch — status.md); Suspense unsupported by design.
   Also standing (2026-07-29, see
   [announcement-draft.md § Claims we do not make](./announcement-draft.md#claims-we-do-not-make)):
   no "battery-first" headline (battery is a *defensive* claim, never a

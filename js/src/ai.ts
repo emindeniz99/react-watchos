@@ -3,12 +3,19 @@ import { invoke } from "./invoke";
 import { registerNativeListener } from "./nativeEvents";
 
 /**
- * On-device AI via Apple's Foundation Models framework — the ~3B-parameter
- * model behind Apple Intelligence. `generateText(prompt)` bridges to a native
- * `LanguageModelSession`; `generateObject(prompt, schema)` adds guided
- * generation against a JSON-Schema-subset (`DynamicGenerationSchema`
- * natively). Runs entirely on device (no network), so it works on a
- * standalone watch.
+ * Apple Intelligence via Apple's Foundation Models framework.
+ * `generateText(prompt)` bridges to a native `LanguageModelSession`;
+ * `generateObject(prompt, schema)` adds guided generation against a
+ * JSON-Schema-subset (`DynamicGenerationSchema` natively).
+ *
+ * On watchOS the model is NOT on the watch: the watch SDK's only language
+ * model is `PrivateCloudComputeLanguageModel`, Apple's server model running
+ * on Private Cloud Compute. So every generation needs a network connection,
+ * counts against the person's daily Private Cloud Compute quota, and the app
+ * needs Apple's managed `com.apple.developer.private-cloud-compute`
+ * entitlement (the config plugin's `privateCloudCompute` option). Expect
+ * `NETWORK_FAILURE`, `QUOTA_LIMIT_REACHED` and `SERVICE_UNAVAILABLE` as
+ * ordinary outcomes, not bugs.
  *
  * Async like fetch: `__host.generate(id, requestJson)` starts a session;
  * Swift settles it via `__resolveGenerate(id, text)` /
@@ -22,20 +29,29 @@ import { registerNativeListener } from "./nativeEvents";
  * model waits on a tool; the handler's outcome goes back over
  * `__host.toolResult(id, callId, replyJson)` and generation resumes natively.
  *
- * Requires watchOS 27+ (Foundation Models reached the watch at 27.0, in
- * beta); below it — or when the model isn't available right now — the native
- * side rejects `UNAVAILABLE`, so guard calls with
- * {@link isOnDeviceAIAvailable} or handle the rejection.
+ * Requires watchOS 27+ (Foundation Models reached the watch at 27.0) and a
+ * build with the watchOS 27 SDK; below it — or when the model isn't
+ * available right now — the native side rejects `UNAVAILABLE`, so check
+ * {@link getAIAvailability} or handle the rejection.
  */
 
 /**
  * The closed set of codes an AI generation may reject with — the TS half of
  * `AIErrorCode` in ReactWatchSupport (AIPlan.swift), same discipline as
- * `InvokeErrorCode`. `ABORTED` and `TIMEOUT` are minted on this side (the
- * abort signal, the inactivity watchdog); everything else arrives from
- * native, mapped from FoundationModels' `GenerationError` cases —
- * `TOOL_FAILED` from `LanguageModelSession.ToolCallError`, the wrapper the
- * framework rethrows when a tool's own call (a JS handler here) fails.
+ * `InvokeErrorCode`. `ABORTED` and `DECODING_FAILURE` are minted on this side
+ * (the abort signal, a structured result that is not JSON), `TIMEOUT` on
+ * both (the inactivity watchdog here, `LanguageModelError.timeout` natively).
+ * The rest arrive from native, mapped from FoundationModels'
+ * `LanguageModelError`, `PrivateCloudComputeLanguageModel.Error` and
+ * `LanguageModelSession.Error`; `TOOL_FAILED` when one of your tool handlers
+ * failed.
+ *
+ * - `NETWORK_FAILURE`: the request could not reach Private Cloud Compute.
+ *   The watch has no on-device model to fall back to; retry when online.
+ * - `QUOTA_LIMIT_REACHED`: the person used up their daily request quota.
+ *   Unlike `RATE_LIMITED`, retrying soon does not help: the quota refreshes
+ *   later, or the person upgrades their iCloud+ plan.
+ * - `SERVICE_UNAVAILABLE`: Private Cloud Compute could not take the request.
  */
 export type AIErrorCode =
   | "UNAVAILABLE"
@@ -48,6 +64,9 @@ export type AIErrorCode =
   | "REFUSAL"
   | "INVALID_SCHEMA"
   | "TOOL_FAILED"
+  | "NETWORK_FAILURE"
+  | "QUOTA_LIMIT_REACHED"
+  | "SERVICE_UNAVAILABLE"
   | "ABORTED"
   | "TIMEOUT"
   | "INTERNAL";
@@ -74,6 +93,9 @@ const AI_ERROR_CODES: Record<AIErrorCode, true> = {
   REFUSAL: true,
   INVALID_SCHEMA: true,
   TOOL_FAILED: true,
+  NETWORK_FAILURE: true,
+  QUOTA_LIMIT_REACHED: true,
+  SERVICE_UNAVAILABLE: true,
   ABORTED: true,
   TIMEOUT: true,
   INTERNAL: true,
@@ -127,7 +149,7 @@ export interface AIToolCallContext {
 }
 
 /**
- * One tool the on-device model may invoke mid-generation
+ * One tool the model may invoke mid-generation
  * ({@link GenerateOptions.tools}). The tool's NAME is its key in the `tools`
  * record (the Vercel AI SDK shape — a record can't declare duplicate names,
  * where an array could).
@@ -218,9 +240,9 @@ export interface GenerateOptions {
    */
   partialIntervalMs?: number;
   /**
-   * Abort like fetch: generation stops natively (the model quits decoding —
-   * on a watch the ~3B model is the most expensive thing to leave running)
-   * and the promise rejects `ABORTED` with `name: "AbortError"`. Wire it to
+   * Abort like fetch: generation stops natively (the request to Private
+   * Cloud Compute is cancelled, so a screen that is gone stops spending the
+   * radio and the person's quota) and the promise rejects `ABORTED` with `name: "AbortError"`. Wire it to
    * an effect cleanup so a screen popping mid-generation cancels its own
    * request (ARCH-09 focus rules):
    *
@@ -505,7 +527,8 @@ let nextId = 1;
 
 /**
  * Last-resort settle if native accepts a generate and never replies — a stuck
- * LanguageModelSession, an exception before the callback, a torn-down runtime.
+ * LanguageModelSession or network request, an exception before the callback,
+ * a torn-down runtime.
  * An INACTIVITY bound, not a total one: every `ai.partial` re-arms it, so a
  * slow generation that is provably alive streams past 60s while a silent one
  * still can't leak its promise for the runtime's life (CX-022 "never hangs").
@@ -563,19 +586,55 @@ g.__rejectGenerate = (id: number, errorJson: string) => {
 };
 
 /**
- * Whether on-device AI can actually run on this watch right now (CX-002) —
- * a runtime check, distinct from whether the build exposes the `ai` capability.
- * It can be false even on watchOS 27+ (the model isn't downloaded, Apple
- * Intelligence is off, or the device isn't eligible). Use it to show/hide an AI
- * feature without making a throwaway `generateText` call. Resolves `false`
- * (never rejects) when there's no AI-capable host (tests/Node/widget) or the OS
- * is below watchOS 27.
+ * What {@link getAIAvailability} resolves — the state of
+ * `PrivateCloudComputeLanguageModel.availability`, plus `unsupported`:
+ *
+ * - `available`: generation can be attempted. It can still fail with
+ *   `NETWORK_FAILURE` or `QUOTA_LIMIT_REACHED`; Apple keeps quota separate
+ *   from availability.
+ * - `deviceNotEligible`: this device or region doesn't support Apple
+ *   Intelligence. Show an alternative UI.
+ * - `systemNotReady`: Private Cloud Compute isn't ready to serve requests
+ *   yet; check again later.
+ * - `unsupported`: there is no model to ask — no AI-capable host
+ *   (tests/Node/widget), watchOS below 27, a build without the watchOS 27
+ *   SDK, or an unavailable reason newer than this library.
  */
-export async function isOnDeviceAIAvailable(): Promise<boolean> {
+export type AIAvailability =
+  | "available"
+  | "deviceNotEligible"
+  | "systemNotReady"
+  | "unsupported";
+
+/** Runtime half of the closed set, keyed by the union (the AI_ERROR_CODES
+ *  belt): a value from an older/other binary degrades to `unsupported`. */
+const AI_AVAILABILITY: Record<AIAvailability, true> = {
+  available: true,
+  deviceNotEligible: true,
+  systemNotReady: true,
+  unsupported: true,
+};
+
+/**
+ * Whether the AI model can serve this watch right now, and if not, why
+ * (CX-002) — a runtime check, distinct from whether the build exposes the
+ * `ai` capability. Use it to show/hide an AI feature without making a
+ * throwaway {@link generateText} call. Never rejects: anything that keeps the
+ * host from answering resolves `unsupported`.
+ *
+ * ```ts
+ * const ai = await getAIAvailability();
+ * if (ai === "available") showSummaryButton();
+ * ```
+ */
+export async function getAIAvailability(): Promise<AIAvailability> {
   try {
-    return (await invoke<boolean>("aiAvailability")) === true;
+    const state = await invoke<string>("aiAvailability");
+    return AI_AVAILABILITY[state as AIAvailability] === true
+      ? (state as AIAvailability)
+      : "unsupported";
   } catch {
-    return false;
+    return "unsupported";
   }
 }
 
@@ -593,7 +652,7 @@ function startGenerate(
   return new Promise<string>((resolve, reject) => {
     const host = getHost();
     if (!host?.generate) {
-      reject(aiError("UNAVAILABLE", "on-device AI unavailable"));
+      reject(aiError("UNAVAILABLE", "AI unavailable: no AI-capable host"));
       return;
     }
     const { signal, onPartial, tools } = options;
@@ -749,8 +808,10 @@ function baseRequest(
 }
 
 /**
- * Generates text with the on-device model. Rejects with an {@link AIError}
- * (`UNAVAILABLE` when AI can't run here). Pass {@link GenerateOptions.onPartial}
+ * Generates text with Apple Intelligence (Private Cloud Compute on watchOS —
+ * see the module note). Rejects with an {@link AIError} (`UNAVAILABLE` when
+ * AI can't run here, `NETWORK_FAILURE` offline, `QUOTA_LIMIT_REACHED` when
+ * the person's daily quota is spent). Pass {@link GenerateOptions.onPartial}
  * to stream cumulative partial text while the same promise still resolves the
  * complete answer, and {@link GenerateOptions.signal} to cancel:
  *
@@ -801,7 +862,7 @@ export function generateText(
 }
 
 /**
- * Guided generation: the on-device model fills in `schema` (a typed JSON
+ * Guided generation: the model fills in `schema` (a typed JSON
  * Schema subset, {@link AISchema}) and the promise resolves the parsed object.
  * Constrained decoding natively (`DynamicGenerationSchema`), so the model
  * cannot produce keys or types outside the schema; a generation that still

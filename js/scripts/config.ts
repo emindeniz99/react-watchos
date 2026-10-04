@@ -49,7 +49,7 @@ export const targets: BuildTarget[] = [
     // you ever want >3 MB and still OTA it.
     budgetKB: 2000,
     // The demo app exercises everything except sensors: storage, widgets,
-    // haptics, BLE, on-device AI, OTA (fetchAndApplyUpdate → network + ota),
+    // haptics, BLE, AI, OTA (fetchAndApplyUpdate → network + ota),
     // phone connectivity, notifications.
     requiredFeatures: [
       "storage",

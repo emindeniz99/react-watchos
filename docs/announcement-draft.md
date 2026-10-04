@@ -128,8 +128,8 @@ count.
    not RN core, no RN ecosystem libraries, physical-device path verified to
    "boots + renders" only (haptics, crown, HealthKit/GPS streams and the
    live-face complication untested on hardware), WatchConnectivity file
-   transfer unverifiable on a simulator by Apple's own docs, on-device AI
-   blocked on the watchOS 27 SDK, Suspense unsupported by design, and **CI has
+   transfer unverifiable on a simulator by Apple's own docs, AI that runs on
+   Private Cloud Compute (not on the watch) and has never run on a device, Suspense unsupported by design, and **CI has
    never run** (Actions disabled at the repo level — the gates are local).
 8. **When not to use it** — link the README section. Naming the five
    disqualifiers (no custom native views, pure-sensor apps, Swift-native

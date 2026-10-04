@@ -65,12 +65,13 @@ surface a widget), **Liquid Glass** (`glass`), **OTA update channel**
 **double-tap** (`primaryAction` → `handGestureShortcut(.primaryAction)`,
 watchOS 11+), and the **QuickJS bridging-header config plugin** (toward the
 macOS build) — superseded 2026-06-18 (`98955cd`): the engine is the package's
-`CQuickJS` Clang module, no bridging header. **On-device AI** (`generateText`)
-is implemented but **blocked/unreachable** until the watchOS-27 gate fix +
+`CQuickJS` Clang module, no bridging header. **AI** (`generateText`)
+was implemented but **blocked/unreachable** until the watchOS-27 gate fix +
 Xcode 27 (CX-002, [status.md](./status.md)) — *not* "shipped". → gate fix
 landed 2026-06-26 (`7bc022a`); streaming, cancel, `generateObject` and tool
-calling shipped in 0.7.0 (2026-09-03); still ⛔ until an Xcode-27 build
-compiles the FoundationModels block (status.md).
+calling shipped in 0.7.0 (2026-09-03); 0.12.0 (2026-10-04) ported it to
+Private Cloud Compute, the watch's only model, and it compiles for watchOS.
+A device run is still owed (status.md).
 
 **DevTools — shipped as a remote inspector**, not the official React
 DevTools. Full DevTools needs a WebSocket transport QuickJS doesn't provide,
@@ -439,7 +440,15 @@ equipment), navigation, timers, medication reminders. The reusable play is a
 **starter-kit of React watch apps** (remote, tracker, timer, now-playing
 complication) on top of this renderer.
 
-## 6. On-device intelligence (implemented, blocked — see status.md)
+## 6. Apple Intelligence (compiled, never run — see status.md)
+
+**2026-10-04 correction:** the watch has no on-device model. The watchOS 27
+SDK marks `SystemLanguageModel` unavailable on watchOS; its only
+`LanguageModel` is `PrivateCloudComputeLanguageModel`, Apple Intelligence on
+Private Cloud Compute. 0.12.0 runs every generation there, so it needs the
+network, a per-person daily quota and Apple's managed entitlement
+(MIGRATIONS.md 0.12.0, mac-session-checklist.md Tier 1). The text below is
+the original record.
 
 `generateText` brokers Apple's **Foundation Models** (~3B on-device LLM) on the
 watch — no network, no phone — through the `generate` host method, settled on
@@ -649,8 +658,8 @@ earn their keep.
    more API surface, is what "HealthKit depth" now needs.
 3. ~~**Foundation Models streaming + structured output**~~ — **shipped
    2026-08-22** (streaming tokens, `generateObject(schema)` and tool calling;
-   see the on-device AI section below). Remaining there is the watchOS 27
-   deferral recorded in docs/mac-session-checklist.md, not API work.
+   see the AI section below). Remaining there is the device run recorded in
+   docs/mac-session-checklist.md, not API work.
 4. ~~**Cross-platform core extraction** (→ tvOS)~~ — **dropped 2026-09-04,
    owner call.** This package is about the watch. tvOS was the strategic
    bet in §1 of the landscape scan, not a commitment; nothing depends on
@@ -688,8 +697,9 @@ earn their keep.
    params and serialized their no-param branch into the held tree.)
 
 Done since the last pass: **React Compiler** (build), **DevTools** (remote
-inspector), **double-tap** (`primaryAction`). **On-device AI** (`generateText`)
-is implemented but blocked (CX-002, [status.md](./status.md)). **Suspense**
+inspector), **double-tap** (`primaryAction`). **AI** (`generateText`)
+compiles for watchOS on Private Cloud Compute but has never run on a watch
+(CX-002, [status.md](./status.md)). **Suspense**
 investigated and deliberately not adopted (see above).
 
 ---

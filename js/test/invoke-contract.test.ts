@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { invokeShapes } from "../codegen/schema";
-import { isOnDeviceAIAvailable } from "../src/ai";
+import { getAIAvailability } from "../src/ai";
 import { playAudio } from "../src/audio";
 import { scheduleBackgroundRefresh } from "../src/background";
 import { bleConnect, bleSubscribe, bleWrite } from "../src/bluetooth";
@@ -1022,7 +1022,7 @@ describe("invoke contract fixtures (ARCH-11)", () => {
     // `request` is an undeclared seam. `aiAvailability` stands in for the
     // no-payload majority — it must stay absent from the table.
     const payloads = installRecordingHost();
-    await isOnDeviceAIAvailable();
+    await getAIAvailability();
     // The one payload-sending wrapper no test above drives.
     await markUpdateHealthy();
     expect(payloads.get("aiAvailability")).toBe("");

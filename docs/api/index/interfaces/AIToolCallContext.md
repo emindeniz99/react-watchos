@@ -6,7 +6,7 @@
 
 # Interface: AIToolCallContext
 
-Defined in: [js/src/ai.ts:114](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L114)
+Defined in: [js/src/ai.ts:136](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L136)
 
 The context handed to an [AITool](AITool.md) handler alongside its arguments.
 
@@ -16,7 +16,7 @@ The context handed to an [AITool](AITool.md) handler alongside its arguments.
 
 > **signal**: [`AbortSignalLike`](AbortSignalLike.md)
 
-Defined in: [js/src/ai.ts:126](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L126)
+Defined in: [js/src/ai.ts:148](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L148)
 
 Aborted when the generation this call belongs to settles — the caller's
 abort, the inactivity watchdog, or a native failure. A handler doing its
@@ -30,7 +30,7 @@ the generation itself has with [GenerateOptions.signal](GenerateOptions.md#signa
 
 > **toolCallId**: `number`
 
-Defined in: [js/src/ai.ts:118](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L118)
+Defined in: [js/src/ai.ts:140](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L140)
 
 Native id of this specific call — a generation may invoke tools several
  times (Apple's framework "executes back-to-back tool calls" and may run

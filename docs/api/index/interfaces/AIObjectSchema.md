@@ -6,7 +6,7 @@
 
 # Interface: AIObjectSchema
 
-Defined in: [js/src/ai.ts:310](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L310)
+Defined in: [js/src/ai.ts:332](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L332)
 
 The object node of [AISchema](../type-aliases/AISchema.md) — and the required ROOT of a
  [generateObject](../functions/generateObject.md) call (every surveyed consumer pattern is
@@ -18,7 +18,7 @@ The object node of [AISchema](../type-aliases/AISchema.md) — and the required 
 
 > `optional` **description?**: `string`
 
-Defined in: [js/src/ai.ts:312](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L312)
+Defined in: [js/src/ai.ts:334](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L334)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [js/src/ai.ts:312](https://github.com/emindeniz99/react-watchos/blob
 
 > **properties**: `Record`\<`string`, [`AISchema`](../type-aliases/AISchema.md)\>
 
-Defined in: [js/src/ai.ts:315](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L315)
+Defined in: [js/src/ai.ts:337](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L337)
 
 Property order steers guided generation, and is preserved on the wire
  (insertion order of this object).
@@ -37,7 +37,7 @@ Property order steers guided generation, and is preserved on the wire
 
 > `optional` **required?**: readonly `string`[]
 
-Defined in: [js/src/ai.ts:317](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L317)
+Defined in: [js/src/ai.ts:339](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L339)
 
 JSON Schema polarity: a property is OPTIONAL unless listed here.
 
@@ -47,4 +47,4 @@ JSON Schema polarity: a property is OPTIONAL unless listed here.
 
 > **type**: `"object"`
 
-Defined in: [js/src/ai.ts:311](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L311)
+Defined in: [js/src/ai.ts:333](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L333)

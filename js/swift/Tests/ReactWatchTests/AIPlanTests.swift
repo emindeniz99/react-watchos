@@ -270,37 +270,58 @@ final class AIPlanTests: XCTestCase {
 
     // MARK: - Error vocabulary
 
-    func testGenerationErrorCaseMapping() {
-        // The classification table the SDK-gated host switch feeds; case
-        // names are FoundationModels `GenerationError` cases (docs JSON,
-        // 2026-08-22 — every one watchOS 27.0 beta via the framework page).
+    func testModelErrorCaseMapping() {
+        // The classification table the SDK-gated host switch feeds. Case
+        // names are the watchOS 27 SDK's three generation error enums
+        // (FoundationModels swiftinterface, Xcode 27.1 beta 1):
+        // LanguageModelError, PrivateCloudComputeLanguageModel.Error and
+        // LanguageModelSession.Error.
         let expected: [(name: String, code: AIErrorCode)] = [
-            ("assetsUnavailable", .unavailable),
-            ("guardrailViolation", .guardrailViolation),
-            ("exceededContextWindowSize", .contextWindowExceeded),
-            ("unsupportedLanguageOrLocale", .unsupportedLanguage),
-            ("decodingFailure", .decodingFailure),
+            ("contextSizeExceeded", .contextWindowExceeded),
             ("rateLimited", .rateLimited),
-            ("concurrentRequests", .concurrentRequests),
+            ("guardrailViolation", .guardrailViolation),
             ("refusal", .refusal),
-            ("unsupportedGuide", .invalidSchema),
-            // An FM case this binary predates degrades to the honest
-            // "we don't know", never to a lying specific code.
-            ("someFutureCase", .internalError),
+            // The model can't do what was asked (guided generation, tool
+            // calling): for the caller that is "AI can't do this here".
+            ("unsupportedCapability", .unavailable),
+            ("unsupportedGenerationGuide", .invalidSchema),
+            ("unsupportedLanguageOrLocale", .unsupportedLanguage),
+            ("timeout", .timeout),
+            // Private Cloud Compute's own failures stay distinguishable: a
+            // UI says "offline", "quota spent" and "try later" differently.
+            ("networkFailure", .networkFailure),
+            ("quotaLimitReached", .quotaLimitReached),
+            ("serviceUnavailable", .serviceUnavailable),
+            ("concurrentRequests", .concurrentRequests),
+            // Transcript misuse is a bridge bug, not a caller condition.
+            ("unsupportedTranscriptContent", .internalError),
+            ("transcriptMutationWhileResponding", .internalError),
+            // A case this binary predates degrades to the honest "we don't
+            // know", never to a lying specific code.
+            ("unknown", .internalError),
         ]
         for (name, code) in expected {
             XCTAssertEqual(
-                AIErrorCode.forGenerationError(caseName: name), code,
+                AIErrorCode.forModelError(caseName: name), code,
                 "case \(name)")
         }
     }
 
     func testToolFailedSpellingMatchesTheWire() {
-        // TOOL_FAILED is minted by the ToolCallError catch arm, not by the
-        // GenerationError name table (it is a distinct wrapper type, not a
-        // case) — so its spelling has no row above and is pinned here against
-        // the TS union's.
+        // TOOL_FAILED is minted by the host from its own record of a failed
+        // tool call, not by the model-error name table — so its spelling has
+        // no row above and is pinned here against the TS union's.
         XCTAssertEqual(AIErrorCode(rawValue: "TOOL_FAILED"), .toolFailed)
+    }
+
+    func testAvailabilityResolvesAsAJSONString() throws {
+        // The invoke resolve is parsed with JSON.parse on the JS side, so the
+        // payload must be a string LITERAL, quotes included.
+        for state in AIAvailability.allCases {
+            let decoded = try JSONSerialization.jsonObject(
+                with: Data(state.resultJson.utf8), options: .fragmentsAllowed)
+            XCTAssertEqual(decoded as? String, state.rawValue)
+        }
     }
 
     func testErrorJSONEscapesHostileMessages() throws {
