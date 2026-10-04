@@ -182,6 +182,9 @@ type ReactWatchOptions = {
                                 //   no dedicated option for (e.g. NSLocationWhenInUseUsageDescription
                                 //   for startLocation, which predates this option and still has none
                                 //   of its own).
+  icon?: string;                // watch app icon: a square 1024x1024 PNG, path relative to the
+                                //   project root (default: none). REQUIRED to upload to App Store
+                                //   Connect / TestFlight; see below. PNG only.
 };
 ```
 
@@ -210,6 +213,30 @@ sets `MARKETING_VERSION` on every native target from `expo.version` (or
 watch app's version always matches the iOS app's, which App Store Connect
 requires for an embedded watch app. Bump `version` / `ios.buildNumber` in the
 Expo config and prebuild; do not hand-edit the target Info.plists.
+
+**Watch app icon (`icon`).** App Store Connect rejects an upload whose watch
+app has no icon, and the iOS app's `expo.icon` does not reach the watch
+target. Set the plugin's `icon` to a square 1024x1024 PNG, relative to the
+project root:
+
+```json
+["react-watchos", { "name": "Acme Watch", "icon": "./assets/watch-icon.png" }]
+```
+
+On prebuild, `@bacons/apple-targets` renders it into
+`targets/watch/Assets.xcassets/AppIcon.appiconset` (a single 1024 px watchOS
+entry; Xcode derives the smaller sizes) and sets
+`ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon` on the watch target. Notes:
+
+- **PNG only.** apple-targets reads one raster image, so an Icon Composer
+  `.icon` bundle is refused with an error; export a PNG from Icon Composer.
+- **Transparency is flattened onto white.** Watch icons are opaque and
+  circular-masked by the OS: supply a full-bleed square with no alpha.
+- **The widget extension gets no icon of its own.** Extensions show their
+  containing app's icon.
+- The plugin checks the path before prebuild writes anything, because
+  apple-targets only logs a warning when it cannot render the icon and the
+  build then fails later in the asset catalog.
 
 ## Versioning & the wire contract
 
