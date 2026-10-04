@@ -1,5 +1,6 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -72,6 +73,23 @@ describe("packaging contract", () => {
         expect(isTracked(target), `${target} is not tracked by git`).toBe(true);
       }
     }
+  });
+
+  // eas-cli resolves a bare `"react-watchos"` plugin entry with its own
+  // @expo/config-plugins, which asks Node for `<pkg>/app.plugin.js` — the
+  // file name, extension included. An exports map that lists only
+  // `./app.plugin` blocks that request; the resolver then falls back to
+  // `main` (TypeScript) and `eas init` / `eas build` die on type stripping
+  // under node_modules. Expo CLI resolves the same entry fine, so only an
+  // EAS user ever saw it.
+  it("the config plugin resolves by file name through the exports map", () => {
+    const selfRequire = createRequire(join(jsRoot, "package.json"));
+    expect(selfRequire.resolve("react-watchos/app.plugin.js")).toBe(
+      join(jsRoot, "app.plugin.js"),
+    );
+    expect(selfRequire.resolve("react-watchos/app.plugin")).toBe(
+      join(jsRoot, "app.plugin.js"),
+    );
   });
 
   it("main and types point at committed files", () => {
