@@ -87,17 +87,16 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   (HealthKit reads, real workout control, CMPedometer), shipped 2026-07-29.
   Records the single-`HKWorkoutSession`-owner unification (the structural
   decision), the `health`/`workouts` feature split, the availability sweep (all
-  84 `HKWorkoutActivityType` cases; nothing above the then watchOS 10 floor,
-  so not one `@available` gate), and the four named follow-ups. Also records why
+  84 `HKWorkoutActivityType` cases; nothing above the watchOS 10 floor, so not
+  one `@available` gate), and the four named follow-ups. Also records why
   health is **device-only ③**: the sim run script signs without the `healthkit`
   entitlement on purpose.
 - [design-workout-plans.md](./design-workout-plans.md) — the WORKOUT-PLANS
   package (WorkoutKit: compose a structured workout, hand it to Apple's Workout
   app, schedule it), shipped 2026-07-29 as the `workoutPlans` follow-up the
   health package recorded. Records the 124-page availability sweep (the package
-  is `@available`-free, and the symbols above the then watchOS 10 floor were
-  cut for that reason; the watchOS 26 floor makes them reachable, see the
-  roadmap), the new `workoutPlans` feature + the camelCase
+  is `@available`-free, and the four symbols above the watchOS 10 floor are cut
+  for exactly that reason), the new `workoutPlans` feature + the camelCase
   convention break it takes deliberately, the naming hazard around Apple's own
   `WorkoutPlan` type, and — the design's spine — that
   `WorkoutScheduler`'s mutators are **non-throwing and return nothing**, so
@@ -121,7 +120,7 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   `focused` claim + `onFocusChange` observation on `<CrownRotation>`, chosen
   over an imperative `focus()` and over a FocusScope/id coordinator after the
   SwiftUI / react-native-tvos / RNW survey. Records the availability sweep
-  (`@FocusState` & friends — watchOS 8.0, so `@available`-free at the v26
+  (`@FocusState` & friends — watchOS 8.0, so `@available`-free at the v10
   floor), why the claim is edge-triggered rather than CX-010-controlled
   (focus is OS-owned hardware routing), how it composes with ARCH-09 lazy
   navigation (claims re-apply on mount — autofocus-on-push for free), and the
@@ -163,9 +162,11 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   findings. Kept as the record of the other reading — see the annotation at
   its head and the re-scoped heading in the codex architecture review.
 - [design-deployment-floor-2026-10-03.md](./design-deployment-floor-2026-10-03.md) —
-  why the deployment floor moved from watchOS 10 / iOS 17 to watchOS 26 /
-  iOS 26 (0.11.0): which devices it drops, which availability gates it
-  removed, what stayed (the watchOS 27 gates, macOS 14), and when to revisit.
+  the deployment floor is watchOS 10 / iOS 17. Records PR #31's move to
+  watchOS 26 / iOS 26 and its same-day revert before any release: which
+  watches a 10 floor keeps (Series 4, 5, SE 1, an estimated 4–7%), why
+  Xcode 27 does not force a higher floor, the CI job that runs the floor on
+  a watchOS 10 simulator, and the revisit trigger.
 
 - [code-review-2026-06-27-deep-dive.md](./code-review-2026-06-27-deep-dive.md) — adversarially-verified code+design+DX review (64 confirmed findings; the blocker is fixed).
 - [code-review-2026-07-02-self-review-cycles.md](./code-review-2026-07-02-self-review-cycles.md) — three adversarial self-review cycles over the session's blind-written Swift/JS (capability, render-pipeline, core); 20 confirmed+fixed so far incl. a critical Swift-6 compile break.

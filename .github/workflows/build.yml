@@ -316,3 +316,188 @@ jobs:
           name: xcodebuild-logs
           path: app/build-watch.log
           if-no-files-found: ignore
+
+  # The deployment floor is tested, not claimed. Package.swift and the plugin
+  # default say watchOS 10.0; this job builds the "React Watch" scheme (host +
+  # embedded widget) for a watchOS 10 simulator and runs the package tests on
+  # it, so a floor regression fails here instead of on a Series 4/5/SE 1.
+  # The `build` job above compiles for a generic destination on the runner's
+  # newest runtime, which never executes anything on watchOS 10.
+  #
+  # Runtime: watchOS 10.5, the last watchOS 10 simulator runtime Apple
+  # published (Xcode 15.4) and the closest to what the watches that stop at
+  # watchOS 10 actually run. The 10.0 symbol floor itself is enforced at
+  # compile time by the targets' WATCHOS_DEPLOYMENT_TARGET, which the build
+  # step asserts. Xcode 26 simulates watchOS 8 and later and Xcode 27
+  # watchOS 10 and later, so the download works on either.
+  # Reasoning: docs/design-deployment-floor-2026-10-03.md.
+  watchos-floor-build:
+    runs-on: macos-26 # arm64 (Apple Silicon); ships the Xcode 26.x toolchain our watchOS 26.2 SDK build expects
+    timeout-minutes: 60
+    env:
+      CI: "1"
+      EXPO_NO_TELEMETRY: "1"
+      FLOOR_RUNTIME: "10.5"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Empty on push/PR — checkout then uses the event's own default ref.
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1
+        with:
+          xcode-version: ${{ inputs.xcode || 'latest-stable' }}
+
+      # Downloads only when the runner image lacks a watchOS 10.x runtime.
+      # Without -exportPath, -downloadPlatform downloads AND installs.
+      - name: Install the watchOS 10 simulator runtime
+        run: |
+          xcodebuild -version
+          if xcrun simctl list runtimes | grep -q "watchOS 10\."; then
+            echo "watchOS 10 runtime already installed"
+          else
+            sudo xcodebuild -downloadPlatform watchOS -buildVersion "$FLOOR_RUNTIME"
+          fi
+          xcrun simctl list runtimes
+
+      # Create a device on the newest installed watchOS 10.x runtime, using a
+      # device type that runtime supports. Fails loudly if none exists.
+      - name: Create a watchOS 10 simulator
+        run: |
+          WATCH_ID=$(xcrun simctl list runtimes -j | python3 -c '
+          import json, subprocess, sys
+          rts = [r for r in json.load(sys.stdin)["runtimes"]
+                 if r.get("platform") == "watchOS" and r["version"].startswith("10.")
+                 and r.get("isAvailable")]
+          if not rts:
+              sys.exit("no available watchOS 10.x simulator runtime")
+          rt = max(rts, key=lambda r: [int(p) for p in r["version"].split(".")])
+          dt = rt["supportedDeviceTypes"][-1]
+          print("runtime", rt["identifier"], "device type", dt["identifier"], file=sys.stderr)
+          out = subprocess.run(["xcrun", "simctl", "create", "Floor Watch",
+                                dt["identifier"], rt["identifier"]],
+                               check=True, capture_output=True, text=True)
+          print(out.stdout.strip())
+          ')
+          test -n "$WATCH_ID"
+          echo "watch sim: $WATCH_ID"
+          echo "WATCH_ID=$WATCH_ID" >> "$GITHUB_ENV"
+
+      # No `version` input: pnpm/action-setup reads the exact pinned version
+      # from the root package.json "packageManager" field.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          # 24: `pnpm build` runs scripts/build.ts through Node's native type
+          # stripping (matches .mise.toml and the other jobs).
+          node-version: "24"
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - name: Install (pnpm workspace)
+        run: pnpm install --frozen-lockfile
+      # Same cache directory and key as watchos-tests above.
+      - name: Cache the vendored quickjs-ng build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/react-watchos/vendored-qjs
+          key: qjs-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('js/swift/Sources/CQuickJS/**', 'tools/vendored-qjs/main.c', 'tools/vendored-qjs/build.sh') }}
+      - name: Build the JS bundle + bytecode
+        run: |
+          pnpm --filter react-watchos build
+          pnpm --filter react-watchos build:bytecode
+
+      # Same verified shape as the `build` job: prebuild + pod install +
+      # `-workspace` + the "React Watch" scheme.
+      - name: Expo prebuild (generate Xcode project)
+        working-directory: app
+        run: npx expo prebuild -p ios --clean --no-install
+
+      - name: Pod install (generates the .xcworkspace)
+        working-directory: app/ios
+        run: pod install
+
+      - name: Build "React Watch" scheme on the watchOS 10 simulator
+        working-directory: app
+        run: |
+          set -o pipefail
+          WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' | head -1)
+          test -n "$WORKSPACE"
+          # The claim under test: the scheme's watchOS targets declare 10.0
+          # and none sits above it. A target above it would build fine here
+          # and hide a raised floor. Below 10.0 (a dependency's own floor) is
+          # harmless. Only watchOS targets count: the iOS companion app
+          # (ReactWatchDemo) reports the SDK's default WATCHOS_DEPLOYMENT_TARGET
+          # it never builds against (26.5 on the first run of this job).
+          xcodebuild -showBuildSettings -json \
+            -workspace "$WORKSPACE" \
+            -scheme "React Watch" \
+            -destination "platform=watchOS Simulator,id=$WATCH_ID" \
+            | python3 -c '
+          import json, sys
+          rows = []
+          for t in json.load(sys.stdin):
+              bs = t["buildSettings"]
+              platforms = bs.get("SUPPORTED_PLATFORMS", "") + " " + bs.get("SDKROOT", "")
+              floor = bs.get("WATCHOS_DEPLOYMENT_TARGET")
+              is_watch = "watch" in platforms
+              name = t["target"]
+              print(f"{name}: WATCHOS_DEPLOYMENT_TARGET={floor}"
+                    + ("" if is_watch else " (not a watchOS target, ignored)"))
+              if is_watch:
+                  rows.append((name, floor))
+          def above(floor):
+              return [int(p) for p in floor.split(".")] > [10, 0]
+          if not any(floor == "10.0" for _, floor in rows):
+              sys.exit("::error::no watchOS target in the scheme declares the 10.0 floor")
+          if any(floor and above(floor) for _, floor in rows):
+              sys.exit("::error::a watchOS target in the scheme is above the 10.0 floor")
+          '
+          xcodebuild build \
+            -workspace "$WORKSPACE" \
+            -scheme "React Watch" \
+            -configuration Debug \
+            -destination "platform=watchOS Simulator,id=$WATCH_ID" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            2>&1 | tee build-watch-floor.log
+
+      # The package's own tests, executed on the watchOS 10 runtime: the
+      # build above only compiles; this runs the host code on the floor OS.
+      - name: Test the package on the watchOS 10 simulator
+        working-directory: js/swift
+        env:
+          # See watchos-tests: forwarded to the tests as REQUIRE_BUNDLE=1.
+          TEST_RUNNER_REQUIRE_BUNDLE: "1"
+        run: |
+          set -o pipefail
+          xcodebuild test -scheme ReactWatchHost-Package \
+            -destination "platform=watchOS Simulator,id=$WATCH_ID" \
+            -resultBundlePath test-watchos-floor.xcresult \
+            2>&1 | tee test-watchos-floor.log
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: watchos-floor-logs
+          path: |
+            app/build-watch-floor.log
+            js/swift/test-watchos-floor.log
+          if-no-files-found: ignore
+      # Same reason as watchos-tests: a trap leaves only "Restarting after
+      # unexpected exit" in the log, and the backtrace lives in the crash
+      # report and the result bundle. The first floor run had one trap whose
+      # cause the log alone could not settle.
+      - name: Upload crash reports + result bundle
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: watchos-floor-diagnostics
+          path: |
+            js/swift/test-watchos-floor.xcresult
+            ~/Library/Logs/DiagnosticReports/xctest*.ips
+            ~/Library/Logs/DiagnosticReports/xctest*.crash
+          if-no-files-found: ignore

@@ -137,7 +137,7 @@ feature-set model supersedes the earlier scalar capability gate).
   consumer's) widget Swift compiles against the package **without** the full app
   build: build the package for watch (above) to a `-derivedDataPath`, then
   `xcrun --sdk watchsimulator<ver> swiftc -typecheck -parse-as-library -target
-  arm64-apple-watchos26.0-simulator -sdk <sdk> -I <dd>/Build/Products/Debug-watchsimulator
+  arm64-apple-watchos10.0-simulator -sdk <sdk> -I <dd>/Build/Products/Debug-watchsimulator
   -Xcc -fmodule-map-file=js/swift/Sources/CQuickJS/include/module.modulemap
   -Xcc -Ijs/swift/Sources/CQuickJS/include <files>.swift`. `-parse-as-library`
   is required (else `@main` errors); the `-Xcc` CQuickJS path is required (else

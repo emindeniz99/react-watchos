@@ -273,15 +273,16 @@ are also the local crash-repro loop — see [debugging.md](./debugging.md#the-lo
 
 ## Watch app — requires macOS 15+, Xcode 26.x
 
-The Swift host calls watchOS 26 symbols (`.glass`, `.glassEffect()`,
-`RelevantContext.DateKind`) without availability gates, so it needs the
-watchOS 26 SDK to compile; an older Xcode fails to build the package at all
-(`value of type 'some View' has no member 'glassEffect'`, and similar). CI
-builds on a `macos-26` runner for this reason. The runtime floor matches the
-toolchain floor: `Package.swift` declares watchOS 26 (and iOS 26), and the
-plugin's default `deploymentTarget` is `"26.0"`. Watches that stop below
-watchOS 26 (Series 4, Series 5, SE 1st gen) can't run the app; the reasoning
-is in [design-deployment-floor-2026-10-03.md](./design-deployment-floor-2026-10-03.md).
+The Swift host calls a handful of watchOS-26-only symbols (`.glass`,
+`.glassEffect()`, `RelevantContext.DateKind`) — each is guarded by
+`#available(watchOS 26.0, *)` for *runtime* dispatch, but the symbols still
+have to exist in the SDK you *compile* against, so an older Xcode fails to
+build the package at all (`value of type 'some View' has no member
+'glassEffect'`, and similar). CI builds on a `macos-26` runner for exactly
+this reason. Deployment stays down to watchOS 10 (`Package.swift`'s floor,
+unchanged) — the toolchain requirement and the runtime floor are two
+different things: older watches still run the app, they just never reach the
+gated code paths.
 
 ```bash
 pnpm install                              # workspace install (every member)

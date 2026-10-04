@@ -8,4 +8,4 @@
 
 > `const` **Picker**: `FC`\<[`PickerProps`](../interfaces/PickerProps.md)\>
 
-Defined in: [js/src/components.ts:798](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L798)
+Defined in: [js/src/components.ts:799](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L799)

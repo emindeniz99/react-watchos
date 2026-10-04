@@ -734,8 +734,8 @@ describe("the saved-workout read is a HISTORY read", () => {
     ]) {
       expect(table).toContain(arm);
     }
-    // watchOS 11.0 types, not yet exposed (reachable since the floor is 26 —
-    // see docs/roadmap.md). Adding them is roadmap work, not a drive-by.
+    // watchOS 11.0 types, above this package's v10 floor: in the table they
+    // would need an `@available` gate the package does not have anywhere.
     for (const above of [
       "distanceRowing",
       "distancePaddleSports",
@@ -844,8 +844,8 @@ describe("the rings read is keyed by DAY, and the goals are the point", () => {
     // same two rings and must never be the ones read.
     expect(code()).not.toContain("appleExerciseTimeGoal");
     expect(code()).not.toContain("appleStandHoursGoal");
-    // watchOS 11.0, not yet exposed (reachable since the floor is 26 — see
-    // docs/roadmap.md). Adding it is roadmap work, not a drive-by.
+    // watchOS 11.0, above this package's v10 floor: reading it would need the
+    // first `@available` gate in a package that has none.
     expect(code()).not.toContain("isPaused");
     // The descriptor family, not the legacy callback class — whose docs JSON
     // carries no availability at all.

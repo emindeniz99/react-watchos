@@ -18,7 +18,7 @@
           "appGroup": "group.com.emindeniz99.reactwatch",
           "widget": true,
           "healthKit": true,
-          "deploymentTarget": "26.0",
+          "deploymentTarget": "10.0",
           "appleTeamId": "D68Q862K33",
           "localNetworking": true,
           "infoPlist": {

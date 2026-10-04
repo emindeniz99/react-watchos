@@ -150,9 +150,8 @@ describe("the plan narrowing", () => {
 
   it("carries the speed metric and never invents one for power", async () => {
     // The 10.0-vs-10.4 asymmetry made visible: speed takes the current/average
-    // selector at 10.0, power only at 10.4 and that selector is not yet
-    // exposed (see docs/roadmap.md), so the power arms have no `metric` to send
-    // and native refuses one if it ever appears.
+    // selector at our floor, power does not, so the power arms have no `metric`
+    // to send and native refuses one if it ever appears.
     const calls = installHost({ scheduleWorkoutPlan: {} });
     await scheduleWorkoutPlan(
       {

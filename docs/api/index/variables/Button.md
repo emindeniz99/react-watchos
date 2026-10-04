@@ -8,4 +8,4 @@
 
 > `const` **Button**: `FC`\<[`ButtonProps`](../interfaces/ButtonProps.md)\>
 
-Defined in: [js/src/components.ts:782](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L782)
+Defined in: [js/src/components.ts:783](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L783)
