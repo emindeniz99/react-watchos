@@ -12,7 +12,7 @@
     "@expo/config-plugins": "~57.0.9",
     "expo": "~57.0.25",
     "react": "19.2.3",
-    "react-native": "0.86.2",
+    "react-native": "0.86.3",
     "react-native-watch-connectivity": "^2.0.0",
     "react-watchos": "workspace:*"
   },
