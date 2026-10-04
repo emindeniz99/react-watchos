@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.11.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.10.0...react-watchos-v0.11.0) (2026-10-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **repo:** the package, the plugin's default deploymentTarget and the generated targets require watchOS 26 (iOS 26 in Package.swift). Apps that must support Series 4/5 or SE 1st gen stay on 0.10.x; see MIGRATIONS.md and docs/design-deployment-floor-2026-10-03.md.
+
+### Features
+
+* **js:** add accessibilityHidden for decorative nodes ([b820728](https://github.com/emindeniz99/react-watchos/commit/b8207288f6d6411cc8bf71bed2a6a68a4054102a))
+* **js:** add accessibilityHidden for decorative nodes ([99211e1](https://github.com/emindeniz99/react-watchos/commit/99211e1e7987336cc8f91bf50181228f1b7d792f))
+* **js:** add Text fontDesign and a backgroundGradient modifier prop ([a922465](https://github.com/emindeniz99/react-watchos/commit/a922465cdac669af8889391d503160c8e497ffa1))
+* **js:** fills with gradients, containerBackground and fontDesign on any node ([06e44bf](https://github.com/emindeniz99/react-watchos/commit/06e44bf3f73afc80bef7f7deee79da3e66f7b398))
+* **js:** widen background to a Fill and add containerBackground ([0814a2e](https://github.com/emindeniz99/react-watchos/commit/0814a2e307ac505e95d1e4e4e23334ca81291f6e))
+* **repo:** raise the deployment floor to watchOS 26 and iOS 26 ([1ceda2c](https://github.com/emindeniz99/react-watchos/commit/1ceda2ccd22782da6e063582ba0b538fd2065b2c))
+* **swift:** honour accessibilityHidden in both interpreters ([a890a0e](https://github.com/emindeniz99/react-watchos/commit/a890a0e41bdfa9ffc53ccb3ac83cfc95d4e136fe))
+* **swift:** parse Fill with stops and render containerBackground ([2c35b1a](https://github.com/emindeniz99/react-watchos/commit/2c35b1a4832f7dfc96b4dac2c47d19567da72dc2))
+* **swift:** render fontDesign and gradient fills in both interpreters ([8e508a9](https://github.com/emindeniz99/react-watchos/commit/8e508a90790ddd10ac3d2e9c7e598cdcb7c99439))
+
+
+### Bug Fixes
+
+* **deps:** vendor quickjs-ng v0.17.0 ([37eaff8](https://github.com/emindeniz99/react-watchos/commit/37eaff8b281b96d1e6798da5888126853220a917))
+* **deps:** vendor quickjs-ng v0.17.0 ([4344ec7](https://github.com/emindeniz99/react-watchos/commit/4344ec7b114c7034d979807d301828d9c82ceb4d))
+* **swift:** hand AsyncImage only an http(s) URL with a host ([1f6d3c0](https://github.com/emindeniz99/react-watchos/commit/1f6d3c0e32c54af0f054e71664e92844a8b3dc08))
+* **swift:** keep accessibilityHidden text out of a Button's derived label ([13783cd](https://github.com/emindeniz99/react-watchos/commit/13783cda34bd012b275cd1c0102d9e3c14c3161d))
+* **swift:** keep accessibilityHidden text out of a Button's derived label ([8315af7](https://github.com/emindeniz99/react-watchos/commit/8315af7d34eb838e4fd003c893258f22db2589c4))
+
+
+### Reverts
+
+* **repo:** restore the watchOS 10 deployment floor ([95a68ea](https://github.com/emindeniz99/react-watchos/commit/95a68eac85365df826dde815f2eb63b9bd007b8b))
+* **repo:** restore the watchOS 10 deployment floor ([fdcd7cc](https://github.com/emindeniz99/react-watchos/commit/fdcd7ccbc0e1df14d07ade40d21ba689b3801887))
+* **swift:** drop the AsyncImage URL filter, it was not the crash ([1953842](https://github.com/emindeniz99/react-watchos/commit/19538429484da0b8353b1b9a984743f2b6d0b4b6))
+
 ## [0.10.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.9.1...react-watchos-v0.10.0) (2026-09-18)
 
 
