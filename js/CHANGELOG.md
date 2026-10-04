@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.12.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.11.0...react-watchos-v0.12.0) (2026-10-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **repo:** isOnDeviceAIAvailable() is replaced by getAIAvailability(), which resolves an AIAvailability string. AIErrorCode gains NETWORK_FAILURE, QUOTA_LIMIT_REACHED and SERVICE_UNAVAILABLE. Generation needs the managed Private Cloud Compute entitlement (plugin option privateCloudCompute), the network, and quota. See MIGRATIONS.md.
+
+### Features
+
+* **plugin:** add an opt-in Private Cloud Compute entitlement option ([8f7daa3](https://github.com/emindeniz99/react-watchos/commit/8f7daa3d6bb916ae6bfe3fc554c3708e4b7bca79))
+* **repo:** run the AI API on Private Cloud Compute ([970ce32](https://github.com/emindeniz99/react-watchos/commit/970ce3221ed4f86833df995a677cfd5526d93a8a))
+
+
+### Bug Fixes
+
+* **plugin:** export app.plugin.js so eas-cli can resolve the config plugin ([c220d4b](https://github.com/emindeniz99/react-watchos/commit/c220d4b0870559583e645a12c397655eb0c656a7))
+* **plugin:** export app.plugin.js so eas-cli can resolve the config plugin ([d314b47](https://github.com/emindeniz99/react-watchos/commit/d314b47becc6eb78a0150314a3d0e12a5daac0bf))
+* **plugin:** give EAS the Xcode target name, not the product name ([4407b4a](https://github.com/emindeniz99/react-watchos/commit/4407b4a2fff64ea954826703e3e2936c883902ec))
+* **plugin:** give EAS the Xcode target name, not the product name ([cee3b79](https://github.com/emindeniz99/react-watchos/commit/cee3b79ba1adb1d9ca6eff0e48486149bce3428c))
+* **swift:** keep the SystemLanguageModel code out of watchOS builds ([5417c95](https://github.com/emindeniz99/react-watchos/commit/5417c95fdc7ad013f55ce362a9dcb53f46339580))
+
 ## [0.11.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.10.0...react-watchos-v0.11.0) (2026-10-04)
 
 The deployment floor is unchanged: watchOS 10. A raise to watchOS 26 was merged and then reverted before this release (PR #31, PR #38); nothing about it ships. `docs/design-deployment-floor-2026-10-03.md` records both decisions. The floor is now built and tested on a watchOS 10.5 simulator in CI on every pull request.
