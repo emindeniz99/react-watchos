@@ -113,7 +113,6 @@ final class WireDecodeTests: XCTestCase {
             ("boolean v", #"{"v":true,"seq":0,"root":null}"#),
             ("string seq", #"{"v":1,"seq":"0","root":null}"#),
             ("missing seq", #"{"v":1,"root":null}"#),
-            ("beyond-Int64 seq", #"{"v":1,"seq":-9223372036854775809,"root":null}"#),
             (
                 "boolean id",
                 #"{"v":1,"seq":0,"root":{"id":true,"type":"T","props":{},"children":[]}}"#
@@ -146,6 +145,21 @@ final class WireDecodeTests: XCTestCase {
         ]
         for (label, json) in cases {
             assertParity(Data(json.utf8), label)
+        }
+    }
+
+    /// `seq` one below Int64.min. The wire decoder refuses it on every OS.
+    /// Codable agrees only on the Swift-native Foundation (watchOS 11, iOS 18,
+    /// macOS 15, Linux); the older Foundation parses the literal through a
+    /// Double and accepts it as Int64.min. Measured on the watchOS 10.5
+    /// simulator in the floor CI job, 2026-10-03. The wire decoder's exact
+    /// refusal is the contract, so parity is asserted only where the two
+    /// Foundations agree.
+    func testBeyondInt64SeqIsRefused() {
+        let data = Data(#"{"v":1,"seq":-9223372036854775809,"root":null}"#.utf8)
+        XCTAssertThrowsError(try RNTree(wireJSON: data))
+        if #available(watchOS 11, iOS 18, macOS 15, *) {
+            assertParity(data, "beyond-Int64 seq")
         }
     }
 

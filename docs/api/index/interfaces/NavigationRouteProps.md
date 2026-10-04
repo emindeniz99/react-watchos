@@ -6,7 +6,7 @@
 
 # Interface: NavigationRouteProps
 
-Defined in: [js/src/components.ts:320](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L320)
+Defined in: [js/src/components.ts:389](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L389)
 
 ## Extends
 
@@ -14,11 +14,30 @@ Defined in: [js/src/components.ts:320](https://github.com/emindeniz99/react-watc
 
 ## Properties
 
+### accessibilityHidden?
+
+> `optional` **accessibilityHidden?**: `boolean`
+
+Defined in: [js/src/components.ts:100](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L100)
+
+Hides this node and its whole subtree from VoiceOver (SwiftUI
+`.accessibilityHidden(true)`, applied after label and hint, so it wins
+over both). For purely decorative nodes such as a large quote mark or a
+drop cap, which VoiceOver would otherwise read out as noise. Never set it
+on anything interactive, or on a container holding interactive children:
+a hidden control cannot be reached with VoiceOver at all.
+
+#### Inherited from
+
+`A11yProps.accessibilityHidden`
+
+***
+
 ### accessibilityHint?
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:91](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L91)
 
 #### Inherited from
 
@@ -30,7 +49,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -42,7 +61,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:325](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L325)
+Defined in: [js/src/components.ts:394](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L394)
 
 ***
 
@@ -50,7 +69,7 @@ Defined in: [js/src/components.ts:325](https://github.com/emindeniz99/react-watc
 
 > **path**: `string`
 
-Defined in: [js/src/components.ts:322](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L322)
+Defined in: [js/src/components.ts:391](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L391)
 
 Stable path for links, deep links, notifications, and tests.
 
@@ -60,6 +79,6 @@ Stable path for links, deep links, notifications, and tests.
 
 > `optional` **title?**: `string`
 
-Defined in: [js/src/components.ts:324](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L324)
+Defined in: [js/src/components.ts:393](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L393)
 
 Native navigation title when this route is displayed.

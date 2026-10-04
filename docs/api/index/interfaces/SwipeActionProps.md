@@ -6,7 +6,7 @@
 
 # Interface: SwipeActionProps
 
-Defined in: [js/src/components.ts:134](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L134)
+Defined in: [js/src/components.ts:203](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L203)
 
 Swipe actions (SwiftUI `.swipeActions`), the watchOS-idiomatic way to act on
 a row. Only meaningful on a row inside a `<List>`; unlike a raw `onSwipe`
@@ -26,7 +26,7 @@ edge independently:
 
 > `optional` **leadingSwipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:139](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L139)
+Defined in: [js/src/components.ts:208](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L208)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [js/src/components.ts:139](https://github.com/emindeniz99/react-watc
 
 > `optional` **leadingSwipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:140](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L140)
+Defined in: [js/src/components.ts:209](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L209)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [js/src/components.ts:140](https://github.com/emindeniz99/react-watc
 
 > `optional` **leadingSwipeActionTint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:141](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L141)
+Defined in: [js/src/components.ts:210](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L210)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [js/src/components.ts:141](https://github.com/emindeniz99/react-watc
 
 > `optional` **onLeadingSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:142](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L142)
+Defined in: [js/src/components.ts:211](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L211)
 
 #### Returns
 
@@ -62,7 +62,7 @@ Defined in: [js/src/components.ts:142](https://github.com/emindeniz99/react-watc
 
 > `optional` **onSwipeAction?**: () => `void`
 
-Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L138)
+Defined in: [js/src/components.ts:207](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L207)
 
 #### Returns
 
@@ -74,7 +74,7 @@ Defined in: [js/src/components.ts:138](https://github.com/emindeniz99/react-watc
 
 > `optional` **swipeActionLabel?**: `string`
 
-Defined in: [js/src/components.ts:135](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L135)
+Defined in: [js/src/components.ts:204](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L204)
 
 ***
 
@@ -82,7 +82,7 @@ Defined in: [js/src/components.ts:135](https://github.com/emindeniz99/react-watc
 
 > `optional` **swipeActionSystemImage?**: `string`
 
-Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L136)
+Defined in: [js/src/components.ts:205](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L205)
 
 ***
 
@@ -90,4 +90,4 @@ Defined in: [js/src/components.ts:136](https://github.com/emindeniz99/react-watc
 
 > `optional` **swipeActionTint?**: [`ColorValue`](../type-aliases/ColorValue.md)
 
-Defined in: [js/src/components.ts:137](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L137)
+Defined in: [js/src/components.ts:206](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L206)

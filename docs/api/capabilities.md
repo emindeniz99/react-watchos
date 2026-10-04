@@ -57,7 +57,7 @@ surfaces don't exist in WidgetKit).
 | `Toolbar` | degraded |
 | `ToolbarItem` | degraded |
 
-### Props the complication interpreter ignores (2)
+### Props the complication interpreter ignores (3)
 
 The table above is per COMPONENT. These are per PROP: the app interpreter
 reads them, the widget/complication interpreter does not, so setting one has
@@ -71,6 +71,7 @@ so this list cannot drift from what the interpreters actually read.
 |---|---|---|
 | *(any)* | `glass` | Liquid Glass is applied in NodeView's shared modifier chain; the widget's applyLayout mirrors LayoutModifier only, so it is a no-op in complications. |
 | `Button` | `buttonStyle` | The widget's interactive Button hard-codes .buttonStyle(.plain); glass/glassProminent/plain are all no-ops in complications. |
+| *(any)* | `containerBackground` | Applied as .containerBackground(_, for: .tabView) in NodeView's shared modifier chain; reactWidgetView fixes the widget container to .clear, so it is a no-op in complications. |
 
 ## Host methods (82) by capability feature
 

@@ -8,4 +8,4 @@
 
 > `const` **ToolbarItem**: `FC`\<[`ToolbarItemProps`](../interfaces/ToolbarItemProps.md)\>
 
-Defined in: [js/src/components.ts:758](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L758)
+Defined in: [js/src/components.ts:827](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L827)

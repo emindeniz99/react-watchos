@@ -6,7 +6,7 @@
 
 # Type Alias: TextVariant
 
-> **TextVariant** = `Pick`\<[`TextProps`](../interfaces/TextProps.md), `"textStyle"` \| `"bold"` \| `"color"` \| `"monospacedDigit"`\>
+> **TextVariant** = `Pick`\<[`TextProps`](../interfaces/TextProps.md), `"textStyle"` \| `"bold"` \| `"color"` \| `"monospacedDigit"` \| `"fontDesign"`\>
 
 Defined in: [js/src/theme.ts:27](https://github.com/emindeniz99/react-watchos/blob/main/js/src/theme.ts#L27)
 

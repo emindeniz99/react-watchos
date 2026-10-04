@@ -43,21 +43,69 @@ export type SystemColorName =
  */
 export type ColorValue = SystemColorName | `#${string}`;
 
+/** A SwiftUI `UnitPoint` by name: where a gradient starts or ends. */
+export type UnitPointName =
+  | "top"
+  | "bottom"
+  | "leading"
+  | "trailing"
+  | "center"
+  | "topLeading"
+  | "topTrailing"
+  | "bottomLeading"
+  | "bottomTrailing";
+
+/**
+ * A linear gradient fill (SwiftUI `LinearGradient`) from `start` (default
+ * `"top"`) to `end` (default `"bottom"`). Give exactly one of `colors` or
+ * `stops`, with at least two valid entries; otherwise the node draws no fill.
+ */
+export interface LinearGradientFill {
+  type: "linearGradient";
+  /** Evenly spaced colours; use `stops` instead for explicit positions. */
+  colors?: ColorValue[];
+  /**
+   * Explicit stops: `location` runs 0…1 and must not decrease from one stop
+   * to the next. A stop outside 0…1 or out of order voids the whole fill; a
+   * stop with an unknown colour is dropped.
+   */
+  stops?: { color: ColorValue; location: number }[];
+  start?: UnitPointName;
+  end?: UnitPointName;
+}
+
+/**
+ * What a node paints: a colour (any {@link ColorValue}) or a gradient. Mirrors
+ * SwiftUI's `ShapeStyle`; the `type` tag leaves room for other gradient kinds.
+ */
+export type Fill = ColorValue | LinearGradientFill;
+
 /**
  * VoiceOver metadata supported by every primitive (applied as SwiftUI
- * .accessibilityLabel/.accessibilityHint in NodeView). Watch users rely
- * on VoiceOver, so author labels for icon-only or composite controls.
+ * .accessibilityLabel/.accessibilityHint/.accessibilityHidden in NodeView).
+ * Watch users rely on VoiceOver, so author labels for icon-only or composite
+ * controls.
  */
 interface A11yProps {
   accessibilityLabel?: string;
   accessibilityHint?: string;
+  /**
+   * Hides this node and its whole subtree from VoiceOver (SwiftUI
+   * `.accessibilityHidden(true)`, applied after label and hint, so it wins
+   * over both). For purely decorative nodes such as a large quote mark or a
+   * drop cap, which VoiceOver would otherwise read out as noise. Never set it
+   * on anything interactive, or on a container holding interactive children:
+   * a hidden control cannot be reached with VoiceOver at all.
+   */
+  accessibilityHidden?: boolean;
 }
 
 /**
  * Layout/appearance modifiers every visual primitive supports (design-system
  * Tier 1). Values map 1:1 to SwiftUI modifiers and are applied in this fixed
- * order: padding → background+cornerRadius → frame → opacity → tint. Colors
- * take the same values as `color` (system name or #RRGGBB[AA] hex).
+ * order: padding → background+cornerRadius → containerBackground → frame →
+ * opacity → tint. Colors take the same values as `color` (system name or
+ * #RRGGBB[AA] hex); a {@link Fill} also takes a gradient.
  */
 interface ModifierProps {
   /** Points on all edges, or per axis: `padding={{horizontal: 8, vertical: 2}}`. */
@@ -69,8 +117,29 @@ interface ModifierProps {
     maxWidth?: number | "infinity";
     maxHeight?: number | "infinity";
   };
-  /** Fill color behind the content (rounded when cornerRadius is set). */
-  background?: ColorValue;
+  /**
+   * Colour or gradient behind the content (rounded when cornerRadius is set):
+   * `background="#1C1B18"` or
+   * `background={{ type: "linearGradient", colors: ["indigo", "black"] }}`.
+   */
+  background?: Fill;
+  /**
+   * Full-bleed page colour or gradient behind the system chrome (SwiftUI
+   * `.containerBackground(_, for: .tabView)`). Set it on a TabView page, the
+   * direct child of `<TabView>`; elsewhere it has nothing to fill.
+   *
+   * **App-only: a no-op in complications and Smart Stack widgets.** The widget
+   * container's background is fixed to clear. Declared in `codegen/schema.ts`
+   * `propDegradations` and listed in `docs/api/capabilities.md`.
+   */
+  containerBackground?: Fill;
+  /**
+   * Type family within the system font (SwiftUI `.fontDesign`): `"serif"` is
+   * New York, `"rounded"` SF Rounded, `"monospaced"` SF Mono. Set on a stack,
+   * it applies to every Text inside; a Text (or nested segment) that sets its
+   * own wins. Works with `textStyle`, so Dynamic Type still applies.
+   */
+  fontDesign?: "default" | "serif" | "rounded" | "monospaced";
   /** Rounds the background — or clips the content when there is none. */
   cornerRadius?: number;
   /** 0 (invisible) … 1 (opaque). */

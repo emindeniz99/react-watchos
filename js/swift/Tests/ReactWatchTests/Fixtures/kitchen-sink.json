@@ -2,7 +2,7 @@
   "v": 1,
   "seq": 0,
   "root": {
-    "id": 55,
+    "id": 56,
     "type": "VStack",
     "props": {
       "spacing": 4,
@@ -16,6 +16,7 @@
         "height": 120
       },
       "background": "#00000080",
+      "fontDesign": "serif",
       "cornerRadius": 6,
       "opacity": 0.9,
       "tint": "accentColor",
@@ -28,7 +29,7 @@
     },
     "children": [
       {
-        "id": 7,
+        "id": 8,
         "type": "HStack",
         "props": {
           "spacing": 2,
@@ -50,6 +51,7 @@
                 "id": 1,
                 "type": "Text",
                 "props": {
+                  "fontDesign": "rounded",
                   "text": "Rich "
                 },
                 "children": []
@@ -86,18 +88,41 @@
             "type": "Divider",
             "props": {},
             "children": []
+          },
+          {
+            "id": 7,
+            "type": "Text",
+            "props": {
+              "accessibilityHidden": true,
+              "text": "“"
+            },
+            "children": []
           }
         ]
       },
       {
-        "id": 10,
+        "id": 11,
         "type": "ZStack",
         "props": {
-          "alignment": "topLeading"
+          "alignment": "topLeading",
+          "background": {
+            "type": "linearGradient",
+            "stops": [
+              {
+                "color": "indigo",
+                "location": 0
+              },
+              {
+                "color": "#000000",
+                "location": 0.7
+              }
+            ],
+            "end": "bottomTrailing"
+          }
         },
         "children": [
           {
-            "id": 8,
+            "id": 9,
             "type": "Image",
             "props": {
               "systemName": "drop.fill",
@@ -107,7 +132,7 @@
             "children": []
           },
           {
-            "id": 9,
+            "id": 10,
             "type": "Gauge",
             "props": {
               "value": 7,
@@ -121,17 +146,17 @@
         ]
       },
       {
-        "id": 15,
+        "id": 16,
         "type": "ScrollView",
         "props": {},
         "children": [
           {
-            "id": 14,
+            "id": 15,
             "type": "List",
             "props": {},
             "children": [
               {
-                "id": 13,
+                "id": 14,
                 "type": "Section",
                 "props": {
                   "header": "H",
@@ -139,7 +164,7 @@
                 },
                 "children": [
                   {
-                    "id": 11,
+                    "id": 12,
                     "type": "Label",
                     "props": {
                       "label": "L",
@@ -149,7 +174,7 @@
                     "children": []
                   },
                   {
-                    "id": 12,
+                    "id": 13,
                     "type": "LabeledContent",
                     "props": {
                       "label": "LC",
@@ -164,7 +189,7 @@
         ]
       },
       {
-        "id": 17,
+        "id": 18,
         "type": "Button",
         "props": {
           "glass": true,
@@ -173,7 +198,7 @@
         },
         "children": [
           {
-            "id": 16,
+            "id": 17,
             "type": "Text",
             "props": {
               "text": "tap"
@@ -183,7 +208,7 @@
         ]
       },
       {
-        "id": 18,
+        "id": 19,
         "type": "Toggle",
         "props": {
           "value": true,
@@ -193,7 +218,7 @@
         "children": []
       },
       {
-        "id": 19,
+        "id": 20,
         "type": "Slider",
         "props": {
           "value": 0.5,
@@ -205,7 +230,7 @@
         "children": []
       },
       {
-        "id": 20,
+        "id": 21,
         "type": "Stepper",
         "props": {
           "value": 3,
@@ -216,7 +241,7 @@
         "children": []
       },
       {
-        "id": 21,
+        "id": 22,
         "type": "Picker",
         "props": {
           "value": 1,
@@ -230,7 +255,7 @@
         "children": []
       },
       {
-        "id": 22,
+        "id": 23,
         "type": "DatePicker",
         "props": {
           "value": 1700000000000,
@@ -239,7 +264,7 @@
         "children": []
       },
       {
-        "id": 23,
+        "id": 24,
         "type": "TextField",
         "props": {
           "value": "draft",
@@ -249,7 +274,7 @@
         "children": []
       },
       {
-        "id": 24,
+        "id": 25,
         "type": "SecureField",
         "props": {
           "value": "s3cret",
@@ -259,7 +284,7 @@
         "children": []
       },
       {
-        "id": 26,
+        "id": 27,
         "type": "CrownRotation",
         "props": {
           "value": 5,
@@ -271,7 +296,7 @@
         },
         "children": [
           {
-            "id": 25,
+            "id": 26,
             "type": "Text",
             "props": {
               "text": "5"
@@ -281,7 +306,7 @@
         ]
       },
       {
-        "id": 29,
+        "id": 30,
         "type": "TabView",
         "props": {
           "selection": 1,
@@ -290,15 +315,16 @@
         },
         "children": [
           {
-            "id": 27,
+            "id": 28,
             "type": "Text",
             "props": {
+              "containerBackground": "#1C1B18",
               "text": "tab"
             },
             "children": []
           },
           {
-            "id": 28,
+            "id": 29,
             "type": "Text",
             "props": {
               "text": "tab 2"
@@ -308,7 +334,7 @@
         ]
       },
       {
-        "id": 30,
+        "id": 31,
         "type": "FormattedText",
         "props": {
           "date": 1768483200000,
@@ -317,7 +343,7 @@
         "children": []
       },
       {
-        "id": 31,
+        "id": 32,
         "type": "FormattedText",
         "props": {
           "value": 1234.5,
@@ -327,21 +353,21 @@
         "children": []
       },
       {
-        "id": 35,
+        "id": 36,
         "type": "NavigationStack",
         "props": {
           "onPathChange": true
         },
         "children": [
           {
-            "id": 33,
+            "id": 34,
             "type": "NavigationRoute",
             "props": {
               "path": "/"
             },
             "children": [
               {
-                "id": 32,
+                "id": 33,
                 "type": "NavigationLink",
                 "props": {
                   "to": "/detail/42",
@@ -352,7 +378,7 @@
             ]
           },
           {
-            "id": 34,
+            "id": 35,
             "type": "NavigationRoute",
             "props": {
               "path": "/detail/[id]"
@@ -362,7 +388,7 @@
         ]
       },
       {
-        "id": 37,
+        "id": 38,
         "type": "Alert",
         "props": {
           "presented": false,
@@ -372,7 +398,7 @@
         },
         "children": [
           {
-            "id": 36,
+            "id": 37,
             "type": "AlertAction",
             "props": {
               "label": "OK",
@@ -384,7 +410,7 @@
         ]
       },
       {
-        "id": 39,
+        "id": 40,
         "type": "ConfirmationDialog",
         "props": {
           "presented": false,
@@ -393,7 +419,7 @@
         },
         "children": [
           {
-            "id": 38,
+            "id": 39,
             "type": "AlertAction",
             "props": {
               "label": "Do",
@@ -404,7 +430,7 @@
         ]
       },
       {
-        "id": 41,
+        "id": 42,
         "type": "Sheet",
         "props": {
           "presented": false,
@@ -412,7 +438,7 @@
         },
         "children": [
           {
-            "id": 40,
+            "id": 41,
             "type": "Text",
             "props": {
               "text": "sheet"
@@ -422,7 +448,7 @@
         ]
       },
       {
-        "id": 45,
+        "id": 46,
         "type": "Grid",
         "props": {
           "horizontalSpacing": 2,
@@ -430,12 +456,12 @@
         },
         "children": [
           {
-            "id": 44,
+            "id": 45,
             "type": "GridRow",
             "props": {},
             "children": [
               {
-                "id": 42,
+                "id": 43,
                 "type": "Text",
                 "props": {
                   "text": "c1"
@@ -443,7 +469,7 @@
                 "children": []
               },
               {
-                "id": 43,
+                "id": 44,
                 "type": "Text",
                 "props": {
                   "text": "c2"
@@ -455,7 +481,7 @@
         ]
       },
       {
-        "id": 46,
+        "id": 47,
         "type": "ShareLink",
         "props": {
           "item": "https://example.test"
@@ -463,7 +489,7 @@
         "children": []
       },
       {
-        "id": 47,
+        "id": 48,
         "type": "Chart",
         "props": {
           "type": "bar",
@@ -482,7 +508,7 @@
         "children": []
       },
       {
-        "id": 48,
+        "id": 49,
         "type": "Map",
         "props": {
           "latitude": 41,
@@ -499,7 +525,7 @@
         "children": []
       },
       {
-        "id": 49,
+        "id": 50,
         "type": "ProgressView",
         "props": {
           "value": 0.4,
@@ -509,7 +535,7 @@
         "children": []
       },
       {
-        "id": 50,
+        "id": 51,
         "type": "ContentUnavailable",
         "props": {
           "title": "empty",
@@ -519,26 +545,26 @@
         "children": []
       },
       {
-        "id": 54,
+        "id": 55,
         "type": "Toolbar",
         "props": {},
         "children": [
           {
-            "id": 53,
+            "id": 54,
             "type": "ToolbarItem",
             "props": {
               "placement": "topBarTrailing"
             },
             "children": [
               {
-                "id": 52,
+                "id": 53,
                 "type": "Button",
                 "props": {
                   "onPress": true
                 },
                 "children": [
                   {
-                    "id": 51,
+                    "id": 52,
                     "type": "Text",
                     "props": {
                       "text": "t"

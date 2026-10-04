@@ -6,7 +6,7 @@
 
 # Interface: NavigationStackProps
 
-Defined in: [js/src/components.ts:283](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L283)
+Defined in: [js/src/components.ts:352](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L352)
 
 ## Extends
 
@@ -14,11 +14,30 @@ Defined in: [js/src/components.ts:283](https://github.com/emindeniz99/react-watc
 
 ## Properties
 
+### accessibilityHidden?
+
+> `optional` **accessibilityHidden?**: `boolean`
+
+Defined in: [js/src/components.ts:100](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L100)
+
+Hides this node and its whole subtree from VoiceOver (SwiftUI
+`.accessibilityHidden(true)`, applied after label and hint, so it wins
+over both). For purely decorative nodes such as a large quote mark or a
+drop cap, which VoiceOver would otherwise read out as noise. Never set it
+on anything interactive, or on a container holding interactive children:
+a hidden control cannot be reached with VoiceOver at all.
+
+#### Inherited from
+
+`A11yProps.accessibilityHidden`
+
+***
+
 ### accessibilityHint?
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:91](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L91)
 
 #### Inherited from
 
@@ -30,7 +49,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -42,7 +61,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:299](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L299)
+Defined in: [js/src/components.ts:368](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L368)
 
 ***
 
@@ -50,7 +69,7 @@ Defined in: [js/src/components.ts:299](https://github.com/emindeniz99/react-watc
 
 > `optional` **onPathChange?**: (`path`) => `void`
 
-Defined in: [js/src/components.ts:298](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L298)
+Defined in: [js/src/components.ts:367](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L367)
 
 Fired when native back/link gestures propose a new stack path. In
 controlled mode, fold it into `path` SYNCHRONOUSLY — setState inside the
@@ -75,7 +94,7 @@ already popped — but must be folded the same way.
 
 > `optional` **path?**: `string`[]
 
-Defined in: [js/src/components.ts:289](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L289)
+Defined in: [js/src/components.ts:358](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L358)
 
 Controlled native stack path. Root is represented by [] and pushed
 routes are stable path strings such as ["/hydration"].
@@ -86,4 +105,4 @@ routes are stable path strings such as ["/hydration"].
 
 > `optional` **title?**: `string`
 
-Defined in: [js/src/components.ts:284](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L284)
+Defined in: [js/src/components.ts:353](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L353)

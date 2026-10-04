@@ -6,7 +6,7 @@
 
 # Interface: AlertActionProps
 
-Defined in: [js/src/components.ts:584](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L584)
+Defined in: [js/src/components.ts:653](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L653)
 
 An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
  presentation automatically when an action is tapped; `onPress` fires for
@@ -18,11 +18,30 @@ An action inside <Alert> / <ConfirmationDialog>. The system dismisses the
 
 ## Properties
 
+### accessibilityHidden?
+
+> `optional` **accessibilityHidden?**: `boolean`
+
+Defined in: [js/src/components.ts:100](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L100)
+
+Hides this node and its whole subtree from VoiceOver (SwiftUI
+`.accessibilityHidden(true)`, applied after label and hint, so it wins
+over both). For purely decorative nodes such as a large quote mark or a
+drop cap, which VoiceOver would otherwise read out as noise. Never set it
+on anything interactive, or on a container holding interactive children:
+a hidden control cannot be reached with VoiceOver at all.
+
+#### Inherited from
+
+`A11yProps.accessibilityHidden`
+
+***
+
 ### accessibilityHint?
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:91](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L91)
 
 #### Inherited from
 
@@ -34,7 +53,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -46,7 +65,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > **label**: `string`
 
-Defined in: [js/src/components.ts:585](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L585)
+Defined in: [js/src/components.ts:654](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L654)
 
 ***
 
@@ -54,7 +73,7 @@ Defined in: [js/src/components.ts:585](https://github.com/emindeniz99/react-watc
 
 > `optional` **onPress?**: () => `void`
 
-Defined in: [js/src/components.ts:588](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L588)
+Defined in: [js/src/components.ts:657](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L657)
 
 #### Returns
 
@@ -66,6 +85,6 @@ Defined in: [js/src/components.ts:588](https://github.com/emindeniz99/react-watc
 
 > `optional` **role?**: `"destructive"` \| `"cancel"`
 
-Defined in: [js/src/components.ts:587](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L587)
+Defined in: [js/src/components.ts:656](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L656)
 
 "destructive" renders red; "cancel" gets the cancel slot/placement.

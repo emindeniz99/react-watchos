@@ -6,7 +6,7 @@
 
 # Interface: TabViewProps
 
-Defined in: [js/src/components.ts:358](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L358)
+Defined in: [js/src/components.ts:427](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L427)
 
 ## Extends
 
@@ -14,11 +14,30 @@ Defined in: [js/src/components.ts:358](https://github.com/emindeniz99/react-watc
 
 ## Properties
 
+### accessibilityHidden?
+
+> `optional` **accessibilityHidden?**: `boolean`
+
+Defined in: [js/src/components.ts:100](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L100)
+
+Hides this node and its whole subtree from VoiceOver (SwiftUI
+`.accessibilityHidden(true)`, applied after label and hint, so it wins
+over both). For purely decorative nodes such as a large quote mark or a
+drop cap, which VoiceOver would otherwise read out as noise. Never set it
+on anything interactive, or on a container holding interactive children:
+a hidden control cannot be reached with VoiceOver at all.
+
+#### Inherited from
+
+`A11yProps.accessibilityHidden`
+
+***
+
 ### accessibilityHint?
 
 > `optional` **accessibilityHint?**: `string`
 
-Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L53)
+Defined in: [js/src/components.ts:91](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L91)
 
 #### Inherited from
 
@@ -30,7 +49,7 @@ Defined in: [js/src/components.ts:53](https://github.com/emindeniz99/react-watch
 
 > `optional` **accessibilityLabel?**: `string`
 
-Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L52)
+Defined in: [js/src/components.ts:90](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L90)
 
 #### Inherited from
 
@@ -42,7 +61,7 @@ Defined in: [js/src/components.ts:52](https://github.com/emindeniz99/react-watch
 
 > `optional` **children?**: `ReactNode`
 
-Defined in: [js/src/components.ts:360](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L360)
+Defined in: [js/src/components.ts:429](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L429)
 
 Each child is one page.
 
@@ -52,7 +71,7 @@ Each child is one page.
 
 > `optional` **onChange?**: (`index`) => `void`
 
-Defined in: [js/src/components.ts:371](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L371)
+Defined in: [js/src/components.ts:440](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L440)
 
 Fires with the new page index as the user swipes between pages.
 
@@ -72,7 +91,7 @@ Fires with the new page index as the user swipes between pages.
 
 > `optional` **selection?**: `number`
 
-Defined in: [js/src/components.ts:369](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L369)
+Defined in: [js/src/components.ts:438](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L438)
 
 Controlled selected page index (0-based). When set, the native TabView
 binds to it optimistically (a swipe holds until React acks) — keep it in
@@ -87,7 +106,7 @@ controlled input.
 
 > `optional` **style?**: `"page"` \| `"verticalPage"`
 
-Defined in: [js/src/components.ts:388](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L388)
+Defined in: [js/src/components.ts:457](https://github.com/emindeniz99/react-watchos/blob/main/js/src/components.ts#L457)
 
 Which SwiftUI `TabViewStyle` to page with. Each value maps to the style
 of the same name, so this prop means exactly what SwiftUI means:
