@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.12.0...react-watchos-v0.13.0) (2026-10-04)
+
+
+### Features
+
+* **plugin:** add an icon option for the watch app ([35332cc](https://github.com/emindeniz99/react-watchos/commit/35332cc146ce4a977766e5ed475eb0d21a73d715))
+* **plugin:** add an icon option for the watch app ([90d14ab](https://github.com/emindeniz99/react-watchos/commit/90d14ab28e3ae38ff9c40ce3d23b192a3b662670))
+
 ## [0.12.0](https://github.com/emindeniz99/react-watchos/compare/react-watchos-v0.11.0...react-watchos-v0.12.0) (2026-10-04)
 
 
