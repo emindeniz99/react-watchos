@@ -91,13 +91,15 @@ step "attw (types resolve for every exports entry)"
 #   exports target that isn't in the tarball) is covered by
 #   test/packaging.test.ts, which asserts every exports target exists.
 #
-# --exclude-entrypoints  the three Expo config-plugin / post-prebuild entries.
+# --exclude-entrypoints  the Expo config-plugin / post-prebuild entries.
 #   They are resolved BY PATH STRING out of app.json and a package.json script
 #   and are never type-imported, so "no types" is the correct shape for them.
+#   The plugin is listed under both spellings: Expo CLI asks for ./app.plugin,
+#   eas-cli's resolver for ./app.plugin.js.
 "$js/node_modules/.bin/attw" "$tarball" \
   --profile esm-only \
   --ignore-rules internal-resolution-error \
-  --exclude-entrypoints ./app.plugin ./link-swift-package ./merge-target-infoplist ||
+  --exclude-entrypoints ./app.plugin ./app.plugin.js ./link-swift-package ./merge-target-infoplist ||
   failed=1
 
 step "knip (dead files, exports and dependencies)"
