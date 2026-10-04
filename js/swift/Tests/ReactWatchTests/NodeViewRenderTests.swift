@@ -205,6 +205,19 @@ final class NodeViewRenderTests: XCTestCase {
     /// heights and zero spacing make the check exact: the stack with the
     /// stranger is as tall as the stack without it, so both siblings laid out
     /// and the stranger contributed nothing.
+    /// A Button without its own label derives one from its Text descendants,
+    /// and a glyph marked accessibilityHidden must stay out of it:
+    /// `<Button><Text accessibilityHidden>*</Text><Text>Save</Text></Button>`
+    /// reads "Save", not the glyph and "Save". Found by the 0.11.0 review.
+    func testDerivedButtonLabelSkipsHiddenText() throws {
+        let node = try Self.decode(
+            #"{"id":1,"type":"Button","props":{"onPress":true},"children":["#
+                + #"{"id":2,"type":"Text","props":{"text":"\u2605","accessibilityHidden":true},"children":[]},"#
+                + #"{"id":3,"type":"Text","props":{"text":"Save"},"children":[]}]}"#)
+        XCTAssertEqual(NodeView.textContent(in: node), "Save")
+        render(node)
+    }
+
     func testUnknownNodeTypeInsideVStackRendersSiblings() throws {
         let text = { (id: Int, label: String) in
             Self.n("Text", id: id, #"{"text":"\#(label)","frame":{"height":40}}"#)
