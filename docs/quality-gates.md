@@ -23,8 +23,8 @@ has to stay fast.
 | --- | --- | --- | --- |
 | **publint** | 0.3.23 | packaging correctness of the real `pnpm pack` tarball | — (`--strict`) |
 | **attw** | 0.18.5 | do types resolve for every `exports` entry | flags + rationale in `quality.sh` |
-| **knip** | 6.32.2 | dead files / exports / dependencies | [`js/knip.jsonc`](../js/knip.jsonc) |
-| **dependency-cruiser** | 18.2.0 | the QuickJS-vs-Node module boundary, cycles | [`js/.dependency-cruiser.mjs`](../js/.dependency-cruiser.mjs) |
+| **knip** | 6.38.0 | dead files / exports / dependencies | [`js/knip.jsonc`](../js/knip.jsonc) |
+| **dependency-cruiser** | 18.4.0 | the QuickJS-vs-Node module boundary, cycles | [`js/.dependency-cruiser.mjs`](../js/.dependency-cruiser.mjs) |
 | **shellcheck** | 0.11.0 | every tracked `.sh` + `.githooks/pre-push` | — (`-x`) |
 | **typos** | 1.45.0 | spelling in source, comments, docs | [`_typos.toml`](../_typos.toml) |
 | **lychee** | 0.23.0 | internal links + `#anchors`, **offline** | [`lychee.toml`](../lychee.toml) |
