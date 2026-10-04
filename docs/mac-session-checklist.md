@@ -36,7 +36,7 @@ the demo and push a NavigationStack route; then show an `Image` with a
 remote `source` and leave the screen while it is still loading. Reasoning:
 [design-deployment-floor-2026-10-03.md](./design-deployment-floor-2026-10-03.md).
 
-## Tier 1 — DEFERRED to the watchOS 27 public release (owner call, 2026-08-22)
+## Tier 1 — the FoundationModels block (compiled 2026-10-04; device run owed)
 
 **Do not spend a session on this before mid-September 2026.** The tier needs an
 Xcode carrying the watchOS 27 SDK, and on 2026-08-22 the owner's MacBook cannot
@@ -56,35 +56,68 @@ spelling and skips the beta churn. **Revisit trigger: the watchOS 27 SDK is in a
 release Xcode.** Until then this tier's status is *blocked*, not *pending* — a
 Mac session should spend itself on Tier 2 instead.
 
-### What it is, once it is unblocked
+### Result of the first Xcode 27 compile (2026-10-04)
 
-Exactly one thing, and it is the biggest un-compiled surface in the tree:
-**everything behind `#if canImport(FoundationModels)`**. FoundationModels ships
-in the **watchOS 27** SDK (beta); CI's runner is Xcode 26.x, where `canImport`
-is false and the entire block compiles *out*. Three waves of work sit behind
-that door and have **never been compiled by anything**:
+Xcode 27.1 beta 1, watchOS 27.0 SDK. The tier's premise was wrong: the
+problem was the model, not spelling. `canImport(FoundationModels)` is true on
+the watch SDK, but `SystemLanguageModel`, `LanguageModelSession.GenerationError`
+and `LanguageModelSession.ToolCallError` are marked unavailable on watchOS,
+and `LanguageModelSession` takes `model: some LanguageModel`. The only
+`LanguageModel` the watch SDK offers is `PrivateCloudComputeLanguageModel`:
+Apple Intelligence's server model, reached over the network, metered by a
+per-person daily quota, and gated by the managed
+`com.apple.developer.private-cloud-compute` entitlement. So 0.11.0 and
+earlier fail to compile under Xcode 27 with six errors in
+`ReactWatchHost.swift`, for every consumer, whether or not they call the AI
+API. Everything else in the block (streaming, `DynamicGenerationSchema`,
+`JSBridgedTool`'s conformance) type-checked as written.
 
-1. `generateText` streaming — `ResponseStream`/`Snapshot`, the `snapshot.content`
-   element shape, `LanguageModelSession(instructions:)` (Apple's docs now show
-   an `@InstructionsBuilder` init — the spelling most likely to be wrong)
-2. `generateObject` — `dynamicSchema(from:)` against the real
-   `DynamicGenerationSchema` initializer labels, and `GenerationSchema`'s
-   duplicate-name throw
-3. Tool calling — `JSBridgedTool`'s conformance (`GeneratedContent` satisfying
-   both associated types), the `@concurrent` witness, `ToolCallError.underlyingError`
-   unwrapping, and the double-resume guard under real cancellation
+The port (0.12.0, see MIGRATIONS.md) moved the AI surface onto that model:
 
-**With Xcode 27 installed, the whole tier is one command:**
+- The session is `LanguageModelSession(model: PrivateCloudComputeLanguageModel(), …)`.
+  `generate()` checks the model's `availability` first, as Apple's
+  documentation advises, and rejects `UNAVAILABLE` naming the reason.
+- `aiAvailability` resolves `available`, `deviceNotEligible`,
+  `systemNotReady` or `unsupported`; JS exposes it as `getAIAvailability()`,
+  replacing the boolean `isOnDeviceAIAvailable()`.
+- The watch SDK throws `LanguageModelError`,
+  `PrivateCloudComputeLanguageModel.Error` and `LanguageModelSession.Error`.
+  `AIErrorCode.forModelError` maps their case names; the cloud failures get
+  three new codes, `NETWORK_FAILURE`, `QUOTA_LIMIT_REACHED` and
+  `SERVICE_UNAVAILABLE`.
+- `ToolCallError` has no watchOS counterpart, and Apple's documentation does
+  not say how a tool's thrown error reaches the `respond` call site on
+  watchOS. The host records a failed JS tool call itself and rejects
+  `TOOL_FAILED` from that record, so the code does not depend on the
+  framework's wrapping.
+- The config plugin's `privateCloudCompute` option adds the entitlement.
+  It is off by default: an App ID without Apple's grant fails provisioning.
 
-```sh
-pnpm --filter react-watchos test:swift:watch   # xcodebuild test, watchOS sim
-```
+`xcodebuild build -scheme ReactWatchHost-Package -destination
+generic/platform=watchOS` succeeds with the block compiled in. That is ② for
+compilation only. No test drives the FoundationModels path: the simulator
+has no Private Cloud Compute, and the hostless suite has no model.
 
-Expect compile errors in the three areas above rather than test failures — the
-Linux suite already pins the wire, the plan, the schema subset and every JS
-semantic, so what is unproven is Swift *spelling* against a beta SDK. Fix the
-spellings, keep the design notes' honesty sections updated, and the AI section
-of the roadmap moves from "shipped, never compiled" to ②.
+The stopgap run before the port also executed the package suite on a
+watchOS 27.0 simulator: 554 tests passed and four crashed, all
+`NodeViewRenderTests.testFixtureTreediff*`, with `Fatal error: no current
+update to enqueue action to` after SwiftUI logs "Unable to render flattened
+version of … NavigationStackRepresentable". That is the hostless-harness
+NavigationStack limit, now a trap on watchOS 27. CI runs Xcode 26 and does
+not see it.
+
+### What is left
+
+A real model response. It needs a team that holds the Private Cloud Compute
+entitlement, a build with `privateCloudCompute: true`, and an Apple Watch on
+watchOS 27 that supports Apple Intelligence. On that watch, check in order:
+`getAIAvailability()` against the device's real state; a plain
+`generateText`; streaming partials; `generateObject` against a nested schema;
+a tool call that succeeds and one whose handler throws (the `TOOL_FAILED`
+path above is the part most likely to surprise); aborting mid-generation;
+and the quota codes, which Xcode can simulate (Edit Scheme ▸ Run ▸ Options ▸
+"Simulated Apple Foundation Models Availability"). Until then the roadmap's
+AI section stays "compiled, never run".
 
 ## Tier 2 — needs a real Apple Watch (③). A simulator cannot answer these.
 

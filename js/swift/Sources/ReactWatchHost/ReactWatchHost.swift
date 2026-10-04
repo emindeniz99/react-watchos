@@ -1445,19 +1445,19 @@ final class ReactWatchModel {
         }
     }
 
-    /// Resolves the invoke with whether on-device AI can run now (CX-002):
-    /// `SystemLanguageModel.default.isAvailable` on watchOS 27+, else `false`.
-    /// On an older SDK FoundationModels isn't in the watch SDK, so this compiles
-    /// to the `false` fallthrough — building the real query needs Xcode 27.
+    /// Resolves the invoke with the AI model's availability (CX-002) as an
+    /// `AIAvailability` string: `PrivateCloudComputeLanguageModel.availability`
+    /// on watchOS 27+, the only `LanguageModel` the watch SDK has. On an older
+    /// SDK FoundationModels isn't in the watch SDK and on an older OS the model
+    /// doesn't exist, so both resolve `unsupported`.
     private func aiAvailability(id: Int) {
+        var state = AIAvailability.unsupported
         #if canImport(FoundationModels)
         if #available(watchOS 27.0, *) {
-            let available = SystemLanguageModel.default.isAvailable
-            runtime?.resolveInvoke(id: id, resultJson: available ? "true" : "false")
-            return
+            state = Self.availability(of: PrivateCloudComputeLanguageModel())
         }
         #endif
-        runtime?.resolveInvoke(id: id, resultJson: "false")
+        runtime?.resolveInvoke(id: id, resultJson: state.resultJson)
     }
 
     /// The one reject path for the generate channel — always the typed
@@ -1467,8 +1467,9 @@ final class ReactWatchModel {
             id: id, errorJson: AIErrorJSON.make(code: code, message: message))
     }
 
-    /// On-device generation via Foundation Models (js/src/ai.ts): one-shot
-    /// text, cumulative-snapshot streaming (`ai.partial` pushes), or guided
+    /// Generation via Foundation Models (js/src/ai.ts) on the model the watch
+    /// has, Apple Intelligence on Private Cloud Compute: one-shot text,
+    /// cumulative-snapshot streaming (`ai.partial` pushes), or guided
     /// generation against a schema (`generateObject`). Decode + validation
     /// live in ReactWatchSupport's `GeneratePlan` (Linux-tested); only the
     /// FoundationModels mapping is SDK-gated here.
@@ -1488,19 +1489,19 @@ final class ReactWatchModel {
             return
         }
         #if canImport(FoundationModels)
-        // Foundation Models' LanguageModelSession is watchOS 27.0+ (Apple docs;
-        // it's 26.0 on iOS/macOS but only reached the watch at 27.0, in beta) —
-        // the gate was wrongly 26.0 (CX-002). Building this path needs the
-        // watchOS 27 SDK (Xcode 27); on an older SDK FoundationModels isn't in
-        // the watch SDK, so this whole block compiles out and generate() rejects
-        // below with "on-device AI unavailable".
+        // Foundation Models reached the watch at watchOS 27.0 (it's 26.0 on
+        // iOS/macOS; the gate was wrongly 26.0 — CX-002). Building this path
+        // needs the watchOS 27 SDK (Xcode 27); on an older SDK FoundationModels
+        // isn't in the watch SDK, so this block compiles out and generate()
+        // rejects below.
         if #available(watchOS 27.0, *) {
             startFoundationModelsGenerate(id: id, plan: plan)
             return
         }
         #endif
         rejectGenerate(
-            id: id, code: .unavailable, message: "on-device AI unavailable")
+            id: id, code: .unavailable,
+            message: "AI unavailable: needs watchOS 27 and a build with the watchOS 27 SDK")
     }
 
     /// Stops the model decoding for one request (js abort / watchdog — the
@@ -1541,19 +1542,50 @@ final class ReactWatchModel {
     }
 
     #if canImport(FoundationModels)
+    /// `PrivateCloudComputeLanguageModel.availability` as the wire's
+    /// `AIAvailability`. A reason newer than this binary is `unsupported`:
+    /// the model can't serve, and the binary can't say why.
+    @available(watchOS 27.0, *)
+    private static func availability(
+        of model: PrivateCloudComputeLanguageModel
+    ) -> AIAvailability {
+        switch model.availability {
+        case .available: return .available
+        case .unavailable(.deviceNotEligible): return .deviceNotEligible
+        case .unavailable(.systemNotReady): return .systemNotReady
+        case .unavailable: return .unsupported
+        }
+    }
+
     @available(watchOS 27.0, *)
     private func startFoundationModelsGenerate(id: Int, plan: GeneratePlan) {
+        // The watch SDK's only LanguageModel: Apple Intelligence running on
+        // Private Cloud Compute. It needs the network and a per-person daily
+        // quota, and the app needs the managed
+        // com.apple.developer.private-cloud-compute entitlement.
+        let model = PrivateCloudComputeLanguageModel()
+        // Apple's guidance: check availability before the request. It also
+        // names the reason, which a failed request would not.
+        let availability = Self.availability(of: model)
+        guard availability == .available else {
+            rejectGenerate(
+                id: id, code: .unavailable,
+                message: "Apple Intelligence unavailable: \(availability.rawValue)")
+            return
+        }
         let gen = generation
+        let toolFailures = ToolFailureLog()
         let task = Task { [weak self] in
             // Tool schemas build first, outside the main do: a
             // GenerationSchema throw HERE is a schema problem (colliding
             // derived type names inside one tool), not a generation failure,
             // so it rejects INVALID_SCHEMA naming the tool rather than
-            // falling into the generic INTERNAL arm.
+            // falling into the generic classification.
             let fmTools: [any Tool]
             do {
                 fmTools = try Self.bridgedTools(
-                    for: plan, host: self, generation: gen, requestId: id)
+                    for: plan, host: self, generation: gen, requestId: id,
+                    failures: toolFailures)
             } catch {
                 await MainActor.run {
                     guard let self, gen == self.generation else { return }
@@ -1566,19 +1598,19 @@ final class ReactWatchModel {
             }
             do {
                 let session = LanguageModelSession(
+                    model: model,
                     tools: fmTools,
-                    instructions: plan.instructions ?? ""
+                    instructions: plan.instructions
                 )
                 var options = GenerationOptions()
                 if let t = plan.temperature { options.temperature = t }
                 if let max = plan.maxTokens { options.maximumResponseTokens = max }
                 if let schemaNode = plan.schema {
                     // generateObject: guided generation against the runtime
-                    // schema. GenerationSchema's init throws on a schema
-                    // DynamicGenerationSchema can't take (e.g. colliding type
-                    // names two nested objects derived from the same property
-                    // name) — mapped to INVALID_SCHEMA below via
-                    // GenerationError/unsupportedGuide or the generic catch.
+                    // schema. GenerationSchema's init throws SchemaError on a
+                    // schema DynamicGenerationSchema can't take (e.g. colliding
+                    // type names two nested objects derived from the same
+                    // property name) — INVALID_SCHEMA via `classify`.
                     let schema = try GenerationSchema(
                         root: Self.dynamicSchema(from: schemaNode, name: "Output"),
                         dependencies: [])
@@ -1638,68 +1670,92 @@ final class ReactWatchModel {
                             id: id, text: response.content)
                     }
                 }
-            } catch is CancellationError {
+            } catch {
                 // cancelGenerate (abort/watchdog — js already settled) or a
                 // reload's teardown (the runtime that asked is gone). Either
                 // way nobody is listening; settling would only race the next
-                // generation's id space.
-            } catch let error as LanguageModelSession.ToolCallError {
-                // A tool the model invoked failed. FM wraps whatever the
-                // tool's `call` threw and rethrows it here, at the respond
-                // call site (docs JSON, 2026-08-22). Unwrap OUR two: a
-                // cancelled round trip means js already settled
-                // (abort/watchdog/teardown) — the CancellationError posture,
-                // silent; an AIToolFailure carries the JS handler's message.
-                if error.underlyingError is CancellationError { return }
-                let message =
-                    (error.underlyingError as? AIToolFailure)?.message
-                    ?? error.localizedDescription
-                await MainActor.run {
-                    guard let self, gen == self.generation else { return }
-                    self.generateTasks.removeValue(forKey: id)
-                    self.rejectGenerate(
-                        id: id, code: .toolFailed,
-                        message: "tool \"\(error.tool.name)\" failed: \(message)"
-                    )
-                }
-            } catch let error as LanguageModelSession.GenerationError {
-                // Transcribe the FM case to its NAME; the name -> wire-code
-                // classification is the Linux-tested table in
-                // AIErrorCode.forGenerationError (AIPlanTests pins it).
-                let caseName: String
-                switch error {
-                case .assetsUnavailable: caseName = "assetsUnavailable"
-                case .guardrailViolation: caseName = "guardrailViolation"
-                case .exceededContextWindowSize:
-                    caseName = "exceededContextWindowSize"
-                case .unsupportedLanguageOrLocale:
-                    caseName = "unsupportedLanguageOrLocale"
-                case .decodingFailure: caseName = "decodingFailure"
-                case .rateLimited: caseName = "rateLimited"
-                case .concurrentRequests: caseName = "concurrentRequests"
-                case .refusal: caseName = "refusal"
-                case .unsupportedGuide: caseName = "unsupportedGuide"
-                @unknown default: caseName = "unknown"
+                // generation's id space. Checked on the TASK, not the error:
+                // a cancelled tool round trip may reach here wrapped.
+                if Task.isCancelled || error is CancellationError { return }
+                // A failed tool call outranks whatever the framework threw:
+                // the record is ours, so TOOL_FAILED does not depend on how
+                // FoundationModels wraps a tool's error (undocumented on
+                // watchOS, which has no ToolCallError).
+                var (code, message) = Self.classify(error)
+                if let toolFailure = await toolFailures.first {
+                    (code, message) = (.toolFailed, toolFailure)
                 }
                 await MainActor.run {
                     guard let self, gen == self.generation else { return }
                     self.generateTasks.removeValue(forKey: id)
-                    self.rejectGenerate(
-                        id: id,
-                        code: AIErrorCode.forGenerationError(caseName: caseName),
-                        message: error.localizedDescription)
-                }
-            } catch {
-                await MainActor.run {
-                    guard let self, gen == self.generation else { return }
-                    self.generateTasks.removeValue(forKey: id)
-                    self.rejectGenerate(
-                        id: id, code: .internalError,
-                        message: error.localizedDescription)
+                    self.rejectGenerate(id: id, code: code, message: message)
                 }
             }
         }
         generateTasks[id] = task
+    }
+
+    /// A generation failure as a wire code + message. Each FoundationModels
+    /// error case is transcribed to its NAME; the name -> code classification
+    /// is the Linux-tested table in `AIErrorCode.forModelError` (AIPlanTests
+    /// pins it). `@unknown default` names a case this binary predates
+    /// "unknown", which that table answers INTERNAL.
+    @available(watchOS 27.0, *)
+    private static func classify(_ error: any Error) -> (AIErrorCode, String) {
+        let caseName: String
+        switch error {
+        case let error as LanguageModelError:
+            switch error {
+            case .contextSizeExceeded: caseName = "contextSizeExceeded"
+            case .rateLimited: caseName = "rateLimited"
+            case .guardrailViolation: caseName = "guardrailViolation"
+            case .refusal: caseName = "refusal"
+            case .unsupportedCapability: caseName = "unsupportedCapability"
+            case .unsupportedTranscriptContent:
+                caseName = "unsupportedTranscriptContent"
+            case .unsupportedGenerationGuide:
+                caseName = "unsupportedGenerationGuide"
+            case .unsupportedLanguageOrLocale:
+                caseName = "unsupportedLanguageOrLocale"
+            case .timeout: caseName = "timeout"
+            @unknown default: caseName = "unknown"
+            }
+        case let error as PrivateCloudComputeLanguageModel.Error:
+            switch error {
+            case .networkFailure: caseName = "networkFailure"
+            case .quotaLimitReached: caseName = "quotaLimitReached"
+            case .serviceUnavailable: caseName = "serviceUnavailable"
+            @unknown default: caseName = "unknown"
+            }
+        case let error as LanguageModelSession.Error:
+            switch error {
+            case .concurrentRequests: caseName = "concurrentRequests"
+            case .transcriptMutationWhileResponding:
+                caseName = "transcriptMutationWhileResponding"
+            @unknown default: caseName = "unknown"
+            }
+        case is GenerationSchema.SchemaError:
+            return (.invalidSchema, error.localizedDescription)
+        default:
+            return (.internalError, error.localizedDescription)
+        }
+        return (
+            AIErrorCode.forModelError(caseName: caseName),
+            error.localizedDescription
+        )
+    }
+
+    /// The first tool failure of one generation, as its reject message. The
+    /// tools write it (concurrently — the framework may run tools in
+    /// parallel), the generation's catch reads it; an actor because both
+    /// sides are already async.
+    @available(watchOS 27.0, *)
+    private actor ToolFailureLog {
+        private(set) var first: String?
+
+        func record(_ message: String) {
+            if first == nil { first = message }
+        }
     }
 
     /// Wire schema node -> DynamicGenerationSchema. The subset was validated
@@ -1770,11 +1826,12 @@ final class ReactWatchModel {
     /// The plan's declared tools as FM `Tool` conformances. Each tool's
     /// argument schema is its OWN `GenerationSchema`, so derived nested type
     /// names cannot collide across tools; the root type is the model-visible
-    /// "<name>Arguments".
+    /// "<name>Arguments". A failed JS handler is recorded in `failures`
+    /// before it is thrown into the framework (see `ToolFailureLog`).
     @available(watchOS 27.0, *)
     private static func bridgedTools(
         for plan: GeneratePlan, host: ReactWatchModel?, generation: Int,
-        requestId: Int
+        requestId: Int, failures: ToolFailureLog
     ) throws -> [any Tool] {
         guard let specs = plan.tools, !specs.isEmpty else { return [] }
         return try specs.map { spec in
@@ -1786,10 +1843,16 @@ final class ReactWatchModel {
                         from: spec.schema, name: spec.name + "Arguments"),
                     dependencies: []),
                 perform: { [weak host] argumentsJson in
-                    try await bridgeToolCall(
-                        host: host, generation: generation,
-                        requestId: requestId, tool: spec.name,
-                        argumentsJson: argumentsJson)
+                    do {
+                        return try await bridgeToolCall(
+                            host: host, generation: generation,
+                            requestId: requestId, tool: spec.name,
+                            argumentsJson: argumentsJson)
+                    } catch let failure as AIToolFailure {
+                        await failures.record(
+                            "tool \"\(spec.name)\" failed: \(failure.message)")
+                        throw failure
+                    }
                 })
         }
     }

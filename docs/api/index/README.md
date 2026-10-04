@@ -154,6 +154,7 @@ roots at the repo for stable source links (see js/typedoc.json).
 ## Type Aliases
 
 - [ActivityMoveMode](type-aliases/ActivityMoveMode.md)
+- [AIAvailability](type-aliases/AIAvailability.md)
 - [AIErrorCode](type-aliases/AIErrorCode.md)
 - [AISchema](type-aliases/AISchema.md)
 - [BleState](type-aliases/BleState.md)
@@ -305,6 +306,7 @@ roots at the repo for stable source links (see js/typedoc.json).
 - [fetchAndApplyUpdate](functions/fetchAndApplyUpdate.md)
 - [generateObject](functions/generateObject.md)
 - [generateText](functions/generateText.md)
+- [getAIAvailability](functions/getAIAvailability.md)
 - [getCalendarEvents](functions/getCalendarEvents.md)
 - [getConnectivityState](functions/getConnectivityState.md)
 - [getCurrentLocation](functions/getCurrentLocation.md)
@@ -318,7 +320,6 @@ roots at the repo for stable source links (see js/typedoc.json).
 - [handleIntent](functions/handleIntent.md)
 - [href](functions/href.md)
 - [inspectorSnapshot](functions/inspectorSnapshot.md)
-- [isOnDeviceAIAvailable](functions/isOnDeviceAIAvailable.md)
 - [listScheduledWorkoutPlans](functions/listScheduledWorkoutPlans.md)
 - [markUpdateHealthy](functions/markUpdateHealthy.md)
 - [matchRoute](functions/matchRoute.md)

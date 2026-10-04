@@ -15,6 +15,7 @@ import { WatchRoot } from "./renderer";
 
 export type {
   AbortSignalLike,
+  AIAvailability,
   AIError,
   AIErrorCode,
   AIObjectSchema,
@@ -29,7 +30,7 @@ export {
   AI_TOOL_CALL_EVENT,
   generateObject,
   generateText,
-  isOnDeviceAIAvailable,
+  getAIAvailability,
 } from "./ai";
 export type { ScenePhase } from "./appState";
 export {

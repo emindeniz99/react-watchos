@@ -5,65 +5,111 @@ import Foundation
 /// `InvokeErrorCode` is: a reject site that can spell an ad-hoc string ships
 /// one (twice, historically), and no JS `if (e.code === …)` ever matches it.
 ///
-/// `ABORTED` and `TIMEOUT` are listed even though native never sends them —
-/// they are minted JS-side (the abort signal, the inactivity watchdog) — so
-/// the whole vocabulary is closed in one place per language and the two
-/// spellings can be pinned against each other by test.
+/// `ABORTED` and `DECODING_FAILURE` are listed even though native never sends
+/// them — they are minted JS-side (the abort signal, a structured result that
+/// is not JSON) — so the whole vocabulary is closed in one place per language
+/// and the two spellings can be pinned against each other by test.
 public enum AIErrorCode: String, Sendable, CaseIterable {
-    /// No FoundationModels on this build/OS, Apple Intelligence off, or the
-    /// model assets aren't on the watch (`GenerationError.assetsUnavailable`).
+    /// No model to ask: a build without the watchOS 27 SDK, an OS below
+    /// watchOS 27, `PrivateCloudComputeLanguageModel.availability` reporting
+    /// `.unavailable` (device not eligible, system not ready), or the model
+    /// lacking a capability the request needs
+    /// (`LanguageModelError.unsupportedCapability`).
     case unavailable = "UNAVAILABLE"
     /// Apple's safety guardrails flagged prompt or response.
     case guardrailViolation = "GUARDRAIL_VIOLATION"
-    /// Prompt + response no longer fit the model's context window.
+    /// Prompt + response no longer fit the model's context
+    /// (`LanguageModelError.contextSizeExceeded`).
     case contextWindowExceeded = "CONTEXT_WINDOW_EXCEEDED"
-    /// The prompt's language/locale isn't supported by the on-device model.
+    /// The prompt's language/locale isn't supported by the model.
     case unsupportedLanguage = "UNSUPPORTED_LANGUAGE"
-    /// The model produced output that doesn't decode as the asked-for shape
-    /// (native `GenerationError.decodingFailure`, or JS failing to parse a
-    /// structured result) — the "malformed, not garbage" rejection.
+    /// JS-side only: a `generateObject` result that does not parse as JSON —
+    /// the "malformed, not garbage" rejection.
     case decodingFailure = "DECODING_FAILURE"
-    /// The system rate-limited the app's generations.
+    /// The system rate-limited the app's generations (wait and retry).
     case rateLimited = "RATE_LIMITED"
-    /// A second request hit a session that only serves one at a time.
+    /// A second request hit a session that only serves one at a time
+    /// (`LanguageModelSession.Error.concurrentRequests`).
     case concurrentRequests = "CONCURRENT_REQUESTS"
     /// The model declined to answer the prompt.
     case refusal = "REFUSAL"
-    /// The `generateObject` schema is outside the supported subset (or
-    /// FoundationModels rejected it — `GenerationError.unsupportedGuide`).
-    /// Also a tool's `parameters` schema, same subset, `tools.<name>` path.
+    /// The `generateObject` schema is outside the supported subset, or
+    /// FoundationModels rejected it (`GenerationSchema.SchemaError`,
+    /// `LanguageModelError.unsupportedGenerationGuide`). Also a tool's
+    /// `parameters` schema, same subset, `tools.<name>` path.
     case invalidSchema = "INVALID_SCHEMA"
     /// A tool the model invoked failed: the JS handler threw or replied
-    /// malformed (`LanguageModelSession.ToolCallError` natively — a distinct
-    /// wrapper type, not a `GenerationError` case, which is why it has no row
-    /// in `forGenerationError`).
+    /// malformed. Minted by the host from its own record of the failed call,
+    /// not from a FoundationModels error, so it has no row in
+    /// `forModelError` (the watchOS SDK has no `ToolCallError`).
     case toolFailed = "TOOL_FAILED"
+    /// The request to Private Cloud Compute could not complete because of the
+    /// network (`PrivateCloudComputeLanguageModel.Error.networkFailure`).
+    /// The watch has no on-device model to fall back to.
+    case networkFailure = "NETWORK_FAILURE"
+    /// The person used up their daily Private Cloud Compute request quota
+    /// (`PrivateCloudComputeLanguageModel.Error.quotaLimitReached`). Unlike
+    /// `RATE_LIMITED`, waiting a moment does not help: the quota refreshes
+    /// later, or the person upgrades their iCloud+ plan.
+    case quotaLimitReached = "QUOTA_LIMIT_REACHED"
+    /// Private Cloud Compute could not take the request
+    /// (`PrivateCloudComputeLanguageModel.Error.serviceUnavailable`).
+    case serviceUnavailable = "SERVICE_UNAVAILABLE"
+    /// The request took too long: natively `LanguageModelError.timeout`, or
+    /// the JS inactivity watchdog (no settle, no partial for 60 s).
+    case timeout = "TIMEOUT"
     /// JS-side only: the caller's abort signal fired.
     case aborted = "ABORTED"
-    /// JS-side only: the inactivity watchdog fired (no settle, no partial).
-    case timeout = "TIMEOUT"
     /// A native error with no better classification.
     case internalError = "INTERNAL"
 
-    /// Maps a FoundationModels `LanguageModelSession.GenerationError` CASE NAME
-    /// to a wire code. Pure and name-keyed so this — the actual
-    /// classification — is Linux-tested; the SDK-gated host switch only
-    /// transcribes each FM case to its name (a step that can't silently drift:
+    /// Maps a FoundationModels error CASE NAME to a wire code. The watchOS
+    /// SDK throws three error enums at a generation — `LanguageModelError`,
+    /// `PrivateCloudComputeLanguageModel.Error` and
+    /// `LanguageModelSession.Error` — and their case names do not collide, so
+    /// one table classifies all three. Pure and name-keyed so this, the
+    /// actual classification, is Linux-tested; the SDK-gated host switch only
+    /// transcribes each case to its name (a step that can't silently drift:
     /// a renamed case fails the host compile on the watch SDK).
-    public static func forGenerationError(caseName: String) -> AIErrorCode {
+    public static func forModelError(caseName: String) -> AIErrorCode {
         switch caseName {
-        case "assetsUnavailable": return .unavailable
-        case "guardrailViolation": return .guardrailViolation
-        case "exceededContextWindowSize": return .contextWindowExceeded
-        case "unsupportedLanguageOrLocale": return .unsupportedLanguage
-        case "decodingFailure": return .decodingFailure
+        // LanguageModelError
+        case "contextSizeExceeded": return .contextWindowExceeded
         case "rateLimited": return .rateLimited
-        case "concurrentRequests": return .concurrentRequests
+        case "guardrailViolation": return .guardrailViolation
         case "refusal": return .refusal
-        case "unsupportedGuide": return .invalidSchema
+        case "unsupportedCapability": return .unavailable
+        case "unsupportedGenerationGuide": return .invalidSchema
+        case "unsupportedLanguageOrLocale": return .unsupportedLanguage
+        case "timeout": return .timeout
+        // PrivateCloudComputeLanguageModel.Error
+        case "networkFailure": return .networkFailure
+        case "quotaLimitReached": return .quotaLimitReached
+        case "serviceUnavailable": return .serviceUnavailable
+        // LanguageModelSession.Error
+        case "concurrentRequests": return .concurrentRequests
+        // unsupportedTranscriptContent and transcriptMutationWhileResponding
+        // mean this bridge built or touched the transcript wrongly — it does
+        // neither on purpose — so they are INTERNAL, with every case this
+        // binary predates.
         default: return .internalError
         }
     }
+}
+
+/// What `getAIAvailability()` resolves (js/src/ai.ts `AIAvailability`): the
+/// state of `PrivateCloudComputeLanguageModel.availability`, plus
+/// `unsupported` for a host that has no model to ask (a build without the
+/// watchOS 27 SDK, an OS below watchOS 27) or an unavailable reason this
+/// binary predates.
+public enum AIAvailability: String, Sendable, CaseIterable {
+    case available
+    case deviceNotEligible
+    case systemNotReady
+    case unsupported
+
+    /// The invoke resolve payload: the raw value as a JSON string literal.
+    public var resultJson: String { "\"\(rawValue)\"" }
 }
 
 /// The one way to build a generate reject payload (`{code, message}`) — the
@@ -238,9 +284,10 @@ public enum AIToolReply: Equatable, Sendable {
 }
 
 /// Thrown inside the SDK-gated tool conformance when JS reports `{error}` (or
-/// replies malformed) — FoundationModels wraps it in
-/// `LanguageModelSession.ToolCallError` and rethrows at the `respond` call
-/// site, where the host maps it to `TOOL_FAILED` with this message.
+/// replies malformed). The host records it per generation before throwing it
+/// into FoundationModels, and rejects `TOOL_FAILED` from that record when the
+/// generation fails: the watchOS SDK has no `ToolCallError`, and how the
+/// framework surfaces a tool's thrown error there is not documented.
 public struct AIToolFailure: Error, Equatable, Sendable {
     public let message: String
     public init(message: String) { self.message = message }

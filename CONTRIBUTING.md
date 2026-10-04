@@ -45,10 +45,14 @@ feature-set model supersedes the earlier scalar capability gate).
    (`https://developer.apple.com/tutorials/data/documentation/<framework>.json`)
    and read `platforms`/`introducedAt`/`beta`. Don't inherit a "platform X
    doesn't support Y" claim from a review without checking. Concrete case:
-   FoundationModels **is** on watchOS 27.0+ (beta) via `SystemLanguageModel` —
-   the bug was the code gating at `watchOS 26.0`, not a missing framework. (Also:
-   `#if canImport(FoundationModels)` is a compile-time SDK check, so "always
-   rejects" can just mean the build SDK was too old.)
+   FoundationModels **is** on watchOS 27.0+ — the bug was the code gating at
+   `watchOS 26.0`, not a missing framework. (Also: `#if
+   canImport(FoundationModels)` is a compile-time SDK check, so "always
+   rejects" can just mean the build SDK was too old.) The same case shows the
+   limit of a framework-level check: the framework is on the watch, but its
+   `SystemLanguageModel` is not (the SDK marks it unavailable on watchOS); the
+   watch's model is `PrivateCloudComputeLanguageModel`. Check the symbol you
+   call, and when an SDK is installed, read its `.swiftinterface`.
 
 3. **Keep it JS-driven.** App logic, UI, and data live in JS/React; the Swift
    side is a thin binding layer (engine embedding, the SwiftUI interpreter,

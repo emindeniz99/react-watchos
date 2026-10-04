@@ -865,8 +865,11 @@ function CrownScreen() {
 }
 
 /**
- * On-device AI via Apple's Foundation Models (~3B LLM, watchOS 27+). The
- * prompt runs entirely on the watch — no network, no phone. The Generate
+ * Apple Intelligence via Foundation Models (watchOS 27+). On the watch the
+ * model is Apple's server model on Private Cloud Compute, so the prompt needs
+ * a network connection and spends the wearer's daily quota; the build needs
+ * the managed Private Cloud Compute entitlement (`privateCloudCompute`
+ * plugin option), which this demo does not request. The Generate
  * button is double-tap-enabled (primaryAction), so it fires on a pinch.
  * Streaming: `onPartial` repaints the result as the model decodes (cumulative
  * snapshots), so the screen reads like typing instead of stalling on
@@ -912,7 +915,7 @@ function AIScreen() {
         <Text>Generate</Text>
       </Button>
       <Text size={12} color="secondary">
-        {result || "Runs on-device · double-tap to generate"}
+        {result || "Apple Intelligence · double-tap to generate"}
       </Text>
     </VStack>
   );

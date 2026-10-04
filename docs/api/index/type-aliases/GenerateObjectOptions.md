@@ -8,7 +8,7 @@
 
 > **GenerateObjectOptions** = `Omit`\<[`GenerateOptions`](../interfaces/GenerateOptions.md), `"onPartial"` \| `"partialIntervalMs"` \| `"tools"`\>
 
-Defined in: [js/src/ai.ts:268](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L268)
+Defined in: [js/src/ai.ts:290](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L290)
 
 Options for [generateObject](../functions/generateObject.md): everything text generation takes minus
  the partial-stream knobs — a structured generation settles once (structured

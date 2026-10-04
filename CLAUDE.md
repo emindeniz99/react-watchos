@@ -36,8 +36,11 @@ Three project rules that bite if you miss them:
    (`https://developer.apple.com/tutorials/data/documentation/<framework>.json`),
    read `platforms`/`introducedAt`/`beta`. `#if canImport(...)` is a compile-time
    SDK check — "always rejects" can just mean the build SDK was too old.
-   (FoundationModels **is** on watchOS 27.0+ beta; the bug was the `watchOS 26.0`
-   gate.)
+   (FoundationModels **is** on watchOS 27.0+; the bug was the `watchOS 26.0`
+   gate. But check the SYMBOL, not just the framework: `SystemLanguageModel`
+   is unavailable on watchOS, and the watch's model is
+   `PrivateCloudComputeLanguageModel` — the SDK's `.swiftinterface` is ground
+   truth.)
 
 3. **Research prior art / SOTA before designing a NEW subsystem, not after.**
    "Read before you write" covers *our* code; this

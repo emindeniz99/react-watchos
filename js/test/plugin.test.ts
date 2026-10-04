@@ -507,6 +507,21 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect(off.entitlements["aps-environment"]).toBeUndefined();
   });
 
+  it("privateCloudCompute adds the managed PCC entitlement; off omits it", () => {
+    // generateText's model on watchOS is Apple Intelligence on Private Cloud
+    // Compute, gated by a MANAGED entitlement Apple grants per team. Emitting
+    // it by default would break provisioning for every consumer without the
+    // grant, so it appears only when asked for.
+    const on = watchTargetConfig({ ...demoOpts, privateCloudCompute: true });
+    expect(on.entitlements["com.apple.developer.private-cloud-compute"]).toBe(
+      true,
+    );
+    const off = watchTargetConfig(demoOpts);
+    expect(
+      off.entitlements["com.apple.developer.private-cloud-compute"],
+    ).toBeUndefined();
+  });
+
   it("keeps ATS intact unless localNetworking is on", () => {
     // NSAllowsLocalNetworking is a GLOBAL ATS exception, and an Info.plist is
     // per target, not per build configuration — so an always-on emission
@@ -649,6 +664,13 @@ describe("resolveOptions (defaults reproduce the demo)", () => {
     );
   });
 
+  it("privateCloudCompute is an explicit opt-in", () => {
+    expect(resolveOptions(config, {}).privateCloudCompute).toBe(false);
+    expect(
+      resolveOptions(config, { privateCloudCompute: true }).privateCloudCompute,
+    ).toBe(true);
+  });
+
   it("localNetworking is an explicit opt-in", () => {
     // Same least-privilege default as the entitlements: the ATS exception is
     // a dev-flow need, and a release build must not inherit it silently.
@@ -742,6 +764,26 @@ describe("withEasAppExtensions (EAS extra-target signing)", () => {
         },
       },
     ]);
+  });
+
+  it("propagates the PCC entitlement to the watch entry only when opted in", () => {
+    // EAS provisions from these entries before the Xcode project exists, so
+    // an entitlement missing here would be missing from the cloud-built
+    // profile even though the local target carries it.
+    const watchEntitlements = (opts: object) =>
+      (
+        extensionsOf(
+          withEasAppExtensions({ ...config }, resolveOptions(config, opts)),
+        ) as Array<{ entitlements: Record<string, unknown> }>
+      )[0]?.entitlements;
+    expect(
+      watchEntitlements({ privateCloudCompute: true })?.[
+        "com.apple.developer.private-cloud-compute"
+      ],
+    ).toBe(true);
+    expect(
+      watchEntitlements({})?.["com.apple.developer.private-cloud-compute"],
+    ).toBeUndefined();
   });
 
   it("uses a non-dot suffix verbatim, matching apple-targets' derivation", () => {

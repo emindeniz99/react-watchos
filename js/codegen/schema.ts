@@ -2658,9 +2658,10 @@ export const hostMethods: HostMethod[] = [
       { name: "replyJson", type: "string" },
     ],
   },
-  // Runtime "can this watch run on-device AI now?" query (CX-002), distinct from
-  // the build-time `ai` feature: a watch on the right OS may still be unable
-  // (model not downloaded / Apple Intelligence off). Routed via invoke.
+  // Runtime "can the AI model serve this watch now, and if not why?" query
+  // (CX-002), distinct from the build-time `ai` feature: a watch on the right
+  // OS may still be unable (device not eligible, Private Cloud Compute not
+  // ready). Resolves an `AIAvailability` string. Routed via invoke.
   {
     name: "aiAvailability",
     targets: ["watch"],

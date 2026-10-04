@@ -8,10 +8,12 @@
 
 > **generateText**(`prompt`, `options?`): `Promise`\<`string`\>
 
-Defined in: [js/src/ai.ts:765](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L765)
+Defined in: [js/src/ai.ts:826](https://github.com/emindeniz99/react-watchos/blob/main/js/src/ai.ts#L826)
 
-Generates text with the on-device model. Rejects with an [AIError](../interfaces/AIError.md)
-(`UNAVAILABLE` when AI can't run here). Pass [GenerateOptions.onPartial](../interfaces/GenerateOptions.md#onpartial)
+Generates text with Apple Intelligence (Private Cloud Compute on watchOS —
+see the module note). Rejects with an [AIError](../interfaces/AIError.md) (`UNAVAILABLE` when
+AI can't run here, `NETWORK_FAILURE` offline, `QUOTA_LIMIT_REACHED` when
+the person's daily quota is spent). Pass [GenerateOptions.onPartial](../interfaces/GenerateOptions.md#onpartial)
 to stream cumulative partial text while the same promise still resolves the
 complete answer, and [GenerateOptions.signal](../interfaces/GenerateOptions.md#signal) to cancel:
 

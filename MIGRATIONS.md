@@ -11,6 +11,44 @@ first, and only versions with consumer-facing action items appear.
      package); the npm-page README links here by absolute GitHub URL so a
      registry consumer can still find it. -->
 
+## 0.11.x → 0.12.0
+
+**The AI API now runs on Apple Intelligence via Private Cloud Compute, the
+only language model the watchOS 27 SDK offers.** Up to 0.11.0 the native side
+targeted the on-device `SystemLanguageModel`, which the watchOS 27 SDK marks
+unavailable on watchOS, so the code never compiled for the watch: Xcode 26
+builds compiled it out, and Xcode 27 builds of 0.11.0 failed outright. In
+0.12.0 `generateText` and `generateObject` send each request to Apple's server
+model through `PrivateCloudComputeLanguageModel`. Three things follow from
+that and change what your app has to handle:
+
+- Your watch target needs Apple's managed
+  `com.apple.developer.private-cloud-compute` entitlement. Apple grants it
+  per team on request (developer.apple.com/private-cloud-compute). Once your
+  team has it, set the config plugin's new `privateCloudCompute: true` option
+  and run `expo prebuild`; the plugin adds the entitlement to the watch target
+  and to the EAS app-extension entry. The option defaults to `false`, because
+  an App ID without the grant fails provisioning.
+- Every generation needs a network connection and counts against the
+  person's daily Private Cloud Compute quota. Three new `AIErrorCode` values
+  cover that: `NETWORK_FAILURE`, `QUOTA_LIMIT_REACHED` (the daily quota is
+  spent; retrying soon does not help) and `SERVICE_UNAVAILABLE`. `TIMEOUT` can
+  now also come from the model itself. A `switch (error.code)` with an
+  exhaustive `never` check stops compiling until you handle the new codes.
+- `isOnDeviceAIAvailable(): Promise<boolean>` is gone. Call
+  `getAIAvailability(): Promise<AIAvailability>` instead. It resolves
+  `"available"`, `"deviceNotEligible"`, `"systemNotReady"` or `"unsupported"`
+  (no model to ask: watchOS below 27, a build without the watchOS 27 SDK, or
+  no AI-capable host). The old `true` maps to `"available"`.
+
+Action: replace `await isOnDeviceAIAvailable()` with
+`(await getAIAvailability()) === "available"`, or branch on the reason.
+Handle the three new error codes where you surface AI errors. Request the
+entitlement, then turn on `privateCloudCompute`. The `aiAvailability` invoke
+now resolves a string instead of a boolean. Across an OTA boundary that
+degrades safely in both directions: a new bundle on an old binary reads the
+boolean as `"unsupported"`, and an old bundle on a new binary sees `false`.
+
 ## 0.9.x → 0.10.0
 
 **Every OTA bundle you serve must be re-signed: the signing scheme is now

@@ -43,6 +43,7 @@ interface ReactWatchOptions {
   workouts?: boolean;
   motion?: boolean;
   calendar?: boolean;
+  privateCloudCompute?: boolean;
   deploymentTarget?: string;
   appleTeamId?: string;
   scheme?: string;
@@ -120,6 +121,12 @@ function resolveOptions(
     // entitlement on watchOS — the `com.apple.security.personal-information.calendars`
     // one Apple documents is for SANDBOXED macOS apps.
     calendar: o.calendar ?? false,
+    // com.apple.developer.private-cloud-compute, for js/src/ai.ts: on
+    // watchOS the AI model is Apple's server model on Private Cloud Compute.
+    // It is a MANAGED entitlement — Apple grants it per team on request — so
+    // forcing it on every consumer would break provisioning for all who
+    // haven't been granted it. Opt-in, like the others (M13).
+    privateCloudCompute: o.privateCloudCompute ?? false,
     deploymentTarget: o.deploymentTarget ?? "10.0",
     appleTeamId: o.appleTeamId ?? config.ios?.appleTeamId,
     // Deep-link scheme, defaulted to the consumer's own bundle id (like the App
@@ -296,6 +303,9 @@ function withEasAppExtensions(
         ? { "com.apple.developer.healthkit": true }
         : {}),
       ...(opts.push ? { "aps-environment": "development" } : {}),
+      ...(opts.privateCloudCompute
+        ? { "com.apple.developer.private-cloud-compute": true }
+        : {}),
     },
   });
   if (opts.widget) {

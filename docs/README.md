@@ -33,8 +33,8 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
    *(Before booking time on a Mac or a watch, read
    [mac-session-checklist.md](./mac-session-checklist.md): CI now does the whole
    of ② automatically, so most of what older notes call "Mac-owed" needs no
-   laptop at all — only the FoundationModels blocks (Xcode 27) and the ③ list
-   genuinely do.)*
+   laptop at all — only the ③ list genuinely does, including the first real
+   Private Cloud Compute response from the AI API.)*
 4. **When two reviews disagree, the later one wins** and the merged backlog says
    so (e.g. Codex's feature-set supersedes the scalar gate; the design notes
    carry "superseded" banners where relevant).
@@ -135,9 +135,10 @@ JS-driven principle, and how to verify changes. (Agents also auto-load
   `DynamicGenerationSchema`, with a closed `AIErrorCode` reject vocabulary.
   Records the full watchOS-27.0-beta availability sweep (incl. the per-page
   metadata gaps), the Vercel-AI-SDK/Apple/OpenAI prior-art verdicts, and the
-  honest boundary: Linux tests pin the wire/validation/JS semantics; the
-  FoundationModels block has still never compiled (Xcode 27 owed — CX-002's
-  standing condition).
+  honest boundary: Linux tests pin the wire/validation/JS semantics. The
+  note predates 2026-10-04, when the first Xcode 27 compile showed the watch
+  has no on-device model; 0.12.0 runs the same API on Private Cloud Compute
+  (mac-session-checklist.md, Tier 1).
 - [design-cx-025-release-freshness.md](./design-cx-025-release-freshness.md) —
   CX-025 OTA `releaseId` (so non-breaking fixes can ship). Core primitive proven
   (JS FNV-1a == Swift `ContentHash`); spec ready for a focused load-flow pass.
