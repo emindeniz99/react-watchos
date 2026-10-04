@@ -53,6 +53,7 @@
       "default": "./src/testing.ts"
     },
     "./app.plugin": "./app.plugin.js",
+    "./app.plugin.js": "./app.plugin.js",
     "./link-swift-package": "./dist-node/link-swift-package.cjs",
     "./merge-target-infoplist": "./dist-node/merge-target-infoplist.cjs",
     "./package.json": "./package.json"
