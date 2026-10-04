@@ -52,6 +52,7 @@ interface ReactWatchOptions {
   independent?: boolean;
   localNetworking?: boolean;
   infoPlist?: Record<string, unknown>;
+  icon?: string;
 }
 
 /**
@@ -157,6 +158,11 @@ function resolveOptions(
     localNetworking: o.localNetworking ?? false,
     bundleIdentifier,
     infoPlist: o.infoPlist ?? {},
+    // Watch app icon, a PNG path relative to the project root. No default:
+    // without it the watch target has no icon set (as before), which runs
+    // locally but App Store Connect rejects on upload. Checked on disk by
+    // ensureWatchIcon, which needs the project root this function lacks.
+    icon: o.icon,
   };
 }
 
@@ -215,6 +221,39 @@ function ensureWatchSwiftGlue(projectRoot: string, dir: string) {
         " — run `npx react-watchos scaffold` first to generate the starter " +
         `${widget ? "ReactWidgets.swift" : "WatchApp.swift"}, then re-run ` +
         "`expo prebuild`.",
+    );
+  }
+}
+
+// Checks the `icon` option before apple-targets sees it. apple-targets catches
+// every icon-generation failure and only console.warns (icon/with-ios-icon.js),
+// while the watch target is still pointed at an `AppIcon` set, so a bad path
+// would otherwise surface as an Xcode asset-catalog error or an App Store
+// Connect rejection, far from the cause. PNG only: apple-targets renders the
+// watch icon through @expo/image-utils, which reads one raster image and has
+// no reader for an Icon Composer `.icon` bundle (a directory).
+function ensureWatchIcon(projectRoot: string, icon: string | undefined) {
+  if (icon === undefined) return;
+  const shown = JSON.stringify(icon);
+  const formats =
+    "a square 1024x1024 PNG (an Icon Composer .icon bundle is not " +
+    "supported: @bacons/apple-targets renders the watch icon from one PNG)";
+  if (path.isAbsolute(icon)) {
+    throw new Error(
+      `[react-watchos] the plugin's \`icon\` ${shown} must be a path ` +
+        `relative to the project root, e.g. "./assets/watch-icon.png".`,
+    );
+  }
+  if (path.extname(icon).toLowerCase() !== ".png") {
+    throw new Error(
+      `[react-watchos] the plugin's \`icon\` ${shown} must be ${formats}.`,
+    );
+  }
+  const file = path.join(projectRoot, icon);
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+    throw new Error(
+      `[react-watchos] the plugin's \`icon\` ${shown} was not found ` +
+        `relative to the project root; it must be ${formats}.`,
     );
   }
 }
@@ -354,6 +393,9 @@ const withReactWatch = (
   // The on-disk writes and the pbxproj edit are also individually idempotent.
   const inner = createRunOncePlugin(
     ((cfg) => {
+      // 0. Fail before anything is written if the watch icon is unusable.
+      ensureWatchIcon(projectRoot, opts.icon);
+
       // 1. Generate the apple-targets config file(s) on disk BEFORE
       //    apple-targets globs them (synchronously, at evaluation time).
       ensureTargetConfigFile(projectRoot, WATCH_DIR, watchTargetConfig(opts));
@@ -417,6 +459,7 @@ withReactWatch.withEasAppExtensions = withEasAppExtensions;
 withReactWatch.removeGeneratedTargetConfigFile =
   removeGeneratedTargetConfigFile;
 withReactWatch.ensureWatchSwiftGlue = ensureWatchSwiftGlue;
+withReactWatch.ensureWatchIcon = ensureWatchIcon;
 withReactWatch.WATCH_DIR = WATCH_DIR;
 withReactWatch.WIDGET_DIR = WIDGET_DIR;
 

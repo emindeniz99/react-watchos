@@ -10,6 +10,8 @@
 // Kept dependency-free so the generated config files (and these builders) can
 // be unit-tested without Expo or Xcode.
 
+const path = require("node:path");
+
 /**
  * Resolved option set with defaults applied (built by plugin/index.cts
  * `resolveOptions`; defined here so every module that consumes it — index,
@@ -41,6 +43,7 @@ export interface ResolvedOptions {
   localNetworking: boolean;
   bundleIdentifier: string;
   infoPlist: Record<string, unknown>;
+  icon: string | undefined;
 }
 
 /**
@@ -225,12 +228,20 @@ function watchTargetConfig(opts: ResolvedOptions) {
     bundleIdentifier: opts.watchBundleSuffix,
     entitlements,
     infoPlist,
+    // The watch app icon, which App Store Connect requires. apple-targets
+    // joins `icon` onto the target folder (with-widget.js), renders it to a
+    // 1024 px watchOS AppIcon.appiconset in targets/watch/Assets.xcassets and
+    // sets ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon. The option is
+    // relative to the project root and this file lives two levels down in
+    // targets/watch/, hence the "../..".
+    ...(opts.icon ? { icon: path.posix.join("..", "..", opts.icon) } : {}),
   };
 }
 
 // The widget extension's apple-targets config object. `families` is a JS-side
 // concept (which complication families a widget registers) and is NOT an
-// apple-targets config key, so it is intentionally not emitted here.
+// apple-targets config key, so it is intentionally not emitted here. Nor is
+// `icon`: an extension shows its containing watch app's icon.
 function widgetTargetConfig(opts: ResolvedOptions) {
   return {
     type: "watch-widget",

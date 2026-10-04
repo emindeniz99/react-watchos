@@ -578,6 +578,29 @@ describe("targetConfig (options -> apple-targets config)", () => {
     expect("WKRunsIndependentlyOfCompanionApp" in c.infoPlist).toBe(false);
   });
 
+  // App Store Connect rejects an upload whose watch app has no icon, and the
+  // watch target's icon comes only from apple-targets' `icon` key. That key
+  // is resolved against the TARGET folder (with-widget.js joins it with
+  // targets/watch), while the plugin option is relative to the project root,
+  // so the emitted path must climb back out of targets/watch.
+  it("passes the icon to apple-targets relative to targets/watch", () => {
+    const c = watchTargetConfig({ ...demoOpts, icon: "./assets/watch.png" });
+    expect(c.icon).toBe("../../assets/watch.png");
+    expect(join("targets", "watch", c.icon)).toBe(join("assets", "watch.png"));
+  });
+
+  it("emits no icon key without the option (unchanged for existing apps)", () => {
+    expect("icon" in watchTargetConfig(demoOpts)).toBe(false);
+  });
+
+  // Extensions show their containing app's icon; giving the widget one would
+  // only make apple-targets write a second, unused app-icon set.
+  it("never gives the widget extension an icon", () => {
+    expect(
+      "icon" in widgetTargetConfig({ ...demoOpts, icon: "assets/watch.png" }),
+    ).toBe(false);
+  });
+
   it("widget config matches the demo's values", () => {
     const c = widgetTargetConfig(demoOpts);
     expect(c).toEqual({
@@ -990,6 +1013,64 @@ describe("ensureWatchSwiftGlue (DX-3: @main entry present before prebuild)", () 
     const { root, dir } = stage();
     writeFileSync(join(dir, "MyEntry.swift"), "@main struct App {}\n");
     expect(() => ensureWatchSwiftGlue(root, WATCH_DIR)).not.toThrow();
+  });
+});
+
+// apple-targets catches every icon-generation error and only console.warns,
+// yet still points the watch target at an `AppIcon` set. A bad `icon` path
+// would therefore surface as an Xcode asset-catalog error (or an App Store
+// Connect rejection) far from the cause, so the plugin checks it first.
+describe("ensureWatchIcon (the watch app icon exists and is a PNG)", () => {
+  const { ensureWatchIcon, resolveOptions } = withReactWatch;
+  const stage = () => mkdtempSync(join(tmpdir(), "rnw-icon-"));
+
+  it("is a no-op without the option", () => {
+    expect(() => ensureWatchIcon(stage(), undefined)).not.toThrow();
+  });
+
+  it("passes for an existing PNG relative to the project root", () => {
+    const root = stage();
+    mkdirSync(join(root, "assets"));
+    writeFileSync(join(root, "assets", "watch.png"), "png");
+    expect(() => ensureWatchIcon(root, "assets/watch.png")).not.toThrow();
+  });
+
+  it("throws naming the path when the file is missing", () => {
+    expect(() => ensureWatchIcon(stage(), "assets/nope.png")).toThrow(
+      /`icon` "assets\/nope\.png" was not found/,
+    );
+  });
+
+  // apple-targets renders the icon through @expo/image-utils, which reads a
+  // single raster image; an Icon Composer bundle is a directory it rejects.
+  it("rejects an Icon Composer .icon bundle, saying PNG only", () => {
+    const root = stage();
+    mkdirSync(join(root, "App.icon"));
+    expect(() => ensureWatchIcon(root, "App.icon")).toThrow(/1024.*PNG/);
+    expect(() => ensureWatchIcon(root, "App.icon")).toThrow(/\.icon/);
+  });
+
+  it("rejects a non-PNG extension", () => {
+    const root = stage();
+    writeFileSync(join(root, "watch.jpg"), "jpg");
+    expect(() => ensureWatchIcon(root, "watch.jpg")).toThrow(/PNG/);
+  });
+
+  // apple-targets joins `icon` onto the target folder, so an absolute path
+  // would resolve under targets/watch and silently miss.
+  it("rejects an absolute path", () => {
+    const root = stage();
+    writeFileSync(join(root, "watch.png"), "png");
+    expect(() => ensureWatchIcon(root, join(root, "watch.png"))).toThrow(
+      /relative to the project root/,
+    );
+  });
+
+  it("resolveOptions carries the option through, default undefined", () => {
+    const config = { ios: { bundleIdentifier: "com.example.app" } };
+    expect(resolveOptions(config, {}).icon).toBeUndefined();
+    const o = resolveOptions(config, { icon: "assets/watch.png" });
+    expect(watchTargetConfig(o).icon).toBe("../../assets/watch.png");
   });
 });
 

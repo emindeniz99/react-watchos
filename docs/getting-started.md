@@ -332,6 +332,9 @@ pass is scoped in [status.md](./status.md) — Rule 12):**
   Info.plist merge — for a companion-dependent watch app pass `independent:
   false`. ⚠️ Independence is irreversible after your first App Store upload, so
   choose before submitting (see [publishing.md](./publishing.md)).
+- The watch app needs its own icon before App Store Connect accepts an
+  upload: set the plugin's `icon` option to a 1024x1024 PNG (see
+  [publishing.md](./publishing.md)).
 - App Groups: both the watch and widget targets must have the
   `group.com.emindeniz99.reactwatch` App Group capability (declared in
   their `expo-target.config.js`; verify under Signing & Capabilities, and
