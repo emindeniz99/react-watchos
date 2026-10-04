@@ -31,6 +31,7 @@ export interface ResolvedOptions {
   workouts: boolean;
   motion: boolean;
   calendar: boolean;
+  privateCloudCompute: boolean;
   deploymentTarget: string;
   appleTeamId: string | undefined;
   scheme: string;
@@ -67,6 +68,12 @@ function watchTargetConfig(opts: ResolvedOptions) {
     // "development" by default as well. Re-examined 2026-09-17 after
     // the 2026-09-04 audit read it as a production-push breaker.
     entitlements["aps-environment"] = "development";
+  }
+  if (opts.privateCloudCompute) {
+    // Apple Intelligence on Private Cloud Compute — the only language model
+    // the watchOS SDK has (js/src/ai.ts). A managed entitlement: the App ID
+    // must have been granted it, or provisioning fails.
+    entitlements["com.apple.developer.private-cloud-compute"] = true;
   }
 
   // Standalone watch app + the reactwatch:// deep-link scheme. HealthKit/

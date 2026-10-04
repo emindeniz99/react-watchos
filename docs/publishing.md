@@ -156,6 +156,12 @@ type ReactWatchOptions = {
                                 //   keys the OS denies every access request WITHOUT prompting, so
                                 //   getCalendarEvents/getReminders would reject PERMISSION_DENIED
                                 //   forever.
+  privateCloudCompute?: boolean; // com.apple.developer.private-cloud-compute entitlement on the
+                                //   watch target (default false — opt-in), for generateText /
+                                //   generateObject: on watchOS the model is Apple Intelligence on
+                                //   Private Cloud Compute. MANAGED: Apple must grant it to your
+                                //   team first (developer.apple.com/private-cloud-compute), or
+                                //   provisioning fails.
   deploymentTarget?: string;    // default "10.0"
   appleTeamId?: string;         // for EAS / signing scaffolding (default: your app.json ios.appleTeamId)
   scheme?: string;              // the reactwatch:// deep-link scheme (default: your bundleIdentifier,
