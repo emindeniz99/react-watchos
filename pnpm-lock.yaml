@@ -22,7 +22,7 @@ importers:
         specifier: ~57.0.9
         version: 57.0.9(supports-color@8.1.1)(typescript@6.0.3)
       expo:
-        specifier: ~57.0.21
+        specifier: ~57.0.25
         version: 57.0.25(@babel/core@7.29.7(supports-color@8.1.1))(@expo/dom-webview@57.0.1)(react-native@0.86.2(@babel/core@7.29.7(supports-color@8.1.1))(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)(supports-color@8.1.1)(typescript@6.0.3)
       react:
         specifier: 19.2.3
@@ -53,7 +53,7 @@ importers:
         specifier: ~57.0.9
         version: 57.0.9(supports-color@8.1.1)(typescript@6.0.3)
       expo:
-        specifier: ~57.0.21
+        specifier: ~57.0.25
         version: 57.0.25(@babel/core@8.0.6)(@expo/dom-webview@57.0.1)(react-native@0.86.2(@babel/core@8.0.6)(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)(supports-color@8.1.1)(typescript@6.0.3)
       react:
         specifier: 19.2.3
@@ -72,16 +72,16 @@ importers:
         version: link:../../js
     devDependencies:
       '@babel/core':
-        specifier: ^8.0.0
+        specifier: ^8.0.6
         version: 8.0.6
       '@babel/preset-react':
-        specifier: ^8.0.0
+        specifier: ^8.0.1
         version: 8.0.1(@babel/core@8.0.6)
       '@babel/preset-typescript':
-        specifier: ^8.0.0
+        specifier: ^8.0.1
         version: 8.0.1(@babel/core@8.0.6)
       '@types/node':
-        specifier: ^24.13.3
+        specifier: ^24.19.0
         version: 24.19.0
       '@types/react':
         specifier: ~19.2.0
@@ -90,13 +90,13 @@ importers:
         specifier: ^1.0.0
         version: 1.0.0
       esbuild:
-        specifier: ^0.28.1
+        specifier: ^0.28.2
         version: 0.28.2
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
       vitest:
-        specifier: ^5.0.0
+        specifier: ^5.0.2
         version: 5.0.2(@types/node@24.19.0)(@vitest/coverage-v8@5.0.2)(vite@8.0.16(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
 
   examples/minimal-watch-app:
@@ -112,19 +112,19 @@ importers:
         version: link:../../js
     devDependencies:
       '@types/node':
-        specifier: ^24.13.3
+        specifier: ^24.19.0
         version: 24.19.0
       '@types/react':
         specifier: ^19.2.0
         version: 19.2.18
       esbuild:
-        specifier: ^0.28.1
+        specifier: ^0.28.2
         version: 0.28.2
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
       vitest:
-        specifier: ^5.0.0
+        specifier: ^5.0.2
         version: 5.0.2(@types/node@24.19.0)(@vitest/coverage-v8@5.0.2)(vite@8.0.16(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
 
   js:
@@ -152,13 +152,13 @@ importers:
         specifier: 0.18.5
         version: 0.18.5
       '@babel/core':
-        specifier: ^8.0.0
+        specifier: ^8.0.6
         version: 8.0.6
       '@babel/preset-react':
-        specifier: ^8.0.0
+        specifier: ^8.0.1
         version: 8.0.1(@babel/core@8.0.6)
       '@babel/preset-typescript':
-        specifier: ^8.0.0
+        specifier: ^8.0.1
         version: 8.0.1(@babel/core@8.0.6)
       '@biomejs/biome':
         specifier: 2.5.14
@@ -167,7 +167,7 @@ importers:
         specifier: ~57.0.9
         version: 57.0.9(supports-color@8.1.1)(typescript@6.0.3)
       '@types/node':
-        specifier: ^24.13.3
+        specifier: ^24.19.0
         version: 24.19.0
       '@types/react':
         specifier: ^19.2.0
@@ -182,10 +182,10 @@ importers:
         specifier: 18.4.0
         version: 18.4.0
       esbuild:
-        specifier: ^0.28.1
+        specifier: ^0.28.2
         version: 0.28.2
       expo:
-        specifier: ~57.0.21
+        specifier: ~57.0.25
         version: 57.0.25(@babel/core@8.0.6)(@expo/dom-webview@57.0.1)(react-native@0.86.2(@babel/core@8.0.6)(@types/react@19.2.18)(react@19.2.3)(supports-color@8.1.1))(react@19.2.3)(supports-color@8.1.1)(typescript@6.0.3)
       knip:
         specifier: 6.38.0
@@ -203,13 +203,13 @@ importers:
         specifier: ^0.28.20
         version: 0.28.20(typescript@6.0.3)
       typedoc-plugin-markdown:
-        specifier: ^4.13.0
+        specifier: ^4.13.1
         version: 4.13.1(typedoc@0.28.20(typescript@6.0.3))
       typescript:
         specifier: ~6.0.3
         version: 6.0.3
       vitest:
-        specifier: ^5.0.0
+        specifier: ^5.0.2
         version: 5.0.2(@types/node@24.19.0)(@vitest/coverage-v8@5.0.2)(vite@8.0.16(@types/node@24.19.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
 
 packages:
