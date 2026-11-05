@@ -160,7 +160,7 @@ A consumer following the dedicated signing doc gets `npm error Missing script: "
 
 **3. Same-version bundle replay is unblocked: an older, validly-signed bundle at the same compatibility version is treated as "fresher" and installed**
 
-`/Users/emin/emin-projects/ai-projects/react-watchos/js/src/update.ts`:503-510
+`js/src/update.ts`:503-510
 
 Anyone who can answer the manifest URL — a compromised CDN/S3 bucket, a stolen origin credential, or simply a botched rollback of the update origin — can serve any bundle the publisher ever signed at the current compatibility `version` (which the docs say to bump only on a breaking change, so in practice every release shares one). Devices see a differing releaseId, call it fresh, download it, and the native side accepts it because `version >= highWater`. A security fix shipped over OTA can be silently un-shipped on the whole fleet, and the operator's own docs told them anti-rollback covered this.
 
@@ -388,7 +388,7 @@ A tenth agent was given the surviving list and asked what all nine missed.
 
 **No Apple privacy manifest anywhere: the shipped Swift calls two required-reason API categories and the config plugin generates the watch/widget targets without a PrivacyInfo.xcprivacy**
 
-`/Users/emin/emin-projects/ai-projects/react-watchos/js/swift/Sources/ReactWatchSupport/SharedWidgetStore.swift`:25
+`js/swift/Sources/ReactWatchSupport/SharedWidgetStore.swift`:25
 
 The watch app is its own bundle inside the consumer's `.ipa`, and it is the bundle that contains this library's UserDefaults and file-timestamp calls. Expo's prebuild template supplies a PrivacyInfo.xcprivacy for the *iOS* app only; nothing supplies one for the plugin-generated watch or widget target. On upload the consumer gets Apple's required-reason API rejection (ITMS-91053, "Missing API declaration") for a category they never knowingly used, with no way to find out from this package's docs which reasons to declare — the package neither ships a manifest for SwiftPM to merge nor documents the CA92.1 / C617.1 declarations its own code forces.
 
@@ -396,7 +396,7 @@ The watch app is its own bundle inside the consumer's `.ipa`, and it is the bund
 
 **The plugin hardcodes `aps-environment: development` for the watch target and its EAS credential entry, with no option to override**
 
-`/Users/emin/emin-projects/ai-projects/react-watchos/js/plugin/targetConfig.cts`:58-62
+`js/plugin/targetConfig.cts`:58-62
 
 The comment's premise — that distribution signing rewrites the value — holds only for Xcode automatic signing. EAS Build, the canonical Expo distribution path, signs with a manual distribution profile and embeds the authored entitlements file verbatim, so the shipped TestFlight/App Store watch binary carries `aps-environment: development`. The device then registers against the APNs **sandbox**, `registerForRemoteNotifications()` returns a sandbox token, and every production push silently never arrives — with no error surfaced anywhere, and no supported way for the consumer to fix it short of patching the package.
 
@@ -404,7 +404,7 @@ The comment's premise — that distribution signing rewrites the value — holds
 
 **The generated watch and widget targets ship `MARKETING_VERSION = "1.0"`; nothing in the package or its docs ties the watch app's version to the consumer's app version**
 
-`/Users/emin/emin-projects/ai-projects/react-watchos/js/plugin/targetConfig.cts`:196-221
+`js/plugin/targetConfig.cts`:196-221
 
 Every release the consumer ships contains a watch app stamped `CFBundleShortVersionString = 1.0` while the iOS app carries its real version. Apple's upload validation for a watchOS app embedded in an iOS app requires the two to match, so the consumer either takes an ITMS version-mismatch rejection on their first non-1.0 release or ships a watch app whose user-visible version never changes — and no doc in this package, which mandates this exact plugin and generates the target config for you, mentions it.
 
@@ -412,7 +412,7 @@ Every release the consumer ships contains a watch app stamped `CFBundleShortVers
 
 **docs/publishing.md is the only reference for the config-plugin options and it is wrong in both directions: two documented options do not exist, four real ones are missing (including `infoPlist`, which js/README.md tells you to use)**
 
-`/Users/emin/emin-projects/ai-projects/react-watchos/docs/publishing.md`:152-157
+`docs/publishing.md`:152-157
 
 `infoPlist` is the sole escape hatch for adding required Info.plist keys to the watch target (the docs elsewhere depend on it — the plugin's own comment at targetConfig.cts:104-107 says `NSLocationWhenInUseUsageDescription` for `startLocation` "predates this option" and must be supplied through it). A consumer who needs a key cannot find the option documented, and instead finds two options that silently do nothing if they set them. The stale header additionally tells a prospective adopter the package cannot be installed from npm at all.
 
@@ -420,7 +420,7 @@ Every release the consumer ships contains a watch app stamped `CFBundleShortVers
 
 **Neither CHANGELOG.md nor MIGRATIONS.md is in the published tarball, while the README tells consumers to read the changelog before upgrading**
 
-`/Users/emin/emin-projects/ai-projects/react-watchos/js/package.json`:60-73
+`js/package.json`:60-73
 
 A consumer upgrading 0.5.0 → 0.7.0 has, inside their installed package, no changelog and no migration guide — only a README that tells them to read a changelog that is not there. Since this package ships breaking changes across minors (MIGRATIONS.md exists precisely for that), the upgrade path is discoverable only by leaving npm and finding the right directory in the GitHub repo.
 
